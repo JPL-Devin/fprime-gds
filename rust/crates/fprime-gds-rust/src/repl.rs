@@ -256,7 +256,7 @@ fn handle_downlink(
         }
         Ok(Decoded::Unknown { descriptor, body }) => {
             printer.print(format!(
-                "{now}  UNK desc={descriptor:#010x} {} bytes",
+                "{now}  UNK desc={descriptor:#06x} {} bytes",
                 body.len()
             ));
         }

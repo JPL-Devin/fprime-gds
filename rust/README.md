@@ -132,12 +132,17 @@ recording sessions with `tee`.
 
 | Layer | Format |
 |---|---|
-| Frame | `start (4 BE = 0xDEADBEEF) \| length (4 BE) \| payload \| crc32 (4 BE)` |
-| Packet (downlink) | `descriptor (4 BE) \| body` |
-| Event body | `event_id (4 BE) \| TimeType (11) \| args` |
-| Channel body | `channel_id (4 BE) \| TimeType (11) \| value` |
-| Command body (uplink) | `0x5A5A5A5A \| length \| desc=0 \| opcode \| args` |
+| Frame (F´ DEADBEEF) | `start (4 BE = 0xDEADBEEF) \| length (4 BE) \| payload \| crc32 (4 BE)` |
+| Packet (any direction) | `descriptor (FwPacketDescriptorType, U16 BE) \| body` |
+| Event body | `event_id (FwEventIdType, U32 BE) \| TimeType (11) \| args` |
+| Channel body | `channel_id (FwChanIdType, U32 BE) \| TimeType (11) \| value` |
+| Command body (uplink) | `desc=0 (U16 BE) \| opcode (FwOpcodeType, U32 BE) \| args` |
 | TimeType | `time_base (2 BE) \| time_context (1) \| seconds (4 BE) \| useconds (4 BE)` |
+
+Note: the Python GDS' `cmd_encoder` prepends `0x5A5A5A5A | U32 length` to its
+output, but those eight bytes are *internal middleware framing* between the
+GDS comm process and the local Tcp server — they get stripped before the wire
+ever reaches the FSW.  We don't emit them.
 
 Frames produced by `fprime_frame::frame(...)` are byte-identical to those
 produced by `fprime_gds.common.communication.framing.FpFramerDeframer` with

@@ -11,7 +11,8 @@ pub const TM_HEADER_SIZE: usize = 6;
 pub const TM_TRAILER_SIZE: usize = 2;
 
 pub const SCID_MAX: u16 = 0x3FF; // 10 bits
-pub const VCID_MAX: u8 = 0x3F; // 6 bits for TC; only 3 bits are validated for TM
+pub const TC_VCID_MAX: u8 = 0x3F; // 6 bits in the TC primary header
+pub const TM_VCID_MAX: u8 = 0x07; // 3 bits in the TM primary header
 
 /// Default values from `fprime_gds.common.communication.ccsds.space_data_link`
 /// when the dictionary doesn't override them.
@@ -34,7 +35,7 @@ impl TcFramer {
         if scid > SCID_MAX {
             return Err(CcsdsError::ScidOutOfRange(scid as u32));
         }
-        if vcid > VCID_MAX {
+        if vcid > TC_VCID_MAX {
             return Err(CcsdsError::VcidOutOfRange(vcid as u32));
         }
         Ok(Self { scid, vcid })
@@ -96,6 +97,11 @@ impl TmDeframer {
     pub fn new(scid: u16, vcid: u8, frame_size: usize) -> Result<Self, CcsdsError> {
         if scid > SCID_MAX {
             return Err(CcsdsError::ScidOutOfRange(scid as u32));
+        }
+        // The TM primary header dedicates only 3 bits to VCID; values above
+        // 7 can never appear on the wire and would silently match nothing.
+        if vcid > TM_VCID_MAX {
+            return Err(CcsdsError::VcidOutOfRange(vcid as u32));
         }
         if frame_size <= TM_HEADER_SIZE + TM_TRAILER_SIZE {
             return Err(CcsdsError::TooLarge(frame_size));
@@ -225,6 +231,16 @@ mod tests {
         let out = d.pop().expect("frame");
         assert!(out.starts_with(b"hi"));
         assert!(d.discarded() >= 4);
+    }
+
+    #[test]
+    fn tm_rejects_out_of_range_vcid() {
+        // TM primary header only carries a 3-bit VCID; values above 7 must
+        // be rejected at construction time so they don't silently match no
+        // frames forever.
+        assert!(TmDeframer::new(0x44, 8, 32).is_err());
+        assert!(TmDeframer::new(0x44, 0x3F, 32).is_err());
+        assert!(TmDeframer::new(0x44, 7, 32).is_ok());
     }
 
     #[test]

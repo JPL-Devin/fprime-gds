@@ -101,18 +101,23 @@ impl SpacePacketFramer {
         cur
     }
 
+    /// Extract the CCSDS APID from the leading bytes of a F´ packet body.
+    ///
+    /// The body always starts with a `FwPacketDescriptorType` (U16, big-endian)
+    /// — the same value the FSW carries in `ComCfg::FrameContext::apid`.  This
+    /// lifts that descriptor and validates that it fits in the 11-bit CCSDS
+    /// APID field.
     fn extract_apid(payload: &[u8]) -> Result<u16, CcsdsError> {
-        if payload.len() < 4 {
+        if payload.len() < 2 {
             return Err(CcsdsError::Empty);
         }
-        let raw = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
-        if raw > APID_MASK as u32 {
-            // The leading U32 is a F´ descriptor / opcode prefix.  When a
-            // deployment uses the CCSDS chain it must be configured so the
-            // value fits in 11 bits — otherwise we'd silently truncate.
-            return Err(CcsdsError::ApidOutOfRange(raw));
+        let raw = u16::from_be_bytes([payload[0], payload[1]]);
+        if raw > APID_MASK {
+            // Caller built a packet with a descriptor that doesn't fit in 11
+            // bits.  We refuse rather than silently truncate.
+            return Err(CcsdsError::ApidOutOfRange(raw as u32));
         }
-        Ok(raw as u16)
+        Ok(raw)
     }
 }
 
@@ -133,7 +138,7 @@ impl Framer for SpacePacketFramer {
             apid,
             seq_flags: SEQ_FLAGS_UNSEGMENTED as u8,
             seq_count,
-            data_len_minus_one: (payload.len() as u16) - 1,
+            data_len_minus_one: (payload.len() - 1) as u16,
         };
         let mut out = Vec::with_capacity(HEADER_SIZE + payload.len());
         out.extend_from_slice(&header.pack());
@@ -226,7 +231,7 @@ impl SpacePacketDeframer {
 mod tests {
     use super::*;
 
-    fn make_payload(apid: u32, body: &[u8]) -> Vec<u8> {
+    fn make_payload(apid: u16, body: &[u8]) -> Vec<u8> {
         let mut p = apid.to_be_bytes().to_vec();
         p.extend_from_slice(body);
         p
@@ -309,6 +314,22 @@ mod tests {
         let out = d.pop().expect("real frame");
         assert_eq!(out.as_slice(), body);
         assert!(d.pop().is_none());
+    }
+
+    #[test]
+    fn frame_handles_max_payload_without_overflow() {
+        // 65536-byte payload is the largest the size check accepts.  The
+        // earlier implementation cast `payload.len() as u16` (truncating to
+        // 0) before subtracting 1, which panics in debug.  Verify that a
+        // boundary payload of u16::MAX bytes is encoded with the correct
+        // data_len_minus_one of 65534.
+        let mut payload = (0u16).to_be_bytes().to_vec();
+        payload.extend(std::iter::repeat_n(0xAA, u16::MAX as usize - 2));
+        assert_eq!(payload.len(), u16::MAX as usize);
+        let mut framer = SpacePacketFramer::new();
+        let bytes = framer.frame(&payload).unwrap();
+        let h = SpacePacketHeader::unpack(&bytes).unwrap();
+        assert_eq!(h.data_len_minus_one, u16::MAX - 1);
     }
 
     #[test]

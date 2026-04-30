@@ -16,11 +16,13 @@ fn hex_decode(s: &str) -> Vec<u8> {
 
 #[test]
 fn space_packet_matches_python_bytes() {
-    // payload = leading APID U32 = 0x42, then "hello".
-    let payload = hex_decode("0000004268656c6c6f");
+    // payload = leading APID U16 = 0x42 (the F´ FwPacketDescriptorType), then "hello".
+    let payload = hex_decode("004268656c6c6f");
     let mut framer = SpacePacketFramer::new();
     let bytes = framer.frame(&payload).unwrap();
-    let expected = hex_decode("1042c00000080000004268656c6c6f");
+    // From `python3 -c "..."` against
+    // `fprime_gds.common.communication.ccsds.space_packet.SpacePacketFramerDeframer.frame`.
+    let expected = hex_decode("1042c0000006004268656c6c6f");
     assert_eq!(
         hex::encode(&bytes),
         hex::encode(&expected),
@@ -41,12 +43,12 @@ fn tc_raw_matches_python_bytes() {
 #[test]
 fn chain_sp_then_tc_matches_python_bytes() {
     // Same as the Python `space-packet-space-data-link` chain.
-    let payload = hex_decode("0000004268656c6c6f");
+    let payload = hex_decode("004268656c6c6f");
     let inner: Box<dyn Framer> = Box::new(SpacePacketFramer::new());
     let outer: Box<dyn Framer> = Box::new(TcFramer::new(0x44, 1).unwrap());
     let mut chain = ChainedFramer::new(inner, outer);
     let bytes = chain.frame(&payload).unwrap();
-    let expected = hex_decode("20440415001042c00000080000004268656c6c6f0047");
+    let expected = hex_decode("20440413001042c0000006004268656c6c6f041d");
     assert_eq!(hex::encode(&bytes), hex::encode(&expected));
 }
 

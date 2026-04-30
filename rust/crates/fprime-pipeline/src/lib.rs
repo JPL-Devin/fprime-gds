@@ -1,16 +1,23 @@
 //! Decoder/encoder pipeline keyed off the F´ JSON dictionary.
 //!
-//! The pipeline operates on [`Packet`]s — the inner payload of a deframed F´
-//! frame.  Each packet starts with a 4-byte big-endian descriptor identifying
-//! the packet kind:
+//! The pipeline operates on the inner payload of a deframed F´ frame — the
+//! bytes that the FSW's framer/deframer hands to (or receives from) the
+//! `FprimeRouter` / CCSDS `SpacePacketDeframer`.  Each packet starts with a
+//! 2-byte big-endian `FwPacketDescriptorType` identifying the packet kind
+//! (the same value the FSW carries in `ComCfg::FrameContext::apid`):
 //!
 //! | Descriptor | Meaning             |
 //! |------------|---------------------|
-//! | `0x00`     | Command (uplink)    |
-//! | `0x01`     | Telemetry (channel) |
-//! | `0x02`     | Log (event)         |
-//! | `0x04`     | Packetized telemetry|
-//! | `0xFE`     | Handshake           |
+//! | `0x0000`   | Command (uplink)    |
+//! | `0x0001`   | Telemetry (channel) |
+//! | `0x0002`   | Log (event)         |
+//! | `0x0004`   | Packetized telemetry|
+//! | `0x00FE`   | Handshake           |
+//!
+//! Note: the Python GDS' `cmd_encoder` prepends a `0x5A5A5A5A | length` pair
+//! to outgoing commands.  That pair is *internal middleware framing* used
+//! between the GDS comm process and the GDS Tcp server — the FSW never sees
+//! it, so we don't emit it here.
 
 #![deny(rust_2018_idioms)]
 
@@ -18,15 +25,11 @@ use fprime_dict::{Channel, Command, Dictionary, Event, FormalParam};
 use fprime_types::{Serde, TimeType, TypeError, Value};
 use thiserror::Error;
 
-pub const DESC_COMMAND: u32 = 0x0000_0000;
-pub const DESC_TELEM: u32 = 0x0000_0001;
-pub const DESC_LOG: u32 = 0x0000_0002;
-pub const DESC_PACKETIZED_TLM: u32 = 0x0000_0004;
-pub const DESC_HANDSHAKE: u32 = 0x0000_00FE;
-
-/// Magic value the FSW expects in front of an uplinked command.  Matches
-/// `fprime_gds.common.encoders.cmd_encoder`.
-pub const COMMAND_MAGIC: u32 = 0x5A5A_5A5A;
+pub const DESC_COMMAND: u16 = 0x0000;
+pub const DESC_TELEM: u16 = 0x0001;
+pub const DESC_LOG: u16 = 0x0002;
+pub const DESC_PACKETIZED_TLM: u16 = 0x0004;
+pub const DESC_HANDSHAKE: u16 = 0x00FE;
 
 #[derive(Debug, Error)]
 pub enum PipelineError {
@@ -77,16 +80,20 @@ pub enum Decoded {
     Channel(DecodedChannel),
     Handshake(Vec<u8>),
     PacketizedTelem(Vec<u8>),
-    Unknown { descriptor: u32, body: Vec<u8> },
+    Unknown { descriptor: u16, body: Vec<u8> },
 }
 
 /// Decode a single F´ deframed packet against the dictionary.
+///
+/// `packet` is `desc(U16) | id(U32) | time(11) | args` for events/channels;
+/// for handshakes / packetized telemetry the body after the descriptor is
+/// returned uninterpreted.
 pub fn decode_packet(packet: &[u8], dict: &Dictionary) -> Result<Decoded, PipelineError> {
-    if packet.len() < 4 {
+    if packet.len() < 2 {
         return Err(PipelineError::NoDescriptor);
     }
-    let (descriptor, _) = u32::deserialize(packet, 0)?;
-    let body = &packet[4..];
+    let (descriptor, _) = u16::deserialize(packet, 0)?;
+    let body = &packet[2..];
     match descriptor {
         DESC_LOG => decode_event(body, dict).map(Decoded::Event),
         DESC_TELEM => decode_channel(body, dict).map(Decoded::Channel),
@@ -98,6 +105,11 @@ pub fn decode_packet(packet: &[u8], dict: &Dictionary) -> Result<Decoded, Pipeli
         }),
     }
 }
+
+/// Width of `FwPacketDescriptorType` on the wire (in bytes).  Matches the F´
+/// default and the `dictionary type FwPacketDescriptorType = U16` declared in
+/// `default/config/ComCfg.fpp`.
+pub const DESCRIPTOR_SIZE: usize = std::mem::size_of::<u16>();
 
 fn decode_event(body: &[u8], dict: &Dictionary) -> Result<DecodedEvent, PipelineError> {
     let (id, n_id) = u32::deserialize(body, 0)?;
@@ -154,12 +166,17 @@ fn decode_args(
     Ok(out)
 }
 
-/// Encode a command (the F´ packet body to be framed and sent over uplink).
+/// Encode a command (the F´ packet body to be handed to the framer).
 ///
-/// On the wire:
-/// `U32 0x5A5A5A5A | U32 length | U32 desc(=0) | U32 opcode | args...`
+/// Wire format (the bytes the FSW deframer / `FprimeRouter` see, *before* the
+/// outer transport framer adds its own header/trailer):
 ///
-/// `length` covers the descriptor + opcode + args, matching `cmd_encoder.py`.
+/// `U16 desc(=FW_PACKET_COMMAND=0) | U32 opcode | args...`
+///
+/// We do **not** prepend the `0x5A5A5A5A` magic + U32 length pair that the
+/// Python GDS `cmd_encoder` produces.  That pair is internal GDS middleware
+/// framing between the comm process and the local Tcp server; it gets stripped
+/// before reaching the FSW and must not appear on the FSW-bound wire.
 pub fn encode_command(command: &Command, args: &[Value]) -> Result<Vec<u8>, PipelineError> {
     if args.len() != command.params.len() {
         return Err(PipelineError::ArgCount {
@@ -188,13 +205,8 @@ pub fn encode_command(command: &Command, args: &[Value]) -> Result<Vec<u8>, Pipe
         value.serialize(&mut arg_data);
     }
 
-    let descriptor: u32 = DESC_COMMAND;
-    let length = (4 /* desc */ + 4 /* opcode */ + arg_data.len()) as u32;
-
-    let mut out = Vec::with_capacity(16 + arg_data.len());
-    out.extend_from_slice(&COMMAND_MAGIC.to_be_bytes());
-    out.extend_from_slice(&length.to_be_bytes());
-    out.extend_from_slice(&descriptor.to_be_bytes());
+    let mut out = Vec::with_capacity(DESCRIPTOR_SIZE + 4 + arg_data.len());
+    out.extend_from_slice(&DESC_COMMAND.to_be_bytes());
     out.extend_from_slice(&command.opcode.to_be_bytes());
     out.extend_from_slice(&arg_data);
     Ok(out)
@@ -341,7 +353,7 @@ mod tests {
     #[test]
     fn decode_event_packet() {
         let dict = make_dict_with_event();
-        // descriptor (LOG) | id | time | x
+        // descriptor (LOG, U16) | id (U32) | time | x
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&DESC_LOG.to_be_bytes());
         bytes.extend_from_slice(&42u32.to_be_bytes());
@@ -366,12 +378,24 @@ mod tests {
             annotation: None,
         };
         let body = encode_command(&cmd, &[]).unwrap();
-        // magic | length(=8) | desc | opcode
-        assert_eq!(&body[0..4], &COMMAND_MAGIC.to_be_bytes());
-        let length = u32::from_be_bytes([body[4], body[5], body[6], body[7]]);
-        assert_eq!(length, 8);
-        assert_eq!(&body[8..12], &DESC_COMMAND.to_be_bytes());
-        assert_eq!(&body[12..16], &1280u32.to_be_bytes());
+        // U16 desc(=0) | U32 opcode
+        assert_eq!(body.len(), DESCRIPTOR_SIZE + 4);
+        assert_eq!(&body[0..2], &DESC_COMMAND.to_be_bytes());
+        assert_eq!(&body[2..6], &1280u32.to_be_bytes());
+    }
+
+    #[test]
+    fn decode_unknown_descriptor_is_u16() {
+        let dict = Dictionary::default();
+        // bytes 0x00 0x10 | rest
+        let bytes = [0x00, 0x10, 0xAA, 0xBB, 0xCC];
+        match decode_packet(&bytes, &dict).unwrap() {
+            Decoded::Unknown { descriptor, body } => {
+                assert_eq!(descriptor, 0x0010);
+                assert_eq!(body, vec![0xAA, 0xBB, 0xCC]);
+            }
+            _ => panic!("wrong variant"),
+        }
     }
 
     #[test]
