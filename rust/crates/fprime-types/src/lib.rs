@@ -89,8 +89,19 @@ impl fmt::Display for FpString {
 }
 
 impl Serde for FpString {
+    /// # Panics
+    ///
+    /// Panics if the UTF-8 byte length exceeds `u16::MAX`.  The wire format
+    /// uses a 2-byte length prefix, so silently truncating either the length
+    /// or the body would corrupt every subsequent field in the packet.
     fn serialize(&self, out: &mut Vec<u8>) {
         let bytes = self.0.as_bytes();
+        assert!(
+            bytes.len() <= u16::MAX as usize,
+            "FpString too long to serialize: {} bytes (max {})",
+            bytes.len(),
+            u16::MAX
+        );
         let len = bytes.len() as u16;
         out.extend_from_slice(&len.to_be_bytes());
         out.extend_from_slice(bytes);

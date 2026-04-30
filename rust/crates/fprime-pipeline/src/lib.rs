@@ -239,7 +239,16 @@ pub fn parse_arg(prim: &str, raw: &str) -> Result<Value, PipelineError> {
             raw.parse()
                 .map_err(|e: std::num::ParseFloatError| arg_err(prim, raw, &e.to_string()))?,
         ),
-        "string" => Value::String(fprime_types::FpString(raw.to_owned())),
+        "string" => {
+            if raw.len() > u16::MAX as usize {
+                return Err(arg_err(
+                    prim,
+                    &format!("<{} bytes>", raw.len()),
+                    &format!("string exceeds {} bytes", u16::MAX),
+                ));
+            }
+            Value::String(fprime_types::FpString(raw.to_owned()))
+        }
         other => {
             return Err(PipelineError::UnsupportedType {
                 kind: other.to_owned(),
