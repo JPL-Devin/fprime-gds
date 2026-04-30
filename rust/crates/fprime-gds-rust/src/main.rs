@@ -169,8 +169,8 @@ struct DpDecodeArgs {
     /// Output JSON path (defaults to `<file>.json`).  Use `-` to write to stdout.
     #[arg(long, short = 'o')]
     output: Option<PathBuf>,
-    /// Pretty-print the JSON output.
-    #[arg(long, default_value_t = true)]
+    /// Pretty-print the JSON output.  Pass `--pretty false` (or `--no-pretty`) for compact output.
+    #[arg(long, default_value_t = true, action = clap::ArgAction::Set, num_args = 0..=1, default_missing_value = "true")]
     pretty: bool,
 }
 
