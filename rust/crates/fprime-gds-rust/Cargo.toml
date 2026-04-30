@@ -1,0 +1,27 @@
+[package]
+name = "fprime-gds-rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "F´ ground-system CLI/REPL written in Rust"
+
+[[bin]]
+name = "fprime-gds-rust"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+rustyline.workspace = true
+shlex.workspace = true
+hex.workspace = true
+chrono.workspace = true
+fprime-types.workspace = true
+fprime-dict.workspace = true
+fprime-frame.workspace = true
+fprime-pipeline.workspace = true
+fprime-comm.workspace = true
