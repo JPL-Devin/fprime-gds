@@ -46,6 +46,26 @@ pub struct RawDictionary {
     pub telemetry_channels: Vec<RawChannel>,
     #[serde(default)]
     pub type_definitions: Vec<RawTypeDef>,
+    #[serde(default)]
+    pub telemetry_packet_sets: Vec<RawTelemetryPacketSet>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawTelemetryPacketSet {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub members: Vec<RawTelemetryPacket>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawTelemetryPacket {
+    pub name: String,
+    pub id: u32,
+    #[serde(default)]
+    pub group: u32,
+    #[serde(default)]
+    pub members: Vec<String>,
 }
 
 /// `typeDefinitions[]` entry.  We discriminate on `kind` and accept any
@@ -194,6 +214,24 @@ pub struct Dictionary {
     /// callers that want to resolve an alias chain should iterate via
     /// [`Dictionary::resolve_alias`].
     pub types_by_name: HashMap<String, TypeDef>,
+    /// Packetized-telemetry packet templates indexed by packet id (the
+    /// `FwTlmPacketizeIdType` value on the wire).  Each template lists the
+    /// channels, in order, that are concatenated into a packetized telemetry
+    /// downlink packet.
+    pub tlm_packets_by_id: HashMap<u16, TlmPacket>,
+}
+
+/// Telemetry packet template referenced by `FW_PACKET_PACKETIZED_TLM`
+/// downlinks.
+#[derive(Debug, Clone)]
+pub struct TlmPacket {
+    pub id: u16,
+    pub name: String,
+    pub group: u32,
+    /// Channel ids in declaration order.  We keep the id (rather than the
+    /// resolved [`Channel`]) so the dictionary can be rebuilt without having
+    /// to also rewire packet templates.
+    pub channel_ids: Vec<u32>,
 }
 
 /// A typeDefinition entry, parsed.
@@ -321,6 +359,44 @@ impl Dictionary {
                     first: existing.name,
                     second: ch.name,
                 });
+            }
+        }
+
+        // Telemetry packet templates: resolve member names to channel ids
+        // up-front so the decoder can do a fast id lookup per member.
+        let name_to_id: HashMap<String, u32> = dict
+            .channels_by_id
+            .values()
+            .map(|c| (c.name.clone(), c.id))
+            .collect();
+        for set in raw.telemetry_packet_sets {
+            for pkt in set.members {
+                let pkt_id = u16::try_from(pkt.id)
+                    .map_err(|_| DictError::BadTypeDef(format!("packet id {} > u16", pkt.id)))?;
+                let mut channel_ids = Vec::with_capacity(pkt.members.len());
+                for member_name in &pkt.members {
+                    let id = name_to_id.get(member_name).ok_or_else(|| {
+                        DictError::BadTypeDef(format!(
+                            "packet {:?} references unknown channel {member_name}",
+                            pkt.name
+                        ))
+                    })?;
+                    channel_ids.push(*id);
+                }
+                let entry = TlmPacket {
+                    id: pkt_id,
+                    name: pkt.name,
+                    group: pkt.group,
+                    channel_ids,
+                };
+                if let Some(existing) = dict.tlm_packets_by_id.insert(pkt_id, entry.clone()) {
+                    return Err(DictError::Duplicate {
+                        kind: "tlm_packet",
+                        id: pkt_id as u32,
+                        first: existing.name,
+                        second: entry.name,
+                    });
+                }
             }
         }
 

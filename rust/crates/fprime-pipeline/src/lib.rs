@@ -21,7 +21,7 @@
 
 #![deny(rust_2018_idioms)]
 
-use fprime_dict::{Channel, Command, Dictionary, Event, FormalParam};
+use fprime_dict::{Channel, Command, Dictionary, Event, FormalParam, TlmPacket};
 use fprime_types::{Serde, TimeType, TypeError, Value};
 use thiserror::Error;
 
@@ -42,6 +42,8 @@ pub enum PipelineError {
     UnknownEvent(u32),
     #[error("unknown channel id {0}")]
     UnknownChannel(u32),
+    #[error("unknown packetized telemetry packet id {0}")]
+    UnknownTlmPacket(u16),
     #[error("unsupported argument type kind={kind} name={name}")]
     UnsupportedType { kind: String, name: String },
     #[error("argument count mismatch for command {name}: expected {expected}, got {got}")]
@@ -76,36 +78,146 @@ pub struct DecodedChannel {
     pub value: Value,
 }
 
+/// One channel value extracted from a packetized-telemetry packet.  All
+/// channels in the same packet share the same `time` (the packet timestamp).
+#[derive(Debug, Clone)]
+pub struct PacketizedChannel {
+    pub channel: Channel,
+    pub value: Value,
+}
+
+#[derive(Debug, Clone)]
+pub struct DecodedTlmPacket {
+    pub packet: TlmPacket,
+    pub time: TimeType,
+    pub channels: Vec<PacketizedChannel>,
+}
+
 /// Anything the downlink pipeline can produce.
 #[derive(Debug, Clone)]
 pub enum Decoded {
     Event(DecodedEvent),
     Channel(DecodedChannel),
     Handshake(Vec<u8>),
-    PacketizedTelem(Vec<u8>),
-    Unknown { descriptor: u16, body: Vec<u8> },
+    /// Packetized telemetry: one or more channel values bundled with a single
+    /// packet id and timestamp.
+    PacketizedTelem(DecodedTlmPacket),
+    Unknown {
+        descriptor: u16,
+        body: Vec<u8>,
+    },
 }
 
 /// Decode a single F´ deframed packet against the dictionary.
 ///
-/// `packet` is `desc(U16) | id(U32) | time(11) | args` for events/channels;
-/// for handshakes / packetized telemetry the body after the descriptor is
-/// returned uninterpreted.
+/// Returns the first record in the packet \u2014 callers that need to handle the
+/// full Space Packet body (which can contain multiple concatenated records
+/// after the leading descriptor) should use [`decode_packets`] instead.
 pub fn decode_packet(packet: &[u8], dict: &Dictionary) -> Result<Decoded, PipelineError> {
-    if packet.len() < 2 {
-        return Err(PipelineError::NoDescriptor);
+    let mut iter = decode_packets(packet, dict);
+    iter.next().ok_or(PipelineError::NoDescriptor)?
+}
+
+/// Decode every record in a packet body.
+///
+/// On the wire, an SP body is `descriptor(U16) | record_0 | record_1 | \u2026`
+/// where each record (for events/channels) is `id(U32) | time(11) | value`.
+/// The FSW concatenates as many records as fit into one Space Packet, all
+/// sharing one descriptor (and APID).  This iterator walks them and yields a
+/// [`Decoded`] per record.
+///
+/// Handshake and packetized-telemetry packets contain a single record each.
+pub fn decode_packets<'a>(
+    packet: &'a [u8],
+    dict: &'a Dictionary,
+) -> impl Iterator<Item = Result<Decoded, PipelineError>> + 'a {
+    PacketIter {
+        dict,
+        body: packet,
+        descriptor: None,
+        done: false,
     }
-    let (descriptor, _) = u16::deserialize(packet, 0)?;
-    let body = &packet[2..];
-    match descriptor {
-        DESC_LOG => decode_event(body, dict).map(Decoded::Event),
-        DESC_TELEM => decode_channel(body, dict).map(Decoded::Channel),
-        DESC_HANDSHAKE => Ok(Decoded::Handshake(body.to_vec())),
-        DESC_PACKETIZED_TLM => Ok(Decoded::PacketizedTelem(body.to_vec())),
-        other => Ok(Decoded::Unknown {
-            descriptor: other,
-            body: body.to_vec(),
-        }),
+}
+
+struct PacketIter<'a> {
+    dict: &'a Dictionary,
+    body: &'a [u8],
+    descriptor: Option<u16>,
+    done: bool,
+}
+
+impl Iterator for PacketIter<'_> {
+    type Item = Result<Decoded, PipelineError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let descriptor = match self.descriptor {
+            Some(d) => d,
+            None => {
+                if self.body.len() < 2 {
+                    self.done = true;
+                    return Some(Err(PipelineError::NoDescriptor));
+                }
+                let (d, n) = match u16::deserialize(self.body, 0) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        self.done = true;
+                        return Some(Err(e.into()));
+                    }
+                };
+                self.body = &self.body[n..];
+                self.descriptor = Some(d);
+                d
+            }
+        };
+
+        if self.body.is_empty() {
+            return None;
+        }
+
+        let (record, consumed) = match descriptor {
+            DESC_LOG => match decode_event(self.body, self.dict) {
+                Ok((e, n)) => (Decoded::Event(e), n),
+                Err(e) => {
+                    self.done = true;
+                    return Some(Err(e));
+                }
+            },
+            DESC_TELEM => match decode_channel(self.body, self.dict) {
+                Ok((c, n)) => (Decoded::Channel(c), n),
+                Err(e) => {
+                    self.done = true;
+                    return Some(Err(e));
+                }
+            },
+            DESC_HANDSHAKE => {
+                let body = self.body.to_vec();
+                self.done = true;
+                return Some(Ok(Decoded::Handshake(body)));
+            }
+            DESC_PACKETIZED_TLM => match decode_tlm_packet(self.body, self.dict) {
+                Ok(pkt) => {
+                    self.done = true;
+                    return Some(Ok(Decoded::PacketizedTelem(pkt)));
+                }
+                Err(e) => {
+                    self.done = true;
+                    return Some(Err(e));
+                }
+            },
+            other => {
+                let body = self.body.to_vec();
+                self.done = true;
+                return Some(Ok(Decoded::Unknown {
+                    descriptor: other,
+                    body,
+                }));
+            }
+        };
+        self.body = &self.body[consumed..];
+        Some(Ok(record))
     }
 }
 
@@ -114,7 +226,7 @@ pub fn decode_packet(packet: &[u8], dict: &Dictionary) -> Result<Decoded, Pipeli
 /// `default/config/ComCfg.fpp`.
 pub const DESCRIPTOR_SIZE: usize = std::mem::size_of::<u16>();
 
-fn decode_event(body: &[u8], dict: &Dictionary) -> Result<DecodedEvent, PipelineError> {
+fn decode_event(body: &[u8], dict: &Dictionary) -> Result<(DecodedEvent, usize), PipelineError> {
     let (id, n_id) = u32::deserialize(body, 0)?;
     let (time, n_time) = TimeType::deserialize(body, n_id)?;
     let event = dict
@@ -122,11 +234,17 @@ fn decode_event(body: &[u8], dict: &Dictionary) -> Result<DecodedEvent, Pipeline
         .get(&id)
         .ok_or(PipelineError::UnknownEvent(id))?
         .clone();
-    let args = decode_args(&event.params, dict, body, n_id + n_time)?;
-    Ok(DecodedEvent { time, event, args })
+    let (args, consumed_args) = decode_args(&event.params, dict, body, n_id + n_time)?;
+    Ok((
+        DecodedEvent { time, event, args },
+        n_id + n_time + consumed_args,
+    ))
 }
 
-fn decode_channel(body: &[u8], dict: &Dictionary) -> Result<DecodedChannel, PipelineError> {
+fn decode_channel(
+    body: &[u8],
+    dict: &Dictionary,
+) -> Result<(DecodedChannel, usize), PipelineError> {
     let (id, n_id) = u32::deserialize(body, 0)?;
     let (time, n_time) = TimeType::deserialize(body, n_id)?;
     let channel = dict
@@ -134,11 +252,51 @@ fn decode_channel(body: &[u8], dict: &Dictionary) -> Result<DecodedChannel, Pipe
         .get(&id)
         .ok_or(PipelineError::UnknownChannel(id))?
         .clone();
-    let (value, _n) = deserialize_typed(&channel.ty, dict, body, n_id + n_time)?;
-    Ok(DecodedChannel {
+    let (value, n_val) = deserialize_typed(&channel.ty, dict, body, n_id + n_time)?;
+    Ok((
+        DecodedChannel {
+            time,
+            channel,
+            value,
+        },
+        n_id + n_time + n_val,
+    ))
+}
+
+/// Decode a packetized-telemetry packet body.
+///
+/// Wire layout (matches `fprime_gds.common.decoders.pkt_decoder`):
+///
+/// ```text
+/// | FwTlmPacketizeIdType (U16) | TimeType (11 bytes) | val_1 | val_2 | ... |
+/// ```
+///
+/// Each `val_N` is encoded with no per-channel id/time \u2014 the packet template
+/// in `dict.tlm_packets_by_id` lists the channels in declaration order.
+fn decode_tlm_packet(body: &[u8], dict: &Dictionary) -> Result<DecodedTlmPacket, PipelineError> {
+    let (pkt_id, n_id) = u16::deserialize(body, 0)?;
+    let (time, n_time) = TimeType::deserialize(body, n_id)?;
+    let packet = dict
+        .tlm_packets_by_id
+        .get(&pkt_id)
+        .ok_or(PipelineError::UnknownTlmPacket(pkt_id))?
+        .clone();
+    let mut cursor = n_id + n_time;
+    let mut channels = Vec::with_capacity(packet.channel_ids.len());
+    for ch_id in &packet.channel_ids {
+        let channel = dict
+            .channels_by_id
+            .get(ch_id)
+            .ok_or(PipelineError::UnknownChannel(*ch_id))?
+            .clone();
+        let (value, n) = deserialize_typed(&channel.ty, dict, body, cursor)?;
+        cursor += n;
+        channels.push(PacketizedChannel { channel, value });
+    }
+    Ok(DecodedTlmPacket {
+        packet,
         time,
-        channel,
-        value,
+        channels,
     })
 }
 
@@ -146,15 +304,16 @@ fn decode_args(
     params: &[FormalParam],
     dict: &Dictionary,
     body: &[u8],
-    mut offset: usize,
-) -> Result<Vec<Value>, PipelineError> {
+    start: usize,
+) -> Result<(Vec<Value>, usize), PipelineError> {
+    let mut offset = start;
     let mut out = Vec::with_capacity(params.len());
     for p in params {
         let (value, n) = deserialize_typed(&p.ty, dict, body, offset)?;
         offset += n;
         out.push(value);
     }
-    Ok(out)
+    Ok((out, offset - start))
 }
 
 /// Encode a command (the F´ packet body to be handed to the framer).
@@ -373,6 +532,42 @@ mod tests {
         assert_eq!(body.len(), DESCRIPTOR_SIZE + 4);
         assert_eq!(&body[0..2], &DESC_COMMAND.to_be_bytes());
         assert_eq!(&body[2..6], &1280u32.to_be_bytes());
+    }
+
+    #[test]
+    fn decode_packets_yields_multiple_records_per_body() {
+        // The FSW concatenates several `id|time|value` records under a single
+        // descriptor inside one Space Packet.  Verify we yield each one.
+        let mut dict = Dictionary::default();
+        for id in [10u32, 11, 12] {
+            dict.channels_by_id.insert(
+                id,
+                Channel {
+                    id,
+                    name: format!("ch{id}"),
+                    ty: u32_type(),
+                    annotation: None,
+                },
+            );
+        }
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&DESC_TELEM.to_be_bytes());
+        for (id, val) in [(10u32, 100u32), (11, 200), (12, 300)] {
+            bytes.extend_from_slice(&id.to_be_bytes());
+            TimeType::default().serialize(&mut bytes);
+            bytes.extend_from_slice(&val.to_be_bytes());
+        }
+        let decoded: Vec<_> = decode_packets(&bytes, &dict).map(|r| r.unwrap()).collect();
+        assert_eq!(decoded.len(), 3);
+        for (i, d) in decoded.iter().enumerate() {
+            match d {
+                Decoded::Channel(c) => {
+                    assert_eq!(c.channel.name, format!("ch{}", 10 + i));
+                    assert_eq!(c.value, Value::U32(((i + 1) * 100) as u32));
+                }
+                _ => panic!("expected channel"),
+            }
+        }
     }
 
     #[test]

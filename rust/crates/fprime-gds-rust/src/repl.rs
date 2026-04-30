@@ -21,7 +21,7 @@ use std::{
 use chrono::Local;
 use fprime_comm::{Comm, Status};
 use fprime_dict::Dictionary;
-use fprime_pipeline::{decode_packet, encode_command, parse_arg, Decoded};
+use fprime_pipeline::{decode_packets, encode_command, parse_arg, Decoded};
 use rustyline::error::ReadlineError;
 use tokio::sync::mpsc;
 
@@ -215,8 +215,19 @@ fn handle_downlink(
     filter: &parking_lot_filter::RwLock<Filter>,
     printer: &mut dyn LinePrinter,
 ) {
-    let now = Local::now().format("%H:%M:%S%.3f");
-    match decode_packet(packet, dict) {
+    let now = Local::now().format("%H:%M:%S%.3f").to_string();
+    for result in decode_packets(packet, dict) {
+        handle_record(&now, result, filter, printer);
+    }
+}
+
+fn handle_record(
+    now: &str,
+    result: Result<Decoded, fprime_pipeline::PipelineError>,
+    filter: &parking_lot_filter::RwLock<Filter>,
+    printer: &mut dyn LinePrinter,
+) {
+    match result {
         Ok(Decoded::Event(e)) => {
             if filter.read().mute_events {
                 return;
@@ -251,11 +262,17 @@ fn handle_downlink(
         Ok(Decoded::Handshake(_)) => {
             // Handshake packets are mostly noise — keep them silent.
         }
-        Ok(Decoded::PacketizedTelem(body)) => {
-            printer.print(format!(
-                "{now}  PKTLM {} bytes (decoding not yet supported)",
-                body.len()
-            ));
+        Ok(Decoded::PacketizedTelem(pkt)) => {
+            if filter.read().mute_channels {
+                return;
+            }
+            for ch in &pkt.channels {
+                printer.print(format!(
+                    "{now}  TLM {name} = {value}",
+                    name = ch.channel.name,
+                    value = ch.value
+                ));
+            }
         }
         Ok(Decoded::Unknown { descriptor, body }) => {
             printer.print(format!(
