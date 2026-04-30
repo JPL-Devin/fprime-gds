@@ -66,6 +66,11 @@ impl Deframer for ChainedDeframer {
     fn discarded(&mut self) -> usize {
         self.outer.discarded() + self.inner.discarded()
     }
+
+    fn reset(&mut self) {
+        self.outer.reset();
+        self.inner.reset();
+    }
 }
 
 #[cfg(test)]

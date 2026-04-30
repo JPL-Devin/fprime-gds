@@ -155,6 +155,11 @@ impl Deframer for TmDeframer {
     fn discarded(&mut self) -> usize {
         std::mem::take(&mut self.discarded)
     }
+
+    fn reset(&mut self) {
+        self.buf.clear();
+        self.discarded = 0;
+    }
 }
 
 impl TmDeframer {

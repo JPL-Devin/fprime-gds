@@ -26,6 +26,10 @@ pub enum DictError {
         first: String,
         second: String,
     },
+    #[error("malformed typeDefinition for {0}")]
+    BadTypeDef(String),
+    #[error("unknown typeDefinition kind: {0}")]
+    UnknownTypeDefKind(String),
 }
 
 /// Top-level F´ dictionary as it appears on disk.
@@ -40,6 +44,58 @@ pub struct RawDictionary {
     pub events: Vec<RawEvent>,
     #[serde(default)]
     pub telemetry_channels: Vec<RawChannel>,
+    #[serde(default)]
+    pub type_definitions: Vec<RawTypeDef>,
+}
+
+/// `typeDefinitions[]` entry.  We discriminate on `kind` and accept any
+/// fields each kind needs.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawTypeDef {
+    pub kind: String,
+    pub qualified_name: String,
+    /// Present on `alias`.
+    #[serde(default)]
+    pub underlying_type: Option<TypeRef>,
+    /// Present on `array`.
+    #[serde(default)]
+    pub element_type: Option<TypeRef>,
+    /// Present on `array` (number of elements).
+    #[serde(default)]
+    pub size: Option<usize>,
+    /// Present on `enum`.
+    #[serde(default)]
+    pub representation_type: Option<TypeRef>,
+    /// Present on `enum`.
+    #[serde(default)]
+    pub enumerated_constants: Vec<RawEnumConstant>,
+    /// Present on `struct`.  Map preserves member order *only as JSON gives
+    /// it to us* — the actual wire order is dictated by each member's `index`.
+    #[serde(default)]
+    pub members: HashMap<String, RawStructMember>,
+    #[serde(default)]
+    pub annotation: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawEnumConstant {
+    pub name: String,
+    pub value: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RawStructMember {
+    #[serde(rename = "type")]
+    pub ty: TypeRef,
+    pub index: u32,
+    /// When present on a struct member of qualified array type, wraps the
+    /// member's declared type into an outer array of this size.  Mirrors
+    /// `JsonLoader.construct_serializable_type` in the Python GDS.
+    #[serde(default)]
+    pub size: Option<usize>,
+    #[serde(default)]
+    pub annotation: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -90,6 +146,8 @@ pub struct FormalParam {
 pub struct TypeRef {
     pub name: String,
     pub kind: String,
+    /// For `integer`/`float`: bit width.  For `string`: maximum length in
+    /// bytes (declared at FPP).
     #[serde(default)]
     pub size: Option<u32>,
     #[serde(default)]
@@ -131,6 +189,39 @@ pub struct Dictionary {
     pub commands_by_name: HashMap<String, u32>,
     pub events_by_id: HashMap<u32, Event>,
     pub channels_by_id: HashMap<u32, Channel>,
+    /// `typeDefinitions[]` indexed by qualified name (e.g.
+    /// `Ref.DpDemo.ColorEnum`, `FwOpcodeType`).  Aliases are kept as-is here;
+    /// callers that want to resolve an alias chain should iterate via
+    /// [`Dictionary::resolve_alias`].
+    pub types_by_name: HashMap<String, TypeDef>,
+}
+
+/// A typeDefinition entry, parsed.
+#[derive(Debug, Clone)]
+pub enum TypeDef {
+    /// `kind: "alias"` — a named alias for another type.
+    Alias { underlying: TypeRef },
+    /// `kind: "array"` — fixed-length array of `element`.
+    Array { element: TypeRef, size: usize },
+    /// `kind: "enum"` — named integer enum.
+    Enum {
+        representation: TypeRef,
+        constants: Vec<(String, i64)>,
+    },
+    /// `kind: "struct"` — ordered struct, members listed in wire order
+    /// (sorted by their declared `index`).
+    Struct { members: Vec<StructMember> },
+}
+
+/// A single struct member, in wire order.
+#[derive(Debug, Clone)]
+pub struct StructMember {
+    pub name: String,
+    pub ty: TypeRef,
+    /// When `Some`, the member is an inline array of `inline_array_size` of
+    /// `ty`.  Mirrors how the Python GDS handles a `size` override on a
+    /// struct member.
+    pub inline_array_size: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +301,12 @@ impl Dictionary {
             }
         }
 
+        for td in raw.type_definitions {
+            let qn = td.qualified_name.clone();
+            let parsed = parse_type_def(td)?;
+            dict.types_by_name.insert(qn, parsed);
+        }
+
         for c in raw.telemetry_channels {
             let ch = Channel {
                 id: c.id,
@@ -234,6 +331,74 @@ impl Dictionary {
         self.commands_by_name
             .get(name)
             .and_then(|op| self.commands_by_opcode.get(op))
+    }
+
+    /// Walk through any chain of `Alias` typeDefinitions starting at `name`
+    /// and return the underlying [`TypeRef`].  Returns `None` if `name` is
+    /// not in `types_by_name`.
+    pub fn resolve_alias<'a>(&'a self, name: &str) -> Option<&'a TypeRef> {
+        let mut current = self.types_by_name.get(name)?;
+        loop {
+            match current {
+                TypeDef::Alias { underlying } => match underlying.kind.as_str() {
+                    "qualifiedIdentifier" => match self.types_by_name.get(&underlying.name) {
+                        Some(next) => current = next,
+                        None => return Some(underlying),
+                    },
+                    _ => return Some(underlying),
+                },
+                _ => return None,
+            }
+        }
+    }
+}
+
+fn parse_type_def(td: RawTypeDef) -> Result<TypeDef, DictError> {
+    match td.kind.as_str() {
+        "alias" => Ok(TypeDef::Alias {
+            underlying: td
+                .underlying_type
+                .ok_or_else(|| DictError::BadTypeDef(td.qualified_name.clone()))?,
+        }),
+        "array" => Ok(TypeDef::Array {
+            element: td
+                .element_type
+                .ok_or_else(|| DictError::BadTypeDef(td.qualified_name.clone()))?,
+            size: td
+                .size
+                .ok_or_else(|| DictError::BadTypeDef(td.qualified_name.clone()))?,
+        }),
+        "enum" => Ok(TypeDef::Enum {
+            representation: td
+                .representation_type
+                .ok_or_else(|| DictError::BadTypeDef(td.qualified_name.clone()))?,
+            constants: td
+                .enumerated_constants
+                .into_iter()
+                .map(|c| (c.name, c.value))
+                .collect(),
+        }),
+        "struct" => {
+            let mut members: Vec<(u32, StructMember)> = td
+                .members
+                .into_iter()
+                .map(|(name, m)| {
+                    (
+                        m.index,
+                        StructMember {
+                            name,
+                            ty: m.ty,
+                            inline_array_size: m.size,
+                        },
+                    )
+                })
+                .collect();
+            members.sort_by_key(|(i, _)| *i);
+            Ok(TypeDef::Struct {
+                members: members.into_iter().map(|(_, m)| m).collect(),
+            })
+        }
+        other => Err(DictError::UnknownTypeDefKind(other.to_owned())),
     }
 }
 

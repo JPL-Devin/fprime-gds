@@ -25,6 +25,9 @@ use fprime_dict::{Channel, Command, Dictionary, Event, FormalParam};
 use fprime_types::{Serde, TimeType, TypeError, Value};
 use thiserror::Error;
 
+mod typed;
+pub use typed::deserialize_typed;
+
 pub const DESC_COMMAND: u16 = 0x0000;
 pub const DESC_TELEM: u16 = 0x0001;
 pub const DESC_LOG: u16 = 0x0002;
@@ -119,7 +122,7 @@ fn decode_event(body: &[u8], dict: &Dictionary) -> Result<DecodedEvent, Pipeline
         .get(&id)
         .ok_or(PipelineError::UnknownEvent(id))?
         .clone();
-    let args = decode_args(&event.params, body, n_id + n_time)?;
+    let args = decode_args(&event.params, dict, body, n_id + n_time)?;
     Ok(DecodedEvent { time, event, args })
 }
 
@@ -131,14 +134,7 @@ fn decode_channel(body: &[u8], dict: &Dictionary) -> Result<DecodedChannel, Pipe
         .get(&id)
         .ok_or(PipelineError::UnknownChannel(id))?
         .clone();
-    let prim = channel
-        .ty
-        .primitive_name()
-        .ok_or_else(|| PipelineError::UnsupportedType {
-            kind: channel.ty.kind.clone(),
-            name: channel.ty.name.clone(),
-        })?;
-    let (value, _n) = Value::deserialize_named(prim, body, n_id + n_time)?;
+    let (value, _n) = deserialize_typed(&channel.ty, dict, body, n_id + n_time)?;
     Ok(DecodedChannel {
         time,
         channel,
@@ -148,18 +144,13 @@ fn decode_channel(body: &[u8], dict: &Dictionary) -> Result<DecodedChannel, Pipe
 
 fn decode_args(
     params: &[FormalParam],
+    dict: &Dictionary,
     body: &[u8],
     mut offset: usize,
 ) -> Result<Vec<Value>, PipelineError> {
     let mut out = Vec::with_capacity(params.len());
     for p in params {
-        let prim =
-            p.ty.primitive_name()
-                .ok_or_else(|| PipelineError::UnsupportedType {
-                    kind: p.ty.kind.clone(),
-                    name: p.ty.name.clone(),
-                })?;
-        let (value, n) = Value::deserialize_named(prim, body, offset)?;
+        let (value, n) = deserialize_typed(&p.ty, dict, body, offset)?;
         offset += n;
         out.push(value);
     }

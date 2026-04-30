@@ -152,6 +152,9 @@ async fn run(
                 warn!("session ended: {e:#}");
             }
         }
+        // Drop any half-frame the previous peer left behind so it can't
+        // be misinterpreted as the prefix of the next peer's first frame.
+        deframer.lock().expect("deframer poisoned").reset();
     }
 }
 

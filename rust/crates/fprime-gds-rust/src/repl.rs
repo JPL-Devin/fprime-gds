@@ -29,6 +29,9 @@ use tokio::sync::mpsc;
 struct Filter {
     mute_events: bool,
     mute_channels: bool,
+    /// Decode errors we've already printed once.  Avoids flooding the REPL
+    /// when a periodic channel/event has an arg type we can't decode.
+    seen_decode_errors: std::collections::HashSet<String>,
 }
 
 /// Abstracts over rustyline's external printer (writes above the prompt) and a
@@ -261,7 +264,15 @@ fn handle_downlink(
             ));
         }
         Err(e) => {
-            printer.print(format!("{now}  decode error: {e}"));
+            // Dedup decode errors so a periodic channel/event whose args
+            // contain an as-yet-unsupported type doesn't flood the REPL.
+            let key = format!("{e}");
+            let mut g = filter.write();
+            if g.seen_decode_errors.insert(key.clone()) {
+                printer.print(format!(
+                    "{now}  decode error: {e} (further occurrences suppressed)"
+                ));
+            }
         }
     }
 }

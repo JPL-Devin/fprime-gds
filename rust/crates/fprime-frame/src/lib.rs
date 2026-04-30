@@ -51,6 +51,10 @@ pub trait Deframer: Send {
     fn discarded(&mut self) -> usize {
         0
     }
+    /// Drop any partially-buffered bytes.  Called by transports between
+    /// peer sessions so a half-frame from a stale connection can't be
+    /// misinterpreted as the prefix of a new one's first frame.
+    fn reset(&mut self) {}
 }
 
 /// F´ DEADBEEF + length + CRC32 framer.
@@ -98,6 +102,11 @@ impl Deframer for FpDeframer {
 
     fn discarded(&mut self) -> usize {
         std::mem::take(&mut self.discarded)
+    }
+
+    fn reset(&mut self) {
+        self.buf.clear();
+        self.discarded = 0;
     }
 }
 

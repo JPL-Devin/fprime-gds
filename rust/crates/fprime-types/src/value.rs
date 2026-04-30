@@ -8,9 +8,9 @@ use std::fmt;
 
 use crate::{FpString, Serde, TypeError};
 
-/// A scalar F´ value.  Compound types (arrays, structs, enums) are out of scope
-/// for the initial Rust port — they can be added without changing this enum's
-/// public surface area.
+/// A dynamic F´ value.  Primitive variants carry the value directly; the
+/// compound variants (`Enum`, `Array`, `Struct`) are filled in by the
+/// dictionary-driven deserializer in `fprime-pipeline`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Bool(bool),
@@ -25,14 +25,30 @@ pub enum Value {
     F32(f32),
     F64(f64),
     String(FpString),
-    /// Catch-all for types the initial port does not yet decode (e.g. enum,
-    /// struct, array).  Stored as raw bytes so the user can still inspect them.
+    /// FPP `enum` value.  `label` is the constant name when the wire value
+    /// matched a declared constant, `None` otherwise.
+    Enum {
+        type_name: String,
+        label: Option<String>,
+        value: i64,
+    },
+    /// FPP `array` of any other type.
+    Array {
+        type_name: String,
+        items: Vec<Value>,
+    },
+    /// FPP `struct`, members in wire order.
+    Struct {
+        type_name: String,
+        fields: Vec<(String, Value)>,
+    },
+    /// Catch-all for bytes the decoder couldn't classify.
     Raw(Vec<u8>),
 }
 
 impl Value {
     /// Total wire size in bytes.  Returns `None` for variable-length values
-    /// (`String`, `Raw`).
+    /// (`String`, `Raw`, `Array`, `Struct`).
     pub fn fixed_size(&self) -> Option<usize> {
         Some(match self {
             Value::Bool(_) => 1,
@@ -40,7 +56,11 @@ impl Value {
             Value::U16(_) | Value::I16(_) => 2,
             Value::U32(_) | Value::I32(_) | Value::F32(_) => 4,
             Value::U64(_) | Value::I64(_) | Value::F64(_) => 8,
-            Value::String(_) | Value::Raw(_) => return None,
+            Value::String(_)
+            | Value::Raw(_)
+            | Value::Enum { .. }
+            | Value::Array { .. }
+            | Value::Struct { .. } => return None,
         })
     }
 
@@ -58,6 +78,9 @@ impl Value {
             Value::F32(_) => "F32",
             Value::F64(_) => "F64",
             Value::String(_) => "string",
+            Value::Enum { .. } => "enum",
+            Value::Array { .. } => "array",
+            Value::Struct { .. } => "struct",
             Value::Raw(_) => "raw",
         }
     }
@@ -78,6 +101,34 @@ impl fmt::Display for Value {
             Value::F32(v) => write!(f, "{v}"),
             Value::F64(v) => write!(f, "{v}"),
             Value::String(s) => write!(f, "{:?}", s.0),
+            Value::Enum {
+                label,
+                value,
+                type_name: _,
+            } => match label {
+                Some(name) => write!(f, "{name}({value})"),
+                None => write!(f, "<unknown>({value})"),
+            },
+            Value::Array { items, .. } => {
+                write!(f, "[")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, "]")
+            }
+            Value::Struct { fields, .. } => {
+                write!(f, "{{")?;
+                for (i, (name, value)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{name}: {value}")?;
+                }
+                write!(f, "}}")
+            }
             Value::Raw(bytes) => {
                 write!(f, "0x")?;
                 for b in bytes {
@@ -105,6 +156,24 @@ impl Value {
             Value::F32(v) => v.serialize(out),
             Value::F64(v) => v.serialize(out),
             Value::String(s) => s.serialize(out),
+            Value::Enum { value, .. } => {
+                // Best-effort: serialise the enum's underlying integer as I64.
+                // The dictionary-driven encoder in `fprime-pipeline` should
+                // build enum values with the correct width before calling
+                // this; we only hit this path if the user constructs an
+                // `Enum` value directly.
+                value.serialize(out);
+            }
+            Value::Array { items, .. } => {
+                for item in items {
+                    item.serialize(out);
+                }
+            }
+            Value::Struct { fields, .. } => {
+                for (_, value) in fields {
+                    value.serialize(out);
+                }
+            }
             Value::Raw(bytes) => out.extend_from_slice(bytes),
         }
     }
