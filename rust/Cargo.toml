@@ -7,6 +7,7 @@ members = [
     "crates/fprime-ccsds",
     "crates/fprime-pipeline",
     "crates/fprime-comm",
+    "crates/fprime-dp",
     "crates/fprime-gds-rust",
 ]
 
@@ -41,6 +42,7 @@ fprime-frame = { path = "crates/fprime-frame", version = "0.1.0" }
 fprime-ccsds = { path = "crates/fprime-ccsds", version = "0.1.0" }
 fprime-pipeline = { path = "crates/fprime-pipeline", version = "0.1.0" }
 fprime-comm = { path = "crates/fprime-comm", version = "0.1.0" }
+fprime-dp = { path = "crates/fprime-dp", version = "0.1.0" }
 
 [profile.release]
 lto = "thin"

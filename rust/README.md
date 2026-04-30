@@ -32,6 +32,7 @@ rust/
     ├── fprime-dict/            # JSON topology dictionary loader
     ├── fprime-pipeline/        # decoders (event/channel) and encoder (command)
     ├── fprime-comm/            # tokio TCP adapter (server or client) with auto-reconnect, protocol-agnostic
+    ├── fprime-dp/              # data-product (.fdp) decoder (header + records) -> JSON
     └── fprime-gds-rust/        # `fprime-gds-rust` binary: CLI + REPL
 ```
 
@@ -55,7 +56,7 @@ download it automatically the first time you run `cargo`.
 
 ## Usage
 
-The binary has three sub-commands.  `run` is the default and can be invoked
+The binary has four sub-commands.  `run` is the default and can be invoked
 without naming it:
 
 ```bash
@@ -70,6 +71,11 @@ fprime-gds-rust dict-info /path/to/TopologyAppDictionary.json
 
 # wire-level debugging: round-trip hex payloads through the framer
 fprime-gds-rust frame-test deadbabe
+
+# decode a data-product (.fdp) binary file to JSON (mirrors the Python GDS
+# `data_products` tool).  Validates the header and data CRC32s.
+fprime-gds-rust dp-decode --dictionary dict.json container1.fdp
+fprime-gds-rust dp-decode --dictionary dict.json container1.fdp -o -   # stdout
 
 # CCSDS: Space Packet inside TC/TM transfer frames (chained — same as the
 # Python GDS `space-packet-space-data-link` plugin)

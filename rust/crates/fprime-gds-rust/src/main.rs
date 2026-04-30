@@ -7,6 +7,8 @@
 //! * `dict-info` — summarize a dictionary file without connecting.
 //! * `frame-test` — round-trip a hex-encoded payload through framer/deframer
 //!   (handy for debugging at the wire level).
+//! * `dp-decode` — decode a data product (`.fdp`) binary file to JSON,
+//!   matching the Python GDS' `data_products` tool.
 
 #![deny(rust_2018_idioms)]
 
@@ -47,6 +49,8 @@ enum Cmd {
     DictInfo(DictArgs),
     /// Round-trip hex bytes through the framer.
     FrameTest(FrameArgs),
+    /// Decode a data product (.fdp) binary file to JSON.
+    DpDecode(DpDecodeArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -155,6 +159,21 @@ struct FrameArgs {
     hex: String,
 }
 
+#[derive(Parser, Debug, Clone)]
+struct DpDecodeArgs {
+    /// Path to the data-product binary file (`.fdp`).
+    file: PathBuf,
+    /// Path to the F´ JSON topology dictionary.
+    #[arg(long, short = 'd')]
+    dictionary: PathBuf,
+    /// Output JSON path (defaults to `<file>.json`).  Use `-` to write to stdout.
+    #[arg(long, short = 'o')]
+    output: Option<PathBuf>,
+    /// Pretty-print the JSON output.
+    #[arg(long, default_value_t = true)]
+    pretty: bool,
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
@@ -165,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
         Cmd::Run(args) => run(args).await,
         Cmd::DictInfo(args) => dict_info(args),
         Cmd::FrameTest(args) => frame_test(args),
+        Cmd::DpDecode(args) => dp_decode(args),
     }
 }
 
@@ -236,6 +256,32 @@ fn dict_info(args: DictArgs) -> anyhow::Result<()> {
             })
             .collect();
         println!("  {:>5}  {} ({})", c.opcode, c.name, params.join(", "));
+    }
+    Ok(())
+}
+
+fn dp_decode(args: DpDecodeArgs) -> anyhow::Result<()> {
+    let dict = Dictionary::from_path(&args.dictionary)?;
+    let dp = fprime_dp::decode_path(&args.file, &dict)?;
+    let json = fprime_dp::to_json(&dp);
+    let text = if args.pretty {
+        serde_json::to_string_pretty(&json)?
+    } else {
+        serde_json::to_string(&json)?
+    };
+    let output = args
+        .output
+        .unwrap_or_else(|| args.file.with_extension("json"));
+    if output.as_os_str() == "-" {
+        println!("{text}");
+    } else {
+        std::fs::write(&output, text)?;
+        eprintln!(
+            "decoded {} record(s) from {} -> {}",
+            dp.records.len(),
+            args.file.display(),
+            output.display(),
+        );
     }
     Ok(())
 }

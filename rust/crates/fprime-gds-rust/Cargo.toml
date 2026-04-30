@@ -26,3 +26,5 @@ fprime-frame.workspace = true
 fprime-ccsds.workspace = true
 fprime-pipeline.workspace = true
 fprime-comm.workspace = true
+fprime-dp.workspace = true
+serde_json.workspace = true

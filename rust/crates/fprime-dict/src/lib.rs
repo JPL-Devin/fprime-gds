@@ -48,6 +48,50 @@ pub struct RawDictionary {
     pub type_definitions: Vec<RawTypeDef>,
     #[serde(default)]
     pub telemetry_packet_sets: Vec<RawTelemetryPacketSet>,
+    #[serde(default)]
+    pub containers: Vec<RawContainer>,
+    #[serde(default)]
+    pub records: Vec<RawRecord>,
+    #[serde(default)]
+    pub constants: Vec<RawConstant>,
+}
+
+/// `containers[]` entry: a data-product container declared in the topology.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawContainer {
+    pub name: String,
+    pub id: u32,
+    #[serde(default)]
+    pub default_priority: u32,
+    #[serde(default)]
+    pub annotation: Option<String>,
+}
+
+/// `records[]` entry: a single record definition referenced from a data product.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawRecord {
+    pub name: String,
+    pub id: u32,
+    #[serde(rename = "type")]
+    pub ty: TypeRef,
+    #[serde(default)]
+    pub array: bool,
+    #[serde(default)]
+    pub annotation: Option<String>,
+}
+
+/// `constants[]` entry: a named constant exposed by the dictionary (e.g.
+/// `Fw.DpCfg.CONTAINER_USER_DATA_SIZE`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RawConstant {
+    pub qualified_name: String,
+    /// Constants in the F´ dictionary are emitted as JSON values; integer
+    /// constants come through as JSON numbers, but we keep this as a generic
+    /// `serde_json::Value` to avoid losing other shapes.
+    pub value: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -219,6 +263,34 @@ pub struct Dictionary {
     /// channels, in order, that are concatenated into a packetized telemetry
     /// downlink packet.
     pub tlm_packets_by_id: HashMap<u16, TlmPacket>,
+    /// Data-product containers indexed by container id.
+    pub dp_containers_by_id: HashMap<u32, DpContainer>,
+    pub dp_containers_by_name: HashMap<String, u32>,
+    /// Data-product records indexed by record id.
+    pub dp_records_by_id: HashMap<u32, DpRecord>,
+    /// Named integer constants from the dictionary's `constants[]`.  Only
+    /// constants whose value is a plain integer are kept here; richer values
+    /// can be accessed via [`Dictionary::raw_constants`].
+    pub int_constants: HashMap<String, i64>,
+}
+
+/// A data-product container as declared in the dictionary.
+#[derive(Debug, Clone)]
+pub struct DpContainer {
+    pub id: u32,
+    pub name: String,
+    pub default_priority: u32,
+    pub annotation: Option<String>,
+}
+
+/// A data-product record as declared in the dictionary.
+#[derive(Debug, Clone)]
+pub struct DpRecord {
+    pub id: u32,
+    pub name: String,
+    pub ty: TypeRef,
+    pub is_array: bool,
+    pub annotation: Option<String>,
 }
 
 /// Telemetry packet template referenced by `FW_PACKET_PACKETIZED_TLM`
@@ -369,6 +441,48 @@ impl Dictionary {
             .values()
             .map(|c| (c.name.clone(), c.id))
             .collect();
+        for c in raw.containers {
+            let entry = DpContainer {
+                id: c.id,
+                name: c.name.clone(),
+                default_priority: c.default_priority,
+                annotation: c.annotation,
+            };
+            if let Some(existing) = dict.dp_containers_by_id.insert(c.id, entry.clone()) {
+                return Err(DictError::Duplicate {
+                    kind: "container",
+                    id: c.id,
+                    first: existing.name,
+                    second: entry.name,
+                });
+            }
+            dict.dp_containers_by_name.insert(c.name, c.id);
+        }
+
+        for r in raw.records {
+            let entry = DpRecord {
+                id: r.id,
+                name: r.name.clone(),
+                ty: r.ty,
+                is_array: r.array,
+                annotation: r.annotation,
+            };
+            if let Some(existing) = dict.dp_records_by_id.insert(r.id, entry.clone()) {
+                return Err(DictError::Duplicate {
+                    kind: "record",
+                    id: r.id,
+                    first: existing.name,
+                    second: entry.name,
+                });
+            }
+        }
+
+        for c in raw.constants {
+            if let Some(n) = c.value.as_i64() {
+                dict.int_constants.insert(c.qualified_name, n);
+            }
+        }
+
         for set in raw.telemetry_packet_sets {
             for pkt in set.members {
                 let pkt_id = u16::try_from(pkt.id)

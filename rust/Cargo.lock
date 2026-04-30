@@ -275,6 +275,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fprime-dp"
+version = "0.1.0"
+dependencies = [
+ "crc32fast",
+ "fprime-dict",
+ "fprime-pipeline",
+ "fprime-types",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "fprime-frame"
 version = "0.1.0"
 dependencies = [
@@ -294,11 +307,13 @@ dependencies = [
  "fprime-ccsds",
  "fprime-comm",
  "fprime-dict",
+ "fprime-dp",
  "fprime-frame",
  "fprime-pipeline",
  "fprime-types",
  "hex",
  "rustyline",
+ "serde_json",
  "shlex",
  "tokio",
  "tracing",
