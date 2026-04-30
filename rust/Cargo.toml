@@ -4,6 +4,7 @@ members = [
     "crates/fprime-types",
     "crates/fprime-dict",
     "crates/fprime-frame",
+    "crates/fprime-ccsds",
     "crates/fprime-pipeline",
     "crates/fprime-comm",
     "crates/fprime-gds-rust",
@@ -37,6 +38,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 fprime-types = { path = "crates/fprime-types", version = "0.1.0" }
 fprime-dict = { path = "crates/fprime-dict", version = "0.1.0" }
 fprime-frame = { path = "crates/fprime-frame", version = "0.1.0" }
+fprime-ccsds = { path = "crates/fprime-ccsds", version = "0.1.0" }
 fprime-pipeline = { path = "crates/fprime-pipeline", version = "0.1.0" }
 fprime-comm = { path = "crates/fprime-comm", version = "0.1.0" }
 

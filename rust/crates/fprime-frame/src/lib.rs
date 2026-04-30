@@ -28,6 +28,77 @@ pub enum FrameError {
     Checksum { got: u32, expected: u32 },
     #[error("payload too large: {0} bytes")]
     TooLarge(usize),
+    #[error("ccsds error: {0}")]
+    Ccsds(String),
+}
+
+/// Encodes a payload into a wire frame.
+///
+/// Each call should produce a complete, self-contained frame for `payload`.
+/// Implementations may track per-channel state (e.g. CCSDS sequence counters).
+pub trait Framer: Send {
+    fn frame(&mut self, payload: &[u8]) -> Result<Vec<u8>, FrameError>;
+}
+
+/// Pulls complete frames out of a streaming byte source.
+///
+/// Callers `push` new bytes as they arrive and repeatedly call `pop` to drain
+/// any frames that are now available.  Implementations buffer internally so
+/// partial frames are retained across calls.
+pub trait Deframer: Send {
+    fn push(&mut self, data: &[u8]);
+    fn pop(&mut self) -> Option<Vec<u8>>;
+    fn discarded(&mut self) -> usize {
+        0
+    }
+}
+
+/// F´ DEADBEEF + length + CRC32 framer.
+#[derive(Debug, Default, Clone)]
+pub struct FpFramer;
+
+impl Framer for FpFramer {
+    fn frame(&mut self, payload: &[u8]) -> Result<Vec<u8>, FrameError> {
+        frame(payload)
+    }
+}
+
+/// F´ DEADBEEF + length + CRC32 deframer.  Buffers incoming bytes, resyncs
+/// past garbage one byte at a time on bad starts or bad checksums.
+#[derive(Debug, Default)]
+pub struct FpDeframer {
+    buf: Vec<u8>,
+    discarded: usize,
+}
+
+impl FpDeframer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Deframer for FpDeframer {
+    fn push(&mut self, data: &[u8]) {
+        self.buf.extend_from_slice(data);
+    }
+
+    fn pop(&mut self) -> Option<Vec<u8>> {
+        let result = deframe(&self.buf);
+        self.discarded += result.discarded.len();
+        if let Some(frame) = result.frame {
+            self.buf.drain(..result.consumed);
+            Some(frame)
+        } else {
+            if result.consumed > 0 {
+                self.buf.drain(..result.consumed);
+            }
+            None
+        }
+    }
+
+    fn discarded(&mut self) -> usize {
+        std::mem::take(&mut self.discarded)
+    }
 }
 
 /// Outcome of a single attempt to deframe.

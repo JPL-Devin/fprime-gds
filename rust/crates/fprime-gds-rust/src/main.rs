@@ -14,7 +14,12 @@ mod repl;
 
 use std::{net::SocketAddr, path::PathBuf};
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+use fprime_ccsds::{
+    space_data_link::{FALLBACK_FRAME_SIZE, FALLBACK_SCID},
+    ChainedDeframer, ChainedFramer, SpacePacketDeframer, SpacePacketFramer, TcFramer, TmDeframer,
+};
+use fprime_comm::{shared_deframer, shared_framer, SharedDeframer, SharedFramer};
 use fprime_dict::Dictionary;
 use tracing_subscriber::EnvFilter;
 
@@ -61,6 +66,81 @@ struct RunArgs {
     /// Connect to FSW instead of listening for it.
     #[arg(long, global = true)]
     connect: bool,
+
+    /// Wire protocol.
+    #[arg(long, value_enum, default_value_t = Protocol::Fprime, global = true)]
+    protocol: Protocol,
+
+    /// CCSDS spacecraft id (10-bit).  Only used when --protocol selects a CCSDS variant.
+    #[arg(long, global = true, value_parser = parse_u16_auto)]
+    scid: Option<u16>,
+
+    /// CCSDS virtual channel id (6-bit, only the low 3 bits matter for TM framing).
+    #[arg(long, default_value_t = 1, global = true)]
+    vcid: u8,
+
+    /// Fixed CCSDS TM frame size in bytes.
+    #[arg(long, global = true)]
+    frame_size: Option<usize>,
+}
+
+/// Wire protocol selection for the comm layer.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "kebab-case")]
+enum Protocol {
+    /// F´ DEADBEEF + length + CRC32 (default; matches `FpFramerDeframer`).
+    Fprime,
+    /// CCSDS Space Packet only (no transfer-frame layer).  Matches the
+    /// Python `raw-space-packet` plugin.
+    CcsdsSpacePacket,
+    /// CCSDS Space Data Link (TC uplink + TM downlink) only.  Matches
+    /// `raw-space-data-link`.
+    CcsdsSpaceDataLink,
+    /// CCSDS Space Packet inside CCSDS Space Data Link (TC/TM).  Matches
+    /// `space-packet-space-data-link` — the chained framer/deframer.
+    Ccsds,
+}
+
+fn parse_u16_auto(s: &str) -> Result<u16, String> {
+    let (radix, body) = if let Some(rest) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+        (16, rest)
+    } else if let Some(rest) = s.strip_prefix("0o").or_else(|| s.strip_prefix("0O")) {
+        (8, rest)
+    } else if let Some(rest) = s.strip_prefix("0b").or_else(|| s.strip_prefix("0B")) {
+        (2, rest)
+    } else {
+        (10, s)
+    };
+    u16::from_str_radix(body, radix).map_err(|e| e.to_string())
+}
+
+fn build_pair(args: &RunArgs) -> anyhow::Result<(SharedFramer, SharedDeframer)> {
+    let scid = args.scid.unwrap_or(FALLBACK_SCID);
+    let vcid = args.vcid;
+    let frame_size = args.frame_size.unwrap_or(FALLBACK_FRAME_SIZE);
+    Ok(match args.protocol {
+        Protocol::Fprime => fprime_comm::fprime_pair(),
+        Protocol::CcsdsSpacePacket => (
+            shared_framer(SpacePacketFramer::new()),
+            shared_deframer(SpacePacketDeframer::new()),
+        ),
+        Protocol::CcsdsSpaceDataLink => (
+            shared_framer(TcFramer::new(scid, vcid)?),
+            shared_deframer(TmDeframer::new(scid, vcid, frame_size)?),
+        ),
+        Protocol::Ccsds => {
+            let inner_framer: Box<dyn fprime_frame::Framer> = Box::new(SpacePacketFramer::new());
+            let outer_framer: Box<dyn fprime_frame::Framer> = Box::new(TcFramer::new(scid, vcid)?);
+            let outer_deframer: Box<dyn fprime_frame::Deframer> =
+                Box::new(TmDeframer::new(scid, vcid, frame_size)?);
+            let inner_deframer: Box<dyn fprime_frame::Deframer> =
+                Box::new(SpacePacketDeframer::new());
+            (
+                shared_framer(ChainedFramer::new(inner_framer, outer_framer)),
+                shared_deframer(ChainedDeframer::new(outer_deframer, inner_deframer)),
+            )
+        }
+    })
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -126,7 +206,9 @@ async fn run(args: RunArgs) -> anyhow::Result<()> {
     } else {
         fprime_comm::Mode::Server
     };
-    let comm = fprime_comm::spawn(addr, mode);
+    let (framer, deframer) = build_pair(&args)?;
+    tracing::info!(protocol = ?args.protocol, "comm protocol selected");
+    let comm = fprime_comm::spawn(addr, mode, framer, deframer);
 
     repl::run(dict, comm).await
 }

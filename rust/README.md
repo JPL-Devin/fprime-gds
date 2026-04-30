@@ -27,10 +27,11 @@ rust/
 ├── rust-toolchain.toml         # pins the stable toolchain
 └── crates/
     ├── fprime-types/           # F´ wire-format primitives (U8…U64, I8…I64, F32/F64, bool, string, TimeType)
-    ├── fprime-frame/           # F´ framer/deframer (DEADBEEF + len + payload + CRC32)
+    ├── fprime-frame/           # F´ framer/deframer (DEADBEEF + len + payload + CRC32) + Framer/Deframer traits
+    ├── fprime-ccsds/           # CCSDS Space Packet (133.0) + TC/TM Space Data Link (132.0/232.0) + chained framer
     ├── fprime-dict/            # JSON topology dictionary loader
     ├── fprime-pipeline/        # decoders (event/channel) and encoder (command)
-    ├── fprime-comm/            # tokio TCP adapter (server or client) with auto-reconnect
+    ├── fprime-comm/            # tokio TCP adapter (server or client) with auto-reconnect, protocol-agnostic
     └── fprime-gds-rust/        # `fprime-gds-rust` binary: CLI + REPL
 ```
 
@@ -69,6 +70,17 @@ fprime-gds-rust dict-info /path/to/TopologyAppDictionary.json
 
 # wire-level debugging: round-trip hex payloads through the framer
 fprime-gds-rust frame-test deadbabe
+
+# CCSDS: Space Packet inside TC/TM transfer frames (chained — same as the
+# Python GDS `space-packet-space-data-link` plugin)
+fprime-gds-rust --dictionary dict.json --protocol ccsds --scid 0x44 --vcid 1
+
+# CCSDS: Space Packet only (`raw-space-packet`)
+fprime-gds-rust --dictionary dict.json --protocol ccsds-space-packet
+
+# CCSDS: Space Data Link only (`raw-space-data-link`)
+fprime-gds-rust --dictionary dict.json --protocol ccsds-space-data-link \
+    --scid 0x44 --vcid 1 --frame-size 1024
 ```
 
 ### Interactive REPL
@@ -131,6 +143,34 @@ Frames produced by `fprime_frame::frame(...)` are byte-identical to those
 produced by `fprime_gds.common.communication.framing.FpFramerDeframer` with
 the default `crc32` checksum.
 
+### CCSDS protocols
+
+With `--protocol ccsds-space-packet`, `--protocol ccsds-space-data-link`, or
+`--protocol ccsds`, the comm layer wraps payloads in CCSDS instead.  Each of
+the three layers is byte-for-byte identical to the corresponding plugin in
+`fprime_gds.common.communication.ccsds`:
+
+| Rust `--protocol` | Python plugin | Wire format |
+|---|---|---|
+| `ccsds-space-packet` | `raw-space-packet` (`SpacePacketFramerDeframer`) | 6-byte primary header + payload (no transfer frame) |
+| `ccsds-space-data-link` | `raw-space-data-link` (`SpaceDataLinkFramerDeframer`) | 5-byte TC primary header + payload + 16-bit CCITT-FALSE CRC (uplink); fixed-size 6-byte TM primary header + payload + CRC (downlink) |
+| `ccsds` | `space-packet-space-data-link` (`SpacePacketSpaceDataLinkFramerDeframer`) | TC/TM transfer frame around an inner Space Packet |
+
+* APID is read from the leading 4 bytes of the F´ payload (the descriptor
+  field) — same convention used by the Python `SpacePacketFramerDeframer`,
+  which calls `ConfigManager().get_type("ComCfg.Apid").deserialize(data, 0)`.
+  Per-APID sequence counters increment automatically.
+* Spacecraft id (`--scid`, default `0x44`), virtual channel id (`--vcid`,
+  default `1`), and TM frame size (`--frame-size`, default `1024`) match the
+  Python `FALLBACK_*` constants when no dictionary override is supplied.
+* TM downlink filters: bad CRC, wrong scid/vcid, and the idle APID `0x7FF`
+  are dropped silently; sequence-count gaps log a warning but the packet is
+  still delivered.
+
+`crates/fprime-ccsds/tests/python_parity.rs` checks the wire bytes against
+the Python reference for three concrete vectors so any future refactor that
+breaks parity will fail in CI.
+
 ## Out of scope (for the initial port)
 
 These are intentionally not implemented yet.  Each can be added as a separate
@@ -138,6 +178,8 @@ crate without changing the existing public APIs.
 
 * Web GUI / Flask static.
 * ZMQ transport (Python alternative to TCP).
+* SDLS (CCSDS encryption) — adding it would slot in as another link in the
+  ccsds chain.
 * Serial (UART) adapter.
 * File uplink/downlink protocol.
 * Sequence file generation (`seqgen`).

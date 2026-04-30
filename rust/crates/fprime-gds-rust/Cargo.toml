@@ -23,5 +23,6 @@ chrono.workspace = true
 fprime-types.workspace = true
 fprime-dict.workspace = true
 fprime-frame.workspace = true
+fprime-ccsds.workspace = true
 fprime-pipeline.workspace = true
 fprime-comm.workspace = true
