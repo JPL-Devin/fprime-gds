@@ -8,64 +8,36 @@ from pathlib import Path
 from argparse import ArgumentParser
 from typing import Any
 from fprime_gds.common.loaders.prm_json_loader import PrmJsonLoader
+from fprime_gds.common.models.dictionaries import Dictionaries
 from fprime_gds.common.templates.prm_template import PrmTemplate
+from fprime_gds.common.utils.config_manager import ConfigManager
 from fprime_gds.common.models.serialize.type_base import BaseType
 from fprime_gds.common.models.serialize.array_type import ArrayType
-from fprime_gds.common.models.serialize.bool_type import BoolType
-from fprime_gds.common.models.serialize.enum_type import EnumType
-from fprime_gds.common.models.serialize.numerical_types import (
-    F32Type,
-    F64Type,
-    I8Type,
-    I16Type,
-    I32Type,
-    I64Type,
-    U8Type,
-    U16Type,
-    U32Type,
-    U64Type,
-)
 from fprime_gds.common.models.serialize.serializable_type import SerializableType
-from fprime_gds.common.models.serialize.string_type import StringType
 
-FW_PRM_ID_TYPE_SIZE = 4 # serialized size of the FwPrmIdType
+
+def get_prm_id_type_size() -> int:
+    """Get the serialized size of FwPrmIdType from the loaded configuration.
+
+    Returns the size in bytes of the parameter ID type as configured in the
+    dictionary. Falls back to 4 (U32) if the type is not available.
+    """
+    return ConfigManager().get_type("FwPrmIdType")().getSize()
 
 
 def instantiate_prm_type(prm_val_json, prm_type: type[BaseType]):
-    """given a parameter type and its value in json form, instantiate the type
-    with the value, or raise an exception if the json is not compatible"""
+    """Instantiate a type object from a JSON-native value.
+
+    The type's val setter handles validation via validate().
+    """
     prm_instance = prm_type()
-    if isinstance(prm_instance, BoolType):
-        value = str(prm_val_json).lower().strip()
-        if value in {"true", "yes"}:
-            av = True
-        elif value in {"false", "no"}:
-            av = False
-        else:
-            raise RuntimeError("Param value is not a valid boolean")
-        prm_instance.val = av
-    elif isinstance(prm_instance, EnumType):
-        prm_instance.val = prm_val_json
-    elif isinstance(prm_instance, (F64Type, F32Type)):
-        prm_instance.val = float(prm_val_json)
-    elif isinstance(
-        prm_instance,
-        (I64Type, U64Type, I32Type, U32Type, I16Type, U16Type, I8Type, U8Type),
-    ):
-        prm_instance.val = int(prm_val_json, 0) if isinstance(prm_val_json, str) else int(prm_val_json)
-    elif isinstance(prm_instance, StringType):
-        prm_instance.val = prm_val_json
-    elif isinstance(prm_instance, (ArrayType, SerializableType)):
-        prm_instance.val = prm_val_json
-    else:
-        raise RuntimeError(
-            "Param value could not be converted to type object"
-        )
+    prm_instance.val = prm_val_json
     return prm_instance
 
 
 def parsed_json_to_dat(templates_and_values: list[tuple[PrmTemplate, Any]]) -> bytes:
     """convert a list of (PrmTemplate, prm value json) to serialized bytes for a PrmDb"""
+    prm_id_size = get_prm_id_type_size()
     serialized = bytes()
     for template_and_value in templates_and_values:
         template, json_value = template_and_value
@@ -79,12 +51,12 @@ def parsed_json_to_dat(templates_and_values: list[tuple[PrmTemplate, Any]]) -> b
         # delimiter
         serialized += b"\xA5"
 
-        record_size = FW_PRM_ID_TYPE_SIZE + len(prm_instance_bytes)
+        record_size = prm_id_size + len(prm_instance_bytes)
 
         # size of following data
         serialized += record_size.to_bytes(length=4, byteorder="big")
         # id of param
-        serialized += template.prm_id.to_bytes(length=4, byteorder="big")
+        serialized += template.prm_id.to_bytes(length=prm_id_size, byteorder="big")
         # value of param
         serialized += prm_instance_bytes
     return serialized
@@ -224,12 +196,23 @@ def main_encode():
     convert_json(args.json_file, args.dictionary, output_path, output_format, args.defaults, args.save)
 
 
+def _load_dictionary(dictionary: Path):
+    """Load the dictionary into ConfigManager.
+
+    This ensures that framework types like FwPrmIdType are configured from the
+    dictionary rather than using hardcoded defaults.
+    """
+    Dictionaries.load_dictionaries_into_config(str(dictionary.resolve()))
+
+
 def convert_json(json_file: Path, dictionary: Path, output: Path, output_format: str, implicit_defaults=False, include_save_cmd=False):
 
     print("Converting", json_file, "to", output, "(format: ." + output_format + ")")
     output.parent.mkdir(parents=True, exist_ok=True)
 
     json = js.loads(json_file.read_text())
+
+    _load_dictionary(dictionary)
 
     dict_parser = PrmJsonLoader(str(dictionary.resolve()))
     id_dict, name_dict, versions = dict_parser.construct_dicts(
@@ -254,6 +237,9 @@ def convert_json(json_file: Path, dictionary: Path, output: Path, output_format:
 def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> list[tuple[PrmTemplate, Any]]:
     """Decode a binary .dat file into a list of (PrmTemplate, value) tuples.
 
+    The parameter ID size is determined from the loaded dictionary configuration
+    via ConfigManager (FwPrmIdType).
+
     Args:
         dat_bytes: The binary data from a .dat file
         id_dict: Dictionary mapping parameter IDs to PrmTemplate objects
@@ -264,6 +250,7 @@ def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> l
     Raises:
         RuntimeError: If the file format is invalid or parameters cannot be decoded
     """
+    prm_id_size = get_prm_id_type_size()
     params = []
     offset = 0
 
@@ -283,23 +270,23 @@ def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> l
         record_size = int.from_bytes(dat_bytes[offset:offset+4], byteorder="big")
         offset += 4
 
-        # Read parameter ID (4 bytes, big endian)
-        if offset + 4 > len(dat_bytes):
+        # Read parameter ID (big endian, size from FwPrmIdType)
+        if offset + prm_id_size > len(dat_bytes):
             raise RuntimeError(
-                f"Incomplete parameter ID at offset {offset}: expected 4 bytes, got {len(dat_bytes) - offset}"
+                f"Incomplete parameter ID at offset {offset}: expected {prm_id_size} bytes, got {len(dat_bytes) - offset}"
             )
-        param_id = int.from_bytes(dat_bytes[offset:offset+4], byteorder="big")
-        offset += 4
+        param_id = int.from_bytes(dat_bytes[offset:offset+prm_id_size], byteorder="big")
+        offset += prm_id_size
 
         # Look up parameter template
         prm_template = id_dict.get(param_id, None)
         if not prm_template:
             raise RuntimeError(
-                f"Unknown parameter ID {param_id} (0x{param_id:x}) at offset {offset-4}"
+                f"Unknown parameter ID {param_id} (0x{param_id:x}) at offset {offset-prm_id_size}"
             )
 
         # Calculate the value size
-        value_size = record_size - FW_PRM_ID_TYPE_SIZE
+        value_size = record_size - prm_id_size
 
         # Check if we have enough data
         if offset + value_size > len(dat_bytes):
@@ -516,7 +503,9 @@ def main_decode():
     print("Decoding", args.dat_file, "to", output_path, "(format: ." + output_format + ")")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Load dictionary
+    # Load dictionary and configure types
+    _load_dictionary(args.dictionary)
+
     dict_parser = PrmJsonLoader(str(args.dictionary.resolve()))
     id_dict, name_dict, versions = dict_parser.construct_dicts(
         str(args.dictionary.resolve())

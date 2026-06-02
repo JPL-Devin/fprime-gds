@@ -181,6 +181,7 @@ class ConfigManager:
                 "FwChanIdType": U32Type,
                 "FwEventIdType": U32Type,
                 "FwOpcodeType": U32Type,
+                "FwPrmIdType": U32Type,
                 "FwTlmPacketizeIdType": U16Type,
                 "FwSizeStoreType": U16Type,
                 "FwTimeContextStoreType": U8Type,
