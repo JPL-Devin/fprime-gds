@@ -322,3 +322,66 @@ def test_encoder_format_nested_structures():
             ]
         }
     }
+
+
+def test_consolidated_encode_matches_legacy():
+    """Test that fprime-prm encode produces identical output to fprime-prm-write."""
+    dict_file = Path(__file__).parent / "resources" / "simple_dictionary.json"
+    input_json_file = Path(__file__).parent / "input" / "simple_paramdb.json"
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Encode via legacy convert_json (used by fprime-prm-write)
+        legacy_dat = Path(temp_dir) / "legacy.dat"
+        convert_json(input_json_file, dict_file, legacy_dat, "dat")
+
+        # Encode via the consolidated executable
+        from fprime_gds.executables.parameters import main
+        import sys
+        orig_argv = sys.argv
+        new_dat = Path(temp_dir) / "new.dat"
+        sys.argv = [
+            "fprime-prm", "encode", "dat",
+            str(input_json_file),
+            "-d", str(dict_file),
+            "-o", str(new_dat),
+        ]
+        try:
+            main()
+        finally:
+            sys.argv = orig_argv
+
+        assert legacy_dat.read_bytes() == new_dat.read_bytes(), \
+            "Consolidated encode should produce identical output to legacy"
+
+
+def test_consolidated_decode_matches_legacy():
+    """Test that fprime-prm decode produces identical output to fprime-prm-decode."""
+    dict_file = Path(__file__).parent / "resources" / "simple_dictionary.json"
+    dat_file = Path(__file__).parent / "expected" / "simple_paramdb.dat"
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Decode via library functions (used by fprime-prm-decode)
+        dict_parser = PrmJsonLoader(str(dict_file.resolve()))
+        id_dict, _, _ = dict_parser.construct_dicts(str(dict_file.resolve()))
+        dat_bytes = dat_file.read_bytes()
+        params = decode_dat_to_params(dat_bytes, id_dict)
+        legacy_json = json.dumps(params_to_json(params), indent=4)
+
+        # Decode via the consolidated executable
+        from fprime_gds.executables.parameters import main
+        import sys
+        orig_argv = sys.argv
+        new_json_file = Path(temp_dir) / "new.json"
+        sys.argv = [
+            "fprime-prm", "decode",
+            str(dat_file),
+            "-d", str(dict_file),
+            "-o", str(new_json_file),
+        ]
+        try:
+            main()
+        finally:
+            sys.argv = orig_argv
+
+        assert new_json_file.read_text().strip() == legacy_json.strip(), \
+            "Consolidated decode should produce identical output to legacy"
