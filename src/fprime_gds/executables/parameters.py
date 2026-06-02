@@ -88,18 +88,24 @@ def main():
         root_parser.print_help()
         return 1
 
-    # Load dictionary into ConfigManager
-    if args.dictionary:
-        Dictionaries.load_dictionaries_into_config(str(args.dictionary.resolve()))
+    # Validate inputs before loading the dictionary
+    if not args.dictionary.exists():
+        print("Unable to find", args.dictionary)
+        return 1
 
     if args.command == "encode":
         if args.json_file is None or not args.json_file.exists():
             print("Unable to find", args.json_file)
             return 1
-        if not args.dictionary.exists():
-            print("Unable to find", args.dictionary)
+    elif args.command == "decode":
+        if args.dat_file is None or not args.dat_file.exists():
+            print("Unable to find", args.dat_file)
             return 1
 
+    # Load dictionary into ConfigManager
+    Dictionaries.load_dictionaries_into_config(str(args.dictionary.resolve()))
+
+    if args.command == "encode":
         output_format = args.format
         if args.output is None:
             output_path = args.json_file.with_suffix("." + output_format)
@@ -115,12 +121,6 @@ def main():
         )
 
     elif args.command == "decode":
-        if args.dat_file is None or not args.dat_file.exists():
-            print("Unable to find", args.dat_file)
-            return 1
-        if not args.dictionary.exists():
-            print("Unable to find", args.dictionary)
-            return 1
 
         output_format = args.format
         if args.output is None:
