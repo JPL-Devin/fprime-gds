@@ -37,7 +37,7 @@ def get_prm_id_type_size() -> int:
     Returns the size in bytes of the parameter ID type as configured in the
     dictionary. Falls back to 4 (U32) if the type is not available.
     """
-    return ConfigManager().get_type("FwPrmIdType").getSize()
+    return ConfigManager().get_type("FwPrmIdType")().getSize()
 
 
 def instantiate_prm_type(prm_val_json, prm_type: type[BaseType]):
@@ -320,7 +320,7 @@ def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> l
         prm_template = id_dict.get(param_id, None)
         if not prm_template:
             raise RuntimeError(
-                f"Unknown parameter ID {param_id} (0x{param_id:x}) at offset {offset-4}"
+                f"Unknown parameter ID {param_id} (0x{param_id:x}) at offset {offset-prm_id_size}"
             )
 
         # Calculate the value size
