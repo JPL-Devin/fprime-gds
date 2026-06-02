@@ -8,7 +8,10 @@ from pathlib import Path
 from argparse import ArgumentParser
 from typing import Any
 from fprime_gds.common.loaders.prm_json_loader import PrmJsonLoader
+from fprime_gds.common.loaders.type_json_loader import TypeJsonLoader
+from fprime_gds.common.loaders.constant_json_loader import ConstantJsonLoader
 from fprime_gds.common.templates.prm_template import PrmTemplate
+from fprime_gds.common.utils.config_manager import ConfigManager
 from fprime_gds.common.models.serialize.type_base import BaseType
 from fprime_gds.common.models.serialize.array_type import ArrayType
 from fprime_gds.common.models.serialize.bool_type import BoolType
@@ -28,7 +31,14 @@ from fprime_gds.common.models.serialize.numerical_types import (
 from fprime_gds.common.models.serialize.serializable_type import SerializableType
 from fprime_gds.common.models.serialize.string_type import StringType
 
-FW_PRM_ID_TYPE_SIZE = 4 # serialized size of the FwPrmIdType
+
+def get_prm_id_type_size() -> int:
+    """Get the serialized size of FwPrmIdType from the loaded configuration.
+
+    Returns the size in bytes of the parameter ID type as configured in the
+    dictionary. Falls back to 4 (U32) if the type is not available.
+    """
+    return ConfigManager().get_type("FwPrmIdType").getSize()
 
 
 def instantiate_prm_type(prm_val_json, prm_type: type[BaseType]):
@@ -66,6 +76,7 @@ def instantiate_prm_type(prm_val_json, prm_type: type[BaseType]):
 
 def parsed_json_to_dat(templates_and_values: list[tuple[PrmTemplate, Any]]) -> bytes:
     """convert a list of (PrmTemplate, prm value json) to serialized bytes for a PrmDb"""
+    prm_id_size = get_prm_id_type_size()
     serialized = bytes()
     for template_and_value in templates_and_values:
         template, json_value = template_and_value
@@ -79,12 +90,12 @@ def parsed_json_to_dat(templates_and_values: list[tuple[PrmTemplate, Any]]) -> b
         # delimiter
         serialized += b"\xA5"
 
-        record_size = FW_PRM_ID_TYPE_SIZE + len(prm_instance_bytes)
+        record_size = prm_id_size + len(prm_instance_bytes)
 
         # size of following data
         serialized += record_size.to_bytes(length=4, byteorder="big")
         # id of param
-        serialized += template.prm_id.to_bytes(length=4, byteorder="big")
+        serialized += template.prm_id.to_bytes(length=prm_id_size, byteorder="big")
         # value of param
         serialized += prm_instance_bytes
     return serialized
@@ -224,12 +235,42 @@ def main_encode():
     convert_json(args.json_file, args.dictionary, output_path, output_format, args.defaults, args.save)
 
 
+def _load_dictionary(dictionary: Path):
+    """Load type definitions and constants from the dictionary into ConfigManager.
+
+    This ensures that framework types like FwPrmIdType are configured from the
+    dictionary rather than using hardcoded defaults. Only loads types and
+    constants (not events, commands, channels, etc.) since those are all
+    that's needed for parameter encoding/decoding.
+    """
+    dict_path = str(dictionary.resolve())
+    config = ConfigManager.get_instance()
+
+    try:
+        types_loader = TypeJsonLoader(dict_path)
+        typedefs = types_loader.get_name_dict(None)
+        for type_name, type_class in typedefs.items():
+            config.set_type(type_name, type_class)
+    except Exception:
+        pass
+
+    try:
+        const_loader = ConstantJsonLoader(dict_path)
+        constants = const_loader.get_name_dict(None)
+        for name, value in constants.items():
+            config.set_constant(name, value)
+    except Exception:
+        pass
+
+
 def convert_json(json_file: Path, dictionary: Path, output: Path, output_format: str, implicit_defaults=False, include_save_cmd=False):
 
     print("Converting", json_file, "to", output, "(format: ." + output_format + ")")
     output.parent.mkdir(parents=True, exist_ok=True)
 
     json = js.loads(json_file.read_text())
+
+    _load_dictionary(dictionary)
 
     dict_parser = PrmJsonLoader(str(dictionary.resolve()))
     id_dict, name_dict, versions = dict_parser.construct_dicts(
@@ -254,6 +295,9 @@ def convert_json(json_file: Path, dictionary: Path, output: Path, output_format:
 def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> list[tuple[PrmTemplate, Any]]:
     """Decode a binary .dat file into a list of (PrmTemplate, value) tuples.
 
+    The parameter ID size is determined from the loaded dictionary configuration
+    via ConfigManager (FwPrmIdType).
+
     Args:
         dat_bytes: The binary data from a .dat file
         id_dict: Dictionary mapping parameter IDs to PrmTemplate objects
@@ -264,6 +308,7 @@ def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> l
     Raises:
         RuntimeError: If the file format is invalid or parameters cannot be decoded
     """
+    prm_id_size = get_prm_id_type_size()
     params = []
     offset = 0
 
@@ -283,13 +328,13 @@ def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> l
         record_size = int.from_bytes(dat_bytes[offset:offset+4], byteorder="big")
         offset += 4
 
-        # Read parameter ID (4 bytes, big endian)
-        if offset + 4 > len(dat_bytes):
+        # Read parameter ID (big endian, size from FwPrmIdType)
+        if offset + prm_id_size > len(dat_bytes):
             raise RuntimeError(
-                f"Incomplete parameter ID at offset {offset}: expected 4 bytes, got {len(dat_bytes) - offset}"
+                f"Incomplete parameter ID at offset {offset}: expected {prm_id_size} bytes, got {len(dat_bytes) - offset}"
             )
-        param_id = int.from_bytes(dat_bytes[offset:offset+4], byteorder="big")
-        offset += 4
+        param_id = int.from_bytes(dat_bytes[offset:offset+prm_id_size], byteorder="big")
+        offset += prm_id_size
 
         # Look up parameter template
         prm_template = id_dict.get(param_id, None)
@@ -299,7 +344,7 @@ def decode_dat_to_params(dat_bytes: bytes, id_dict: dict[int, PrmTemplate]) -> l
             )
 
         # Calculate the value size
-        value_size = record_size - FW_PRM_ID_TYPE_SIZE
+        value_size = record_size - prm_id_size
 
         # Check if we have enough data
         if offset + value_size > len(dat_bytes):
@@ -516,7 +561,9 @@ def main_decode():
     print("Decoding", args.dat_file, "to", output_path, "(format: ." + output_format + ")")
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Load dictionary
+    # Load dictionary and configure types
+    _load_dictionary(args.dictionary)
+
     dict_parser = PrmJsonLoader(str(args.dictionary.resolve()))
     id_dict, name_dict, versions = dict_parser.construct_dicts(
         str(args.dictionary.resolve())
@@ -542,7 +589,145 @@ def main_decode():
     output_path.write_text(output_content)
 
 
+def _add_encode_args(encode_parser):
+    """Add argument definitions for the encode subcommand."""
+    encode_subparsers = encode_parser.add_subparsers(dest="format", required=True)
+
+    dat_parser = encode_subparsers.add_parser("dat", help="Compiles .json files into param DB .dat files")
+    dat_parser.add_argument(
+        "json_file", type=Path, help="The .json file to turn into a .dat file", default=None
+    )
+    dat_parser.add_argument(
+        "--dictionary", "-d", type=Path, help="The dictionary file of the FSW", required=True,
+    )
+    dat_parser.add_argument("--defaults", action="store_true", help="Whether or not to implicitly include default parameter values in the output")
+    dat_parser.add_argument("--output", "-o", type=Path, help="The output file", default=None)
+
+    seq_parser = encode_subparsers.add_parser("seq", help="Converts .json files into command sequence .seq files")
+    seq_parser.add_argument(
+        "json_file", type=Path, help="The .json file to turn into a .seq file", default=None
+    )
+    seq_parser.add_argument(
+        "--dictionary", "-d", type=Path, help="The dictionary file of the FSW", required=True,
+    )
+    seq_parser.add_argument("--defaults", action="store_true", help="Whether or not to implicitly include default parameter values in the output")
+    seq_parser.add_argument("--save", action="store_true", help="Whether or not to include the PRM_SAVE cmd in the output")
+    seq_parser.add_argument("--output", "-o", type=Path, help="The output file", default=None)
+
+
+def _add_decode_args(decode_parser):
+    """Add argument definitions for the decode subcommand."""
+    decode_parser.add_argument(
+        "dat_file", type=Path, help="The .dat file to decode", default=None
+    )
+    decode_parser.add_argument(
+        "--dictionary", "-d", type=Path, help="The dictionary file of the FSW", required=True,
+    )
+    decode_parser.add_argument("--format", "-f", type=str, choices=["json", "text", "csv"], default="json", help="Output format (default: json)")
+    decode_parser.add_argument("--output", "-o", type=Path, help="The output file", default=None)
+
+
+def _run_encode(args):
+    """Execute the encode subcommand."""
+    if args.json_file is None or not args.json_file.exists():
+        print("Unable to find", args.json_file)
+        exit(1)
+
+    if args.json_file.is_dir():
+        print("json-file is a dir", args.json_file)
+        exit(1)
+
+    if not args.dictionary.exists():
+        print("Unable to find", args.dictionary)
+        exit(1)
+
+    output_format = args.format
+
+    if args.output is None:
+        output_path = args.json_file.with_suffix("." + output_format)
+    else:
+        output_path = args.output
+
+    if not hasattr(args, "save"):
+        args.save = False
+
+    convert_json(args.json_file, args.dictionary, output_path, output_format, args.defaults, args.save)
+
+
+def _run_decode(args):
+    """Execute the decode subcommand."""
+    if args.dat_file is None or not args.dat_file.exists():
+        print("Unable to find", args.dat_file)
+        exit(1)
+
+    if args.dat_file.is_dir():
+        print("dat-file is a dir", args.dat_file)
+        exit(1)
+
+    if not args.dictionary.exists():
+        print("Unable to find", args.dictionary)
+        exit(1)
+
+    output_format = args.format
+
+    if args.output is None:
+        output_path = args.dat_file.with_suffix("." + output_format)
+    else:
+        output_path = args.output
+
+    print("Decoding", args.dat_file, "to", output_path, "(format: ." + output_format + ")")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load dictionary and configure types
+    _load_dictionary(args.dictionary)
+
+    dict_parser = PrmJsonLoader(str(args.dictionary.resolve()))
+    id_dict, name_dict, versions = dict_parser.construct_dicts(
+        str(args.dictionary.resolve())
+    )
+
+    # Read and decode .dat file
+    dat_bytes = args.dat_file.read_bytes()
+    params = decode_dat_to_params(dat_bytes, id_dict)
+
+    # Format output based on requested format
+    if output_format == "json":
+        output_data = params_to_json(params)
+        output_content = js.dumps(output_data, indent=4)
+    elif output_format == "text":
+        output_content = params_to_text(params)
+    elif output_format == "csv":
+        output_content = params_to_csv(params)
+    else:
+        raise RuntimeError("Invalid output format " + str(output_format))
+
+    # Write output
+    print("Done, writing to", output_path.resolve())
+    output_path.write_text(output_content)
+
+
+def main():
+    """Consolidated CLI entry point for fprime-prm.
+
+    Provides encode and decode subcommands for working with parameter database files.
+    Usage: fprime-prm <encode|decode> [options]
+    """
+    root_parser = ArgumentParser(description="F Prime Parameter Database CLI")
+    subparsers = root_parser.add_subparsers(dest="command", required=True)
+
+    encode_parser = subparsers.add_parser("encode", help="Encode parameter JSON files into binary .dat or .seq files")
+    _add_encode_args(encode_parser)
+
+    decode_parser = subparsers.add_parser("decode", help="Decode binary parameter database .dat files into readable formats")
+    _add_decode_args(decode_parser)
+
+    args = root_parser.parse_args()
+
+    if args.command == "encode":
+        _run_encode(args)
+    elif args.command == "decode":
+        _run_decode(args)
+
+
 if __name__ == "__main__":
-    # This file was originally created to encode parameter database files
-    # Keep this backwards compatibility
-    main_encode()
+    main()
