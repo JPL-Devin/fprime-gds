@@ -13,22 +13,7 @@ from fprime_gds.common.templates.prm_template import PrmTemplate
 from fprime_gds.common.utils.config_manager import ConfigManager
 from fprime_gds.common.models.serialize.type_base import BaseType
 from fprime_gds.common.models.serialize.array_type import ArrayType
-from fprime_gds.common.models.serialize.bool_type import BoolType
-from fprime_gds.common.models.serialize.enum_type import EnumType
-from fprime_gds.common.models.serialize.numerical_types import (
-    F32Type,
-    F64Type,
-    I8Type,
-    I16Type,
-    I32Type,
-    I64Type,
-    U8Type,
-    U16Type,
-    U32Type,
-    U64Type,
-)
 from fprime_gds.common.models.serialize.serializable_type import SerializableType
-from fprime_gds.common.models.serialize.string_type import StringType
 
 
 def get_prm_id_type_size() -> int:
@@ -41,35 +26,12 @@ def get_prm_id_type_size() -> int:
 
 
 def instantiate_prm_type(prm_val_json, prm_type: type[BaseType]):
-    """given a parameter type and its value in json form, instantiate the type
-    with the value, or raise an exception if the json is not compatible"""
+    """Instantiate a type object from a JSON-native value.
+
+    The type's val setter handles validation via validate().
+    """
     prm_instance = prm_type()
-    if isinstance(prm_instance, BoolType):
-        value = str(prm_val_json).lower().strip()
-        if value in {"true", "yes"}:
-            av = True
-        elif value in {"false", "no"}:
-            av = False
-        else:
-            raise RuntimeError("Param value is not a valid boolean")
-        prm_instance.val = av
-    elif isinstance(prm_instance, EnumType):
-        prm_instance.val = prm_val_json
-    elif isinstance(prm_instance, (F64Type, F32Type)):
-        prm_instance.val = float(prm_val_json)
-    elif isinstance(
-        prm_instance,
-        (I64Type, U64Type, I32Type, U32Type, I16Type, U16Type, I8Type, U8Type),
-    ):
-        prm_instance.val = int(prm_val_json, 0) if isinstance(prm_val_json, str) else int(prm_val_json)
-    elif isinstance(prm_instance, StringType):
-        prm_instance.val = prm_val_json
-    elif isinstance(prm_instance, (ArrayType, SerializableType)):
-        prm_instance.val = prm_val_json
-    else:
-        raise RuntimeError(
-            "Param value could not be converted to type object"
-        )
+    prm_instance.val = prm_val_json
     return prm_instance
 
 
