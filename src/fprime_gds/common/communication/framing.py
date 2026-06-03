@@ -109,18 +109,15 @@ class FpFramerDeframer(FramerDeframer):
     system. It contains the following format for data:
 
     | token: start word |
-    | token: payload length (excludes descriptor) |
-    | bytes: F prime packet bytes (descriptor + payload) |
+    | token: data length |
+    | bytes: F prime packet bytes (Fw::Comm, Fw::FilePacket, etc.) |
     | token: checksum |
 
-    Where a token is a big-endian integer of TOKEN_SIZE bytes in length (see below).
-    The length field counts only the payload bytes after the 2-byte packet descriptor.
+    Where a token is a big-endian integer of TOKEN_SIZE bytes in length (see below)
     """
 
     # Size of an F prime framing token, and the type based on that size
     TOKEN_SIZE = 4
-    # Size of the packet descriptor field (FwPacketDescriptorType = U16)
-    DESCRIPTOR_SIZE = 2
     # Total size of header data based on token size
     HEADER_SIZE = TOKEN_SIZE * 2
     # Size of checksum value, and the hardcoded value before CRC32 is available
@@ -167,9 +164,7 @@ class FpFramerDeframer(FramerDeframer):
         :return: array of raw bytes representing a framed packet. Should be ready for uplink.
         """
         framed = struct.pack(
-            FpFramerDeframer.HEADER_FORMAT,
-            FpFramerDeframer.START_TOKEN,
-            len(data) - FpFramerDeframer.DESCRIPTOR_SIZE,
+            FpFramerDeframer.HEADER_FORMAT, FpFramerDeframer.START_TOKEN, len(data)
         )
         framed += data
         framed += struct.pack(">I", calculate_checksum(framed, self.checksum))
@@ -194,11 +189,9 @@ class FpFramerDeframer(FramerDeframer):
         while len(data) >= FpFramerDeframer.HEADER_SIZE:
             # Read header information including start token and size and check if we have enough for the total size
             start, data_size = struct.unpack_from(FpFramerDeframer.HEADER_FORMAT, data)
-            # The body on the wire is descriptor + payload; data_size counts only the payload
-            body_size = FpFramerDeframer.DESCRIPTOR_SIZE + data_size
             total_size = (
                 FpFramerDeframer.HEADER_SIZE
-                + body_size
+                + data_size
                 + FpFramerDeframer.CHECKSUM_SIZE
             )
             # Invalid frame, rotate away a Byte and keep processing
@@ -212,11 +205,11 @@ class FpFramerDeframer(FramerDeframer):
             # If the pool is large enough to read the whole frame, then read it
             if len(data) >= total_size:
                 deframed, check = struct.unpack_from(
-                    f">{body_size}sI", data, FpFramerDeframer.HEADER_SIZE
+                    f">{data_size}sI", data, FpFramerDeframer.HEADER_SIZE
                 )
                 # If the checksum is valid, return the packet. Otherwise continue to rotate
                 if check == calculate_checksum(
-                    data[: body_size + FpFramerDeframer.HEADER_SIZE], self.checksum
+                    data[: data_size + FpFramerDeframer.HEADER_SIZE], self.checksum
                 ):
                     data = data[total_size:]
                     return deframed, data, discarded
