@@ -24,7 +24,7 @@ import yaml
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Required to set the checksum as a module variable
 import fprime_gds.common.logger
@@ -50,12 +50,12 @@ class ParserBase(ABC):
     handling arguments.
     """
 
-    DESCRIPTION = None
+    DESCRIPTION: Optional[str] = None
 
     @property
-    def description(self):
+    def description(self) -> str:
         """Return parser description"""
-        return self.DESCRIPTION if self.DESCRIPTION else "Unknown command line parser"
+        return self.DESCRIPTION if self.DESCRIPTION is not None else "Unknown command line parser"
 
     @abstractmethod
     def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
@@ -390,7 +390,6 @@ class ConfigDrivenParser(ParserBase):
             parsers = [ConfigDrivenParser] + parser_classes
             ParserBase.parse_args(parsers, description, arguments, **kwargs)
             sys.exit(0)
-        
 
         # Custom flow involving parsing the arguments of this parser first, then passing the configured values
         # as part of the argument source
@@ -980,10 +979,10 @@ class MiddleWareParser(ParserBase):
             ("--zmq-transport",): {
                 "dest": "zmq_transport",
                 "nargs": 2,
-                "help": "Pair of URls used with --zmq to setup ZeroMQ transportation [default: %(default)s]",
+                "help": "Pair of URLs used with --zmq to setup ZeroMQ transportation [default: %(default)s]",
                 "default": [
-                    "ipc:///tmp/fprime-server-in",
-                    "ipc:///tmp/fprime-server-out",
+                    f"ipc:///tmp/fprime-server-in-{getpass.getuser()}",
+                    f"ipc:///tmp/fprime-server-out-{getpass.getuser()}",
                 ],
                 "metavar": ("serverInUrl", "serverOutUrl"),
             },
@@ -1146,14 +1145,7 @@ class FileHandlingParser(ParserBase):
                 "type": str,
                 "help": "Directory to store uplink and downlink files. Default: %(default)s",
             },
-            ("--remote-sequence-directory",): {
-                "dest": "remote_sequence_directory",
-                "action": "store",
-                "default": "/seq",
-                "required": False,
-                "type": str,
-                "help": "Directory to save command sequence binaries, on the remote FSW. Default: %(default)s",
-            },
+
             ("--file-uplink-cooldown",): {
                 "dest": "file_uplink_cooldown",
                 "action": "store",
@@ -1330,6 +1322,12 @@ class BinaryDeployment(DetectionParser):
                     "required": False,
                     "type": str,
                     "help": "Path to app to run. Overrides automatic app detection.",
+                },
+                ("--application-arguments",): {
+                    "dest": "application_arguments",
+                    "nargs": "*",
+                    "default": None,
+                    "help": "Arguments to pass to the application binary, replacing the default -p/-a arguments.",
                 },
             },
         }
