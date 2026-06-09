@@ -109,21 +109,17 @@ class FpFramerDeframer(FramerDeframer):
     system. It contains the following format for data:
 
     | token: start word |
-    | token: payload length |
-    | U16: packet descriptor (APID) |
-    | bytes: payload (Fw::Comm, Fw::FilePacket, etc.) |
+    | token: data length |
+    | bytes: F prime packet bytes (Fw::Comm, Fw::FilePacket, etc.) |
     | token: checksum |
 
-    Where a token is a big-endian integer of TOKEN_SIZE bytes in length (see below).
-    The packet descriptor is a 2-byte big-endian value identifying the packet type.
+    Where a token is a big-endian integer of TOKEN_SIZE bytes in length (see below)
     """
 
     # Size of an F prime framing token, and the type based on that size
     TOKEN_SIZE = 4
-    # Size of the packet descriptor field (FwPacketDescriptorType = U16)
-    DESCRIPTOR_SIZE = 2
-    # Total size of header: startWord + lengthField + packetDescriptor
-    HEADER_SIZE = TOKEN_SIZE * 2 + DESCRIPTOR_SIZE
+    # Total size of header data based on token size
+    HEADER_SIZE = TOKEN_SIZE * 2
     # Size of checksum value, and the hardcoded value before CRC32 is available
     CHECKSUM_SIZE = 4
     MAXIMUM_DATA_SIZE = 4096
@@ -157,32 +153,20 @@ class FpFramerDeframer(FramerDeframer):
         else:
             msg = f"Invalid TOKEN_SIZE of {FpFramerDeframer.TOKEN_SIZE}"
             raise ValueError(msg)
-        FpFramerDeframer.HEADER_FORMAT = (
-            ">" + (FpFramerDeframer.TOKEN_TYPE * 2) + "H"
-        )
+        FpFramerDeframer.HEADER_FORMAT = ">" + (FpFramerDeframer.TOKEN_TYPE * 2)
 
     def frame(self, data):
         """
         Frames outgoing data in the F prime standard format. Expects incoming raw bytes to frame, and adds on the
         needed framing tokens to the front and end of the bytes.
 
-        Incoming *data* is expected to start with a 2-byte packet descriptor
-        (big-endian FwPacketDescriptorType) followed by the payload. The
-        descriptor is moved into the header; only the payload follows the
-        header on the wire.
-
-        :param data: bytes to frame ([packetDescriptor:2][payload])
+        :param data: bytes to frame
         :return: array of raw bytes representing a framed packet. Should be ready for uplink.
         """
-        packet_descriptor = struct.unpack_from(">H", data, 0)[0]
-        payload = data[FpFramerDeframer.DESCRIPTOR_SIZE :]
         framed = struct.pack(
-            FpFramerDeframer.HEADER_FORMAT,
-            FpFramerDeframer.START_TOKEN,
-            len(payload),
-            packet_descriptor,
+            FpFramerDeframer.HEADER_FORMAT, FpFramerDeframer.START_TOKEN, len(data)
         )
-        framed += payload
+        framed += data
         framed += struct.pack(">I", calculate_checksum(framed, self.checksum))
         return framed
 
@@ -203,10 +187,8 @@ class FpFramerDeframer(FramerDeframer):
             data = copy.copy(data)
         # Continue until there is not enough data for the header, or until a packet is found (return)
         while len(data) >= FpFramerDeframer.HEADER_SIZE:
-            # Read header information: start token, payload size, and packet descriptor
-            start, data_size, packet_descriptor = struct.unpack_from(
-                FpFramerDeframer.HEADER_FORMAT, data
-            )
+            # Read header information including start token and size and check if we have enough for the total size
+            start, data_size = struct.unpack_from(FpFramerDeframer.HEADER_FORMAT, data)
             total_size = (
                 FpFramerDeframer.HEADER_SIZE
                 + data_size
@@ -230,12 +212,6 @@ class FpFramerDeframer(FramerDeframer):
                     data[: data_size + FpFramerDeframer.HEADER_SIZE], self.checksum
                 ):
                     data = data[total_size:]
-                    # Re-inject the packet descriptor at the front of the
-                    # payload so that the downstream Distributor can route
-                    # by descriptor value without changes.
-                    deframed = (
-                        struct.pack(">H", packet_descriptor) + deframed
-                    )
                     return deframed, data, discarded
                 print(
                     "[WARNING] Checksum validation failed.",
