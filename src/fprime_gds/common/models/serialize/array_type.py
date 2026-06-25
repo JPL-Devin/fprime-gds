@@ -47,7 +47,7 @@ class ArrayType(DictionaryType):
     @classmethod
     def validate(cls, val):
         """Validates the values of the array"""
-        if not isinstance(val, (tuple, list)):
+        if not isinstance(val, (tuple, list, bytes)):
             raise TypeMismatchException(list, type(val))
         if len(val) != cls.LENGTH:
             raise ArrayLengthException(cls.MEMBER_TYPE, cls.LENGTH, len(val))
@@ -57,18 +57,29 @@ class ArrayType(DictionaryType):
     def _is_numerical_array(self) -> bool:
         return issubclass(self.MEMBER_TYPE, NumericalType)
 
-    @property
-    def val(self) -> tuple:
-        """
-        Returns an immutable tuple of python-native values.
+    def _is_u8_array(self) -> bool:
+        """Return True for unsigned single-byte numerical arrays."""
+        if not self._is_numerical_array() or self.MEMBER_TYPE.getMaxSize() != 1:
+            return False
+        low, _ = self.MEMBER_TYPE.range()
+        return low >= 0
 
-        The result is cached and reused until the value is changed via
-        the setter or ``deserialize``.  Returning a tuple instead of a
-        list prevents consumers from accidentally mutating the internal
-        state.
+    @property
+    def val(self):
+        """
+        Returns an immutable view of the array's python-native values.
+
+        For U8 arrays, returns ``bytes`` directly — immutable and
+        zero-copy.  For other numerical arrays, returns a cached
+        immutable ``tuple``.  The cache is invalidated by the setter
+        and ``deserialize``.
         """
         if self._val is None:
             return None
+        if isinstance(self._val, bytes):
+            return self._val
+        if self._is_u8_array():
+            return bytes(self._val)
         if self._val_tuple is None:
             if self._is_numerical_array():
                 self._val_tuple = tuple(self._val)
@@ -106,7 +117,9 @@ class ArrayType(DictionaryType):
         :param val: dictionary containing python types to key names. This
         """
         self.validate(val)
-        if self._is_numerical_array():
+        if self._is_u8_array():
+            items = val if isinstance(val, bytes) else bytes(val)
+        elif self._is_numerical_array():
             items = list(val)
         else:
             items = [self.MEMBER_TYPE(item) for item in val]
@@ -136,6 +149,8 @@ class ArrayType(DictionaryType):
         """Serialize the array by serializing the elements one by one"""
         if self.val is None:
             raise NotInitializedException(type(self))
+        if isinstance(self._val, bytes):
+            return self._val
         if self._is_numerical_array():
             value_format_raw = self.MEMBER_TYPE().get_serialize_format()
             value_endian = ''
@@ -153,21 +168,31 @@ class ArrayType(DictionaryType):
     def deserialize(self, data, offset):
         """Deserialize the members of the array"""
         if self._is_numerical_array() and self.LENGTH > 0:
-            try:
-                value_format_raw = self.MEMBER_TYPE().get_serialize_format()
-                value_endian = ''
-                if self.MEMBER_TYPE.getSize() > 1:
-                    assert value_format_raw[0] in ('>', '<'), \
-                           f'Expected explicit endian numerical type format but found {value_format_raw}'
-                    value_endian = value_format_raw[0]
-                value_format = value_format_raw.strip('><')
+            if self._is_u8_array():
+                # Single-byte unsigned: store as bytes directly.
+                # Avoids creating LENGTH individual Python int objects.
+                if len(data) - offset < self.LENGTH:
+                    raise DeserializeException(
+                        f"Not enough data to deserialize U8 array. "
+                        f"Needed: {self.LENGTH} Left: {len(data) - offset}"
+                    )
+                values = bytes(data[offset:offset + self.LENGTH])
+            else:
+                try:
+                    value_format_raw = self.MEMBER_TYPE().get_serialize_format()
+                    value_endian = ''
+                    if self.MEMBER_TYPE.getSize() > 1:
+                        assert value_format_raw[0] in ('>', '<'), \
+                               f'Expected explicit endian numerical type format but found {value_format_raw}'
+                        value_endian = value_format_raw[0]
+                    value_format = value_format_raw.strip('><')
 
-                array_format = f"{value_endian}{self.LENGTH}{value_format}"
-                values = list(struct.unpack_from(array_format, data, offset))
-            except Exception as exc:
-                raise DeserializeException(
-                    f"Array NumericalType optimization failed to deserialize: {exc}"
-                )
+                    array_format = f"{value_endian}{self.LENGTH}{value_format}"
+                    values = list(struct.unpack_from(array_format, data, offset))
+                except Exception as exc:
+                    raise DeserializeException(
+                        f"Array NumericalType optimization failed to deserialize: {exc}"
+                    )
         else:
             values = []
             for field_index in range(self.LENGTH):

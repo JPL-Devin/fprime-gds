@@ -174,6 +174,7 @@ JSON_ENCODERS = {
     EventData: minimal_event,
     CmdData: minimal_command,
     TimeType: time_type,
+    bytes: list,
 }
 
 

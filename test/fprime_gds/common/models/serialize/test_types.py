@@ -432,7 +432,7 @@ def test_array_type():
             "%s",
         ),
     ]
-    values = [[32, 1], [0, 1, 2, 3], ["one", "1234", "1"]]
+    values = [[32, 1], bytes([0, 1, 2, 3]), ["one", "1234", "1"]]
     sizes = [8, 4, 14]
     max_sizes = [8, 4, (2 + 18) * 3]
     for ctor_args, values, size, max_size in zip(
