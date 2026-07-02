@@ -31,10 +31,8 @@ class SpacePacketFramerDeframer(FramerDeframer):
     def __init__(self):
         # Internal APID object for deserialization
         self.apid_obj: EnumType = ConfigManager().get_type("ComCfg.Apid")()  # type: ignore
-        # Map APID to sequence counts
+        # Map APID (integer) to sequence counts; unseen APIDs default to 0 on access
         self.apid_to_sequence_count_map = dict()
-        for key in self.apid_obj.keys():
-            self.apid_to_sequence_count_map[key] = 0
 
     def frame(self, data):
         """Frame the supplied data in Space Packet"""
@@ -90,7 +88,7 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 # Set the sequence count to the next expected value (consider missing packets have been lost)
                 self.apid_to_sequence_count_map[sp_header.apid] = (
                     sp_header.seq_count + 1
-                )
+                ) % self.SEQUENCE_COUNT_MAXIMUM
             # If the pool is large enough to read the whole packet, then read it
             if len(data) >= sp_header.packet_len:
                 deframed = struct.unpack_from(
