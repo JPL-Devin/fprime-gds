@@ -81,10 +81,11 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 data = data[sp_header.packet_len :]
                 continue
             # Check sequence count and warn if not expected value (don't drop the packet)
-            if sp_header.seq_count != self.get_sequence_count(sp_header.apid):
+            expected_seq_count = self.get_sequence_count(sp_header.apid)
+            if sp_header.seq_count != expected_seq_count:
                 LOGGER.warning(
                     f"APID {sp_header.apid} received sequence count: {sp_header.seq_count}"
-                    f" (expected: {self.get_sequence_count(sp_header.apid)})"
+                    f" (expected: {expected_seq_count})"
                 )
                 # Set the sequence count to the next expected value (consider missing packets have been lost)
                 self.apid_to_sequence_count_map[sp_header.apid] = (
