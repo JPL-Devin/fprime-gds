@@ -78,19 +78,19 @@ class SpacePacketFramerDeframer(FramerDeframer):
             if sp_header.apid == self.IDLE_APID:
                 data = data[sp_header.packet_len :]
                 continue
-            # Check sequence count and warn if not expected value (don't drop the packet)
-            expected_seq_count = self.get_sequence_count(sp_header.apid)
-            if sp_header.seq_count != expected_seq_count:
-                LOGGER.warning(
-                    f"APID {sp_header.apid} received sequence count: {sp_header.seq_count}"
-                    f" (expected: {expected_seq_count})"
-                )
-                # Set the sequence count to the next expected value (consider missing packets have been lost)
-                self.apid_to_sequence_count_map[sp_header.apid] = (
-                    sp_header.seq_count + 1
-                ) % self.SEQUENCE_COUNT_MAXIMUM
             # If the pool is large enough to read the whole packet, then read it
             if len(data) >= sp_header.packet_len:
+                # Check sequence count and warn if not expected value (don't drop the packet)
+                expected_seq_count = self.get_sequence_count(sp_header.apid)
+                if sp_header.seq_count != expected_seq_count:
+                    LOGGER.warning(
+                        f"APID {sp_header.apid} received sequence count: {sp_header.seq_count}"
+                        f" (expected: {expected_seq_count})"
+                    )
+                    # Set the sequence count to the next expected value (consider missing packets have been lost)
+                    self.apid_to_sequence_count_map[sp_header.apid] = (
+                        sp_header.seq_count + 1
+                    ) % self.SEQUENCE_COUNT_MAXIMUM
                 deframed = struct.unpack_from(
                     # data_len is number of bytes minus 1 per SpacePacket spec
                     f">{sp_header.data_len + 1}s",
