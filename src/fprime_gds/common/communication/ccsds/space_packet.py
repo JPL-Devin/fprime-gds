@@ -38,17 +38,20 @@ class SpacePacketFramerDeframer(FramerDeframer):
 
     def frame(self, data):
         """Frame the supplied data in Space Packet"""
-        # The protocol defines length token to be number of bytes minus 1
-        data_length_token = len(data) - 1
-        # Extract the APID from the data
+        # Extract the APID from the leading packet descriptor and strip it: the APID is
+        # carried solely in the Space Packet primary header, and the data field contains
+        # descriptor-free payload
         self.apid_obj.deserialize(data, offset=0)
+        user_data = data[self.apid_obj.getSize() :]
+        # The protocol defines length token to be number of bytes minus 1
+        data_length_token = len(user_data) - 1
         space_header = SpacePacketHeader(
             packet_type=PacketType.TC,
             apid=self.apid_obj.numeric_value,
             seq_count=self.get_sequence_count(self.apid_obj.numeric_value),
             data_len=data_length_token,
         )
-        space_packet = SpacePacket(space_header, sec_header=None, user_data=data)
+        space_packet = SpacePacket(space_header, sec_header=None, user_data=user_data)
         return space_packet.pack()
 
     def deframe(self, data, no_copy=False):
@@ -97,7 +100,11 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 )[0]
                 data = data[sp_header.packet_len :]
                 LOGGER.debug(f"Deframed packet: {sp_header}")
-                return deframed, data, discarded
+                # The data field is descriptor-free: re-prepend the packet descriptor
+                # (from the header APID) expected by the downstream GDS pipeline
+                descriptor_size = self.apid_obj.getSize()
+                descriptor = sp_header.apid.to_bytes(descriptor_size, byteorder="big")
+                return descriptor + deframed, data, discarded
             else:
                 # If we don't have enough data, then break out of the loop
                 break

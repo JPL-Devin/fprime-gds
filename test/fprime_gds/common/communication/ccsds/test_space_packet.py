@@ -12,12 +12,15 @@ def test_frame_valid_data(framer_deframer):
     """Test framing valid data (if applicable)."""
     # Prefix with Descriptor, as expected by framer
     test_descriptor = ConfigManager().get_type("ComCfg.Apid")("FW_PACKET_UNKNOWN")
-    data = test_descriptor.serialize() + b"test_payload"
+    payload = b"test_payload"
+    data = test_descriptor.serialize() + payload
     framed_data = framer_deframer.frame(data)
     header = SpacePacketHeader.unpack(framed_data)
     assert header.packet_type == PacketType.TC
     assert header.apid == test_descriptor.numeric_value
-    assert header.data_len == len(data) - 1
+    # The descriptor is stripped: the data field contains only the payload
+    assert header.data_len == len(payload) - 1
+    assert framed_data[6:] == payload
     assert header.ccsds_version == 0b000  # Default version for CCSDS packets
     assert header.seq_count == 0
 
@@ -49,7 +52,8 @@ def test_deframe_valid_packet(framer_deframer):
 
     deframed, remaining_data, discarded = framer_deframer.deframe(input_data)
 
-    assert deframed == payload
+    # The deframer prepends the packet descriptor derived from the header APID
+    assert deframed == apid.to_bytes(2, byteorder="big") + payload
     assert remaining_data == b"TRAILING_GARBAGE"
     assert discarded == b"GARBAGE"
 
@@ -85,8 +89,8 @@ def test_deframe_multiple_packets(framer_deframer):
     deframed, remaining_data, discarded = framer_deframer.deframe_all(input_data, no_copy=False)
 
     assert len(deframed) == 2
-    assert deframed[0] == payload1
-    assert deframed[1] == payload2
+    assert deframed[0] == apid1.to_bytes(2, byteorder="big") + payload1
+    assert deframed[1] == apid2.to_bytes(2, byteorder="big") + payload2
     assert remaining_data == b""
     assert discarded == b""
 
