@@ -74,8 +74,10 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 discarded += data[0:1]
                 data = data[1:]
                 continue
-            # Skip Idle Packets as they are not meaningful
+            # Skip Idle Packets as they are not meaningful (only once fully received)
             if sp_header.apid == self.IDLE_APID:
+                if len(data) < sp_header.packet_len:
+                    break
                 data = data[sp_header.packet_len :]
                 continue
             # If the pool is large enough to read the whole packet, then read it
