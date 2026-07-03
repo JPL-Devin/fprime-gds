@@ -4,6 +4,8 @@ from spacepackets.ccsds.spacepacket import SpacePacketHeader, PacketType, SpaceP
 from fprime_gds.common.utils.config_manager import ConfigManager
 from fprime_gds.common.models.serialize.type_exceptions import TypeRangeException
 
+DESCRIPTOR_SIZE = ConfigManager().get_type("ComCfg.Apid")().getSize()
+
 @pytest.fixture
 def framer_deframer():
     return SpacePacketFramerDeframer()
@@ -53,7 +55,7 @@ def test_deframe_valid_packet(framer_deframer):
     deframed, remaining_data, discarded = framer_deframer.deframe(input_data)
 
     # The deframer prepends the packet descriptor derived from the header APID
-    assert deframed == apid.to_bytes(2, byteorder="big") + payload
+    assert deframed == apid.to_bytes(DESCRIPTOR_SIZE, byteorder="big") + payload
     assert remaining_data == b"TRAILING_GARBAGE"
     assert discarded == b"GARBAGE"
 
@@ -89,8 +91,8 @@ def test_deframe_multiple_packets(framer_deframer):
     deframed, remaining_data, discarded = framer_deframer.deframe_all(input_data, no_copy=False)
 
     assert len(deframed) == 2
-    assert deframed[0] == apid1.to_bytes(2, byteorder="big") + payload1
-    assert deframed[1] == apid2.to_bytes(2, byteorder="big") + payload2
+    assert deframed[0] == apid1.to_bytes(DESCRIPTOR_SIZE, byteorder="big") + payload1
+    assert deframed[1] == apid2.to_bytes(DESCRIPTOR_SIZE, byteorder="big") + payload2
     assert remaining_data == b""
     assert discarded == b""
 

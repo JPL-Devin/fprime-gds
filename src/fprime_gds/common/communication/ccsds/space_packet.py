@@ -41,6 +41,11 @@ class SpacePacketFramerDeframer(FramerDeframer):
         # descriptor-free payload
         self.apid_obj.deserialize(data, offset=0)
         user_data = data[self.apid_obj.getSize() :]
+        # Space Packets must carry at least 1 byte of user data
+        if not user_data:
+            raise ValueError(
+                "Cannot frame empty payload: Space Packets require at least 1 byte of user data"
+            )
         # The protocol defines length token to be number of bytes minus 1
         data_length_token = len(user_data) - 1
         space_header = SpacePacketHeader(
