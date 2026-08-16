@@ -1,0 +1,15 @@
+[package]
+name = "fprime-ccsds"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CCSDS 133.0 (Space Packet) and 132.0/232.0 (TM/TC Space Data Link) framers/deframers for the F´ ground system"
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+fprime-frame.workspace = true
+
+[dev-dependencies]
+hex.workspace = true

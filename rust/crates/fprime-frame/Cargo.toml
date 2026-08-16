@@ -1,0 +1,13 @@
+[package]
+name = "fprime-frame"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "F´ ground-system framer/deframer with CRC32 checksum"
+
+[dependencies]
+thiserror.workspace = true
+crc32fast.workspace = true
+bytes.workspace = true
+tracing.workspace = true

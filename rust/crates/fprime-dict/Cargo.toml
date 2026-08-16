@@ -1,0 +1,13 @@
+[package]
+name = "fprime-dict"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "F´ JSON topology dictionary loader"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+fprime-types.workspace = true
