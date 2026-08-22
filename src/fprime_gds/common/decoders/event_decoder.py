@@ -22,6 +22,7 @@ from fprime_gds.common.data_types import event_data
 from fprime_gds.common.decoders import decoder
 from fprime_gds.common.decoders.decoder import DecodingException
 from fprime_gds.common.utils.config_manager import ConfigManager
+from fprime_gds.common.utils.opcode_mask import unmask_opcode
 
 import logging
 
@@ -90,10 +91,41 @@ class EventDecoder(decoder.Decoder):
 
             (size, arg_vals) = self.decode_args(data, ptr, event_temp)
 
+            self.unmask_opcode_args(event_temp, arg_vals)
+
             event_list.append(event_data.EventData(arg_vals, event_time, event_temp))
             # add up argument sizes
             ptr += size
         return event_list
+
+    @staticmethod
+    def unmask_opcode_args(template, arg_vals):
+        """
+        Unmasks opcode-bearing event arguments in-place when opcode masking
+        is enabled via ConfigManager.
+
+        When the flight side masks command opcodes before emitting them in
+        events (see Svc::CmdDispatcherCfg::getEventOpcode()), this inverts the
+        mask so displayed events show real opcodes. Arguments are matched by
+        name against the configured "opcode_mask_arg_names" set. No-op unless
+        "opcode_mask_enabled" is True and "opcode_mask_keys" is set.
+
+        Args:
+            template: EventTemplate for the decoded event
+            arg_vals: Tuple of decoded argument value objects (mutated in-place)
+        """
+        config = ConfigManager()
+        if not config.get_config("opcode_mask_enabled"):
+            return
+        keys = config.get_config("opcode_mask_keys")
+        if not keys:
+            return
+        arg_names = config.get_config("opcode_mask_arg_names")
+        for arg, arg_obj in zip(template.get_args(), arg_vals):
+            (arg_name, _, _) = arg
+            if arg_name in arg_names and isinstance(arg_obj.val, int):
+                width = arg_obj.getSize() * 8
+                arg_obj.val = unmask_opcode(arg_obj.val, keys, width)
 
     @staticmethod
     def decode_args(arg_data, offset, template):

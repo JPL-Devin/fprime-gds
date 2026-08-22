@@ -240,5 +240,13 @@ class ConfigManager:
                 # Used for processing logged data from Svc.ComLogger
                 "key_val": U16Type,
                 "use_key": False,
+                # Ground-side inverse of the flight-side opcode event mask
+                # (Svc::CmdDispatcherCfg::getEventOpcode()). Off by default.
+                "opcode_mask_enabled": False,
+                # Four 64-bit Feistel round keys (project-configured constants)
+                "opcode_mask_keys": (),
+                # Event argument names treated as opcode-bearing when masking
+                # is enabled
+                "opcode_mask_arg_names": {"Opcode", "opCode", "opcode"},
             }
         )
