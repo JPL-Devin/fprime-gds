@@ -37,22 +37,43 @@ class SpacePacketFramerDeframer(FramerDeframer):
             self.apid_to_sequence_count_map[key] = 0
 
     def frame(self, data):
-        """Frame the supplied data in Space Packet"""
-        # The protocol defines length token to be number of bytes minus 1
-        data_length_token = len(data) - 1
-        # Extract the APID from the data
+        """Frame the supplied data in Space Packet
+
+        Incoming ``data`` follows the GDS-internal convention of
+        ``[packet descriptor (U16)][payload]``. The descriptor's value is read
+        and used to populate the SP primary header's APID field; it is then
+        stripped before placing the remaining payload bytes into the SP user
+        data field. The CCSDS SP primary header already carries the APID, so
+        the descriptor is intentionally not duplicated in user data.
+        """
+        # Extract the APID from the leading packet-descriptor bytes
         self.apid_obj.deserialize(data, offset=0)
+        # Strip the descriptor; SP user data on the wire is the payload only.
+        payload = data[self.apid_obj.getSize() :]
+        # The protocol defines length token to be number of bytes minus 1
+        data_length_token = len(payload) - 1
         space_header = SpacePacketHeader(
             packet_type=PacketType.TC,
             apid=self.apid_obj.numeric_value,
             seq_count=self.get_sequence_count(self.apid_obj.numeric_value),
             data_len=data_length_token,
         )
-        space_packet = SpacePacket(space_header, sec_header=None, user_data=data)
+        space_packet = SpacePacket(space_header, sec_header=None, user_data=payload)
         return space_packet.pack()
 
     def deframe(self, data, no_copy=False):
-        """Deframe the supplied data according to Space Packet protocol"""
+        """Deframe the supplied data according to Space Packet protocol
+
+        The CCSDS SP primary header already carries the APID, so the wire
+        no longer places a redundant packet descriptor at the start of the
+        SP user data field; user data is just the payload bytes. To keep the
+        rest of the GDS pipeline (notably the ``Distributor``) descriptor-
+        driven, the APID is read from the SP primary header and re-emitted
+        as a leading packet-descriptor in front of the payload bytes returned
+        to the caller. The returned buffer therefore follows the same
+        ``[packet descriptor (U16)][payload]`` convention used elsewhere in
+        the GDS.
+        """
         discarded = b""
         if data is None:
             return None, None, discarded
@@ -89,12 +110,20 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 )
             # If the pool is large enough to read the whole packet, then read it
             if len(data) >= sp_header.packet_len:
-                deframed = struct.unpack_from(
+                payload = struct.unpack_from(
                     # data_len is number of bytes minus 1 per SpacePacket spec
                     f">{sp_header.data_len + 1}s",
                     data,
                     self.HEADER_SIZE,
                 )[0]
+                # Re-emit the APID (read from the SP primary header) as a
+                # leading packet descriptor for the downstream Distributor.
+                # Use the underlying numeric representation so unknown APIDs
+                # are forwarded verbatim (the Distributor will surface them).
+                descriptor_bytes = struct.pack(
+                    self.apid_obj.REP_TYPE.get_serialize_format(), sp_header.apid
+                )
+                deframed = descriptor_bytes + payload
                 data = data[sp_header.packet_len :]
                 LOGGER.debug(f"Deframed packet: {sp_header}")
                 return deframed, data, discarded

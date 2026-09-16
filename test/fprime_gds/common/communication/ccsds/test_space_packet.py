@@ -1,3 +1,5 @@
+import struct
+
 import pytest
 from fprime_gds.common.communication.ccsds.space_packet import SpacePacketFramerDeframer
 from spacepackets.ccsds.spacepacket import SpacePacketHeader, PacketType, SpacePacket
@@ -12,14 +14,20 @@ def test_frame_valid_data(framer_deframer):
     """Test framing valid data (if applicable)."""
     # Prefix with Descriptor, as expected by framer
     test_descriptor = ConfigManager().get_type("ComCfg.Apid")("FW_PACKET_UNKNOWN")
-    data = test_descriptor.serialize() + b"test_payload"
+    payload = b"test_payload"
+    data = test_descriptor.serialize() + payload
     framed_data = framer_deframer.frame(data)
     header = SpacePacketHeader.unpack(framed_data)
     assert header.packet_type == PacketType.TC
     assert header.apid == test_descriptor.numeric_value
-    assert header.data_len == len(data) - 1
+    # The descriptor is stripped from SP user data; the APID rides only the
+    # SP primary header. data_len reflects the payload-only length.
+    assert header.data_len == len(payload) - 1
     assert header.ccsds_version == 0b000  # Default version for CCSDS packets
     assert header.seq_count == 0
+    # SP user data on the wire should be just the payload, no descriptor prefix
+    user_data = framed_data[SpacePacketFramerDeframer.HEADER_SIZE:]
+    assert user_data == payload
 
 def test_frame_invalid_data(framer_deframer):
     """Test framing valid data with an incorrect DataDescType prefixed."""
@@ -49,7 +57,12 @@ def test_deframe_valid_packet(framer_deframer):
 
     deframed, remaining_data, discarded = framer_deframer.deframe(input_data)
 
-    assert deframed == payload
+    # The deframer re-injects the APID-as-descriptor (read from the SP primary
+    # header) ahead of the payload, so the rest of the GDS pipeline keeps
+    # finding a descriptor at offset 0.
+    descriptor_format = framer_deframer.apid_obj.REP_TYPE.get_serialize_format()
+    expected_descriptor = struct.pack(descriptor_format, apid)
+    assert deframed == expected_descriptor + payload
     assert remaining_data == b"TRAILING_GARBAGE"
     assert discarded == b"GARBAGE"
 
@@ -84,9 +97,10 @@ def test_deframe_multiple_packets(framer_deframer):
     input_data = packet1 + packet2
     deframed, remaining_data, discarded = framer_deframer.deframe_all(input_data, no_copy=False)
 
+    descriptor_format = framer_deframer.apid_obj.REP_TYPE.get_serialize_format()
     assert len(deframed) == 2
-    assert deframed[0] == payload1
-    assert deframed[1] == payload2
+    assert deframed[0] == struct.pack(descriptor_format, apid1) + payload1
+    assert deframed[1] == struct.pack(descriptor_format, apid2) + payload2
     assert remaining_data == b""
     assert discarded == b""
 
