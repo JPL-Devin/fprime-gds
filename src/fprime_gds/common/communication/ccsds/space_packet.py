@@ -31,24 +31,30 @@ class SpacePacketFramerDeframer(FramerDeframer):
     def __init__(self):
         # Internal APID object for deserialization
         self.apid_obj: EnumType = ConfigManager().get_type("ComCfg.Apid")()  # type: ignore
-        # Map APID to sequence counts
+        # Map APID (integer) to sequence counts; unseen APIDs default to 0 on access
         self.apid_to_sequence_count_map = dict()
-        for key in self.apid_obj.keys():
-            self.apid_to_sequence_count_map[key] = 0
 
     def frame(self, data):
         """Frame the supplied data in Space Packet"""
-        # The protocol defines length token to be number of bytes minus 1
-        data_length_token = len(data) - 1
-        # Extract the APID from the data
+        # Extract the APID from the leading packet descriptor and strip it: the APID is
+        # carried solely in the Space Packet primary header, and the data field contains
+        # descriptor-free payload
         self.apid_obj.deserialize(data, offset=0)
+        user_data = data[self.apid_obj.getSize() :]
+        # Space Packets must carry at least 1 byte of user data
+        if not user_data:
+            raise ValueError(
+                "Cannot frame empty payload: Space Packets require at least 1 byte of user data"
+            )
+        # The protocol defines length token to be number of bytes minus 1
+        data_length_token = len(user_data) - 1
         space_header = SpacePacketHeader(
             packet_type=PacketType.TC,
             apid=self.apid_obj.numeric_value,
             seq_count=self.get_sequence_count(self.apid_obj.numeric_value),
             data_len=data_length_token,
         )
-        space_packet = SpacePacket(space_header, sec_header=None, user_data=data)
+        space_packet = SpacePacket(space_header, sec_header=None, user_data=user_data)
         return space_packet.pack()
 
     def deframe(self, data, no_copy=False):
@@ -73,22 +79,25 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 discarded += data[0:1]
                 data = data[1:]
                 continue
-            # Skip Idle Packets as they are not meaningful
+            # Skip Idle Packets as they are not meaningful (only once fully received)
             if sp_header.apid == self.IDLE_APID:
+                if len(data) < sp_header.packet_len:
+                    break
                 data = data[sp_header.packet_len :]
                 continue
-            # Check sequence count and warn if not expected value (don't drop the packet)
-            if sp_header.seq_count != self.get_sequence_count(sp_header.apid):
-                LOGGER.warning(
-                    f"APID {sp_header.apid} received sequence count: {sp_header.seq_count}"
-                    f" (expected: {self.get_sequence_count(sp_header.apid)})"
-                )
-                # Set the sequence count to the next expected value (consider missing packets have been lost)
-                self.apid_to_sequence_count_map[sp_header.apid] = (
-                    sp_header.seq_count + 1
-                )
             # If the pool is large enough to read the whole packet, then read it
             if len(data) >= sp_header.packet_len:
+                # Check sequence count and warn if not expected value (don't drop the packet)
+                expected_seq_count = self.get_sequence_count(sp_header.apid)
+                if sp_header.seq_count != expected_seq_count:
+                    LOGGER.warning(
+                        f"APID {sp_header.apid} received sequence count: {sp_header.seq_count}"
+                        f" (expected: {expected_seq_count})"
+                    )
+                    # Set the sequence count to the next expected value (consider missing packets have been lost)
+                    self.apid_to_sequence_count_map[sp_header.apid] = (
+                        sp_header.seq_count + 1
+                    ) % self.SEQUENCE_COUNT_MAXIMUM
                 deframed = struct.unpack_from(
                     # data_len is number of bytes minus 1 per SpacePacket spec
                     f">{sp_header.data_len + 1}s",
@@ -97,7 +106,11 @@ class SpacePacketFramerDeframer(FramerDeframer):
                 )[0]
                 data = data[sp_header.packet_len :]
                 LOGGER.debug(f"Deframed packet: {sp_header}")
-                return deframed, data, discarded
+                # The data field is descriptor-free: re-prepend the packet descriptor
+                # (from the header APID) expected by the downstream GDS pipeline
+                descriptor_size = self.apid_obj.getSize()
+                descriptor = sp_header.apid.to_bytes(descriptor_size, byteorder="big")
+                return descriptor + deframed, data, discarded
             else:
                 # If we don't have enough data, then break out of the loop
                 break
