@@ -317,6 +317,11 @@ class ConfigDrivenParser(ParserBase):
 
     This parser reads a configuration file (if supplied) and uses the values to drive the inputs to arguments. Command
     line arguments will still take precedence over the configured values.
+
+    The configuration file is selected by precedence: an explicit `-c/--config` argument, then a non-empty
+    DEFAULT_CONFIGURATION_PATH_ENV environment variable (unless disabled via `set_default_configuration()`), then
+    DEFAULT_CONFIGURATION_PATH. A file selected by argument or environment variable must exist; the fallback path is
+    used only if present.
     """
 
     DEFAULT_CONFIGURATION_PATH = Path("fprime-gds.yml")
@@ -324,27 +329,33 @@ class ConfigDrivenParser(ParserBase):
     # Takes precedence over DEFAULT_CONFIGURATION_PATH
     DEFAULT_CONFIGURATION_PATH_ENV = "FPRIME_GDS_CONFIG_PATH"
 
+    # Set by set_default_configuration() to make DEFAULT_CONFIGURATION_PATH win over the environment variable
+    DEFAULT_CONFIGURATION_PATH_OVERRIDE = False
+
     @classmethod
     def set_default_configuration(cls, path: Path):
         """Set path for (global) default configuration file
 
         Set the path for default configuration file. If unset, will use 'fprime-gds.yml'. Set to None to disable default
-        configuration. Calling this function disables the environment variable override.
+        configuration. Calling this function disables the environment variable override within this process; the
+        environment itself is left untouched so child processes still see it.
         """
         cls.DEFAULT_CONFIGURATION_PATH = path
-        os.environ.pop(cls.DEFAULT_CONFIGURATION_PATH_ENV, None)
+        cls.DEFAULT_CONFIGURATION_PATH_OVERRIDE = True
 
     @classmethod
     def get_default_configuration(cls):
         """Get path for (global) default configuration file
 
-        If set, the environment variable (DEFAULT_CONFIGURATION_PATH_ENV) overrides
-        DEFAULT_CONFIGURATION_PATH. Get the path for default configuration file. If unset, will
-        use 'fprime-gds.yml'.
+        If set to a non-empty value, the environment variable (DEFAULT_CONFIGURATION_PATH_ENV) overrides
+        DEFAULT_CONFIGURATION_PATH unless set_default_configuration() was called. If unset, will use 'fprime-gds.yml'.
+
+        Returns: tuple of (path, explicit) where explicit is True when the path came from the environment variable
         """
-        if cls.DEFAULT_CONFIGURATION_PATH_ENV in os.environ:
-            return Path(os.environ[cls.DEFAULT_CONFIGURATION_PATH_ENV])
-        return cls.DEFAULT_CONFIGURATION_PATH
+        environment_path = os.environ.get(cls.DEFAULT_CONFIGURATION_PATH_ENV, "")
+        if environment_path and not cls.DEFAULT_CONFIGURATION_PATH_OVERRIDE:
+            return Path(environment_path), True
+        return cls.DEFAULT_CONFIGURATION_PATH, False
 
     @classmethod
     def parse_args(
@@ -465,13 +476,14 @@ class ConfigDrivenParser(ParserBase):
 
     def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
         """Arguments needed for config processing"""
+        default_path, _ = self.get_default_configuration()
         return {
             ("-c", "--config"): {
                 "dest": "config",
                 "required": False,
-                "default": self.get_default_configuration(),
+                "default": argparse.SUPPRESS,
                 "type": Path,
-                "help": "Argument configuration file path. [default: %(default)s]",
+                "help": f"Argument configuration file path. [default: {default_path}]",
             },
             ("-v", "--version"): {
                 "action": "version",
@@ -483,13 +495,15 @@ class ConfigDrivenParser(ParserBase):
         """Handle the arguments
 
         Loads the configuration file specified and fills in the `config_values` attribute of the namespace with the
-        loaded configuration dictionary.
+        loaded configuration dictionary. A configuration file selected explicitly (argument or environment variable)
+        must exist; the fallback default is only read when present.
         """
         args.config_values = {}
-        # Specified but non-existent config file is a hard error
-        if (
-            "-c" in sys.argv[1:] or "--config" in sys.argv[1:]
-        ) and not args.config.exists():
+        # Argument default is SUPPRESS, so the attribute exists only when -c/--config was supplied
+        explicit = hasattr(args, "config")
+        if not explicit:
+            args.config, explicit = self.get_default_configuration()
+        if explicit and not args.config.exists():
             raise ValueError(
                 f"Specified configuration file '{args.config}' does not exist"
             )
