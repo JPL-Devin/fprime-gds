@@ -15,7 +15,10 @@ Here a test (defined by starting the name with test_) uses the fprime_test_api f
 @author lestarch
 """
 
+import argparse
 import itertools
+import os
+import shlex
 import sys
 from pathlib import Path
 import pytest
@@ -24,6 +27,41 @@ from fprime_gds.common.testing_fw.api import IntegrationTestAPI
 from fprime_gds.executables.cli import StandardPipelineParser, ConfigDrivenParser
 
 SEQUENCE_COUNTER = itertools.count()
+
+
+def explicit_pipeline_arguments(config, pipeline_parser):
+    """Standard-pipeline arguments the user explicitly supplied to pytest
+
+    pytest's parsed namespace carries argparse defaults for every option registered in pytest_addoption; feeding those
+    back to ConfigDrivenParser would override the configuration file. Instead, re-parse the pytest invocation (addopts
+    ini value, PYTEST_ADDOPTS, then the command line, in pytest's order) with defaults suppressed so that only the
+    flags actually given are reproduced.
+
+    Args:
+        config: pytest config object
+        pipeline_parser: StandardPipelineParser whose options are mirrored into pytest
+
+    Return:
+        list of command line arguments for the explicitly supplied standard-pipeline options
+    """
+    explicit_parser = argparse.ArgumentParser(
+        add_help=False, argument_default=argparse.SUPPRESS
+    )
+    for flags, specifiers in pipeline_parser.get_arguments().items():
+        flags = [flag for flag in flags if flag.startswith("--")]
+        # Flags (store_true/store_false) keep their default so reproduce_cli_args only emits them when toggled
+        if specifiers.get("action", "store") == "store":
+            specifiers = {
+                key: value for key, value in specifiers.items() if key != "default"
+            }
+        explicit_parser.add_argument(*flags, **specifiers)
+    invocation = (
+        list(config.getini("addopts"))
+        + shlex.split(os.environ.get("PYTEST_ADDOPTS", ""))
+        + list(config.invocation_params.args)
+    )
+    explicit_ns, _ = explicit_parser.parse_known_args(invocation)
+    return pipeline_parser.reproduce_cli_args(explicit_ns)
 
 
 def pytest_addoption(parser):
@@ -94,8 +132,11 @@ def fprime_test_api_session(request):
     """Create a session-level fprime test API
 
     This is a pytest session fixture. Using the options added above, this will parse the necessary options for
-    connecting the standard pipeline to the running GDS. This pipeline is supplied to the fprime test API returned as
-    the result of this fixture. This has several implications:
+    connecting the standard pipeline to the running GDS. Options not given on the pytest command line are read from
+    the fprime-gds configuration file ($FPRIME_GDS_CONFIG_PATH, else ./fprime-gds.yml), as `fprime-gds` does; the
+    plugin exposes no --config flag, so the file is selected only through that variable or the working directory.
+    This pipeline is supplied to the fprime test API returned as the result of this fixture. This has several
+    implications:
       1. APIs all use one connection to the GDS
       2. APIs and the connections are live across the whole pytest session. See fprime_test_api.
 
@@ -110,17 +151,13 @@ def fprime_test_api_session(request):
     """
     pipeline_parser = StandardPipelineParser()
 
-    # Use the ConfigDrivenParser to retrieve default configuration from a file (so that pytest
-    # behavior matches fprime-gds CLI behavior). ConfigDrivenParser.parse_known_args() can NOT
-    # be called with arguments=None here, as that defaults to sys.argv[1:] which is pytest's own
-    # command line (e.g. -v, --color=yes) and not fprime-gds options. Instead, reproduce only the
-    # standard-pipeline flags that pytest actually parsed explicitly, and let ConfigDrivenParser
-    # fill in the rest from the configuration file.
-    reproduced_args = pipeline_parser.reproduce_cli_args(
-        request.config.known_args_namespace
-    )
+    # ConfigDrivenParser fills options from the configuration file first and applies the supplied arguments over them
+    # (matching fprime-gds CLI behavior). It must not be handed sys.argv (pytest's own command line) nor pytest's parsed
+    # namespace (which carries argparse defaults that would override the file), only the flags the user gave.
     arg_ns, _, _ = ConfigDrivenParser.parse_known_args(
-        [StandardPipelineParser], arguments=reproduced_args, client=True
+        [StandardPipelineParser],
+        arguments=explicit_pipeline_arguments(request.config, pipeline_parser),
+        client=True,
     )
 
     pipeline = None
