@@ -1,0 +1,16 @@
+[package]
+name = "fprime-dp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Decoder for F´ data product (.fdp) files."
+
+[dependencies]
+fprime-types = { workspace = true }
+fprime-dict = { workspace = true }
+fprime-pipeline = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+crc32fast = { workspace = true }

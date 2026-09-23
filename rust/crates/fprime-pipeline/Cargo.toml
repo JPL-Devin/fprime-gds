@@ -1,0 +1,13 @@
+[package]
+name = "fprime-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "F´ ground-system decoder/encoder pipeline operating on a JSON dictionary"
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+fprime-types.workspace = true
+fprime-dict.workspace = true
