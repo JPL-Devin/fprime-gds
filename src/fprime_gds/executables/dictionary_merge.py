@@ -699,10 +699,16 @@ def merge_dictionaries(dictionary1, dictionary2, name=None, permissive=False):
 
 def is_stream_output(path: Path):
     """ True for destinations that must be written directly rather than replaced by rename: anything that exists and
-    is not a regular file (FIFO, character device), and descriptor paths such as /dev/stdout or /proc/self/fd/1, which
-    resolve to whatever the descriptor currently points at (possibly a regular file elsewhere). """
-    if path.parts[:2] in (("/", "dev"), ("/", "proc")):
-        return True
+    is not a regular file (FIFO, character device), and descriptor paths such as /dev/stdout, /dev/fd/1 or
+    /proc/self/fd/1, which are symlinks through /proc to whatever the descriptor currently points at. """
+    current = path
+    for _ in range(40):
+        if current.parts[:2] == ("/", "proc"):
+            return True
+        if not current.is_symlink():
+            break
+        target = Path(os.readlink(current))
+        current = target if target.is_absolute() else current.parent / target
     return path.exists() and not path.is_file()
 
 

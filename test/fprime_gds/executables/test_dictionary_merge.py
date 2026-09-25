@@ -1072,4 +1072,22 @@ class TestAtomicWrite(DictionaryMergeTestCase):
         self.assertEqual(code, 0)
         code, _, regular = self.run_cli(self.d1, self.d2)
         self.assertEqual(redirected.read_text(), regular.read_text())
+
+    def test_stream_output_detection(self):
+        regular = self.tmp / "plain.json"
+        regular.write_text("{}")
+        self.assertFalse(dictionary_merge.is_stream_output(regular))
+        self.assertFalse(dictionary_merge.is_stream_output(self.tmp / "new.json"))
+        link = self.tmp / "link.json"
+        link.symlink_to(regular)
+        self.assertFalse(dictionary_merge.is_stream_output(link))
+        descriptor = self.tmp / "fd.json"
+        descriptor.symlink_to("/proc/self/fd/1")
+        self.assertTrue(dictionary_merge.is_stream_output(descriptor))
+        self.assertTrue(dictionary_merge.is_stream_output(Path("/proc/self/fd/1")))
+        if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK):
+            shm = Path("/dev/shm") / f"fprime_merge_test_{os.getpid()}.json"
+            shm.write_text("{}")
+            self.addCleanup(shm.unlink)
+            self.assertFalse(dictionary_merge.is_stream_output(shm))
         self.assertEqual([p.name for p in self.tmp.glob("*.tmp")], [])
