@@ -1013,6 +1013,23 @@ class TestAtomicWrite(DictionaryMergeTestCase):
         self.assertEqual(lines[-1], f"[ERROR] cannot write '{existing}': disk full")
         self.assertEqual(existing.read_text(), "old")
         self.assertEqual([p.name for p in self.tmp.glob("*.tmp")], [])
+        # an existing file keeps its mode, whatever the umask
+        existing.chmod(0o644)
+        previous = os.umask(0o077)
+        try:
+            code, _, _ = self.run_cli(self.d1, self.d2, output=existing)
+        finally:
+            os.umask(previous)
+        self.assertEqual(code, 0)
+        self.assertEqual(stat.S_IMODE(existing.stat().st_mode), 0o644)
+        # a directory that refuses the temporary file is an error, never a truncating direct write
+        existing.write_text("old")
+        with mock.patch.object(dictionary_merge.tempfile, "NamedTemporaryFile",
+                               side_effect=PermissionError("read-only directory")):
+            code, lines, _ = self.run_cli(self.d1, self.d2, output=existing)
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-1], f"[ERROR] cannot write '{existing}': read-only directory")
+        self.assertEqual(existing.read_text(), "old")
 
     def test_unwritable_directory(self):
         output = self.tmp / "nope" / "out.json"

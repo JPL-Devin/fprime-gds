@@ -34,6 +34,7 @@ import copy
 import json
 import os
 import re
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -697,28 +698,28 @@ def merge_dictionaries(dictionary1, dictionary2, name=None, permissive=False):
 
 
 def write_output(path: Path, merged):
-    """ Write the merged dictionary atomically: temporary file in the output directory, then rename. Falls back to a
-    direct write for non-regular outputs (e.g. /dev/stdout) or when the directory refuses a temporary file. """
+    """ Write the merged dictionary atomically: temporary file in the output directory, then rename, so a failure never
+    leaves a truncated dictionary behind. An existing file keeps its mode; a new one gets the umask default. Non-regular
+    outputs (e.g. /dev/stdout, a FIFO) cannot be renamed over and are written directly. """
     text = json.dumps(merged, indent=2)
     if path.exists() and not path.is_file():
         with open(path, "w") as output_fh:
             output_fh.write(text)
         return
-    umask = os.umask(0)
-    os.umask(umask)
-    try:
-        temporary = tempfile.NamedTemporaryFile(mode="w", dir=str(path.parent), prefix=f"{path.name}.",
-                                                suffix=".tmp", delete=False)
-    except OSError:
-        with open(path, "w") as output_fh:
-            output_fh.write(text)
-        return
+    if path.is_file():
+        mode = stat.S_IMODE(path.stat().st_mode)
+    else:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
+    temporary = tempfile.NamedTemporaryFile(mode="w", dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp",
+                                            delete=False)
     try:
         with temporary:
             temporary.write(text)
             temporary.flush()
             os.fsync(temporary.fileno())
-        os.chmod(temporary.name, 0o666 & ~umask)
+        os.chmod(temporary.name, mode)
         os.replace(temporary.name, path)
     except BaseException:
         try:
