@@ -40,7 +40,6 @@ GROUND_PATH = RESOURCES / "GroundChannels.json"
 GROUND_MINIMAL_PATH = RESOURCES / "GroundChannelsMinimal.json"
 GOLDEN_GROUND = RESOURCES / "expected" / "ground_channels_merged.json"
 
-LIST_SECTIONS = ["commands", "parameters", "events", "telemetryChannels", "records", "containers"]
 COUNTED = ["commands", "events", "telemetryChannels"]
 B2_SHIFT = 0x20000000
 C2_SHIFT = 0x40000000
@@ -71,6 +70,7 @@ W9 = "re-run the merge N-way"
 W9_SUFFIX = "is appended un-prefixed although"
 W9_MIRROR = "is appended although un-prefixed"
 W10 = "in omitted (kept; the GDS ignores omitted)"
+W11 = "select it with --packet-set-name"
 
 
 def load(path):
@@ -353,8 +353,9 @@ class TestRealHubReference(DictionaryMergeTestCase):
     def test_same_name_different_id_default_renames_both(self):
         code, lines, output = self.run_cli(A_PATH, self.write("B2.json", self.B2))
         self.assertEqual(code, 0)
-        self.assertEqual(len(warnings(lines)), 260)
+        self.assertEqual(len(warnings(lines)), 261)
         self.assertEqual(count(lines, W2), 260)
+        self.assertEqual(lines[-1], "[WARNING] Merged 2 dictionaries with 260 warning(s): 260 renamed")
         merged = load(output)
         self.assertCounts(merged, 93, 419, 191)
         self.assertEqual(len(self.prefixed_names(merged)), 520)
@@ -494,11 +495,13 @@ class TestRealHubReference(DictionaryMergeTestCase):
         self.assertEqual([c["name"] for c in merged["commands"]], ["One.Ref.a.CMD", "Two.Ref.a.CMD"])
 
     def test_w9_not_emitted_on_nway(self):
-        runs = [((self.A, self.B2), {}), ((self.A, self.B), {}), ((self.A, self.B2, self.C), {}),
-                ((self.A, self.B2, self.C2), {}), ((self.A, self.B), {"prefer_primary": True}),
-                ((self.B, self.A), {"prefer_primary": True}), ((self.A, load(GROUND_PATH)), {"permissive": True})]
-        for dictionaries, options in runs:
-            _, report, _ = merge(*dictionaries, **options)
+        runs = [((self.A, self.B2), {}, True), ((self.A, self.B), {}, False), ((self.A, self.B2, self.C), {}, True),
+                ((self.A, self.B2, self.C2), {}, True), ((self.A, self.B), {"prefer_primary": True}, True),
+                ((self.B, self.A), {"prefer_primary": True}, True),
+                ((self.A, load(GROUND_PATH)), {"permissive": True}, True)]
+        for dictionaries, options, succeeds in runs:
+            merged, report, _ = merge(*dictionaries, **options)
+            self.assertEqual(merged is not None, succeeds, report.errors)
             self.assertEqual(count(report.warnings, W9), 0)
         nested = make_dictionary("Ref.Z", commands=[command("DeploymentZ.CdhCore.cmdDisp.CMD_NO_OP", 0x7000000)],
                                  projectVersion="a32988b", frameworkVersion="v4.2.0")
@@ -638,12 +641,26 @@ class TestSyntheticConflicts(DictionaryMergeTestCase):
         report = merge_fails(d1, d2)
         self.assertEqual(count(report.errors, E10[0]), 1)
         self.assertIn("cannot rename 'Ref.a.X' from 'd1' to 'P.Ref.a.X'", report.errors[0])
+        # the arriving entry's own target is held
+        d1 = make_dictionary("Ref.P", commands=[command("Ref.a.X", 1), command("Q.Ref.a.X", 3)])
+        report = merge_fails(d1, d2)
+        self.assertEqual(report.errors, ["commands: cannot rename 'Ref.a.X' from 'd2' to 'Q.Ref.a.X': that name is "
+                                         "already defined in 'd1' with opcode 0x3"])
         d1 = make_dictionary("Ref.DeploymentA", commands=[command("Ref.a.X", 1)])
         d2 = make_dictionary("Ref.DeploymentB", commands=[command("Ref.a.X", 2)])
         d3 = make_dictionary("Ref.DeploymentC", commands=[command("DeploymentA.Ref.a.X", 3)])
         report = merge_fails(d1, d2, d3)
         self.assertEqual(count(report.errors, E10[1]), 1)
         self.assertEqual(count(report.warnings, W2), 1)
+        # a third input whose bare name was renamed away earlier: unusable prefix, then target held by itself
+        d3 = make_dictionary("Ref.bad name", commands=[command("Ref.a.X", 3)])
+        report = merge_fails(d1, d2, d3)
+        self.assertEqual(count(report.errors, E11[0]), 1)
+        self.assertIn("'d3'", report.errors[0])
+        d3 = make_dictionary("Ref.DeploymentC", commands=[command("Ref.a.X", 3), command("DeploymentC.Ref.a.X", 4)])
+        report = merge_fails(d1, d2, d3)
+        self.assertEqual(count(report.errors, E10[1]), 1)
+        self.assertIn("'d3'", report.errors[0])
 
     def test_equal_prefix_via_contributor(self):
         d1 = make_dictionary("Ref.DA", commands=[command("Sub.X", 1)])
@@ -660,10 +677,11 @@ class TestSyntheticConflicts(DictionaryMergeTestCase):
     def test_prefix_validation(self):
         for bad, good in ((make_dictionary("Ref.bad name"), make_dictionary("Ref.Good")),
                           (make_dictionary("Ref.Good"), make_dictionary("Ref.bad name"))):
-            bad["commands"], good["commands"] = [command("Sub.X", 1)], [command("Sub.X", 2)]
+            bad["commands"] = [command("Sub.X", 1), command("Sub.Y", 2)]
+            good["commands"] = [command("Sub.X", 3), command("Sub.Y", 4)]
             report = merge_fails(bad, good)
             self.assertEqual(count(report.errors, E11[0]), 1)
-            self.assertEqual(len(report.errors), 1)
+            self.assertEqual(len(report.errors), 1)  # once per input, not once per collision
             merge_ok(bad, good, no_namespace=True, prefer_primary=True)
         # no collision: never evaluated
         merge_ok(make_dictionary("Ref.bad name", commands=[command("Sub.X", 1)]),
@@ -761,6 +779,40 @@ class TestStructure(DictionaryMergeTestCase):
             report = merge_fails(make_dictionary("Ref.One"), d2)
             self.assertEqual(report.errors, [f"Malformed dictionary section '{section}' in 'd2'. Entry #0 missing "
                                              f"key: '{key}'"])
+        d2 = make_dictionary("Ref.Two")
+        d2["commands"] = [42]
+        self.assertEqual(merge_fails(make_dictionary("Ref.One"), d2).errors,
+                         ["Malformed dictionary section 'commands' in 'd2'. Entry #0 is not an object"])
+        d2["commands"] = [{"name": 7, "opcode": 1}]
+        self.assertEqual(merge_fails(make_dictionary("Ref.One"), d2).errors,
+                         ["Malformed dictionary section 'commands' in 'd2'. Entry #0: 'name' must be a string (got 7)"])
+
+    def test_packet_set_shape_errors(self):
+        good = make_dictionary("Ref.One", channels=[channel("Ref.a.X", 1)])
+        expected = ["Malformed dictionary section 'telemetryPacketSets' in 'd2'. Set 'Pkts' must have 'members' "
+                    "packets with 'members' arrays of channel names and an 'omitted' array of channel names"]
+        for bad_set in ({"name": "Pkts", "members": [{"name": "P", "id": 1}]},
+                        {"name": "Pkts", "members": {}},
+                        {"name": "Pkts", "members": [{"name": "P", "id": 1, "members": [["Ref.a.X"]]}]},
+                        {"name": "Pkts", "members": [{"name": "P", "id": 1, "members": [{"n": 1}]}]},
+                        {"name": "Pkts", "members": [], "omitted": [3]},
+                        {"name": "Pkts", "members": [], "omitted": "Ref.a.X"}):
+            d2 = make_dictionary("Ref.Two", channels=[channel("Ref.b.Y", 2)])
+            d2["telemetryPacketSets"] = [bad_set]
+            self.assertEqual(merge_fails(good, d2).errors, expected)
+        # a set without 'members' is what the GDS loads as an empty set: accepted and emitted unchanged
+        d2 = make_dictionary("Ref.Two", channels=[channel("Ref.a.X", 2)])
+        d2["telemetryPacketSets"] = [{"name": "Pkts"}]
+        merged, _ = merge_ok(good, d2)
+        self.assertEqual(merged["telemetryPacketSets"], [{"name": "Pkts"}])
+
+    def test_phase4_skipped_after_phase3_errors(self):
+        d1 = make_dictionary("Ref.One", channels=[channel("Ref.a.X", 1)])
+        d2 = make_dictionary("Ref.Two", channels=[channel("Ref.b.Y", 1)],
+                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Ref.b.Y"])])])
+        report = merge_fails(d1, d2)
+        self.assertEqual(count(report.errors, E3), 1)
+        self.assertEqual(len(report.errors), 1)
 
     def test_id_must_be_strict_int(self):
         for value in (True, 1.0, "1"):
@@ -800,9 +852,18 @@ class TestStructure(DictionaryMergeTestCase):
         self.assertEqual((code, lines), (1, [f"[ERROR] '{array}' is not a JSON object"]))
 
     def test_usage_errors_exit_2(self):
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as context:
-            dictionary_merge.main([str(A_PATH)])
-        self.assertEqual(context.exception.code, 2)
+        for argv in ([str(A_PATH)], ["--permissive", str(A_PATH)], []):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as context:
+                dictionary_merge.main(argv)
+            self.assertEqual(context.exception.code, 2)
+
+    def test_options_between_positionals(self):
+        b2, c2 = self.write("B2.json", self.B2), self.write("C2.json", self.C2)
+        code, _, output = self.run_cli(A_PATH, b2, "--permissive", c2)
+        self.assertEqual(code, 0)
+        merged = load(output)
+        self.assertTrue(merged["metadata"]["deploymentName"].endswith(".DeploymentC_merged"))
+        self.assertEqual(len(merged["commands"]), len(self.M["commands"]) + len(self.C2["commands"]))
 
     def test_merge_dictionaries_wrapper(self):
         merged = merge_dictionaries(self.A, load(GROUND_PATH), permissive=True)
@@ -841,6 +902,9 @@ class TestPacketSets(DictionaryMergeTestCase):
         self.assertEqual(sets["DeploymentB.Pkts"]["members"][0]["members"], ["DeploymentB.Sub.c.X", "Ref.b.Z"])
         self.assertEqual(sets["DeploymentB.Pkts"]["omitted"], ["DeploymentB.Sub.c.X"])
         self.assertEqual(count(report.warnings, W2), 2)
+        self.assertEqual(count(report.warnings, W11), 1)
+        self.assertIn("output holds 3 packet sets ('DeploymentA.Pkts', 'DeploymentB.Pkts', 'Other')",
+                      report.warnings[-1])
 
     def test_packet_members_rewritten_in_main_after_late_collision(self):
         d1, _ = self.two_with_packets()
@@ -903,12 +967,14 @@ class TestPacketSets(DictionaryMergeTestCase):
         merged, report = merge_ok(d1, differing)
         self.assertEqual([s["name"] for s in merged["telemetryPacketSets"]], ["DeploymentA.Pkts", "DeploymentB.Pkts"])
         self.assertEqual(count(report.warnings, W2), 1)
+        self.assertEqual(count(report.warnings, W11), 1)
         self.assertNotIn("0x", report.warnings[0])
         report = merge_fails(d1, differing, no_namespace=True)
         self.assertEqual(count(report.errors, "with different definitions; use --prefer-primary"), 1)
         merged, report = merge_ok(d1, differing, no_namespace=True, prefer_primary=True)
         self.assertEqual(merged["telemetryPacketSets"], d1["telemetryPacketSets"])
         self.assertEqual(count(report.warnings, W1), 1)
+        self.assertEqual(count(report.warnings, W11), 0)
 
 
 class TestAtomicWrite(DictionaryMergeTestCase):
@@ -955,6 +1021,7 @@ class TestAtomicWrite(DictionaryMergeTestCase):
         self.assertTrue(lines[-1].startswith(f"[ERROR] cannot write '{output}': "))
         self.assertFalse(output.parent.exists())
 
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs are POSIX-only")
     def test_fifo_output_uses_direct_write(self):
         fifo = self.tmp / "out.fifo"
         os.mkfifo(fifo)
@@ -964,10 +1031,11 @@ class TestAtomicWrite(DictionaryMergeTestCase):
             with open(fifo, "r") as file_handle:
                 received.append(file_handle.read())
 
-        thread = threading.Thread(target=reader)
+        thread = threading.Thread(target=reader, daemon=True)
         thread.start()
         code, _, _ = self.run_cli(self.d1, self.d2, output=fifo)
         thread.join(timeout=10)
+        self.assertFalse(thread.is_alive(), "the tool never opened the FIFO for writing")
         self.assertEqual(code, 0)
         code, _, regular = self.run_cli(self.d1, self.d2)
         self.assertEqual(received, [regular.read_text()])

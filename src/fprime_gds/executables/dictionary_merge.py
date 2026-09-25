@@ -1,7 +1,8 @@
 """ fprime_gds.executables.dictionary_merge: merge two or more F Prime JSON dictionaries
 
-The first dictionary is primary: its entries come first in every section, it decides metadata and unknown top-level
-keys, and with --prefer-primary its entries win id conflicts. Merging runs in phases:
+The first dictionary is primary (list the deployment the GDS is attached to first): its entries come first in every
+section and it decides metadata and unknown top-level keys. With --prefer-primary a conflict is resolved in favour of
+the earliest input holding the id or definition. Merging runs in phases; a phase that collected an error ends the run:
 
     0. argument parsing (usage errors exit 2, an invalid --name exits 1)
     1. load every input (fail-fast: unreadable / not JSON / not an object)
@@ -9,7 +10,7 @@ keys, and with --prefer-primary its entries win id conflicts. Merging runs in ph
     3a. metadata, typeDefinitions, constants
     3b. commands, parameters, events, telemetryChannels, records, containers
     3c. telemetryPacketSets (after 3b so channel renames caused by any input are applied to every packet set)
-    4. packet-set channel references
+    4. packet-set channel references (skipped when phase 3 collected errors: a rejected channel is not "unknown")
     5. atomic write of the output (only when no error was collected)
 
 Within a unique section an arriving entry is classified in this order (see `classify_unique_entry`):
@@ -81,18 +82,26 @@ class MergeOptions:
 
 @dataclass
 class MergeReport:
-    """ Collect-all sink for errors and warnings, kept in generation order """
+    """ Collect-all sink for errors and warnings, kept in generation order. Each warning carries a kind (renamed,
+    dropped, overridden, ...) so a run that emits hundreds of routine lines can still be summarised per kind. """
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
+    kinds: Dict[str, int] = field(default_factory=dict)
     lines: List[Tuple[str, str]] = field(default_factory=list)
 
     def error(self, message):
         self.errors.append(message)
         self.lines.append((ERROR, message))
 
-    def warning(self, message):
+    def warning(self, kind, message):
         self.warnings.append(message)
+        self.kinds[kind] = self.kinds.get(kind, 0) + 1
         self.lines.append((WARNING, message))
+
+    def summary(self):
+        """ One line of per-kind warning counts, e.g. '262 warning(s): 260 renamed, 2 dropped' """
+        by_kind = ", ".join(f"{count} {kind}" for kind, count in sorted(self.kinds.items(), key=lambda k: -k[1]))
+        return f"{len(self.warnings)} warning(s): {by_kind}"
 
     def print(self, stream=None):
         stream = sys.stderr if stream is None else stream
@@ -135,7 +144,7 @@ def strict_suffixes(name):
 
 
 def renamed(entry, new_name):
-    """ Shallow copy of an entry with its 'name' replaced in place """
+    """ Shallow copy of an entry with a new 'name'; key order (hence output byte order) is preserved """
     return {key: (new_name if key == "name" else value) for key, value in entry.items()}
 
 
@@ -260,19 +269,23 @@ def validate_structure(inp: LoadedInput, report: MergeReport):
         """ Drop entries missing required keys (reported), return True when the section is usable """
         if section not in inp.sections:
             return False
-        prefix = f"Malformed dictionary section '{section}' in '{inp.path}'."
+        where = f"Malformed dictionary section '{section}' in '{inp.path}'."
         usable = []
         for position, entry in enumerate(inp.sections[section]):
             if not isinstance(entry, dict):
-                report.error(f"{prefix} Entry #{position} is not an object")
+                report.error(f"{where} Entry #{position} is not an object")
                 continue
-            missing = [key for key in required
-                       if key not in entry or (key != id_key and not isinstance(entry[key], str))]
+            missing = [key for key in required if key not in entry]
             if missing:
-                report.error(f"{prefix} Entry #{position} missing key: '{missing[0]}'")
+                report.error(f"{where} Entry #{position} missing key: '{missing[0]}'")
+                continue
+            not_text = [key for key in required if key != id_key and not isinstance(entry[key], str)]
+            if not_text:
+                report.error(f"{where} Entry #{position}: '{not_text[0]}' must be a string "
+                             f"(got {json.dumps(entry[not_text[0]])})")
                 continue
             if id_key is not None and not is_strict_int(entry[id_key]):
-                report.error(f"{prefix} Entry '{entry['name']}': '{id_key}' must be an integer "
+                report.error(f"{where} Entry '{entry['name']}': '{id_key}' must be an integer "
                              f"(got {json.dumps(entry[id_key])})")
                 continue
             usable.append(entry)
@@ -287,16 +300,25 @@ def validate_structure(inp: LoadedInput, report: MergeReport):
         if check_entries(section, ["qualifiedName"]):
             _collapse_duplicates(inp, section, lambda e: [e["qualifiedName"]], str, report)
     if check_entries(PACKET_SECTION, ["name"]):
-        prefix = f"Malformed dictionary section '{PACKET_SECTION}' in '{inp.path}'."
+        where = f"Malformed dictionary section '{PACKET_SECTION}' in '{inp.path}'."
         usable = []
         for packet_set in inp.sections[PACKET_SECTION]:
-            packets = packet_set.get("members")
+            packets = packet_set.get("members", [])
             omitted = packet_set.get("omitted", [])
-            ok = isinstance(packets, list) and isinstance(omitted, list) and all(
-                isinstance(packet, dict) and isinstance(packet.get("members"), list) for packet in packets)
+            ok = (
+                isinstance(packets, list)
+                and isinstance(omitted, list)
+                and all(isinstance(member, str) for member in omitted)
+                and all(
+                    isinstance(packet, dict)
+                    and isinstance(packet.get("members"), list)
+                    and all(isinstance(member, str) for member in packet["members"])
+                    for packet in packets
+                )
+            )
             if not ok:
-                report.error(f"{prefix} Set '{packet_set['name']}' must have 'members' packets with 'members' arrays "
-                             f"and an 'omitted' array")
+                report.error(f"{where} Set '{packet_set['name']}' must have 'members' packets with 'members' arrays "
+                             f"of channel names and an 'omitted' array of channel names")
                 continue
             usable.append(packet_set)
         inp.sections[PACKET_SECTION] = usable
@@ -325,8 +347,8 @@ def merge_metadata(inputs: List[LoadedInput], opts: MergeOptions, report: MergeR
                 report.error(f"metadata: {message}")
             if ("libraryVersions" in primary and "libraryVersions" in metadata
                     and primary["libraryVersions"] != metadata["libraryVersions"]):
-                report.warning(f"metadata: libraryVersions differ between '{inputs[0].path}' and '{inp.path}'; "
-                               f"kept '{inputs[0].path}'")
+                report.warning("metadata", f"metadata: libraryVersions differ between '{inputs[0].path}' and "
+                                           f"'{inp.path}'; kept '{inputs[0].path}'")
     name = opts.name
     if name is None:
         name = "_".join(str(inp.data["metadata"].get("deploymentName", "unknown")) for inp in inputs) + "_merged"
@@ -344,8 +366,8 @@ def merge_non_unique_section(held, inp: LoadedInput, section, opts: MergeOptions
         elif previous[0] != entry:
             earliest = inputs[previous[1] - 1].path
             if opts.prefer_primary:
-                report.warning(f"{section}: '{qualified_name}' differs in '{inp.path}'; kept definition from "
-                               f"'{earliest}'")
+                report.warning("overridden", f"{section}: '{qualified_name}' differs in '{inp.path}'; kept "
+                                             f"definition from '{earliest}'")
             else:
                 report.error(f"{section}: '{qualified_name}' has inconsistent definitions in '{earliest}' and "
                              f"'{inp.path}'; use --prefer-primary to keep the earliest")
@@ -410,14 +432,22 @@ class Merger:
         tail = "if these are instances of one subtopology, re-run the merge N-way on the original dictionaries"
         if name in acc.by_tail:
             held = acc.slots[min(acc.by_tail[name])].entry["name"]
-            self.report.warning(f"{acc.section}: '{name}' from '{self.path(k)}' is appended un-prefixed although "
-                                f"'{held}' exists; {tail}")
+            self.report.warning("un-prefixed", f"{acc.section}: '{name}' from '{self.path(k)}' is appended "
+                                               f"un-prefixed although '{held}' exists; {tail}")
             return
         matches = [acc.by_name[suffix] for suffix in strict_suffixes(name) if suffix in acc.by_name]
         if matches:
             held = acc.slots[min(matches)].entry["name"]
-            self.report.warning(f"{acc.section}: '{name}' from '{self.path(k)}' is appended although un-prefixed "
-                                f"'{held}' exists; {tail}")
+            self.report.warning("un-prefixed", f"{acc.section}: '{name}' from '{self.path(k)}' is appended although "
+                                               f"un-prefixed '{held}' exists; {tail}")
+
+    def feed(self, acc: SectionAccumulator, inp: LoadedInput, entry):
+        """ Add one entry of an input to its accumulator. The primary seeds the accumulator as-is (nothing is held
+        yet, so it is never classified and never W9-checked); every later input is classified. """
+        if inp.index == 1:
+            acc.append(dict(entry), 1, entry["name"])
+        else:
+            self.classify_unique_entry(acc, inp.index, entry)
 
     def classify_unique_entry(self, acc: SectionAccumulator, k, entry):
         """ Classify one entry of input k (k >= 2) against the accumulator; see the module docstring """
@@ -448,16 +478,16 @@ class Merger:
             held = acc.slots[h_idx]
             if held.orig_name == n or (not opts.no_namespace and held.entry["name"] == t):
                 if opts.prefer_primary:
-                    report.warning(f"{section}: '{n}' ({id_text}) differs in '{self.path(k)}'; kept definition "
-                                   f"'{held.entry['name']}' from '{self.path(held.origin)}' (packet references in "
-                                   f"'{self.path(k)}' follow it)")
+                    report.warning("overridden", f"{section}: '{n}' ({id_text}) differs in '{self.path(k)}'; kept "
+                                                 f"definition '{held.entry['name']}' from '{self.path(held.origin)}' "
+                                                 f"(packet references in '{self.path(k)}' follow it)")
                     acc.attach(h_idx, k, n, rename_map)
                 else:
                     report.error(f"{section}: '{n}' ({id_text}) has different definitions in "
                                  f"'{self.path(held.origin)}' and '{self.path(k)}'; use --prefer-primary to keep the "
                                  f"first")
             elif opts.prefer_primary:
-                report.warning(f"{section}: {id_text} — '{n}' from '{self.path(k)}' dropped in favour of "
+                report.warning("dropped", f"{section}: {id_text} — '{n}' from '{self.path(k)}' dropped in favour of "
                                f"'{held.entry['name']}' from '{self.path(held.origin)}'")
                 self.dropped[k][section].add(n)
             else:
@@ -474,8 +504,8 @@ class Merger:
             arriving_id = f" ({id_text})" if id_key else ""
             if opts.no_namespace:
                 if opts.prefer_primary:
-                    report.warning(f"{section}: '{n}'{arriving_id} from '{self.path(k)}' dropped in favour of "
-                                   f"'{n}'{held_id} from '{self.path(held.origin)}'")
+                    report.warning("dropped", f"{section}: '{n}'{arriving_id} from '{self.path(k)}' dropped in "
+                                              f"favour of '{n}'{held_id} from '{self.path(held.origin)}'")
                     if section in self.dropped[k]:
                         self.dropped[k][section].add(n)
                 else:
@@ -506,12 +536,13 @@ class Merger:
             acc.append(renamed(entry, t), k, n)
             rename_map[k][section][n] = t
             if id_key:
-                report.warning(f"{section}: '{n}' has {format_id(id_key, held.entry[id_key])} in "
+                report.warning("renamed", f"{section}: '{n}' has {format_id(id_key, held.entry[id_key])} in "
                                f"'{self.path(held.origin)}' and {id_text} in '{self.path(k)}'; renamed to "
                                f"'{target_h}' and '{t}' (pass --no-namespace to make this an error)")
             else:
-                report.warning(f"{section}: '{n}' differs between '{self.path(held.origin)}' and '{self.path(k)}'; "
-                               f"renamed to '{target_h}' and '{t}' (pass --no-namespace to make this an error)")
+                report.warning("renamed", f"{section}: '{n}' differs between '{self.path(held.origin)}' and "
+                                          f"'{self.path(k)}'; renamed to '{target_h}' and '{t}' (pass --no-namespace "
+                                          f"to make this an error)")
             return
 
         # 4. bare name already renamed away earlier in this run
@@ -529,8 +560,8 @@ class Merger:
             acc.append(renamed(entry, t), k, n)
             rename_map[k][section][n] = t
             arriving_id = f" ({id_text})" if id_key else ""
-            report.warning(f"{section}: '{n}'{arriving_id} from '{self.path(k)}' renamed to '{t}' (name already "
-                           f"namespaced as {existing})")
+            report.warning("renamed", f"{section}: '{n}'{arriving_id} from '{self.path(k)}' renamed to '{t}' (name "
+                                      f"already namespaced as {existing})")
             return
 
         # 5. new name and new id
@@ -543,10 +574,7 @@ class Merger:
             for section in UNIQUE_SECTIONS:
                 acc = accumulators[section]
                 for entry in inp.sections[section]:
-                    if inp.index == 1:
-                        acc.append(dict(entry), 1, entry["name"])
-                    else:
-                        self.classify_unique_entry(acc, inp.index, entry)
+                    self.feed(acc, inp, entry)
         return accumulators
 
     def rewrite_packet_sets(self, inp: LoadedInput):
@@ -557,22 +585,24 @@ class Merger:
         for packet_set in copy.deepcopy(inp.sections[PACKET_SECTION]):
             set_name = packet_set["name"]
             kept_packets = []
-            for packet in packet_set["members"]:
+            for packet in packet_set.get("members", []):
                 dropped_members = [member for member in packet["members"] if member in dropped]
                 if dropped_members:
-                    self.report.warning(f"{PACKET_SECTION}: packet '{set_name}/{packet.get('name')}' from "
-                                        f"'{inp.path}' removed because it references dropped channel "
-                                        f"'{dropped_members[0]}'")
+                    self.report.warning("packets removed", f"{PACKET_SECTION}: packet '{set_name}/"
+                                                           f"{packet.get('name')}' from '{inp.path}' removed because "
+                                                           f"it references dropped channel '{dropped_members[0]}'")
                     continue
                 packet["members"] = [channel_renames.get(member, member) for member in packet["members"]]
                 kept_packets.append(packet)
-            packet_set["members"] = kept_packets
+            if "members" in packet_set:
+                packet_set["members"] = kept_packets
             if "omitted" in packet_set:
                 kept_omitted = []
                 for member in packet_set["omitted"]:
                     if member in dropped:
-                        self.report.warning(f"{PACKET_SECTION}: dropped channel '{member}' removed from omitted list "
-                                            f"of set '{set_name}' from '{inp.path}'")
+                        self.report.warning("packets removed", f"{PACKET_SECTION}: dropped channel '{member}' removed "
+                                                               f"from omitted list of set '{set_name}' from "
+                                                               f"'{inp.path}'")
                     else:
                         kept_omitted.append(channel_renames.get(member, member))
                 packet_set["omitted"] = kept_omitted
@@ -583,27 +613,30 @@ class Merger:
         acc = SectionAccumulator(PACKET_SECTION, None)
         for inp in self.inputs:
             for packet_set in self.rewrite_packet_sets(inp):
-                if inp.index == 1:
-                    acc.append(packet_set, 1, packet_set["name"])
-                else:
-                    self.classify_unique_entry(acc, inp.index, packet_set)
+                self.feed(acc, inp, packet_set)
         return acc
 
     def validate_packet_references(self, packet_acc, channel_acc):
-        """ Phase 4: every packet member must name a merged channel; unknown omitted names are only reported """
+        """ Phase 4: every packet member must name a merged channel; unknown omitted names are only reported. The GDS
+        loads a single packet set, so an output holding several gets a reminder to pick one with --packet-set-name """
         channel_names = channel_acc.by_name
         for slot in packet_acc.slots:
             packet_set = slot.entry
             path = self.path(slot.origin)
-            for packet in packet_set["members"]:
+            for packet in packet_set.get("members", []):
                 for member in packet["members"]:
                     if member not in channel_names:
                         self.report.error(f"{PACKET_SECTION}: packet '{packet_set['name']}/{packet.get('name')}' in "
                                           f"'{path}' references unknown channel '{member}' in members")
             for member in packet_set.get("omitted", []):
                 if member not in channel_names:
-                    self.report.warning(f"{PACKET_SECTION}: set '{packet_set['name']}' in '{path}' lists unknown "
-                                        f"channel '{member}' in omitted (kept; the GDS ignores omitted)")
+                    self.report.warning("unknown omitted", f"{PACKET_SECTION}: set '{packet_set['name']}' in '{path}' "
+                                                           f"lists unknown channel '{member}' in omitted (kept; the "
+                                                           f"GDS ignores omitted)")
+        if len(packet_acc.slots) > 1:
+            names = ", ".join(f"'{slot.entry['name']}'" for slot in packet_acc.slots)
+            self.report.warning("packet sets", f"{PACKET_SECTION}: output holds {len(packet_acc.slots)} packet sets "
+                                               f"({names}); the GDS decodes one, select it with --packet-set-name")
 
 
 def merge_all(inputs: List[LoadedInput], opts: MergeOptions) -> Tuple[Optional[dict], MergeReport, Merger]:
@@ -622,6 +655,8 @@ def merge_all(inputs: List[LoadedInput], opts: MergeOptions) -> Tuple[Optional[d
             merge_non_unique_section(non_unique[section], inp, section, opts, report, inputs)
     accumulators = merger.merge_unique_sections()
     packet_acc = merger.merge_packet_sets()
+    if report.errors:
+        return None, report, merger
     merger.validate_packet_references(packet_acc, accumulators["telemetryChannels"])
     if report.errors:
         return None, report, merger
@@ -696,11 +731,13 @@ def write_output(path: Path, merged):
 def parse_arguments(arguments=None):
     """ Parse arguments for this script """
     parser = argparse.ArgumentParser(
-        description="Merge two or more F Prime JSON dictionaries. The first dictionary is primary: its entries come "
-                    "first and, with --prefer-primary, win id conflicts. Entries that are identical in several inputs "
-                    "are merged into one. Two entries with the same name but different ids are both kept, each renamed "
-                    "'<Deployment>.<name>' where <Deployment> is the last segment of its dictionary's deploymentName "
-                    "(disable with --no-namespace).")
+        description="Merge two or more F Prime JSON dictionaries. List the deployment the GDS is attached to first: "
+                    "it is primary, its entries come first and it decides the metadata. Entries that are identical in "
+                    "several inputs are merged into one. Two entries with the same name but different ids are both "
+                    "kept, each renamed '<Deployment>.<name>' where <Deployment> is the last segment of its "
+                    "dictionary's deploymentName (disable with --no-namespace).",
+        epilog="Merge all original dictionaries in a single invocation; do not merge an already-merged output with "
+               "another deployment.")
     parser.add_argument("--name", type=str, default=None,
                         help="Name to use as the new 'deploymentName' field (dotted identifier). Default: all input "
                              "names joined with '_' plus '_merged'")
@@ -709,18 +746,18 @@ def parse_arguments(arguments=None):
     parser.add_argument("--permissive", action="store_true", default=False,
                         help="Ignore version discrepancies between dictionaries (metadata only)")
     parser.add_argument("--prefer-primary", action="store_true", default=False,
-                        help="On an id collision or a differing definition, keep the earliest dictionary's entry and "
-                             "drop the later one with a warning")
+                        help="On an id collision or a differing definition, keep the entry of the earliest dictionary "
+                             "holding it and drop the later one with a warning")
     parser.add_argument("--no-namespace", action="store_true", default=False,
                         help="Do not rename same-named entries with different ids; report them as errors (or, with "
                              "--prefer-primary, keep the earliest and drop the later one)")
-    parser.add_argument("dictionary1", type=Path, help="Primary dictionary to merge")
-    parser.add_argument("dictionary2", type=Path, help="Secondary dictionary to merge")
-    parser.add_argument("dictionaries", type=Path, nargs="*",
-                        help="Additional dictionaries, in decreasing order of precedence")
+    parser.add_argument("inputs", type=Path, nargs="+", metavar="dictionary",
+                        help="Two or more dictionaries in decreasing order of precedence; the first is primary (the "
+                             "deployment the GDS is attached to)")
 
-    args = parser.parse_args(arguments)
-    args.inputs = [args.dictionary1, args.dictionary2, *args.dictionaries]
+    args = parser.parse_intermixed_args(arguments)  # options may appear between dictionaries: 'd1 d2 --flag d3'
+    if len(args.inputs) < 2:
+        parser.error("at least two dictionaries are required")
 
     # Validate arguments
     if args.name is not None and not IDENT_RE.fullmatch(args.name):
@@ -747,6 +784,8 @@ def main(arguments=None):
         print(f"[ERROR] Merge failed with {len(report.errors)} error(s) and {len(report.warnings)} warning(s); no "
               f"output written", file=sys.stderr)
         sys.exit(1)
+    if report.warnings:
+        print(f"[WARNING] Merged {len(inputs)} dictionaries with {report.summary()}", file=sys.stderr)
     try:
         write_output(args.output, merged)
     except OSError as error:
