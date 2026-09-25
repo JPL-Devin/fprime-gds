@@ -22,11 +22,13 @@ Within a unique section an arriving entry is classified in this order (see `clas
     4. bare name already renamed away earlier in this run               -> appended as '<prefix>.<name>'
     5. otherwise                                                        -> appended unchanged
 
-`prefix` is the last dot-separated segment of the input's metadata.deploymentName (`LoadedInput.prefix`). Types and
-constants are never renamed; a differing definition is an error unless --prefer-primary keeps the earliest one.
-Packet sets of an input whose channels were renamed are rewritten; a packet referencing a channel dropped by
---prefer-primary is removed whole. Exit codes: 0 success (warnings possible), 1 any merge / input / output error,
-2 usage error.
+With --namespace-all every entry of the id-bearing sections is renamed '<prefix>.<name>' up front (identical entries
+still merge into one, under the prefix of the earliest input), so steps 3-5 reduce to "append under the prefix".
+`prefix` is the last dot-separated segment of the input's metadata.deploymentName, or the matching --prefix value
+(`LoadedInput.prefix`). Types, constants and packet-set names are never renamed by --namespace-all; a differing type
+or constant definition is an error unless --prefer-primary keeps the earliest one. Packet sets of an input whose
+channels were renamed are rewritten; a packet referencing a channel dropped by --prefer-primary is removed whole.
+Exit codes: 0 success (warnings possible), 1 any merge / input / output error, 2 usage error.
 """
 
 import argparse
@@ -42,7 +44,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*(\.[A-Za-z_][A-Za-z_0-9]*)*")
-SEGMENT_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
 
 UNIQUE_SECTIONS = {
     "commands": "opcode",
@@ -79,6 +80,7 @@ class MergeOptions:
     permissive: bool = False
     prefer_primary: bool = False
     no_namespace: bool = False
+    namespace_all: bool = False
 
 
 @dataclass
@@ -112,18 +114,22 @@ class MergeReport:
 
 @dataclass
 class LoadedInput:
-    """ One input dictionary: 1-based position on the command line, display path, parsed content """
+    """ One input dictionary: 1-based position on the command line, display path, parsed content, and the namespace
+    prefix given with --prefix (None: derive it from metadata.deploymentName) """
     index: int
     path: str
     data: dict
     sections: Dict[str, list] = field(default_factory=dict)
+    prefix_override: Optional[str] = None
 
     def deployment_name(self):
         metadata = self.data.get("metadata")
         return metadata.get("deploymentName") if isinstance(metadata, dict) else None
 
     def prefix(self) -> Optional[str]:
-        """ Namespace prefix of this input: the last dot-separated segment of metadata.deploymentName """
+        """ Namespace prefix of this input: the --prefix value, else the last segment of metadata.deploymentName """
+        if self.prefix_override is not None:
+            return self.prefix_override
         name = self.deployment_name()
         return name.rsplit(".", 1)[-1] if isinstance(name, str) else None
 
@@ -218,7 +224,7 @@ class SectionAccumulator:
         return [slot.entry for slot in self.slots]
 
 
-def load_input(index, path) -> LoadedInput:
+def load_input(index, path, prefix=None) -> LoadedInput:
     """ Read and parse one input (fail-fast) """
     try:
         with open(path, "r") as file_handle:
@@ -227,7 +233,7 @@ def load_input(index, path) -> LoadedInput:
         raise ValueError(f"'{path}': {error}")
     if not isinstance(data, dict):
         raise ValueError(f"'{path}' is not a JSON object")
-    return LoadedInput(index, str(path), data)
+    return LoadedInput(index, str(path), data, prefix_override=prefix)
 
 
 def _collapse_duplicates(inp, section, key_of, describe, report):
@@ -393,20 +399,26 @@ class Merger:
     def prefix(self, index):
         return self.inputs[index - 1].prefix()
 
-    def valid_prefix(self, index, name):
-        """ E11: validate input `index`'s prefix, reporting once per input; returns the prefix or None """
+    def valid_prefix(self, index, name=None):
+        """ E11: validate input `index`'s prefix, reporting once per input; returns the prefix or None. `name` is the
+        entry whose rename needs it (None: --namespace-all needs it for every entry) """
+        inp = self.inputs[index - 1]
         prefix = self.prefix(index)
-        if prefix is not None and SEGMENT_RE.fullmatch(prefix):
+        if prefix is not None and IDENT_RE.fullmatch(prefix):
             return prefix
         if index not in self.prefix_errors:
             self.prefix_errors.add(index)
-            if prefix is None:
-                self.report.error(f"'{self.path(index)}': metadata.deploymentName is missing or not a string; a "
-                                  f"namespace prefix is needed to rename '{name}'; add it or pass --no-namespace")
+            need = f"to rename '{name}'" if name is not None else "for --namespace-all"
+            if inp.prefix_override is not None:
+                self.report.error(f"'{inp.path}': --prefix '{prefix}' is not an identifier and cannot be used as a "
+                                  f"namespace prefix")
+            elif prefix is None:
+                self.report.error(f"'{inp.path}': metadata.deploymentName is missing or not a string; a namespace "
+                                  f"prefix is needed {need}; add it, pass --prefix, or pass --no-namespace")
             else:
-                self.report.error(f"'{self.path(index)}': the last segment of metadata.deploymentName "
-                                  f"'{self.inputs[index - 1].deployment_name()}' is not an identifier and cannot be "
-                                  f"used as a namespace prefix; fix it or pass --no-namespace")
+                self.report.error(f"'{inp.path}': the last segment of metadata.deploymentName "
+                                  f"'{inp.deployment_name()}' is not an identifier and cannot be used as a namespace "
+                                  f"prefix {need}; fix it, pass --prefix, or pass --no-namespace")
         return None
 
     def equal_prefix_error(self, acc, idxs, k, name, id_text, prefix_k):
@@ -414,11 +426,41 @@ class Merger:
         for prefix, j in acc.held_prefixes(idxs, self.inputs):
             if prefix == prefix_k:
                 self.report.error(f"{acc.section}: '{name}' is defined in '{self.path(k)}' with a different "
-                                  f"{id_text}, but inputs '{self.path(j)}' and '{self.path(k)}' both have "
-                                  f"deploymentName ending in '{prefix}' and would share the prefix '{prefix}.'; give "
-                                  f"the deployments distinct names or pass --no-namespace")
+                                  f"{id_text}, but inputs '{self.path(j)}' and '{self.path(k)}' both have the "
+                                  f"namespace prefix '{prefix}' (last segment of deploymentName, or --prefix); give "
+                                  f"them distinct prefixes or pass --no-namespace")
                 return True
         return False
+
+    def validate_prefixes(self):
+        """ --namespace-all needs a valid, distinct prefix for every input before any entry is renamed """
+        seen: Dict[str, int] = {}
+        for inp in self.inputs:
+            prefix = self.valid_prefix(inp.index)
+            if prefix is None:
+                continue
+            if prefix in seen:
+                self.report.error(f"inputs '{self.path(seen[prefix])}' and '{inp.path}' both have the namespace "
+                                  f"prefix '{prefix}' (last segment of deploymentName, or --prefix); --namespace-all "
+                                  f"needs distinct prefixes")
+            else:
+                seen[prefix] = inp.index
+
+    def namespaces_all(self, acc: SectionAccumulator):
+        """ Whether --namespace-all renames every entry of this section (id-bearing sections only) """
+        return self.opts.namespace_all and acc.section in UNIQUE_SECTIONS
+
+    def append_prefixed(self, acc: SectionAccumulator, k, entry):
+        """ --namespace-all: hold input k's entry as '<prefix>.<name>' (validate_prefixes already ran) """
+        n = entry["name"]
+        prefix = self.prefix(k)
+        t = f"{prefix}.{n}" if prefix is not None else n
+        if t in acc.by_name:
+            self.target_held_error(acc, n, k, t)
+            return
+        acc.append(renamed(entry, t), k, n)
+        if t != n:
+            self.rename_map[k][acc.section][n] = t
 
     def target_held_error(self, acc, name, origin, target):
         """ E10 (first wording) when a rename target is already held """
@@ -445,7 +487,9 @@ class Merger:
     def feed(self, acc: SectionAccumulator, inp: LoadedInput, entry):
         """ Add one entry of an input to its accumulator. The primary seeds the accumulator as-is (nothing is held
         yet, so it is never classified and never W9-checked); every later input is classified. """
-        if inp.index == 1:
+        if inp.index == 1 and self.namespaces_all(acc):
+            self.append_prefixed(acc, 1, entry)
+        elif inp.index == 1:
             acc.append(dict(entry), 1, entry["name"])
         else:
             self.classify_unique_entry(acc, inp.index, entry)
@@ -495,6 +539,11 @@ class Merger:
                 report.error(f"{section}: {id_text} is used by '{held.entry['name']}' in '{self.path(held.origin)}' "
                              f"and '{n}' in '{self.path(k)}'; use --prefer-primary to keep the first (names cannot "
                              f"resolve an id clash)")
+            return
+
+        # --namespace-all: nothing is held bare, so a new id simply joins under k's prefix
+        if self.namespaces_all(acc):
+            self.append_prefixed(acc, k, entry)
             return
 
         # 3. same name, different id
@@ -648,6 +697,10 @@ def merge_all(inputs: List[LoadedInput], opts: MergeOptions) -> Tuple[Optional[d
         validate_structure(inp, report)
     if report.errors:
         return None, report, merger
+    if opts.namespace_all:
+        merger.validate_prefixes()
+        if report.errors:
+            return None, report, merger
 
     metadata = merge_metadata(inputs, opts, report)
     non_unique = {section: {} for section in NON_UNIQUE_SECTIONS}
@@ -752,7 +805,8 @@ def parse_arguments(arguments=None):
                     "it is primary, its entries come first and it decides the metadata. Entries that are identical in "
                     "several inputs are merged into one. Two entries with the same name but different ids are both "
                     "kept, each renamed '<Deployment>.<name>' where <Deployment> is the last segment of its "
-                    "dictionary's deploymentName (disable with --no-namespace).",
+                    "dictionary's deploymentName, or the matching --prefix (disable with --no-namespace, or rename "
+                    "every entry with --namespace-all).",
         epilog="Merge all original dictionaries in a single invocation; do not merge an already-merged output with "
                "another deployment.")
     parser.add_argument("--name", type=str, default=None,
@@ -765,9 +819,18 @@ def parse_arguments(arguments=None):
     parser.add_argument("--prefer-primary", action="store_true", default=False,
                         help="On an id collision or a differing definition, keep the entry of the earliest dictionary "
                              "holding it and drop the later one with a warning")
-    parser.add_argument("--no-namespace", action="store_true", default=False,
-                        help="Do not rename same-named entries with different ids; report them as errors (or, with "
-                             "--prefer-primary, keep the earliest and drop the later one)")
+    namespacing = parser.add_mutually_exclusive_group()
+    namespacing.add_argument("--no-namespace", action="store_true", default=False,
+                             help="Do not rename same-named entries with different ids; report them as errors (or, "
+                                  "with --prefer-primary, keep the earliest and drop the later one)")
+    namespacing.add_argument("--namespace-all", action="store_true", default=False,
+                             help="Rename every command, parameter, event, channel, record and container of every "
+                                  "dictionary to '<prefix>.<name>', not only the colliding ones (identical entries "
+                                  "still merge into one, under the earliest dictionary's prefix). Types, constants "
+                                  "and packet-set names are not renamed")
+    parser.add_argument("--prefix", action="append", default=None, metavar="PREFIX",
+                        help="Namespace prefix (dotted identifier) to use instead of the deploymentName segment; "
+                             "repeat once per dictionary, in the same order (e.g. --prefix A --prefix B)")
     parser.add_argument("inputs", type=Path, nargs="+", metavar="dictionary",
                         help="Two or more dictionaries in decreasing order of precedence; the first is primary (the "
                              "deployment the GDS is attached to)")
@@ -775,6 +838,16 @@ def parse_arguments(arguments=None):
     args = parser.parse_intermixed_args(arguments)  # options may appear between dictionaries: 'd1 d2 --flag d3'
     if len(args.inputs) < 2:
         parser.error("at least two dictionaries are required")
+    if args.prefix is not None:
+        if args.no_namespace:
+            parser.error("--prefix has no effect with --no-namespace")
+        if len(args.prefix) != len(args.inputs):
+            parser.error(f"--prefix must be given once per dictionary ({len(args.inputs)}), got {len(args.prefix)}")
+        for prefix in args.prefix:
+            if not IDENT_RE.fullmatch(prefix):
+                parser.error(f"--prefix '{prefix}' is not a dotted identifier")
+        if len(set(args.prefix)) != len(args.prefix):
+            parser.error("--prefix values must be distinct")
 
     # Validate arguments
     if args.name is not None and not IDENT_RE.fullmatch(args.name):
@@ -789,12 +862,14 @@ def main(arguments=None):
     """ Main entry point: exit 0 on success (warnings printed), 1 on any error, 2 on a usage error """
     try:
         args = parse_arguments(arguments)
-        inputs = [load_input(index, path) for index, path in enumerate(args.inputs, start=1)]
+        prefixes = args.prefix if args.prefix is not None else [None] * len(args.inputs)
+        inputs = [load_input(index, path, prefix)
+                  for index, (path, prefix) in enumerate(zip(args.inputs, prefixes), start=1)]
     except Exception as exception:
         print(f"[ERROR] {exception}", file=sys.stderr)
         sys.exit(1)
     opts = MergeOptions(name=args.name, permissive=args.permissive, prefer_primary=args.prefer_primary,
-                        no_namespace=args.no_namespace)
+                        no_namespace=args.no_namespace, namespace_all=args.namespace_all)
     merged, report, _ = merge_all(inputs, opts)
     report.print()
     if merged is None:

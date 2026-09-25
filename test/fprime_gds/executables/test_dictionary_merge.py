@@ -56,7 +56,7 @@ E8 = "Malformed dictionary section"
 E10 = "cannot rename", "collides with the already-namespaced entry"
 E11 = "cannot be used as a namespace prefix", "metadata.deploymentName is missing or not a string"
 E12 = "is defined twice with different definitions"
-E15 = "both have deploymentName ending in"
+E15 = "both have the namespace prefix"
 W1 = "dropped in favour of"
 W2 = "; renamed to '"
 W2P = "name already namespaced as"
@@ -80,6 +80,19 @@ def load(path):
 
 def as_set(entries):
     return {json.dumps(entry, sort_keys=True) for entry in entries}
+
+
+def renamed_to(entry, name):
+    return {**entry, "name": name}
+
+
+def renamed_back(entry, prefixes=("DeploymentA.", "DeploymentB.")):
+    """ Entry with a known namespace prefix stripped from its name """
+    name = entry["name"]
+    for prefix in prefixes:
+        if name.startswith(prefix):
+            return renamed_to(entry, name[len(prefix):])
+    return entry
 
 
 def count(lines, *fingerprints):
@@ -189,10 +202,12 @@ def derive_c(a_dict, b_dict, offset=0, deployment="FprimeGenericHubReference.Dep
     return shift_ids(result, offset)
 
 
-def merge(*dictionaries, **options):
-    """ Merge parsed dictionaries in memory; returns (merged or None, report, merger) """
-    inputs = [LoadedInput(index, f"d{index}", copy.deepcopy(dictionary))
-              for index, dictionary in enumerate(dictionaries, start=1)]
+def merge(*dictionaries, prefixes=None, **options):
+    """ Merge parsed dictionaries in memory (prefixes: one --prefix per input); returns (merged or None, report,
+    merger) """
+    prefixes = prefixes if prefixes is not None else [None] * len(dictionaries)
+    inputs = [LoadedInput(index, f"d{index}", copy.deepcopy(dictionary), prefix_override=prefix)
+              for index, (dictionary, prefix) in enumerate(zip(dictionaries, prefixes), start=1)]
     return merge_all(inputs, MergeOptions(**options))
 
 
@@ -488,7 +503,7 @@ class TestRealHubReference(DictionaryMergeTestCase):
         d2["commands"] = [command("Ref.a.CMD", 2)]
         report = merge_fails(d1, d2)
         self.assertEqual(count(report.errors, E15), 1)
-        self.assertIn("would share the prefix 'Same.'", report.errors[0])
+        self.assertIn("both have the namespace prefix 'Same'", report.errors[0])
         # single-segment names are their own prefix
         merged, _ = merge_ok(make_dictionary("One", commands=[command("Ref.a.CMD", 1)]),
                              make_dictionary("Two", commands=[command("Ref.a.CMD", 2)]))
@@ -668,7 +683,7 @@ class TestSyntheticConflicts(DictionaryMergeTestCase):
         d3 = make_dictionary("Other.DB", commands=[command("Sub.X", 2)])
         report = merge_fails(d1, d2, d3)
         self.assertEqual(count(report.errors, E15), 1)
-        self.assertIn("inputs 'd2' and 'd3' both have deploymentName ending in 'DB'", report.errors[0])
+        self.assertIn("inputs 'd2' and 'd3' both have the namespace prefix 'DB'", report.errors[0])
         d3["metadata"]["deploymentName"] = "Other.DC"
         merged, report = merge_ok(d1, d2, d3)
         self.assertEqual([c["name"] for c in merged["commands"]], ["DA.Sub.X", "DC.Sub.X"])
@@ -872,6 +887,186 @@ class TestStructure(DictionaryMergeTestCase):
             merge_dictionaries(self.A, self.B)
         self.assertEqual(len(str(context.exception).splitlines()), 85)
         self.assertEqual(self.A, load(A_PATH))
+
+
+class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
+
+    def all_prefixed(self, merged, prefixes):
+        names = [e["name"] for s in UNIQUE_SECTIONS for e in merged[s]]
+        return all(n.startswith(prefixes) for n in names)
+
+    def test_namespace_all_real_shifted(self):
+        merged, report = merge_ok(self.A, self.B2, namespace_all=True)
+        self.assertEqual(report.warnings, [])
+        self.assertCounts(merged, 93, 419, 191)
+        self.assertTrue(self.all_prefixed(merged, ("DeploymentA.", "DeploymentB.")))
+        self.assertEqual(len(self.prefixed_names(merged)), 93 + 419 + 191)
+        for section in UNIQUE_SECTIONS:
+            originals = [e["name"] for e in self.A[section]] + [e["name"] for e in self.B2[section]]
+            self.assertEqual([e["name"].split(".", 1)[1] for e in merged[section]], originals, section)
+        # every entry keeps its id: the primary's first, then B2's
+        for section, id_key in UNIQUE_SECTIONS.items():
+            self.assertEqual([e[id_key] for e in merged[section]],
+                             [e[id_key] for e in self.A[section]] + [e[id_key] for e in self.B2[section]])
+        self.assertEqual(merged["typeDefinitions"], self.A["typeDefinitions"])
+        self.assertEqual(merged["constants"], self.A["constants"])
+        # same output as the default merge apart from the names of the entries unique to one input
+        self.assertEqual(sorted(as_set(renamed_back(e) for s in COUNTED for e in merged[s])),
+                         sorted(as_set(renamed_back(e) for s in COUNTED for e in self.M[s])))
+
+    def test_namespace_all_identical_entries_merge_under_primary_prefix(self):
+        # A + B as shipped: shared subtopologies at the same ids merge into one entry under A's prefix; the id
+        # clashes of the deployment-local instances are still errors / --prefer-primary drops
+        report = merge_fails(self.A, self.B, namespace_all=True)
+        self.assertEqual((len(report.errors), count(report.errors, E3)), (85, 85))
+        merged, report = merge_ok(self.A, self.B, namespace_all=True, prefer_primary=True)
+        self.assertEqual(count(report.warnings, W4), 85)
+        self.assertCounts(merged, 47, 214, 97)
+        self.assertTrue(self.all_prefixed(merged, ("DeploymentA.",)))
+        self.assertEqual([e["name"] for s in COUNTED for e in merged[s]],
+                         [f"DeploymentA.{e['name']}" for s in COUNTED for e in self.A[s]])
+
+    def test_namespace_all_packets_and_sections(self):
+        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Sub.c.X", 1), channel("Ref.a.Y", 2)],
+                             parameters=[parameter("Ref.a.P", 1)], records=[record("Ref.a.R", 1)],
+                             containers=[container("Ref.a.C", 1)], commands=[command("Ref.a.CMD", 1)],
+                             events=[event("Ref.a.EV", 1)], types=[enum_type("Ref.E", [("A", 0)])],
+                             constants=[constant("Ref.K", 1)],
+                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Sub.c.X", "Ref.a.Y"])],
+                                                     omitted=["Ref.a.Y"])])
+        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Sub.c.X", 1), channel("Ref.b.Z", 4)],
+                             types=[enum_type("Ref.E", [("A", 0)])], constants=[constant("Ref.K", 1)],
+                             packet_sets=[packet_set("Other", [packet("Q", 1, ["Sub.c.X", "Ref.b.Z"])],
+                                                     omitted=["Ref.b.Z"])])
+        merged, report = merge_ok(d1, d2, namespace_all=True)
+        self.assertEqual(count(report.warnings, W11), 1)
+        self.assertEqual(len(report.warnings), 1)
+        self.assertEqual([c["name"] for c in merged["telemetryChannels"]],
+                         ["DeploymentA.Sub.c.X", "DeploymentA.Ref.a.Y", "DeploymentB.Ref.b.Z"])
+        for section in ("parameters", "records", "containers", "commands", "events"):
+            self.assertEqual([e["name"] for e in merged[section]], [f"DeploymentA.{e['name']}" for e in d1[section]])
+        self.assertEqual(merged["typeDefinitions"], d1["typeDefinitions"])
+        self.assertEqual(merged["constants"], d1["constants"])
+        sets = {s["name"]: s for s in merged["telemetryPacketSets"]}
+        self.assertEqual(set(sets), {"Pkts", "Other"})
+        self.assertEqual(sets["Pkts"]["members"][0]["members"], ["DeploymentA.Sub.c.X", "DeploymentA.Ref.a.Y"])
+        self.assertEqual(sets["Pkts"]["omitted"], ["DeploymentA.Ref.a.Y"])
+        # d2's identical Sub.c.X merged into d1's slot, so d2's reference follows d1's prefix
+        self.assertEqual(sets["Other"]["members"][0]["members"], ["DeploymentA.Sub.c.X", "DeploymentB.Ref.b.Z"])
+        self.assertEqual(sets["Other"]["omitted"], ["DeploymentB.Ref.b.Z"])
+        # a differing definition at the same id is still E2 / kept with --prefer-primary
+        d2["telemetryChannels"][0]["telemetryUpdate"] = "on_change"
+        report = merge_fails(d1, d2, namespace_all=True)
+        self.assertEqual(count(report.errors, E2), 1)
+        merged, report = merge_ok(d1, d2, namespace_all=True, prefer_primary=True)
+        self.assertEqual(count(report.warnings, W3), 1)
+        self.assertEqual(merged["telemetryChannels"][0], renamed_to(d1["telemetryChannels"][0], "DeploymentA.Sub.c.X"))
+
+    def test_namespace_all_needs_valid_distinct_prefixes(self):
+        d1 = make_dictionary("Ref.DeploymentA", commands=[command("Ref.a.X", 1)])
+        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Ref.b.Y", 2)])
+        same = copy.deepcopy(d2)
+        same["metadata"]["deploymentName"] = "Other.DeploymentA"
+        report = merge_fails(d1, same, namespace_all=True)
+        self.assertEqual(report.errors, ["inputs 'd1' and 'd2' both have the namespace prefix 'DeploymentA' (last "
+                                         "segment of deploymentName, or --prefix); --namespace-all needs distinct "
+                                         "prefixes"])
+        merged, _ = merge_ok(d1, same, namespace_all=True, prefixes=["DeploymentA", "Other"])
+        self.assertEqual([c["name"] for c in merged["commands"]], ["DeploymentA.Ref.a.X", "Other.Ref.b.Y"])
+        missing = copy.deepcopy(d2)
+        del missing["metadata"]["deploymentName"]
+        report = merge_fails(d1, missing, namespace_all=True, permissive=True)
+        self.assertEqual(count(report.errors, E11[1]), 1)
+        self.assertIn("for --namespace-all", report.errors[0])
+        bad = copy.deepcopy(d2)
+        bad["metadata"]["deploymentName"] = "Ref.1B"
+        report = merge_fails(d1, bad, namespace_all=True)
+        self.assertEqual(count(report.errors, E11[0]), 1)
+        report = merge_fails(d1, d2, namespace_all=True, prefixes=["Ok", "1bad"])
+        self.assertEqual(report.errors, ["'d2': --prefix '1bad' is not an identifier and cannot be used as a "
+                                         "namespace prefix"])
+        # the un-prefixed default is unchanged
+        merged, report = merge_ok(d1, d2)
+        self.assertEqual(([c["name"] for c in merged["commands"]], report.warnings), (["Ref.a.X", "Ref.b.Y"], []))
+
+    def test_namespace_all_target_collision(self):
+        # renaming within one input is injective; across inputs dotted prefixes can still meet: 'Alpha' + 'X.Y'
+        # and 'Alpha.X' + 'Y' both give 'Alpha.X.Y'
+        d1 = make_dictionary("Ref.DeploymentA", commands=[command("X.Y", 1)])
+        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Y", 3)])
+        merged, _ = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
+        self.assertEqual([c["name"] for c in merged["commands"]], ["Alpha.X.Y", "Beta.Y"])
+        report = merge_fails(d1, d2, namespace_all=True, prefixes=["Alpha", "Alpha.X"])
+        self.assertEqual(count(report.errors, E10[0]), 1)
+        self.assertIn("cannot rename 'Y' from 'd2' to 'Alpha.X.Y': that name is already defined in 'd1'",
+                      report.errors[0])
+
+    def test_manual_prefixes_for_collisions(self):
+        merged, report = merge_ok(self.A, self.B2, prefixes=["Alpha", "Site.Beta"])
+        self.assertEqual(count(report.warnings, W2), 260)
+        self.assertCounts(merged, 93, 419, 191)
+        self.assertEqual(self.prefixed_names(merged), [])
+        renamed_names = [e["name"] for s in UNIQUE_SECTIONS for e in merged[s]
+                         if e["name"].startswith(("Alpha.", "Site.Beta."))]
+        self.assertEqual(len(renamed_names), 520)
+        self.assertIn("Alpha.CdhCore.cmdDisp.CMD_NO_OP", renamed_names)
+        self.assertIn("Site.Beta.CdhCore.cmdDisp.CMD_NO_OP", renamed_names)
+        self.assertIn("renamed to 'Alpha.CdhCore.cmdDisp.CMD_NO_OP' and 'Site.Beta.CdhCore.cmdDisp.CMD_NO_OP'",
+                      report.warnings[0])
+        # unique names stay bare; prefixes are only used where needed
+        self.assertIn("FprimeGenericHubReference.DeploymentA.a_cmdSeq.CS_RUN", [c["name"] for c in merged["commands"]])
+        # equal manual prefixes: E15
+        report = merge_fails(self.A, self.B2, prefixes=["Same", "Same"])
+        self.assertEqual(count(report.errors, "both have the namespace prefix 'Same'"), 260)
+        # a manual prefix also rescues an input without a usable deploymentName
+        ground = load(GROUND_MINIMAL_PATH)
+        ground["telemetryChannels"][0]["name"] = self.A["telemetryChannels"][0]["name"]
+        merged, report = merge_ok(self.A, ground, permissive=True, prefixes=["A", "Ground"])
+        names = {c["name"] for c in merged["telemetryChannels"]}
+        self.assertIn(f"Ground.{self.A['telemetryChannels'][0]['name']}", names)
+        self.assertIn(f"A.{self.A['telemetryChannels'][0]['name']}", names)
+
+    def test_cli_namespace_all_and_prefix(self):
+        b2 = self.write("B2.json", self.B2)
+        code, lines, output = self.run_cli(A_PATH, b2, "--namespace-all", "--prefix", "Alpha", "--prefix", "Beta")
+        self.assertEqual((code, lines), (0, []))
+        merged = load(output)
+        self.assertCounts(merged, 93, 419, 191)
+        self.assertTrue(self.all_prefixed(merged, ("Alpha.", "Beta.")))
+        self.assertEqual(sum(e["name"].startswith("Beta.") for s in COUNTED for e in merged[s]), 46 + 205 + 94)
+        globals_cleanup()
+        self.addCleanup(globals_cleanup)
+        cmd_ids, cmd_names, _ = CmdJsonLoader(str(output)).construct_dicts(str(output))
+        self.assertEqual(len(cmd_ids), 93)
+        self.assertIn("Alpha.CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
+        self.assertIn("Beta.CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
+        ch_ids, ch_names, _ = ChJsonLoader(str(output)).construct_dicts(str(output))
+        self.assertEqual((len(ch_ids), len(ch_names)), (191, 191))
+        ev_ids, _, _ = EventJsonLoader(str(output)).construct_dicts(str(output))
+        self.assertEqual(len(ev_ids), 419)
+        # prefixes may appear between dictionaries and pair with them positionally
+        code, lines, output = self.run_cli(A_PATH, "--prefix", "Alpha", b2, "--prefix", "Beta")
+        self.assertEqual(code, 0)
+        self.assertEqual(count(lines, W2), 260)
+        self.assertIn("Beta.CdhCore.cmdDisp.CMD_NO_OP", [c["name"] for c in load(output)["commands"]])
+
+    def test_cli_prefix_usage_errors(self):
+        b2 = self.write("B2.json", self.B2)
+        cases = [
+            (["--prefix", "Alpha"], "--prefix must be given once per dictionary (2), got 1"),
+            (["--prefix", "A", "--prefix", "B", "--prefix", "C"], "--prefix must be given once per dictionary (2)"),
+            (["--prefix", "A", "--prefix", "1B"], "--prefix '1B' is not a dotted identifier"),
+            (["--prefix", "A", "--prefix", "A"], "--prefix values must be distinct"),
+            (["--no-namespace", "--prefix", "A", "--prefix", "B"], "--prefix has no effect with --no-namespace"),
+            (["--no-namespace", "--namespace-all"], "not allowed with argument"),
+        ]
+        for extra, message in cases:
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
+                dictionary_merge.main([str(A_PATH), str(b2), "--output", str(self.tmp / "out.json")] + extra)
+            self.assertEqual(context.exception.code, 2, extra)
+            self.assertIn(message, stderr.getvalue(), extra)
+            self.assertFalse((self.tmp / "out.json").exists())
 
 
 class TestPacketSets(DictionaryMergeTestCase):
