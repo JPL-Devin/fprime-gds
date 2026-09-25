@@ -697,12 +697,21 @@ def merge_dictionaries(dictionary1, dictionary2, name=None, permissive=False):
     return merged
 
 
+def is_stream_output(path: Path):
+    """ True for destinations that must be written directly rather than replaced by rename: anything that exists and
+    is not a regular file (FIFO, character device), and descriptor paths such as /dev/stdout or /proc/self/fd/1, which
+    resolve to whatever the descriptor currently points at (possibly a regular file elsewhere). """
+    if path.parts[:2] in (("/", "dev"), ("/", "proc")):
+        return True
+    return path.exists() and not path.is_file()
+
+
 def write_output(path: Path, merged):
     """ Write the merged dictionary atomically: temporary file in the output directory, then rename, so a failure never
     leaves a truncated dictionary behind. An existing file keeps its mode; a new one gets the umask default. Non-regular
     outputs (e.g. /dev/stdout, a FIFO) cannot be renamed over and are written directly. """
     text = json.dumps(merged, indent=2)
-    if path.exists() and not path.is_file():
+    if is_stream_output(path):
         with open(path, "w") as output_fh:
             output_fh.write(text)
         return

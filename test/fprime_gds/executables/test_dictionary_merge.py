@@ -1056,4 +1056,20 @@ class TestAtomicWrite(DictionaryMergeTestCase):
         self.assertEqual(code, 0)
         code, _, regular = self.run_cli(self.d1, self.d2)
         self.assertEqual(received, [regular.read_text()])
+
+    @unittest.skipUnless(Path("/dev/stdout").exists(), "/dev/stdout is POSIX-only")
+    def test_dev_stdout_redirected_to_file_uses_direct_write(self):
+        redirected = self.tmp / "redirected.json"
+        saved = os.dup(1)
+        try:
+            with open(redirected, "w") as file_handle:
+                os.dup2(file_handle.fileno(), 1)
+            self.assertTrue(Path("/dev/stdout").is_file())
+            code, _, _ = self.run_cli(self.d1, self.d2, output=Path("/dev/stdout"))
+        finally:
+            os.dup2(saved, 1)
+            os.close(saved)
+        self.assertEqual(code, 0)
+        code, _, regular = self.run_cli(self.d1, self.d2)
+        self.assertEqual(redirected.read_text(), regular.read_text())
         self.assertEqual([p.name for p in self.tmp.glob("*.tmp")], [])
