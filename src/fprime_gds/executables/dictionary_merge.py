@@ -700,10 +700,11 @@ def merge_dictionaries(dictionary1, dictionary2, name=None, permissive=False):
 def is_stream_output(path: Path):
     """ True for destinations that must be written directly rather than replaced by rename: anything that exists and
     is not a regular file (FIFO, character device), and descriptor paths such as /dev/stdout, /dev/fd/1 or
-    /proc/self/fd/1, which are symlinks through /proc to whatever the descriptor currently points at. """
+    /proc/self/fd/1, which are symlinks through /proc (directly or via a symlinked parent such as /dev/fd) to
+    whatever the descriptor currently points at. """
     current = path
     for _ in range(40):
-        if current.parts[:2] == ("/", "proc"):
+        if Path(os.path.realpath(current.parent)).parts[:2] == ("/", "proc"):
             return True
         if not current.is_symlink():
             break

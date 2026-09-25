@@ -1059,19 +1059,22 @@ class TestAtomicWrite(DictionaryMergeTestCase):
 
     @unittest.skipUnless(Path("/dev/stdout").exists(), "/dev/stdout is POSIX-only")
     def test_dev_stdout_redirected_to_file_uses_direct_write(self):
-        redirected = self.tmp / "redirected.json"
-        saved = os.dup(1)
-        try:
-            with open(redirected, "w") as file_handle:
-                os.dup2(file_handle.fileno(), 1)
-            self.assertTrue(Path("/dev/stdout").is_file())
-            code, _, _ = self.run_cli(self.d1, self.d2, output=Path("/dev/stdout"))
-        finally:
-            os.dup2(saved, 1)
-            os.close(saved)
-        self.assertEqual(code, 0)
-        code, _, regular = self.run_cli(self.d1, self.d2)
-        self.assertEqual(redirected.read_text(), regular.read_text())
+        _, _, regular = self.run_cli(self.d1, self.d2)
+        for descriptor in (Path("/dev/stdout"), Path("/dev/fd/1"), Path("/proc/self/fd/1")):
+            if not descriptor.exists():
+                continue
+            redirected = self.tmp / "redirected.json"
+            saved = os.dup(1)
+            try:
+                with open(redirected, "w") as file_handle:
+                    os.dup2(file_handle.fileno(), 1)
+                self.assertTrue(descriptor.is_file())
+                code, _, _ = self.run_cli(self.d1, self.d2, output=descriptor)
+            finally:
+                os.dup2(saved, 1)
+                os.close(saved)
+            self.assertEqual(code, 0, descriptor)
+            self.assertEqual(redirected.read_text(), regular.read_text(), descriptor)
 
     def test_stream_output_detection(self):
         regular = self.tmp / "plain.json"
@@ -1085,6 +1088,8 @@ class TestAtomicWrite(DictionaryMergeTestCase):
         descriptor.symlink_to("/proc/self/fd/1")
         self.assertTrue(dictionary_merge.is_stream_output(descriptor))
         self.assertTrue(dictionary_merge.is_stream_output(Path("/proc/self/fd/1")))
+        if Path("/dev/fd").is_dir():
+            self.assertTrue(dictionary_merge.is_stream_output(Path("/dev/fd/1")))
         if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK):
             shm = Path("/dev/shm") / f"fprime_merge_test_{os.getpid()}.json"
             shm.write_text("{}")
