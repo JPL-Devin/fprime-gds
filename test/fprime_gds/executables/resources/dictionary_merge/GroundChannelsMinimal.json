@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "dictionarySpecVersion": "1.0.0"
+  },
+  "telemetryChannels": [
+    {
+      "name": "Examples(Ground).CommandCountMinus7",
+      "type": {
+        "name": "I64",
+        "kind": "integer",
+        "size": 64
+      },
+      "id": 1000020224,
+      "telemetryUpdate": "always",
+      "annotation": "Output (derived) of command count less seven"
+    }
+  ],
+  "typeDefinitions": [],
+  "constants": [],
+  "commands": [],
+  "parameters": [],
+  "events": [],
+  "records": [],
+  "containers": [],
+  "telemetryPacketSets": []
+}
