@@ -504,24 +504,25 @@ class Merger:
         t = f"{prefix_k}.{n}" if prefix_k is not None else None
         rename_map = self.rename_map
 
-        # 1. identical entry already held (bare, under k's own prefix, or renamed retroactively)
-        if n in acc.by_name and acc.slots[acc.by_name[n]].entry == entry:
-            acc.attach(acc.by_name[n], k, n, rename_map)
-            return
-        if not opts.no_namespace:
-            if t is not None and t in acc.by_name and acc.slots[acc.by_name[t]].entry == renamed(entry, t):
+        # 1. identical entry already held: it arrived under the same name (and is held bare or renamed), or it was
+        #    held raw under k's own prefixed name (re-merge of an earlier output with one of its inputs). Matching on
+        #    arrival names keeps 'X' and a literal 'A.X' apart even while 'X' is held as 'A.X'.
+        for idx in acc.by_orig.get(n, []):
+            held = acc.slots[idx]
+            if held.entry == renamed(entry, held.entry["name"]):
+                acc.attach(idx, k, n, rename_map)
+                return
+        if not opts.no_namespace and t is not None and t in acc.by_name:
+            held = acc.slots[acc.by_name[t]]
+            if held.orig_name == t and held.entry == renamed(entry, t):
                 acc.attach(acc.by_name[t], k, n, rename_map)
                 return
-            for idx in acc.by_orig.get(n, []):
-                if acc.slots[idx].entry == renamed(entry, acc.slots[idx].entry["name"]):
-                    acc.attach(idx, k, n, rename_map)
-                    return
 
         # 2. id already held
         if id_key and i in acc.by_id:
             h_idx = acc.by_id[i]
             held = acc.slots[h_idx]
-            if held.orig_name == n or (not opts.no_namespace and held.entry["name"] == t):
+            if held.orig_name == n or (not opts.no_namespace and held.orig_name == t):
                 if opts.prefer_primary:
                     report.warning("overridden", f"{section}: '{n}' ({id_text}) differs in '{self.path(k)}'; kept "
                                                  f"definition '{held.entry['name']}' from '{self.path(held.origin)}' "

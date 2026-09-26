@@ -1001,6 +1001,26 @@ class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
         self.assertIn("cannot rename 'Y' from 'd2' to 'Alpha.X.Y': that name is already defined in 'd1'",
                       report.errors[0])
 
+    def test_literal_prefixed_name_is_not_the_renamed_entry(self):
+        # A's 'X' is held as 'Alpha.X'; B's literal 'Alpha.X' at the same opcode is a different item -> id clash
+        d1 = make_dictionary("Ref.DeploymentA", commands=[command("X", 1)])
+        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Alpha.X", 1)])
+        report = merge_fails(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
+        self.assertEqual(count(report.errors, E3), 1)
+        self.assertIn("opcode 0x1 is used by 'Alpha.X' in 'd1' and 'Alpha.X' in 'd2'", report.errors[0])
+        merged, report = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"], prefer_primary=True)
+        self.assertEqual([c["name"] for c in merged["commands"]], ["Alpha.X"])
+        self.assertEqual(count(report.warnings, W4), 1)
+        # same shape without --namespace-all: B's 'X' collides by name with A's 'X', so both are renamed, and B's
+        # literal 'Alpha.X' must not be mistaken for the renamed A entry
+        d2 = make_dictionary("Ref.DeploymentB", commands=[command("X", 2), command("Alpha.X", 1)])
+        report = merge_fails(d1, d2, prefixes=["Alpha", "Beta"])
+        self.assertEqual(count(report.errors, E3), 1)
+        # a different opcode is simply a distinct entry
+        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Alpha.X", 2)])
+        merged, report = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
+        self.assertEqual([(c["name"], c["opcode"]) for c in merged["commands"]], [("Alpha.X", 1), ("Beta.Alpha.X", 2)])
+        self.assertEqual(report.warnings, [])
     def test_manual_prefixes_for_collisions(self):
         merged, report = merge_ok(self.A, self.B2, prefixes=["Alpha", "Site.Beta"])
         self.assertEqual(count(report.warnings, W2), 260)
