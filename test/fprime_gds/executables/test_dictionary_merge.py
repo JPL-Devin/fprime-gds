@@ -1,11 +1,9 @@
 """ Tests for fprime_gds.executables.dictionary_merge
 
-Real fixtures: the two hub-reference deployment dictionaries (fprime-generic-hub-reference @ a32988b2), trimmed to a few
-components (see resources/dictionary_merge/README.md): the shared CdhCore subtopology at identical base ids (7 commands,
-17 events, 3 channels) and deployment-local instances that reuse local base ids (1 command, 3 events, 2 channels clash).
-Derived in-test: B2 (B with every id shifted so that shared names collide with A's while ids do not), C (A's shared
-subtopologies under a third deployment name, at A's ids) and C2 (same, at new ids). Every other case is built from small
-spec-complete entries so the differing field is explicit.
+All inputs are built in-code from spec-complete entries. `deployment()` gives a hub-reference-shaped dictionary: a
+shared subtopology (CdhCore, identical in every deployment) plus a deployment-local component that reuses the same
+local ids. A and B at the same base id reproduce the hub reference as shipped; B2 is B with shifted ids, the case the
+per-deployment namespacing is for.
 """
 
 import contextlib
@@ -14,7 +12,6 @@ import io
 import json
 import os
 import stat
-import threading
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -27,8 +24,7 @@ from fprime_gds.common.loaders.pkt_json_loader import PktJsonLoader
 from fprime_gds.common.utils.cleanup import globals_cleanup
 from fprime_gds.executables import dictionary_merge
 from fprime_gds.executables.dictionary_merge import (
-    NON_UNIQUE_SECTIONS,
-    PACKET_SECTION,
+    SECTION_ORDER,
     UNIQUE_SECTIONS,
     LoadedInput,
     MergeOptions,
@@ -36,180 +32,102 @@ from fprime_gds.executables.dictionary_merge import (
     merge_dictionaries,
 )
 
-RESOURCES = Path(__file__).resolve().parent / "resources" / "dictionary_merge"
-A_PATH = RESOURCES / "DeploymentATopologyDictionary.json"
-B_PATH = RESOURCES / "DeploymentBTopologyDictionary.json"
-GROUND_PATH = RESOURCES / "GroundChannels.json"
-GROUND_MINIMAL_PATH = RESOURCES / "GroundChannelsMinimal.json"
-
-COUNTED = ["commands", "events", "telemetryChannels"]
-B2_SHIFT = 0x20000000
-C2_SHIFT = 0x40000000
-
-# Message fingerprints (see the design's message catalogue)
-E1 = "with different opcodes; use --prefer-primary", "with different ids; use --prefer-primary"
-E2 = "has different definitions in"
-E3 = "is used by"
-E4 = "has inconsistent definitions in"
-E5 = "Inconsistent metadata values"
-E6 = "references unknown channel"
-E7 = "Malformed dictionary '"
-E8 = "Malformed dictionary section"
-E10 = "cannot rename", "collides with the already-namespaced entry"
-E11 = "cannot be used as a namespace prefix", "metadata.deploymentName is missing or not a string"
-E12 = "is defined twice with different definitions"
-E15 = "both have the namespace prefix"
-W1 = "dropped in favour of"
-W2 = "; renamed to '"
-W2P = "name already namespaced as"
-W3 = "kept definition '"
-W4 = "— '"
-W5 = "kept definition from"
-W6 = "libraryVersions differ"
-W7 = "removed because it references dropped channel"
-W8 = "removed from omitted list"
-W9 = "re-run the merge N-way"
-W9_SUFFIX = "is appended un-prefixed although"
-W9_MIRROR = "is appended although un-prefixed"
-W10 = "in omitted (kept; the GDS ignores omitted)"
-W11 = "select it with --packet-set-name"
+# Message fingerprints
+E_NAME_CLASH = "with different opcodes; use --prefer-primary", "with different ids; use --prefer-primary"
+E_BODY = "has different definitions in"
+E_ID_CLASH = "is used by"
+E_TYPE = "has inconsistent definitions in"
+E_META = "Inconsistent metadata values"
+E_UNKNOWN_CHANNEL = "references unknown channel"
+E_MALFORMED = "Malformed dictionary"
+E_RENAME_TARGET = "cannot rename"
+E_PREFIX = "cannot be used as a namespace prefix", "metadata.deploymentName is missing or not a string"
+E_SAME_PREFIX = "both have the namespace prefix"
+W_DROPPED = "dropped in favour of"
+W_RENAMED = "; renamed to '"
+W_KEPT_BODY = "kept definition '"
+W_ID_DROPPED = "— '"
+W_KEPT_TYPE = "kept definition from"
+W_LIBS = "libraryVersions differ"
+W_PACKET_REMOVED = "removed because it references dropped channel"
+W_CHAINED = "re-run the merge N-way"
+W_PACKET_SETS = "select it with --packet-set-name"
 
 
-def load(path):
-    with open(path, "r") as file_handle:
-        return json.load(file_handle)
-
-
-def as_set(entries):
-    return {json.dumps(entry, sort_keys=True) for entry in entries}
-
-
-def renamed_to(entry, name):
-    return {**entry, "name": name}
-
-
-def renamed_back(entry, prefixes=("DeploymentA.", "DeploymentB.")):
-    """ Entry with a known namespace prefix stripped from its name """
-    name = entry["name"]
-    for prefix in prefixes:
-        if name.startswith(prefix):
-            return renamed_to(entry, name[len(prefix):])
-    return entry
-
-
-def count(lines, *fingerprints):
-    return sum(1 for line in lines if any(fingerprint in line for fingerprint in fingerprints))
-
-
-def errors(lines):
-    return [line for line in lines if line.startswith("[ERROR]") and "Merge failed" not in line]
-
-
-def warnings(lines):
-    return [line for line in lines if line.startswith("[WARNING]")]
-
-
-def type_of(name="U32", size=32):
+def u(name="U32", size=32):
     return {"name": name, "kind": "integer", "size": size, "signed": False}
 
 
-def command(name, opcode, **kwargs):
+def command(name, opcode, **extra):
     return {"name": name, "commandKind": "async", "opcode": opcode, "formalParams": [], "queueFullBehavior": "assert",
-            "annotation": "", **kwargs}
+            "annotation": "", **extra}
 
 
-def event(name, id, fmt="x", **kwargs):
-    return {"name": name, "severity": "ACTIVITY_LO", "formalParams": [], "id": id, "format": fmt, "annotation": "",
-            **kwargs}
+def event(name, id, **extra):
+    return {"name": name, "severity": "ACTIVITY_LO", "formalParams": [], "id": id, "format": "x", "annotation": "",
+            **extra}
 
 
-def channel(name, id, **kwargs):
-    return {"name": name, "type": type_of(), "id": id, "telemetryUpdate": "always", "annotation": "", **kwargs}
+def channel(name, id, **extra):
+    return {"name": name, "type": u(), "id": id, "telemetryUpdate": "always", "annotation": "", **extra}
 
 
-def parameter(name, id, **kwargs):
-    return {"name": name, "type": type_of(), "id": id, "annotation": "", **kwargs}
+def enum_type(name, *enumerators):
+    return {"kind": "enum", "qualifiedName": name, "representationType": u("U16", 16),
+            "enumeratedConstants": [{"name": n, "value": v, "annotation": ""} for v, n in enumerate(enumerators)]}
 
 
-def record(name, id, **kwargs):
-    return {"name": name, "type": type_of(), "array": False, "id": id, "annotation": "", **kwargs}
+def constant(name, value):
+    return {"kind": "constant", "qualifiedName": name, "type": u(), "value": value, "annotation": ""}
 
 
-def container(name, id, **kwargs):
-    return {"name": name, "id": id, "defaultPriority": 1, "annotation": "", **kwargs}
+def packet_set(name, *packets, omitted=()):
+    return {"name": name, "omitted": list(omitted),
+            "members": [{"name": p, "id": i, "group": 1, "members": list(m)} for i, (p, m) in enumerate(packets, 1)]}
 
 
-def enum_type(qualified_name, enumerators):
-    return {"kind": "enum", "qualifiedName": qualified_name, "representationType": type_of("U16", 16),
-            "enumeratedConstants": [{"name": n, "value": v, "annotation": ""} for n, v in enumerators]}
+def make_dictionary(name="Ref.Ref", *, types=(), constants=(), commands=(), parameters=(), events=(), channels=(),
+                    records=(), containers=(), packet_sets=(), **metadata):
+    meta = {"deploymentName": name, "projectVersion": "p1", "frameworkVersion": "f1", "libraryVersions": [],
+            "dictionarySpecVersion": "1.0.0", **metadata}
+    return {"metadata": {k: v for k, v in meta.items() if v is not None}, "typeDefinitions": list(types),
+            "constants": list(constants), "commands": list(commands), "parameters": list(parameters),
+            "events": list(events), "telemetryChannels": list(channels), "records": list(records),
+            "containers": list(containers), "telemetryPacketSets": list(packet_sets)}
 
 
-def alias_type(qualified_name, width):
-    return {"kind": "alias", "qualifiedName": qualified_name, "type": type_of(f"U{width}", width)}
+NO_OP = "CdhCore.cmdDisp.CMD_NO_OP"
+DISPATCHED = "CdhCore.cmdDisp.CommandsDispatched"
 
 
-def constant(qualified_name, value):
-    return {"kind": "constant", "qualifiedName": qualified_name, "type": type_of(), "value": value, "annotation": ""}
+def deployment(letter, base=0):
+    """ 'Ref.Deployment<letter>': shared CdhCore entries at base + 0x5xx, a local component at base + 0x1xxx """
+    local = f"Ref.Deployment{letter}.{letter.lower()}_comp"
+    return make_dictionary(f"Ref.Deployment{letter}",
+                           types=[enum_type("TimeBase", "TB_NONE", "TB_PROC_TIME")], constants=[constant("Ref.K", 1)],
+                           commands=[command(NO_OP, base + 0x500), command(f"{local}.GO", base + 0x1000)],
+                           events=[event("CdhCore.events.CMD_OK", base + 0x501), event(f"{local}.WENT", base + 0x1001)],
+                           channels=[channel(DISPATCHED, base + 0x502), channel(f"{local}.Count", base + 0x1002)])
 
 
-def packet(name, id, members, group=1):
-    return {"name": name, "id": id, "group": group, "members": list(members)}
+A = deployment("A")
+B = deployment("B")
+B2 = deployment("B", 0x20000000)
 
 
-def packet_set(name, packets, omitted=()):
-    return {"name": name, "members": list(packets), "omitted": list(omitted)}
+def names(merged, section="commands"):
+    return [e["name"] for e in merged[section]]
 
 
-def make_dictionary(deployment="Ref.Ref", *, commands=(), events=(), channels=(), parameters=(), records=(),
-                    containers=(), types=(), constants=(), packet_sets=(), **metadata):
-    """ A spec-complete dictionary with all ten sections """
-    meta = {"deploymentName": deployment, "projectVersion": "p1", "frameworkVersion": "f1", "libraryVersions": [],
-            "dictionarySpecVersion": "1.0.0"}
-    meta.update(metadata)
-    for key in [key for key, value in metadata.items() if value is None]:
-        del meta[key]
-    return {
-        "metadata": meta,
-        "typeDefinitions": list(types),
-        "constants": list(constants),
-        "commands": list(commands),
-        "parameters": list(parameters),
-        "events": list(events),
-        "telemetryChannels": list(channels),
-        "records": list(records),
-        "containers": list(containers),
-        "telemetryPacketSets": list(packet_sets),
-    }
-
-
-def shift_ids(dictionary, offset):
-    result = copy.deepcopy(dictionary)
-    for section, id_key in UNIQUE_SECTIONS.items():
-        for entry in result[section]:
-            entry[id_key] += offset
-    return result
-
-
-def derive_b2(b_dict):
-    return shift_ids(b_dict, B2_SHIFT)
-
-
-def derive_c(a_dict, b_dict, offset=0, deployment="FprimeGenericHubReference.DeploymentC.DeploymentC"):
-    """ A's shared-subtopology entries only (names present in both A and B), under a third deployment name """
-    result = copy.deepcopy(a_dict)
-    for section in UNIQUE_SECTIONS:
-        shared = {entry["name"] for entry in b_dict[section]}
-        result[section] = [entry for entry in result[section] if entry["name"] in shared]
-    result["metadata"]["deploymentName"] = deployment
-    return shift_ids(result, offset)
+def count(lines, *fingerprints):
+    return sum(1 for line in lines if any(f in line for f in fingerprints))
 
 
 def merge(*dictionaries, prefixes=None, **options):
-    """ Merge parsed dictionaries in memory (prefixes: one --prefix per input); returns (merged or None, report,
-    merger) """
-    prefixes = prefixes if prefixes is not None else [None] * len(dictionaries)
-    inputs = [LoadedInput(index, f"d{index}", copy.deepcopy(dictionary), prefix_override=prefix)
-              for index, (dictionary, prefix) in enumerate(zip(dictionaries, prefixes), start=1)]
+    """ In-memory merge; returns (merged or None, report, merger) """
+    prefixes = prefixes or [None] * len(dictionaries)
+    inputs = [LoadedInput(i, f"d{i}", copy.deepcopy(d), prefix_override=p)
+              for i, (d, p) in enumerate(zip(dictionaries, prefixes), start=1)]
     return merge_all(inputs, MergeOptions(**options))
 
 
@@ -222,1126 +140,296 @@ def merge_ok(*dictionaries, **options):
 def merge_fails(*dictionaries, **options):
     merged, report, _ = merge(*dictionaries, **options)
     assert merged is None, "expected the merge to fail"
-    return report
+    return report.errors
 
 
-def legacy_merge(d1, d2):
-    """ What the two-input tool produced before this rewrite for inputs without any name/id overlap: d1's keys over
-    d2's, every section list concatenated, deploymentName '<d1>_<d2>_merged' (unknown deploymentName: 'unknown') """
-    merged = {**d2, **d1}
-    names = [d.get("metadata", {}).get("deploymentName", "unknown") for d in (d1, d2)]
-    merged["metadata"] = {**d1["metadata"], "deploymentName": "_".join(names) + "_merged"}
-    for section in list(UNIQUE_SECTIONS) + list(NON_UNIQUE_SECTIONS) + [PACKET_SECTION]:
-        merged[section] = d1[section] + d2[section]
-    return merged
+class TestCollisionRules(unittest.TestCase):
+    """ One test per rule of Merger.classify_unique_entry """
+
+    def test_identical_entries_merge_into_one(self):
+        # A + B as shipped: the shared subtopology is identical (also types/constants), the local components clash by id
+        errors = merge_fails(A, B)
+        self.assertEqual((len(errors), count(errors, E_ID_CLASH)), (3, 3))
+        merged, report = merge_ok(A, B, prefer_primary=True)
+        self.assertEqual(count(report.warnings, W_ID_DROPPED), 3)
+        for section in SECTION_ORDER[1:]:
+            self.assertEqual(merged[section], A[section], section)
+
+    def test_same_name_different_id_renames_both(self):
+        merged, report = merge_ok(A, B2)
+        self.assertEqual(count(report.warnings, W_RENAMED), 3)
+        self.assertEqual(names(merged), [f"DeploymentA.{NO_OP}", "Ref.DeploymentA.a_comp.GO", f"DeploymentB.{NO_OP}",
+                                         "Ref.DeploymentB.b_comp.GO"])
+        self.assertEqual([c["opcode"] for c in merged["commands"]], [0x500, 0x1000, 0x20000500, 0x20001000])
+        self.assertEqual(merged["typeDefinitions"], A["typeDefinitions"])
+        # the body does not matter (ids are authoritative), nor does --prefer-primary
+        other = make_dictionary("Ref.Two", channels=[channel("Sub.X", 2, format="{} ms")])
+        merged, _ = merge_ok(make_dictionary("Ref.One", channels=[channel("Sub.X", 1)]), other, prefer_primary=True)
+        self.assertEqual(names(merged, "telemetryChannels"), ["One.Sub.X", "Two.Sub.X"])
+
+    def test_no_namespace(self):
+        errors = merge_fails(A, B2, no_namespace=True)
+        self.assertEqual((len(errors), count(errors, *E_NAME_CLASH)), (3, 3))
+        merged, report = merge_ok(A, B2, no_namespace=True, prefer_primary=True)
+        self.assertEqual(count(report.warnings, W_DROPPED), 3)
+        self.assertEqual(names(merged), [NO_OP, "Ref.DeploymentA.a_comp.GO", "Ref.DeploymentB.b_comp.GO"])
+
+    def test_same_id_different_name(self):
+        d1 = make_dictionary("Ref.One", channels=[channel("Ref.a.X", 0)])
+        d2 = make_dictionary("Ref.Two", channels=[channel("Ref.b.Y", 0), channel("Ref.b.Z", 1)],
+                             packet_sets=[packet_set("Pkts", ("P", ["Ref.b.Y", "Ref.b.Z"]), ("Q", ["Ref.b.Z"]))])
+        self.assertEqual(count(merge_fails(d1, d2), E_ID_CLASH), 1)
+        merged, report = merge_ok(d1, d2, prefer_primary=True)
+        self.assertEqual(names(merged, "telemetryChannels"), ["Ref.a.X", "Ref.b.Z"])
+        # a packet that referenced the dropped channel goes with it
+        self.assertEqual([p["name"] for p in merged["telemetryPacketSets"][0]["members"]], ["Q"])
+        self.assertEqual((count(report.warnings, W_ID_DROPPED), count(report.warnings, W_PACKET_REMOVED)), (1, 1))
+
+    def test_same_name_same_id_different_body(self):
+        d1 = make_dictionary("Ref.One", events=[event("Sub.E", 1)])
+        d2 = make_dictionary("Ref.Two", events=[event("Sub.E", 1, format="other")])
+        self.assertEqual(count(merge_fails(d1, d2), E_BODY), 1)
+        merged, report = merge_ok(d1, d2, prefer_primary=True)
+        self.assertEqual((merged["events"], count(report.warnings, W_KEPT_BODY)), (d1["events"], 1))
+
+    def test_type_and_constant_conflicts(self):
+        d1 = make_dictionary("Ref.One", types=[enum_type("TimeBase", "TB_NONE")], constants=[constant("Ref.K", 1)])
+        d2 = make_dictionary("Ref.Two", types=[enum_type("TimeBase", "TB_NONE", "TB_X")],
+                             constants=[constant("Ref.K", 2)])
+        self.assertEqual(count(merge_fails(d1, d2), E_TYPE), 2)
+        merged, report = merge_ok(d1, d2, prefer_primary=True)
+        self.assertEqual((merged["typeDefinitions"], merged["constants"]), (d1["typeDefinitions"], d1["constants"]))
+        self.assertEqual(count(report.warnings, W_KEPT_TYPE), 2)
+
+    def test_prefix_is_last_segment_and_must_differ(self):
+        d1 = make_dictionary("X.Same", commands=[command("Sub.X", 1)])
+        d2 = make_dictionary("Y.Same", commands=[command("Sub.X", 2)])
+        self.assertEqual(count(merge_fails(d1, d2), E_SAME_PREFIX), 1)
+        merged, _ = merge_ok(d1, d2, prefixes=["Alpha", "Site.Beta"])
+        self.assertEqual(names(merged), ["Alpha.Sub.X", "Site.Beta.Sub.X"])
+        # an unusable deploymentName is only an error once a prefix is needed; --prefix rescues it
+        d2["metadata"]["deploymentName"] = "not an identifier"
+        self.assertEqual(count(merge_fails(d1, d2), *E_PREFIX), 1)
+        del d2["metadata"]["deploymentName"]
+        self.assertEqual(count(merge_fails(d1, d2), *E_PREFIX), 1)
+        merge_ok(d1, d2, prefixes=["Alpha", "Beta"])
+        d2["commands"] = [command("Sub.Y", 2)]
+        merge_ok(d1, d2)
+
+    def test_rename_target_already_taken(self):
+        d1 = make_dictionary("Ref.P", commands=[command("Sub.X", 1), command("Q.Sub.X", 3)])
+        d2 = make_dictionary("Ref.Q", commands=[command("Sub.X", 2)])
+        self.assertEqual(count(merge_fails(d1, d2), E_RENAME_TARGET), 1)
+
+    def test_literal_prefixed_name_is_a_distinct_item(self):
+        # d1's 'X' is held as 'Alpha.X'; d2's literal 'Alpha.X' at the same opcode is an id clash, not the same entry
+        d1 = make_dictionary("Ref.Alpha", commands=[command("X", 1)])
+        d2 = make_dictionary("Ref.Beta", commands=[command("X", 2), command("Alpha.X", 1)])
+        self.assertEqual(count(merge_fails(d1, d2), E_ID_CLASH), 1)
+        # and a held literal 'Beta.X' is not the same-name definition of d2's 'X' either: dropped, packet removed
+        d1 = make_dictionary("Ref.Alpha", channels=[channel("Beta.X", 1)])
+        d2 = make_dictionary("Ref.Beta", channels=[channel("X", 1, type=u("U16", 16))],
+                             packet_sets=[packet_set("Pkts", ("P", ["X"]))])
+        self.assertEqual(count(merge_fails(d1, d2), E_ID_CLASH), 1)
+        merged, report = merge_ok(d1, d2, prefer_primary=True)
+        self.assertEqual((merged["telemetryChannels"], merged["telemetryPacketSets"][0]["members"]),
+                         (d1["telemetryChannels"], []))
+        self.assertEqual(count(report.warnings, W_KEPT_BODY), 0)
+
+    def test_three_inputs(self):
+        c = deployment("C", 0x40000000)
+        merged, report = merge_ok(A, B2, c)
+        self.assertEqual(names(merged)[::2], [f"DeploymentA.{NO_OP}", f"DeploymentB.{NO_OP}", f"DeploymentC.{NO_OP}"])
+        # order of the non-primary inputs does not matter; a third copy identical to A's joins A's renamed slot
+        other, _ = merge_ok(A, c, B2)
+        self.assertEqual(sorted(names(merged)), sorted(names(other)))
+        c = deployment("C")
+        for section in UNIQUE_SECTIONS:
+            c[section] = [e for e in c[section] if e["name"].startswith("CdhCore")]
+        merged, report = merge_ok(A, B2, c)
+        self.assertEqual(count(report.warnings, W_RENAMED), 3)
+        self.assertEqual(len(merged["commands"]), 4)
+
+    def test_chained_merge_is_warned_not_supported(self):
+        merged, _ = merge_ok(A, B2)
+        again, report = merge_ok(merged, B2)
+        self.assertEqual((again["commands"], report.warnings), (merged["commands"], []))
+        _, report = merge_ok(merged, deployment("C", 0x40000000))
+        self.assertEqual(count(report.warnings, W_CHAINED), 3)
+
+    def test_all_errors_are_collected(self):
+        d1 = make_dictionary("Ref.One", commands=[command("Sub.X", 1), command("Ref.a.Y", 2)],
+                             types=[enum_type("Ref.T", "A")], projectVersion="p1")
+        d2 = make_dictionary("Ref.Two", commands=[command("Sub.X", 3), command("Ref.b.Y", 2)],
+                             types=[enum_type("Ref.T", "B")], projectVersion="p2")
+        errors = merge_fails(d1, d2, no_namespace=True)
+        self.assertEqual([count(errors, *f) for f in (E_NAME_CLASH, (E_ID_CLASH,), (E_TYPE,), (E_META,))], [1] * 4)
 
 
-def legacy_bytes(d1, d2):
-    return json.dumps(legacy_merge(d1, d2), indent=2).encode()
+class TestPacketsAndNamespaceAll(unittest.TestCase):
+
+    def test_packet_references_follow_renames(self):
+        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Sub.X", 1), channel("Sub.Y", 2)],
+                             packet_sets=[packet_set("Pkts", ("P", ["Sub.X", "Sub.Y"]), omitted=["Sub.X"])])
+        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Sub.X", 3)],
+                             packet_sets=[packet_set("Pkts", ("Q", ["Sub.X"]))])
+        merged, report = merge_ok(d1, d2)
+        sets = {s["name"]: s for s in merged["telemetryPacketSets"]}
+        self.assertEqual(sets["DeploymentA.Pkts"]["members"][0]["members"], ["DeploymentA.Sub.X", "Sub.Y"])
+        self.assertEqual(sets["DeploymentA.Pkts"]["omitted"], ["DeploymentA.Sub.X"])
+        self.assertEqual(sets["DeploymentB.Pkts"]["members"][0]["members"], ["DeploymentB.Sub.X"])
+        self.assertEqual(count(report.warnings, W_PACKET_SETS), 1)
+        d2["telemetryPacketSets"][0]["members"][0]["members"] = ["Sub.Nope"]
+        self.assertEqual(count(merge_fails(d1, d2), E_UNKNOWN_CHANNEL), 1)
+
+    def test_namespace_all(self):
+        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Sub.X", 1), channel("Ref.a.Y", 2)],
+                             commands=[command("Ref.a.CMD", 1)], types=[enum_type("Ref.E", "A")],
+                             constants=[constant("Ref.K", 1)],
+                             packet_sets=[packet_set("Pkts", ("P", ["Sub.X", "Ref.a.Y"]), omitted=["Ref.a.Y"])])
+        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Sub.X", 1), channel("Ref.b.Z", 4)])
+        merged, report = merge_ok(d1, d2, namespace_all=True)
+        self.assertEqual(report.warnings, [])
+        # every id-bearing entry is prefixed; identical entries merge under the primary's prefix; types, constants
+        # and packet-set names are untouched
+        self.assertEqual(names(merged, "telemetryChannels"), ["DeploymentA.Sub.X", "DeploymentA.Ref.a.Y",
+                                                              "DeploymentB.Ref.b.Z"])
+        self.assertEqual(names(merged), ["DeploymentA.Ref.a.CMD"])
+        self.assertEqual((merged["typeDefinitions"], merged["constants"]), (d1["typeDefinitions"], d1["constants"]))
+        pkts = merged["telemetryPacketSets"][0]
+        self.assertEqual((pkts["name"], pkts["members"][0]["members"], pkts["omitted"]),
+                         ("Pkts", ["DeploymentA.Sub.X", "DeploymentA.Ref.a.Y"], ["DeploymentA.Ref.a.Y"]))
+        merged, _ = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
+        self.assertEqual(names(merged, "telemetryChannels"), ["Alpha.Sub.X", "Alpha.Ref.a.Y", "Beta.Ref.b.Z"])
+        # prefixes must be distinct even without a collision
+        d2["metadata"]["deploymentName"] = "Other.DeploymentA"
+        self.assertEqual(count(merge_fails(d1, d2, namespace_all=True), E_SAME_PREFIX), 1)
 
 
-class DictionaryMergeTestCase(unittest.TestCase):
-    """ Shared fixtures: real A and B, derived B2/C/C2, and a CLI runner """
+class TestMetadataAndStructure(unittest.TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.A = load(A_PATH)
-        cls.B = load(B_PATH)
-        cls.B2 = derive_b2(cls.B)
-        cls.C = derive_c(cls.A, cls.B)
-        cls.C2 = derive_c(cls.A, cls.B, C2_SHIFT)
-        cls.M, _ = merge_ok(cls.A, cls.B2)
-        cls.shared_names = {section: {e["name"] for e in cls.A[section]} & {e["name"] for e in cls.B[section]}
-                            for section in UNIQUE_SECTIONS}
+    def test_metadata(self):
+        d1 = make_dictionary("Ref.One", libraryVersions=["lib@1"])
+        d2 = make_dictionary("Ref.Two", projectVersion="p2", libraryVersions=["lib@2"])
+        self.assertEqual(count(merge_fails(d1, d2), E_META), 1)
+        merged, report = merge_ok(d1, d2, permissive=True)
+        self.assertEqual(report.warnings, [])
+        self.assertEqual(merged["metadata"], {**d1["metadata"], "deploymentName": "Ref.One_Ref.Two_merged"})
+        d2["metadata"]["projectVersion"] = "p1"
+        merged, report = merge_ok(d1, d2, name="Hub.Ground")
+        self.assertEqual((count(report.warnings, W_LIBS), merged["metadata"]["deploymentName"]), (1, "Hub.Ground"))
+
+    def test_malformed_inputs(self):
+        good = make_dictionary("Ref.One")
+        broken = [({"metadata": "meta"}, "'metadata'"),
+                  ({"commands": {}}, "is not an array"),
+                  ({"commands": [{"name": "X"}]}, "missing key: 'opcode'"),
+                  ({"commands": [command("X", "1")]}, "'opcode' must be an integer"),
+                  ({"commands": [command("X", 1), command("X", 2)]}, "is defined twice"),
+                  ({"telemetryPacketSets": [{"name": "P", "members": {}}]}, "must have 'members' packets")]
+        for override, message in broken:
+            errors = merge_fails(good, {**make_dictionary("Ref.Two"), **override})
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn(message, errors[0])
+        for section in SECTION_ORDER:
+            d2 = make_dictionary("Ref.Two")
+            del d2[section]
+            self.assertEqual(count(merge_fails(good, d2), E_MALFORMED), 1, section)
+
+
+class TestCli(unittest.TestCase):
 
     def setUp(self):
-        self._tmp = TemporaryDirectory()
-        self.tmp = Path(self._tmp.name)
-        self.addCleanup(self._tmp.cleanup)
+        directory = TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.tmp = Path(directory.name)
+        self.a, self.b2 = self.write("A.json", A), self.write("B2.json", B2)
 
     def write(self, name, dictionary):
         path = self.tmp / name
-        with open(path, "w") as file_handle:
-            json.dump(dictionary, file_handle, indent=2)
+        path.write_text(json.dumps(dictionary, indent=2))
         return path
 
     def run_cli(self, *args, output=None):
         """ Run main(); returns (exit code, stderr lines, output path) """
-        output = self.tmp / "out.json" if output is None else output
+        output = output or self.tmp / "out.json"
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
             dictionary_merge.main([str(arg) for arg in args] + ["--output", str(output)])
         return context.exception.code, stderr.getvalue().splitlines(), output
 
-    def assertCounts(self, merged, commands, events, channels):
-        self.assertEqual([len(merged[s]) for s in COUNTED], [commands, events, channels])
-
-    def prefixed_names(self, merged, prefixes=("DeploymentA.", "DeploymentB.", "DeploymentC.")):
-        return [e["name"] for s in UNIQUE_SECTIONS for e in merged[s] if e["name"].startswith(prefixes)]
-
-
-class TestFeatureOffCompatibility(DictionaryMergeTestCase):
-
-    def test_feature_off_byte_identical(self):
-        code, lines, output = self.run_cli("--permissive", A_PATH, GROUND_PATH)
-        self.assertEqual(code, 0)
-        self.assertEqual(lines, [])
-        self.assertEqual(output.read_bytes(), legacy_bytes(self.A, load(GROUND_PATH)))
-        # --name is usable (dotted identifier) and unknown top-level keys keep today's order/precedence
-        d1 = make_dictionary("Ref.One", commands=[command("Ref.a.CMD", 1)])
-        d2 = make_dictionary("Ref.Two", commands=[command("Ref.b.CMD", 2)])
-        d1["extra"], d2["extra"], d2["only2"] = "one", "two", True
-        merged, _ = merge_ok(d1, d2, name="X.Y")
-        self.assertEqual(merged["metadata"]["deploymentName"], "X.Y")
-        self.assertEqual(merged["extra"], "one")
-        self.assertEqual(list(merged), list({**d2, **d1}))
-
-    def test_ground_channels_minimal_metadata(self):
-        code, lines, output = self.run_cli("--permissive", A_PATH, GROUND_MINIMAL_PATH)
+    def test_two_disjoint_inputs_unchanged_from_before(self):
+        # what the two-input tool produced before this rewrite: d1's keys over d2's, sections concatenated
+        ground = make_dictionary("Ground", channels=[channel("Ground.Derived", 0x9000)], projectVersion="g",
+                                 frameworkVersion="g", libraryVersions=None)
+        expected = {**ground, **A, "metadata": {**A["metadata"], "deploymentName": "Ref.DeploymentA_Ground_merged"}}
+        for section in SECTION_ORDER[1:]:
+            expected[section] = A[section] + ground[section]
+        code, lines, output = self.run_cli("--permissive", self.a, self.write("G.json", ground))
         self.assertEqual((code, lines), (0, []))
-        self.assertEqual(output.read_bytes(), legacy_bytes(self.A, load(GROUND_MINIMAL_PATH)))
-        self.assertEqual(load(output)["metadata"]["deploymentName"],
-                         "FprimeGenericHubReference.DeploymentA.DeploymentA_unknown_merged")
-        code, lines, _ = self.run_cli(A_PATH, GROUND_MINIMAL_PATH)
-        self.assertEqual(code, 1)
-        self.assertIn("(a32988b vs None)", "\n".join(lines))
-        # a colliding channel name needs a prefix, which this input cannot provide
-        ground = load(GROUND_MINIMAL_PATH)
-        ground["telemetryChannels"][0]["name"] = self.A["telemetryChannels"][0]["name"]
-        report = merge_fails(self.A, ground, permissive=True)
-        self.assertEqual(count(report.errors, E11[1]), 1)
+        self.assertEqual(output.read_bytes(), json.dumps(expected, indent=2).encode())
+        self.assertEqual(merge_dictionaries(A, ground, permissive=True), expected)
+        with self.assertRaises(ValueError):
+            merge_dictionaries(A, B)
 
-    def test_ground_channels_howto(self):
-        ground = load(GROUND_PATH)
-        merge_ok(self.A, ground, permissive=True)
-        self.assertEqual(count(merge_fails(self.A, ground).errors, E5), 2)
-        colliding = copy.deepcopy(ground)
-        colliding["telemetryChannels"][0]["name"] = "CdhCore.cmdDisp.CommandsDispatched"
-        merged, report = merge_ok(self.A, colliding, permissive=True)
-        names = {e["name"] for e in merged["telemetryChannels"]}
-        self.assertIn("DeploymentA.CdhCore.cmdDisp.CommandsDispatched", names)
-        self.assertIn("GroundChannels.CdhCore.cmdDisp.CommandsDispatched", names)
-        self.assertNotIn("CdhCore.cmdDisp.CommandsDispatched", names)
-        self.assertEqual(count(report.warnings, W2), 1)
-        report = merge_fails(self.A, colliding, permissive=True, no_namespace=True)
-        self.assertEqual(count(report.errors, *E1), 1)
-
-    def test_equal_duplicate_keeps_main_spelling(self):
-        respelled = make_dictionary(self.A["metadata"]["deploymentName"],
-                                    types=copy.deepcopy(self.A["typeDefinitions"]),
-                                    constants=copy.deepcopy(self.A["constants"]), projectVersion="a32988b",
-                                    frameworkVersion="v4.2.0")
-        for entry in respelled["constants"]:
-            if isinstance(entry["value"], int):
-                entry["value"] = float(entry["value"])
-        code, lines, output = self.run_cli(A_PATH, self.write("t.json", respelled))
-        self.assertEqual((code, lines), (0, []))
-        text = output.read_text()
-        self.assertIn('"value": 65535,', text)
-        self.assertNotIn("65535.0", text)
-        self.assertEqual(load(output)["constants"], self.A["constants"])
-
-
-class TestRealHubReference(DictionaryMergeTestCase):
-
-    def test_identical_shared_entries_dedupe(self):
-        report = merge_fails(self.A, self.B)
-        self.assertEqual(len(report.errors), 6)
-        self.assertEqual(count(report.errors, E3), 6)
-        self.assertEqual(report.warnings, [])
-        merged, report = merge_ok(self.A, self.B, prefer_primary=True)
-        for section in list(UNIQUE_SECTIONS) + ["typeDefinitions", "constants"]:
-            self.assertEqual(merged[section], self.A[section], section)
-        self.assertEqual(self.prefixed_names(merged), [])
-
-    def test_different_name_same_id(self):
-        code, lines, output = self.run_cli(A_PATH, B_PATH)
-        self.assertEqual(code, 1)
-        self.assertFalse(output.exists())
-        by_section = [count(errors(lines), f"] {section}:") for section in COUNTED]
-        self.assertEqual(by_section, [1, 3, 2])
-        self.assertTrue(lines[0].startswith("[ERROR] commands: opcode 0x11017500 is used by "
-                                            "'FprimeGenericHubReference.DeploymentA.c_comp.HubCommandTest' in '"))
-        self.assertIn("Merge failed with 6 error(s) and 0 warning(s); no output written", lines[-1])
-        code, lines, output = self.run_cli("--prefer-primary", "--name", "FprimeGenericHubReference.Hub",
-                                           A_PATH, B_PATH)
+    def test_output_loads_in_gds(self):
+        b2 = {**B2, "telemetryPacketSets": [packet_set("Pkts", ("P", [DISPATCHED]))]}
+        code, lines, output = self.run_cli(self.a, self.write("B2p.json", b2), "--prefix", "Alpha", "--prefix", "Beta")
         self.assertEqual(code, 0)
-        self.assertEqual(count(lines, W4), 6)
-        self.assertEqual(count(lines, W2), 0)
-        merged = load(output)
-        self.assertCounts(merged, 9, 29, 8)
-        self.assertEqual(merged["metadata"]["deploymentName"], "FprimeGenericHubReference.Hub")
-        hub_commands = [c for c in merged["commands"] if c["opcode"] == 0x11017500]
-        self.assertEqual([c["name"] for c in hub_commands],
-                         ["FprimeGenericHubReference.DeploymentA.c_comp.HubCommandTest"])
-        # B as main: A's non-colliding locals are appended
-        merged, report = merge_ok(self.B, self.A, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 6)
-        self.assertCounts(merged, 9, 29, 8)
-        self.assertNotEqual(merged["commands"], self.B["commands"])
-        # --no-namespace changes nothing here: there is no same-name/different-id pair
-        self.assertEqual(count(merge_fails(self.A, self.B, no_namespace=True).errors, E3), 6)
-
-    def test_same_name_different_id_default_renames_both(self):
-        code, lines, output = self.run_cli(A_PATH, self.write("B2.json", self.B2))
-        self.assertEqual(code, 0)
-        self.assertEqual(len(warnings(lines)), 28)
-        self.assertEqual(count(lines, W2), 27)
-        self.assertEqual(lines[-1], "[WARNING] Merged 2 dictionaries with 27 warning(s): 27 renamed")
-        merged = load(output)
-        self.assertCounts(merged, 17, 49, 13)
-        self.assertEqual(len(self.prefixed_names(merged)), 54)
-        names = {section: [e["name"] for e in merged[section]] for section in UNIQUE_SECTIONS}
-        for section in UNIQUE_SECTIONS:
-            self.assertFalse(self.shared_names[section] & set(names[section]), section)
-            for shared in self.shared_names[section]:
-                self.assertIn(f"DeploymentA.{shared}", names[section])
-                self.assertIn(f"DeploymentB.{shared}", names[section])
-        opcodes = {c["name"]: c["opcode"] for c in merged["commands"]}
-        self.assertEqual(opcodes["DeploymentA.CdhCore.cmdDisp.CMD_NO_OP"], 0x1000000)
-        self.assertEqual(opcodes["DeploymentB.CdhCore.cmdDisp.CMD_NO_OP"], 0x21000000)
-        # A's entries keep their slots, B2's follow in B2's order; ids untouched
-        a_opcodes = [c["opcode"] for c in self.A["commands"]]
-        self.assertEqual([c["opcode"] for c in merged["commands"][:len(a_opcodes)]], a_opcodes)
-        self.assertEqual(count(lines, W9), 0)
-        first = [line for line in lines if "CdhCore.cmdDisp.CMD_NO_OP" in line][0]
-        self.assertIn("has opcode 0x1000000 in", first)
-        self.assertIn("renamed to 'DeploymentA.CdhCore.cmdDisp.CMD_NO_OP' and 'DeploymentB.CdhCore.cmdDisp.CMD_NO_OP'",
-                      first)
-        # --prefer-primary does not change a same-name/different-id outcome
-        merged2, report = merge_ok(self.A, self.B2, prefer_primary=True)
-        self.assertEqual(merged2, merged)
-        self.assertEqual(count(report.warnings, W2), 27)
-
-    def test_no_namespace_restores_error(self):
-        code, lines, output = self.run_cli("--no-namespace", A_PATH, self.write("B2.json", self.B2))
-        self.assertEqual(code, 1)
-        self.assertFalse(output.exists())
-        self.assertEqual(count(errors(lines), *E1), 27)
-        self.assertEqual(len(errors(lines)), 27)
-        d1 = make_dictionary("Ref.One", commands=[command("Ref.a.CMD", 1)])
-        d2 = make_dictionary("Ref.Two", commands=[command("Ref.a.CMD", 2)])
-        report = merge_fails(d1, d2, no_namespace=True)
-        self.assertEqual(report.errors, [
-            "commands: 'Ref.a.CMD' is defined in 'd1' (opcode 0x1) and 'd2' (opcode 0x2) with different opcodes; use "
-            "--prefer-primary to keep the first, or drop --no-namespace to keep both under '<prefix>.'-qualified "
-            "names"])
-
-    def test_no_namespace_prefer_primary_drops(self):
-        merged, report = merge_ok(self.A, self.B2, no_namespace=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W1), 27)
-        self.assertEqual(len(report.warnings), 27)
-        self.assertCounts(merged, 10, 32, 10)
-        self.assertEqual(self.prefixed_names(merged), [])
-        opcodes = {c["name"]: c["opcode"] for c in merged["commands"]}
-        self.assertEqual(opcodes["CdhCore.cmdDisp.CMD_NO_OP"], 0x1000000)
-        self.assertEqual(opcodes["FprimeGenericHubReference.DeploymentB.c_comp.HubCommandTest"], 0x31017500)
-
-    def test_remerge_with_own_input_is_noop(self):
-        for other in (self.B2, self.A):
-            merged, report = merge_ok(self.M, other)
-            self.assertEqual(report.warnings, [])
-            for section in list(UNIQUE_SECTIONS) + ["typeDefinitions", "constants", "telemetryPacketSets"]:
-                self.assertEqual(merged[section], self.M[section], section)
-
-    def test_chained_merge_is_not_nway(self):
-        report = merge_fails(self.M, self.C)
-        self.assertEqual(count(report.errors, E3), 27)
-        merged, report = merge_ok(self.M, self.C2)
-        self.assertEqual(count(report.warnings, W9_SUFFIX), 27)
-        self.assertEqual(count(report.warnings, W2), 0)
-        self.assertCounts(merged, 24, 66, 16)
-        bare = [c for c in merged["commands"] if c["name"] == "CdhCore.cmdDisp.CMD_NO_OP"]
-        self.assertEqual([c["opcode"] for c in bare], [0x41000000])
-        nway, _ = merge_ok(self.A, self.B2, self.C2)
-        self.assertNotEqual(as_set(merged["commands"]), as_set(nway["commands"]))
-        merged, report = merge_ok(self.M, self.C, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 27)
-
-    def test_no_namespace_remerge_packet_set(self):
-        b2 = copy.deepcopy(self.B2)
-        b2["telemetryPacketSets"] = [packet_set("Pkts", [packet("P1", 1, ["CdhCore.cmdDisp.CommandsDispatched"]),
-                                                        packet("P2", 2, [b2["telemetryChannels"][0]["name"]])])]
-        report = merge_fails(self.M, b2, no_namespace=True)
-        self.assertEqual(count(report.errors, E3), 27)
-        self.assertEqual(count(report.errors, E2), 0)
-        merged, report = merge_ok(self.M, b2, no_namespace=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 27)
-        self.assertEqual(count(report.warnings, W7), 1)
-        self.assertEqual(count(report.warnings, W3), 0)
-        for section in UNIQUE_SECTIONS:
-            self.assertEqual(merged[section], self.M[section], section)
-        self.assertEqual([p["name"] for p in merged["telemetryPacketSets"][0]["members"]], ["P2"])
-
-    def test_third_input_matches_renamed_original(self):
-        c = copy.deepcopy(self.C)
-        c["telemetryPacketSets"] = [packet_set("Pkts", [packet("P1", 1, ["CdhCore.cmdDisp.CommandsDispatched"])],
-                                              omitted=["CdhCore.cmdDisp.CommandErrors"])]
-        merged, report, merger = merge(self.A, self.B2, c)
-        self.assertIsNotNone(merged, report.errors)
-        self.assertEqual(count(report.warnings, W2), 27)
-        self.assertEqual(len(report.warnings), 27)
-        for section in UNIQUE_SECTIONS:
-            self.assertEqual(merged[section], self.M[section], section)
-        self.assertEqual(merger.rename_map[3]["telemetryChannels"]["CdhCore.cmdDisp.CommandsDispatched"],
-                         "DeploymentA.CdhCore.cmdDisp.CommandsDispatched")
-        packets = merged["telemetryPacketSets"][0]
-        self.assertEqual(packets["members"][0]["members"], ["DeploymentA.CdhCore.cmdDisp.CommandsDispatched"])
-        self.assertEqual(packets["omitted"], ["DeploymentA.CdhCore.cmdDisp.CommandErrors"])
-
-    def test_third_input_own_id_gets_own_prefix(self):
-        merged, report = merge_ok(self.A, self.B2, self.C2)
-        self.assertEqual(count(report.warnings, W2), 27)
-        self.assertEqual(count(report.warnings, W2P), 27)
-        self.assertCounts(merged, 24, 66, 16)
-        opcodes = {c["name"]: c["opcode"] for c in merged["commands"]}
-        self.assertEqual(opcodes["DeploymentC.CdhCore.cmdDisp.CMD_NO_OP"], 0x41000000)
-        line = [w for w in report.warnings if W2P in w and "CMD_NO_OP" in w][0]
-        self.assertIn("'DeploymentA.CdhCore.cmdDisp.CMD_NO_OP', 'DeploymentB.CdhCore.cmdDisp.CMD_NO_OP'", line)
-
-    def test_third_input_order_independent(self):
-        for third in (self.C, self.C2):
-            merged1, _, merger1 = merge(self.A, self.B2, third)
-            merged2, _, merger2 = merge(self.A, third, self.B2)
-            for section in UNIQUE_SECTIONS:
-                self.assertEqual(as_set(merged1[section]), as_set(merged2[section]), section)
-            self.assertEqual(merger1.rename_map[1], merger2.rename_map[1])
-
-    def test_equal_prefixes_error(self):
-        c3 = copy.deepcopy(self.C2)
-        c3["metadata"]["deploymentName"] = "FprimeGenericHubReference.DeploymentB.DeploymentB"
-        report = merge_fails(self.A, self.B2, c3)
-        self.assertEqual(count(report.errors, E15), 27)
-        self.assertEqual(len(report.errors), 27)
-        # without a collision the shared last segment is harmless
-        d1 = make_dictionary("X.Same", commands=[command("Ref.a.CMD", 1)])
-        d2 = make_dictionary("Y.Same", commands=[command("Ref.b.CMD", 2)])
-        merge_ok(d1, d2)
-        # with a collision it is reported once per colliding name and nothing is renamed
-        d2["commands"] = [command("Ref.a.CMD", 2)]
-        report = merge_fails(d1, d2)
-        self.assertEqual(count(report.errors, E15), 1)
-        self.assertIn("both have the namespace prefix 'Same'", report.errors[0])
-        # single-segment names are their own prefix
-        merged, _ = merge_ok(make_dictionary("One", commands=[command("Ref.a.CMD", 1)]),
-                             make_dictionary("Two", commands=[command("Ref.a.CMD", 2)]))
-        self.assertEqual([c["name"] for c in merged["commands"]], ["One.Ref.a.CMD", "Two.Ref.a.CMD"])
-
-    def test_w9_not_emitted_on_nway(self):
-        runs = [((self.A, self.B2), {}, True), ((self.A, self.B), {}, False), ((self.A, self.B2, self.C), {}, True),
-                ((self.A, self.B2, self.C2), {}, True), ((self.A, self.B), {"prefer_primary": True}, True),
-                ((self.B, self.A), {"prefer_primary": True}, True),
-                ((self.A, load(GROUND_PATH)), {"permissive": True}, True)]
-        for dictionaries, options, succeeds in runs:
-            merged, report, _ = merge(*dictionaries, **options)
-            self.assertEqual(merged is not None, succeeds, report.errors)
-            self.assertEqual(count(report.warnings, W9), 0)
-        nested = make_dictionary("Ref.Z", commands=[command("DeploymentZ.CdhCore.cmdDisp.CMD_NO_OP", 0x7000000)],
-                                 projectVersion="a32988b", frameworkVersion="v4.2.0")
-        _, report = merge_ok(self.A, nested)
-        self.assertEqual(count(report.warnings, W9_MIRROR), 1)
-        self.assertIn("un-prefixed 'CdhCore.cmdDisp.CMD_NO_OP' exists", report.warnings[0])
-
-    def test_determinism(self):
-        b2 = self.write("B2.json", self.B2)
-        first = self.run_cli(A_PATH, b2, output=self.tmp / "one.json")
-        second = self.run_cli(A_PATH, b2, output=self.tmp / "two.json")
-        self.assertEqual(first[1], second[1])
-        self.assertEqual(first[2].read_bytes(), second[2].read_bytes())
-
-    def test_output_loads_in_gds_loaders(self):
-        b2 = copy.deepcopy(self.B2)
-        b2["telemetryPacketSets"] = [packet_set("Pkts", [packet("P1", 1, ["CdhCore.cmdDisp.CommandsDispatched"])])]
-        code, _, output = self.run_cli(A_PATH, self.write("B2.json", b2))
-        self.assertEqual(code, 0)
+        self.assertEqual(lines[-1], "[WARNING] Merged 2 dictionaries with 3 warning(s): 3 renamed")
         globals_cleanup()
         self.addCleanup(globals_cleanup)
-        cmd_ids, cmd_names, _ = CmdJsonLoader(str(output)).construct_dicts(str(output))
+        _, cmd_names, _ = CmdJsonLoader(str(output)).construct_dicts(str(output))
         evr_ids, _, _ = EventJsonLoader(str(output)).construct_dicts(str(output))
-        ch_ids, ch_names, _ = ChJsonLoader(str(output)).construct_dicts(str(output))
-        merged = load(output)
-        self.assertEqual(len(cmd_ids), len(merged["commands"]))
-        self.assertEqual(len(evr_ids), len(merged["events"]))
-        self.assertEqual(len(ch_ids), len(merged["telemetryChannels"]))
-        self.assertEqual(cmd_names["DeploymentA.CdhCore.cmdDisp.CMD_NO_OP"].get_op_code(), 0x1000000)
-        self.assertEqual(cmd_names["DeploymentB.CdhCore.cmdDisp.CMD_NO_OP"].get_op_code(), 0x21000000)
-        self.assertNotIn("CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
-        self.assertNotIn("CdhCore.cmdDisp.CommandsDispatched", ch_names)
-        self.assertEqual(cmd_names["DeploymentB.CdhCore.cmdDisp.CMD_NO_OP"].get_comp_name(),
-                         "DeploymentB.CdhCore.cmdDisp")
-        _, pkt_names, _ = PktJsonLoader(str(output)).construct_dicts("Pkts", ch_names)
-        self.assertEqual([ch.get_full_name() for ch in pkt_names["P1"].get_ch_list()],
-                         ["DeploymentB.CdhCore.cmdDisp.CommandsDispatched"])
-
-
-class TestSyntheticConflicts(DictionaryMergeTestCase):
-
-    def test_same_name_different_id_body_differs_is_still_rename(self):
-        d1 = make_dictionary("Ref.One", channels=[channel("Sub.c.X", 1, format="{} s")])
-        d2 = make_dictionary("Ref.Two", channels=[channel("Sub.c.X", 2, format="{} ms")])
-        merged, report = merge_ok(d1, d2)
-        self.assertEqual([c["name"] for c in merged["telemetryChannels"]], ["One.Sub.c.X", "Two.Sub.c.X"])
-        self.assertEqual(len(report.warnings), 1)
-        self.assertIn(W2, report.warnings[0])
-
-    def test_prefer_primary_default_rename_wins(self):
-        d1 = make_dictionary("Ref.One", commands=[command("Sub.c.GO", 1), command("Ref.one.LOCAL", 2)])
-        d2 = make_dictionary("Ref.Two", commands=[command("Sub.c.GO", 3), command("Ref.two.LOCAL", 2)])
-        merged, report = merge_ok(d1, d2, prefer_primary=True)
-        self.assertEqual([c["name"] for c in merged["commands"]], ["One.Sub.c.GO", "Ref.one.LOCAL", "Two.Sub.c.GO"])
-        self.assertEqual(count(report.warnings, W2), 1)
-        self.assertEqual(count(report.warnings, W4), 1)
-
-    def test_same_name_different_body_same_id(self):
-        d1 = make_dictionary("Ref.One", events=[event("Sub.c.E", 1, "a")])
-        d2 = make_dictionary("Ref.Two", events=[event("Sub.c.E", 1, "b")])
-        self.assertEqual(count(merge_fails(d1, d2).errors, E2), 1)
-        self.assertEqual(count(merge_fails(d1, d2, no_namespace=True).errors, E2), 1)
-        merged, report = merge_ok(d1, d2, prefer_primary=True)
-        self.assertEqual(merged["events"], d1["events"])
-        self.assertEqual(count(report.warnings, W3), 1)
-        # same after main's entry was renamed by an earlier collision (orig_name test)
-        d2 = make_dictionary("Ref.Two", events=[event("Sub.c.E", 2, "a")])
-        d3 = make_dictionary("Ref.Three", events=[event("Sub.c.E", 1, "b")])
-        report = merge_fails(d1, d2, d3)
-        self.assertEqual(count(report.errors, E2), 1)
-        merged, report = merge_ok(d1, d2, d3, prefer_primary=True)
-        self.assertEqual([e["name"] for e in merged["events"]], ["One.Sub.c.E", "Two.Sub.c.E"])
-        self.assertIn("kept definition 'One.Sub.c.E'", report.warnings[-1])
-
-    def test_prefer_primary_body_conflict_packet_refs(self):
-        d1 = make_dictionary("Ref.One", channels=[channel("Sub.c.X", 1)])
-        d2 = make_dictionary("Ref.Two", channels=[channel("Sub.c.X", 1, format="{}")],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Sub.c.X"])])])
-        merged, report, merger = merge(d1, d2, prefer_primary=True)
-        self.assertIsNotNone(merged)
-        self.assertEqual(count(report.warnings, W7), 0)
-        self.assertEqual(merged["telemetryPacketSets"][0]["members"][0]["members"], ["Sub.c.X"])
-        self.assertEqual(merger.dropped[2]["telemetryChannels"], set())
-        # main's X renamed by an earlier collision: d3's references follow the kept name
-        d2b = make_dictionary("Ref.Two", channels=[channel("Sub.c.X", 2)])
-        d3 = make_dictionary("Ref.Three", channels=[channel("Sub.c.X", 1, format="{}")],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Sub.c.X"])])])
-        merged, report = merge_ok(d1, d2b, d3, prefer_primary=True)
-        self.assertEqual(merged["telemetryPacketSets"][0]["members"][0]["members"], ["One.Sub.c.X"])
-
-    def test_id_zero_is_checked(self):
-        d1 = make_dictionary("Ref.One", events=[event("Ref.a.E", 0)])
-        d2 = make_dictionary("Ref.Two", events=[event("Ref.b.E", 0)])
-        self.assertEqual(count(merge_fails(d1, d2).errors, E3), 1)
-
-    def test_type_conflict(self):
-        time_base = enum_type("TimeBase", [("TB_NONE", 0), ("TB_PROC_TIME", 1)])
-        extended = enum_type("TimeBase", [("TB_NONE", 0), ("TB_PROC_TIME", 1), ("TB_EXTRA", 2)])
-        d1 = make_dictionary("Ref.One", types=[time_base, alias_type("Ref.Alias", 32)])
-        d2 = make_dictionary("Ref.Two", types=[extended, alias_type("Ref.Alias", 32)])
-        report = merge_fails(d1, d2)
-        self.assertEqual(report.errors, ["typeDefinitions: 'TimeBase' has inconsistent definitions in 'd1' and 'd2'; "
-                                         "use --prefer-primary to keep the earliest"])
-        merged, report = merge_ok(d1, d2, prefer_primary=True)
-        self.assertEqual(merged["typeDefinitions"], d1["typeDefinitions"])
-        self.assertEqual(count(report.warnings, W5), 1)
-        merged, _ = merge_ok(d1, make_dictionary("Ref.Two", types=[alias_type("Ref.Alias", 32)]))
-        self.assertEqual(merged["typeDefinitions"], d1["typeDefinitions"])
-
-    def test_constant_conflict(self):
-        d1 = make_dictionary("Ref.One", constants=[constant("Ref.K", 1)])
-        d2 = make_dictionary("Ref.Two", constants=[constant("Ref.K", 2)])
-        self.assertEqual(count(merge_fails(d1, d2).errors, E4), 1)
-        merged, report = merge_ok(d1, d2, prefer_primary=True)
-        self.assertEqual(merged["constants"], d1["constants"])
-        self.assertEqual(count(report.warnings, W5), 1)
-
-    def test_records_containers_follow_unique_rules(self):
-        d1 = make_dictionary("Ref.One", records=[record("Sub.r.R", 1)], containers=[container("Sub.r.C", 1)])
-        same = make_dictionary("Ref.Two", records=[record("Sub.r.R", 1)], containers=[container("Sub.r.C", 1)])
-        merged, report = merge_ok(d1, same)
-        self.assertEqual((merged["records"], merged["containers"], report.warnings),
-                         (d1["records"], d1["containers"], []))
-        shifted = make_dictionary("Ref.Two", records=[record("Sub.r.R", 2)], containers=[container("Sub.r.C", 2)])
-        merged, report = merge_ok(d1, shifted)
-        self.assertEqual([r["name"] for r in merged["records"]], ["One.Sub.r.R", "Two.Sub.r.R"])
-        self.assertEqual([c["name"] for c in merged["containers"]], ["One.Sub.r.C", "Two.Sub.r.C"])
-        body = make_dictionary("Ref.Two", records=[record("Sub.r.R", 1, array=True)],
-                               containers=[container("Sub.r.C", 1)])
-        self.assertEqual(count(merge_fails(d1, body).errors, E2), 1)
-        other = make_dictionary("Ref.Two", records=[record("Sub.q.R", 1)], containers=[container("Sub.q.C", 1)])
-        self.assertEqual(count(merge_fails(d1, other).errors, E3), 2)
-
-    def test_second_namespace_collides(self):
-        d1 = make_dictionary("Ref.P", commands=[command("Ref.a.X", 1), command("P.Ref.a.X", 3)])
-        d2 = make_dictionary("Ref.Q", commands=[command("Ref.a.X", 2)])
-        report = merge_fails(d1, d2)
-        self.assertEqual(count(report.errors, E10[0]), 1)
-        self.assertIn("cannot rename 'Ref.a.X' from 'd1' to 'P.Ref.a.X'", report.errors[0])
-        # the arriving entry's own target is held
-        d1 = make_dictionary("Ref.P", commands=[command("Ref.a.X", 1), command("Q.Ref.a.X", 3)])
-        report = merge_fails(d1, d2)
-        self.assertEqual(report.errors, ["commands: cannot rename 'Ref.a.X' from 'd2' to 'Q.Ref.a.X': that name is "
-                                         "already defined in 'd1' with opcode 0x3"])
-        d1 = make_dictionary("Ref.DeploymentA", commands=[command("Ref.a.X", 1)])
-        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Ref.a.X", 2)])
-        d3 = make_dictionary("Ref.DeploymentC", commands=[command("DeploymentA.Ref.a.X", 3)])
-        report = merge_fails(d1, d2, d3)
-        self.assertEqual(count(report.errors, E10[1]), 1)
-        self.assertEqual(count(report.warnings, W2), 1)
-        # a third input whose bare name was renamed away earlier: unusable prefix, then target held by itself
-        d3 = make_dictionary("Ref.bad name", commands=[command("Ref.a.X", 3)])
-        report = merge_fails(d1, d2, d3)
-        self.assertEqual(count(report.errors, E11[0]), 1)
-        self.assertIn("'d3'", report.errors[0])
-        d3 = make_dictionary("Ref.DeploymentC", commands=[command("Ref.a.X", 3), command("DeploymentC.Ref.a.X", 4)])
-        report = merge_fails(d1, d2, d3)
-        self.assertEqual(count(report.errors, E10[1]), 1)
-        self.assertIn("'d3'", report.errors[0])
-
-    def test_equal_prefix_via_contributor(self):
-        d1 = make_dictionary("Ref.DA", commands=[command("Sub.X", 1)])
-        d2 = make_dictionary("Ref.DB", commands=[command("Sub.X", 1)])
-        d3 = make_dictionary("Other.DB", commands=[command("Sub.X", 2)])
-        report = merge_fails(d1, d2, d3)
-        self.assertEqual(count(report.errors, E15), 1)
-        self.assertIn("inputs 'd2' and 'd3' both have the namespace prefix 'DB'", report.errors[0])
-        d3["metadata"]["deploymentName"] = "Other.DC"
-        merged, report = merge_ok(d1, d2, d3)
-        self.assertEqual([c["name"] for c in merged["commands"]], ["DA.Sub.X", "DC.Sub.X"])
-        self.assertEqual(count(report.warnings, W2), 1)
-
-    def test_prefix_validation(self):
-        for bad, good in ((make_dictionary("Ref.bad name"), make_dictionary("Ref.Good")),
-                          (make_dictionary("Ref.Good"), make_dictionary("Ref.bad name"))):
-            bad["commands"] = [command("Sub.X", 1), command("Sub.Y", 2)]
-            good["commands"] = [command("Sub.X", 3), command("Sub.Y", 4)]
-            report = merge_fails(bad, good)
-            self.assertEqual(count(report.errors, E11[0]), 1)
-            self.assertEqual(len(report.errors), 1)  # once per input, not once per collision
-            merge_ok(bad, good, no_namespace=True, prefer_primary=True)
-        # no collision: never evaluated
-        merge_ok(make_dictionary("Ref.bad name", commands=[command("Sub.X", 1)]),
-                 make_dictionary("Ref.Good", commands=[command("Sub.Y", 2)]))
-        missing = make_dictionary("Ref.One", commands=[command("Sub.X", 2)], deploymentName=None)
-        report = merge_fails(make_dictionary("Ref.Two", commands=[command("Sub.X", 1)]), missing)
-        self.assertEqual(count(report.errors, E11[1]), 1)
-
-    def test_collect_all_reports_every_error(self):
-        d1 = make_dictionary("Ref.One", commands=[command("Sub.X", 1), command("Ref.a.Y", 2)],
-                             types=[alias_type("Ref.T", 32)], projectVersion="p1")
-        d2 = make_dictionary("Ref.Two", commands=[command("Sub.X", 3), command("Ref.b.Y", 2)],
-                             types=[alias_type("Ref.T", 16)], projectVersion="p2")
-        existing = self.tmp / "out.json"
-        existing.write_text("keep")
-        code, lines, _ = self.run_cli("--no-namespace", self.write("d1.json", d1), self.write("d2.json", d2),
-                                      output=existing)
-        self.assertEqual(code, 1)
-        self.assertEqual([count(lines, *f) for f in (E1, (E3,), (E4,), (E5,))], [1, 1, 1, 1])
-        self.assertIn("Merge failed with 4 error(s) and 0 warning(s)", lines[-1])
-        self.assertEqual(existing.read_text(), "keep")
-
-
-class TestMetadata(DictionaryMergeTestCase):
-
-    def test_metadata_versions(self):
-        d1 = make_dictionary("Ref.One")
-        for field_name in ("projectVersion", "frameworkVersion", "dictionarySpecVersion"):
-            d2 = make_dictionary("Ref.Two", **{field_name: "other"})
-            report = merge_fails(d1, d2)
-            self.assertEqual(count(report.errors, E5), 1)
-            self.assertIn(f"field '{field_name}'", report.errors[0])
-            merged, _ = merge_ok(d1, d2, permissive=True)
-            self.assertEqual(merged["metadata"][field_name], d1["metadata"][field_name])
-        # both missing a field: equal; one missing: E5 printing None
-        merge_ok(make_dictionary("Ref.One", projectVersion=None), make_dictionary("Ref.Two", projectVersion=None))
-        report = merge_fails(d1, make_dictionary("Ref.Two", projectVersion=None))
-        self.assertIn("(p1 vs None)", report.errors[0])
-
-    def test_library_versions_warning(self):
-        d1 = make_dictionary("Ref.One", libraryVersions=["lib@1"])
-        d2 = make_dictionary("Ref.Two", libraryVersions=["lib@2"])
-        merged, report = merge_ok(d1, d2)
-        self.assertEqual(count(report.warnings, W6), 1)
-        self.assertEqual(merged["metadata"]["libraryVersions"], ["lib@1"])
-        _, report = merge_ok(d1, d2, permissive=True)
-        self.assertEqual(report.warnings, [])
-        _, report = merge_ok(d1, make_dictionary("Ref.Two", libraryVersions=None))
-        self.assertEqual(report.warnings, [])
-
-    def test_deployment_name_default_and_flag(self):
-        merged, _ = merge_ok(make_dictionary("Ref.One"), make_dictionary("Ref.Two"))
-        self.assertEqual(merged["metadata"]["deploymentName"], "Ref.One_Ref.Two_merged")
-        merged, _ = merge_ok(make_dictionary("Ref.One"), make_dictionary("Ref.Two"), make_dictionary("Ref.Three"))
-        self.assertEqual(merged["metadata"]["deploymentName"], "Ref.One_Ref.Two_Ref.Three_merged")
-        d1, d2 = self.write("d1.json", make_dictionary("Ref.One")), self.write("d2.json", make_dictionary("Ref.Two"))
-        code, _, output = self.run_cli("--name", "M.T", d1, d2)
-        self.assertEqual((code, load(output)["metadata"]["deploymentName"]), (0, "M.T"))
-        code, lines, _ = self.run_cli("--name", "1bad", d1, d2)
-        self.assertEqual((code, lines), (1, ["[ERROR] --name '1bad' is an invalid identifier"]))
-
-    def test_missing_metadata_errors(self):
-        d1 = make_dictionary("Ref.One")
-        for broken in ({}, [], "meta"):
-            d2 = make_dictionary("Ref.Two")
-            d2["metadata"] = broken
-            if broken == {}:
-                del d2["metadata"]
-            report = merge_fails(d1, d2)
-            self.assertEqual(count(report.errors, E7), 1)
-        merge_ok(d1, make_dictionary("Ref.Two", frameworkVersion=None, libraryVersions=None), permissive=True)
-
-
-class TestStructure(DictionaryMergeTestCase):
-
-    def test_missing_section_errors(self):
-        for section in dictionary_merge.SECTION_ORDER[1:]:
-            d2 = make_dictionary("Ref.Two")
-            del d2[section]
-            report = merge_fails(make_dictionary("Ref.One"), d2)
-            self.assertEqual(report.errors, [f"Malformed dictionary 'd2'. Missing key: '{section}'"])
-            d2[section] = {}
-            report = merge_fails(make_dictionary("Ref.One"), d2)
-            self.assertEqual(report.errors, [f"Malformed dictionary 'd2'. Section '{section}' is not an array"])
-
-    def test_missing_id_errors(self):
-        cases = [("commands", {"commandKind": "async", "opcode": 1}, "name"),
-                 ("commands", {"name": "Ref.a.X"}, "opcode"),
-                 ("events", {"name": "Ref.a.E"}, "id"),
-                 ("typeDefinitions", {"kind": "alias"}, "qualifiedName"),
-                 ("telemetryPacketSets", {"members": []}, "name")]
-        for section, entry, key in cases:
-            d2 = make_dictionary("Ref.Two")
-            d2[section] = [entry]
-            report = merge_fails(make_dictionary("Ref.One"), d2)
-            self.assertEqual(report.errors, [f"Malformed dictionary section '{section}' in 'd2'. Entry #0 missing "
-                                             f"key: '{key}'"])
-        d2 = make_dictionary("Ref.Two")
-        d2["commands"] = [42]
-        self.assertEqual(merge_fails(make_dictionary("Ref.One"), d2).errors,
-                         ["Malformed dictionary section 'commands' in 'd2'. Entry #0 is not an object"])
-        d2["commands"] = [{"name": 7, "opcode": 1}]
-        self.assertEqual(merge_fails(make_dictionary("Ref.One"), d2).errors,
-                         ["Malformed dictionary section 'commands' in 'd2'. Entry #0: 'name' must be a string (got 7)"])
-
-    def test_packet_set_shape_errors(self):
-        good = make_dictionary("Ref.One", channels=[channel("Ref.a.X", 1)])
-        expected = ["Malformed dictionary section 'telemetryPacketSets' in 'd2'. Set 'Pkts' must have 'members' "
-                    "packets with 'members' arrays of channel names and an 'omitted' array of channel names"]
-        for bad_set in ({"name": "Pkts", "members": [{"name": "P", "id": 1}]},
-                        {"name": "Pkts", "members": {}},
-                        {"name": "Pkts", "members": [{"name": "P", "id": 1, "members": [["Ref.a.X"]]}]},
-                        {"name": "Pkts", "members": [{"name": "P", "id": 1, "members": [{"n": 1}]}]},
-                        {"name": "Pkts", "members": [], "omitted": [3]},
-                        {"name": "Pkts", "members": [], "omitted": "Ref.a.X"}):
-            d2 = make_dictionary("Ref.Two", channels=[channel("Ref.b.Y", 2)])
-            d2["telemetryPacketSets"] = [bad_set]
-            self.assertEqual(merge_fails(good, d2).errors, expected)
-        # a set without 'members' is what the GDS loads as an empty set: accepted and emitted unchanged
-        d2 = make_dictionary("Ref.Two", channels=[channel("Ref.a.X", 2)])
-        d2["telemetryPacketSets"] = [{"name": "Pkts"}]
-        merged, _ = merge_ok(good, d2)
-        self.assertEqual(merged["telemetryPacketSets"], [{"name": "Pkts"}])
-
-    def test_phase4_skipped_after_phase3_errors(self):
-        d1 = make_dictionary("Ref.One", channels=[channel("Ref.a.X", 1)])
-        d2 = make_dictionary("Ref.Two", channels=[channel("Ref.b.Y", 1)],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Ref.b.Y"])])])
-        report = merge_fails(d1, d2)
-        self.assertEqual(count(report.errors, E3), 1)
-        self.assertEqual(len(report.errors), 1)
-
-    def test_id_must_be_strict_int(self):
-        for value in (True, 1.0, "1"):
-            d2 = make_dictionary("Ref.Two", commands=[command("Ref.a.X", value)])
-            report = merge_fails(make_dictionary("Ref.One"), d2)
-            self.assertEqual(count(report.errors, "'opcode' must be an integer"), 1)
-            self.assertIn(f"(got {json.dumps(value)})", report.errors[0])
-        merge_ok(make_dictionary("Ref.One"), make_dictionary("Ref.Two", commands=[command("Ref.a.X", 0)]))
-
-    def test_within_input_duplicates(self):
-        d1 = make_dictionary("Ref.One", commands=[command("Ref.a.X", 1), command("Ref.a.X", 1)],
-                             types=[alias_type("Ref.T", 32), alias_type("Ref.T", 32)])
-        merged, _ = merge_ok(d1, make_dictionary("Ref.Two"))
-        self.assertEqual(len(merged["commands"]), 1)
-        self.assertEqual(len(merged["typeDefinitions"]), 1)
-        d1["commands"][1]["annotation"] = "differs"
-        d1["typeDefinitions"][1]["type"] = type_of("U16", 16)
-        report = merge_fails(d1, make_dictionary("Ref.Two"))
-        self.assertEqual(count(report.errors, E12), 2)
-        self.assertIn("'Ref.a.X' is defined twice", report.errors[0])
-        d1 = make_dictionary("Ref.One", commands=[command("Ref.a.X", 1), command("Ref.a.Y", 1)])
-        report = merge_fails(d1, make_dictionary("Ref.Two"))
-        self.assertIn("'opcode 0x1' is defined twice", report.errors[0])
-
-    def test_not_json(self):
-        good = self.write("good.json", make_dictionary("Ref.One"))
-        code, lines, _ = self.run_cli(good, self.tmp / "missing.json")
-        self.assertEqual((code, lines), (1, [f"[ERROR] '{self.tmp / 'missing.json'}' does not exist"]))
-        bad = self.tmp / "bad.json"
-        bad.write_text("{not json")
-        code, lines, _ = self.run_cli(good, bad)
-        self.assertEqual(code, 1)
-        self.assertTrue(lines[0].startswith(f"[ERROR] '{bad}': "))
-        array = self.tmp / "array.json"
-        array.write_text("[]")
-        code, lines, _ = self.run_cli(good, array)
-        self.assertEqual((code, lines), (1, [f"[ERROR] '{array}' is not a JSON object"]))
-
-    def test_usage_errors_exit_2(self):
-        for argv in ([str(A_PATH)], ["--permissive", str(A_PATH)], []):
-            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as context:
-                dictionary_merge.main(argv)
-            self.assertEqual(context.exception.code, 2)
-
-    def test_options_between_positionals(self):
-        b2, c2 = self.write("B2.json", self.B2), self.write("C2.json", self.C2)
-        code, _, output = self.run_cli(A_PATH, b2, "--permissive", c2)
-        self.assertEqual(code, 0)
-        merged = load(output)
-        self.assertTrue(merged["metadata"]["deploymentName"].endswith(".DeploymentC_merged"))
-        self.assertEqual(len(merged["commands"]), len(self.M["commands"]) + len(self.C2["commands"]))
-
-    def test_merge_dictionaries_wrapper(self):
-        merged = merge_dictionaries(self.A, load(GROUND_PATH), permissive=True)
-        self.assertEqual(merged, legacy_merge(self.A, load(GROUND_PATH)))
-        with self.assertRaises(ValueError) as context:
-            merge_dictionaries(self.A, self.B)
-        self.assertEqual(len(str(context.exception).splitlines()), 6)
-        self.assertEqual(self.A, load(A_PATH))
-
-
-class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
-
-    def all_prefixed(self, merged, prefixes):
-        names = [e["name"] for s in UNIQUE_SECTIONS for e in merged[s]]
-        return all(n.startswith(prefixes) for n in names)
-
-    def test_namespace_all_real_shifted(self):
-        merged, report = merge_ok(self.A, self.B2, namespace_all=True)
-        self.assertEqual(report.warnings, [])
-        self.assertCounts(merged, 17, 49, 13)
-        self.assertTrue(self.all_prefixed(merged, ("DeploymentA.", "DeploymentB.")))
-        self.assertEqual(len(self.prefixed_names(merged)), 17 + 49 + 13)
-        for section in UNIQUE_SECTIONS:
-            originals = [e["name"] for e in self.A[section]] + [e["name"] for e in self.B2[section]]
-            self.assertEqual([e["name"].split(".", 1)[1] for e in merged[section]], originals, section)
-        # every entry keeps its id: the primary's first, then B2's
-        for section, id_key in UNIQUE_SECTIONS.items():
-            self.assertEqual([e[id_key] for e in merged[section]],
-                             [e[id_key] for e in self.A[section]] + [e[id_key] for e in self.B2[section]])
-        self.assertEqual(merged["typeDefinitions"], self.A["typeDefinitions"])
-        self.assertEqual(merged["constants"], self.A["constants"])
-        # same output as the default merge apart from the names of the entries unique to one input
-        self.assertEqual(sorted(as_set(renamed_back(e) for s in COUNTED for e in merged[s])),
-                         sorted(as_set(renamed_back(e) for s in COUNTED for e in self.M[s])))
-
-    def test_namespace_all_identical_entries_merge_under_primary_prefix(self):
-        # A + B as shipped: shared subtopologies at the same ids merge into one entry under A's prefix; the id
-        # clashes of the deployment-local instances are still errors / --prefer-primary drops
-        report = merge_fails(self.A, self.B, namespace_all=True)
-        self.assertEqual((len(report.errors), count(report.errors, E3)), (6, 6))
-        merged, report = merge_ok(self.A, self.B, namespace_all=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 6)
-        self.assertCounts(merged, 9, 29, 8)
-        self.assertTrue(self.all_prefixed(merged, ("DeploymentA.",)))
-        self.assertEqual([e["name"] for s in COUNTED for e in merged[s]],
-                         [f"DeploymentA.{e['name']}" for s in COUNTED for e in self.A[s]])
-
-    def test_namespace_all_packets_and_sections(self):
-        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Sub.c.X", 1), channel("Ref.a.Y", 2)],
-                             parameters=[parameter("Ref.a.P", 1)], records=[record("Ref.a.R", 1)],
-                             containers=[container("Ref.a.C", 1)], commands=[command("Ref.a.CMD", 1)],
-                             events=[event("Ref.a.EV", 1)], types=[enum_type("Ref.E", [("A", 0)])],
-                             constants=[constant("Ref.K", 1)],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Sub.c.X", "Ref.a.Y"])],
-                                                     omitted=["Ref.a.Y"])])
-        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Sub.c.X", 1), channel("Ref.b.Z", 4)],
-                             types=[enum_type("Ref.E", [("A", 0)])], constants=[constant("Ref.K", 1)],
-                             packet_sets=[packet_set("Other", [packet("Q", 1, ["Sub.c.X", "Ref.b.Z"])],
-                                                     omitted=["Ref.b.Z"])])
-        merged, report = merge_ok(d1, d2, namespace_all=True)
-        self.assertEqual(count(report.warnings, W11), 1)
-        self.assertEqual(len(report.warnings), 1)
-        self.assertEqual([c["name"] for c in merged["telemetryChannels"]],
-                         ["DeploymentA.Sub.c.X", "DeploymentA.Ref.a.Y", "DeploymentB.Ref.b.Z"])
-        for section in ("parameters", "records", "containers", "commands", "events"):
-            self.assertEqual([e["name"] for e in merged[section]], [f"DeploymentA.{e['name']}" for e in d1[section]])
-        self.assertEqual(merged["typeDefinitions"], d1["typeDefinitions"])
-        self.assertEqual(merged["constants"], d1["constants"])
-        sets = {s["name"]: s for s in merged["telemetryPacketSets"]}
-        self.assertEqual(set(sets), {"Pkts", "Other"})
-        self.assertEqual(sets["Pkts"]["members"][0]["members"], ["DeploymentA.Sub.c.X", "DeploymentA.Ref.a.Y"])
-        self.assertEqual(sets["Pkts"]["omitted"], ["DeploymentA.Ref.a.Y"])
-        # d2's identical Sub.c.X merged into d1's slot, so d2's reference follows d1's prefix
-        self.assertEqual(sets["Other"]["members"][0]["members"], ["DeploymentA.Sub.c.X", "DeploymentB.Ref.b.Z"])
-        self.assertEqual(sets["Other"]["omitted"], ["DeploymentB.Ref.b.Z"])
-        # a differing definition at the same id is still E2 / kept with --prefer-primary
-        d2["telemetryChannels"][0]["telemetryUpdate"] = "on_change"
-        report = merge_fails(d1, d2, namespace_all=True)
-        self.assertEqual(count(report.errors, E2), 1)
-        merged, report = merge_ok(d1, d2, namespace_all=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W3), 1)
-        self.assertEqual(merged["telemetryChannels"][0], renamed_to(d1["telemetryChannels"][0], "DeploymentA.Sub.c.X"))
-
-    def test_namespace_all_needs_valid_distinct_prefixes(self):
-        d1 = make_dictionary("Ref.DeploymentA", commands=[command("Ref.a.X", 1)])
-        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Ref.b.Y", 2)])
-        same = copy.deepcopy(d2)
-        same["metadata"]["deploymentName"] = "Other.DeploymentA"
-        report = merge_fails(d1, same, namespace_all=True)
-        self.assertEqual(report.errors, ["inputs 'd1' and 'd2' both have the namespace prefix 'DeploymentA' (last "
-                                         "segment of deploymentName, or --prefix); --namespace-all needs distinct "
-                                         "prefixes"])
-        merged, _ = merge_ok(d1, same, namespace_all=True, prefixes=["DeploymentA", "Other"])
-        self.assertEqual([c["name"] for c in merged["commands"]], ["DeploymentA.Ref.a.X", "Other.Ref.b.Y"])
-        missing = copy.deepcopy(d2)
-        del missing["metadata"]["deploymentName"]
-        report = merge_fails(d1, missing, namespace_all=True, permissive=True)
-        self.assertEqual(count(report.errors, E11[1]), 1)
-        self.assertIn("for --namespace-all", report.errors[0])
-        bad = copy.deepcopy(d2)
-        bad["metadata"]["deploymentName"] = "Ref.1B"
-        report = merge_fails(d1, bad, namespace_all=True)
-        self.assertEqual(count(report.errors, E11[0]), 1)
-        report = merge_fails(d1, d2, namespace_all=True, prefixes=["Ok", "1bad"])
-        self.assertEqual(report.errors, ["'d2': --prefix '1bad' is not an identifier and cannot be used as a "
-                                         "namespace prefix"])
-        # the un-prefixed default is unchanged
-        merged, report = merge_ok(d1, d2)
-        self.assertEqual(([c["name"] for c in merged["commands"]], report.warnings), (["Ref.a.X", "Ref.b.Y"], []))
-
-    def test_namespace_all_target_collision(self):
-        # renaming within one input is injective; across inputs dotted prefixes can still meet: 'Alpha' + 'X.Y'
-        # and 'Alpha.X' + 'Y' both give 'Alpha.X.Y'
-        d1 = make_dictionary("Ref.DeploymentA", commands=[command("X.Y", 1)])
-        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Y", 3)])
-        merged, _ = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
-        self.assertEqual([c["name"] for c in merged["commands"]], ["Alpha.X.Y", "Beta.Y"])
-        report = merge_fails(d1, d2, namespace_all=True, prefixes=["Alpha", "Alpha.X"])
-        self.assertEqual(count(report.errors, E10[0]), 1)
-        self.assertIn("cannot rename 'Y' from 'd2' to 'Alpha.X.Y': that name is already defined in 'd1'",
-                      report.errors[0])
-
-    def test_literal_prefixed_name_is_not_the_renamed_entry(self):
-        # A's 'X' is held as 'Alpha.X'; B's literal 'Alpha.X' at the same opcode is a different item -> id clash
-        d1 = make_dictionary("Ref.DeploymentA", commands=[command("X", 1)])
-        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Alpha.X", 1)])
-        report = merge_fails(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
-        self.assertEqual(count(report.errors, E3), 1)
-        self.assertIn("opcode 0x1 is used by 'Alpha.X' in 'd1' and 'Alpha.X' in 'd2'", report.errors[0])
-        merged, report = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"], prefer_primary=True)
-        self.assertEqual([c["name"] for c in merged["commands"]], ["Alpha.X"])
-        self.assertEqual(count(report.warnings, W4), 1)
-        # same shape without --namespace-all: B's 'X' collides by name with A's 'X', so both are renamed, and B's
-        # literal 'Alpha.X' must not be mistaken for the renamed A entry
-        d2 = make_dictionary("Ref.DeploymentB", commands=[command("X", 2), command("Alpha.X", 1)])
-        report = merge_fails(d1, d2, prefixes=["Alpha", "Beta"])
-        self.assertEqual(count(report.errors, E3), 1)
-        # a different opcode is simply a distinct entry
-        d2 = make_dictionary("Ref.DeploymentB", commands=[command("Alpha.X", 2)])
-        merged, report = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
-        self.assertEqual([(c["name"], c["opcode"]) for c in merged["commands"]], [("Alpha.X", 1), ("Beta.Alpha.X", 2)])
-        self.assertEqual(report.warnings, [])
-
-    def test_literal_prefixed_name_with_differing_body_is_an_id_clash(self):
-        # A holds a literal 'Beta.X'; B (prefix Beta) has 'X' at the same id with another type: not a same-name
-        # definition conflict but an id clash, so under --prefer-primary B's 'X' is dropped and its packet with it
-        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Beta.X", 1)])
-        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("X", 1, type=type_of("U16", 16))],
-                             packet_sets=[packet_set("Pkts", [packet("P1", 1, ["X"])])])
-        for kwargs in ({}, {"namespace_all": True}):
-            report = merge_fails(d1, d2, **kwargs)
-            self.assertEqual((count(report.errors, E3), count(report.errors, E2)), (1, 0))
-            merged, report = merge_ok(d1, d2, prefer_primary=True, **kwargs)
-            self.assertEqual((count(report.warnings, W4), count(report.warnings, W3)), (1, 0))
-            self.assertEqual(count(report.warnings, W7), 1)
-            self.assertEqual([c["type"]["size"] for c in merged["telemetryChannels"]], [32])
-            self.assertEqual(merged["telemetryPacketSets"][0]["members"], [])
-
-    def test_manual_prefixes_for_collisions(self):
-        merged, report = merge_ok(self.A, self.B2, prefixes=["Alpha", "Site.Beta"])
-        self.assertEqual(count(report.warnings, W2), 27)
-        self.assertCounts(merged, 17, 49, 13)
-        self.assertEqual(self.prefixed_names(merged), [])
-        renamed_names = [e["name"] for s in UNIQUE_SECTIONS for e in merged[s]
-                         if e["name"].startswith(("Alpha.", "Site.Beta."))]
-        self.assertEqual(len(renamed_names), 54)
-        self.assertIn("Alpha.CdhCore.cmdDisp.CMD_NO_OP", renamed_names)
-        self.assertIn("Site.Beta.CdhCore.cmdDisp.CMD_NO_OP", renamed_names)
-        self.assertIn("renamed to 'Alpha.CdhCore.cmdDisp.CMD_NO_OP' and 'Site.Beta.CdhCore.cmdDisp.CMD_NO_OP'",
-                      report.warnings[0])
-        # unique names stay bare; prefixes are only used where needed
-        self.assertIn("FprimeGenericHubReference.DeploymentA.a_comp.HubMessageTest",
-                      [c["name"] for c in merged["commands"]])
-        # equal manual prefixes: E15
-        report = merge_fails(self.A, self.B2, prefixes=["Same", "Same"])
-        self.assertEqual(count(report.errors, "both have the namespace prefix 'Same'"), 27)
-        # a manual prefix also rescues an input without a usable deploymentName
-        ground = load(GROUND_MINIMAL_PATH)
-        ground["telemetryChannels"][0]["name"] = self.A["telemetryChannels"][0]["name"]
-        merged, report = merge_ok(self.A, ground, permissive=True, prefixes=["A", "Ground"])
-        names = {c["name"] for c in merged["telemetryChannels"]}
-        self.assertIn(f"Ground.{self.A['telemetryChannels'][0]['name']}", names)
-        self.assertIn(f"A.{self.A['telemetryChannels'][0]['name']}", names)
-
-    def test_cli_namespace_all_and_prefix(self):
-        b2 = self.write("B2.json", self.B2)
-        code, lines, output = self.run_cli(A_PATH, b2, "--namespace-all", "--prefix", "Alpha", "--prefix", "Beta")
-        self.assertEqual((code, lines), (0, []))
-        merged = load(output)
-        self.assertCounts(merged, 17, 49, 13)
-        self.assertTrue(self.all_prefixed(merged, ("Alpha.", "Beta.")))
-        self.assertEqual(sum(e["name"].startswith("Beta.") for s in COUNTED for e in merged[s]), 8 + 20 + 5)
-        globals_cleanup()
-        self.addCleanup(globals_cleanup)
-        cmd_ids, cmd_names, _ = CmdJsonLoader(str(output)).construct_dicts(str(output))
-        self.assertEqual(len(cmd_ids), 17)
-        self.assertIn("Alpha.CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
-        self.assertIn("Beta.CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
-        ch_ids, ch_names, _ = ChJsonLoader(str(output)).construct_dicts(str(output))
-        self.assertEqual((len(ch_ids), len(ch_names)), (13, 13))
-        ev_ids, _, _ = EventJsonLoader(str(output)).construct_dicts(str(output))
-        self.assertEqual(len(ev_ids), 49)
-        # prefixes may appear between dictionaries and pair with them positionally
-        code, lines, output = self.run_cli(A_PATH, "--prefix", "Alpha", b2, "--prefix", "Beta")
-        self.assertEqual(code, 0)
-        self.assertEqual(count(lines, W2), 27)
-        self.assertIn("Beta.CdhCore.cmdDisp.CMD_NO_OP", [c["name"] for c in load(output)["commands"]])
-
-    def test_cli_prefix_usage_errors(self):
-        b2 = self.write("B2.json", self.B2)
-        cases = [
-            (["--prefix", "Alpha"], "--prefix must be given once per dictionary (2), got 1"),
-            (["--prefix", "A", "--prefix", "B", "--prefix", "C"], "--prefix must be given once per dictionary (2)"),
-            (["--prefix", "A", "--prefix", "1B"], "--prefix '1B' is not a dotted identifier"),
-            (["--prefix", "A", "--prefix", "A"], "--prefix values must be distinct"),
-            (["--no-namespace", "--prefix", "A", "--prefix", "B"], "--prefix has no effect with --no-namespace"),
-            (["--no-namespace", "--namespace-all"], "not allowed with argument"),
-        ]
-        for extra, message in cases:
-            stderr = io.StringIO()
-            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as context:
-                dictionary_merge.main([str(A_PATH), str(b2), "--output", str(self.tmp / "out.json")] + extra)
-            self.assertEqual(context.exception.code, 2, extra)
-            self.assertIn(message, stderr.getvalue(), extra)
-            self.assertFalse((self.tmp / "out.json").exists())
-
-
-class TestPacketSets(DictionaryMergeTestCase):
-
-    def two_with_packets(self):
-        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Sub.c.X", 1), channel("Sub.c.Y", 2)],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Sub.c.X", "Sub.c.Y"])],
-                                                     omitted=["Sub.c.X"])])
-        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Sub.c.X", 3), channel("Ref.b.Z", 4)],
-                             packet_sets=[packet_set("Pkts", [packet("Q", 1, ["Sub.c.X", "Ref.b.Z"])],
-                                                     omitted=["Sub.c.X"])])
-        return d1, d2
-
-    def test_packet_members_rewritten_on_rename(self):
-        d1, d2 = self.two_with_packets()
-        d3 = make_dictionary("Ref.DeploymentC", channels=[channel("Ref.c.W", 5)],
-                             packet_sets=[packet_set("Other", [packet("R", 1, ["Sub.c.X"])])])
-        # d3 never contributed to the Sub.c.X slot, so its bare reference is not rewritten: E6 in phase 4
-        report = merge_fails(d1, d2, d3)
-        self.assertEqual(report.errors, ["telemetryPacketSets: packet 'Other/R' in 'd3' references unknown channel "
-                                         "'Sub.c.X' in members"])
-        d3["telemetryPacketSets"][0]["members"][0]["members"] = ["Ref.c.W"]
-        merged, report = merge_ok(d1, d2, d3)
-        sets = {s["name"]: s for s in merged["telemetryPacketSets"]}
-        self.assertEqual(set(sets), {"DeploymentA.Pkts", "DeploymentB.Pkts", "Other"})
-        self.assertEqual(sets["DeploymentA.Pkts"]["members"][0]["members"], ["DeploymentA.Sub.c.X", "Sub.c.Y"])
-        self.assertEqual(sets["DeploymentA.Pkts"]["omitted"], ["DeploymentA.Sub.c.X"])
-        self.assertEqual(sets["DeploymentB.Pkts"]["members"][0]["members"], ["DeploymentB.Sub.c.X", "Ref.b.Z"])
-        self.assertEqual(sets["DeploymentB.Pkts"]["omitted"], ["DeploymentB.Sub.c.X"])
-        self.assertEqual(count(report.warnings, W2), 2)
-        self.assertEqual(count(report.warnings, W11), 1)
-        self.assertIn("output holds 3 packet sets ('DeploymentA.Pkts', 'DeploymentB.Pkts', 'Other')",
-                      report.warnings[-1])
-
-    def test_packet_members_rewritten_in_main_after_late_collision(self):
-        d1, _ = self.two_with_packets()
-        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Ref.b.Z", 4)])
-        d3 = make_dictionary("Ref.DeploymentC", channels=[channel("Sub.c.X", 9)])
-        merged, _ = merge_ok(d1, d2, d3)
-        self.assertEqual(merged["telemetryPacketSets"][0]["members"][0]["members"], ["DeploymentA.Sub.c.X", "Sub.c.Y"])
-        self.assertEqual([c["name"] for c in merged["telemetryChannels"]],
-                         ["DeploymentA.Sub.c.X", "Sub.c.Y", "Ref.b.Z", "DeploymentC.Sub.c.X"])
-
-    def test_packet_members_removed_on_drop(self):
-        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Sub.c.X", 1)])
-        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Sub.c.X", 3), channel("Ref.b.Z", 4)],
-                             packet_sets=[packet_set("Pkts", [packet("Q", 1, ["Sub.c.X", "Ref.b.Z"]),
-                                                              packet("R", 2, ["Ref.b.Z"])], omitted=["Sub.c.X"])])
-        merged, report = merge_ok(d1, d2, no_namespace=True, prefer_primary=True)
-        packets = merged["telemetryPacketSets"][0]
-        self.assertEqual([p["name"] for p in packets["members"]], ["R"])
-        self.assertEqual(packets["members"][0]["members"], ["Ref.b.Z"])
-        self.assertEqual(packets["omitted"], [])
-        self.assertEqual([count(report.warnings, w) for w in (W1, W7, W8)], [1, 1, 1])
-        # W4 (same id, different name) drops too
-        d2["telemetryChannels"][0] = channel("Ref.b.Other", 1)
-        d2["telemetryPacketSets"][0]["members"][0]["members"] = ["Ref.b.Other", "Ref.b.Z"]
-        d2["telemetryPacketSets"][0]["omitted"] = ["Ref.b.Other"]
-        merged, report = merge_ok(d1, d2, prefer_primary=True)
-        self.assertEqual([p["name"] for p in merged["telemetryPacketSets"][0]["members"]], ["R"])
-        self.assertEqual([count(report.warnings, w) for w in (W4, W7, W8)], [1, 1, 1])
-
-    def test_packet_unknown_channel_errors(self):
-        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Ref.a.X", 1)],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Ref.a.X", "Ref.a.Nope"])])])
-        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("Ref.b.Y", 2)],
-                             packet_sets=[packet_set("Other", [packet("Q", 1, ["Ref.b.Nope"])])])
-        report = merge_fails(d1, d2)
-        self.assertEqual(count(report.errors, E6), 2)
-        self.assertIn("packet 'Pkts/P' in 'd1' references unknown channel 'Ref.a.Nope' in members", report.errors[0])
-        d1["telemetryPacketSets"][0]["members"][0]["members"] = ["Ref.a.X"]
-        d1["telemetryPacketSets"][0]["omitted"] = ["Ref.a.Stale"]
-        d2["telemetryPacketSets"] = []
-        code, lines, output = self.run_cli(self.write("d1.json", d1), self.write("d2.json", d2))
-        self.assertEqual(code, 0)
-        self.assertEqual(count(lines, W10), 1)
-        self.assertEqual(load(output)["telemetryPacketSets"][0]["omitted"], ["Ref.a.Stale"])
-        globals_cleanup()
-        self.addCleanup(globals_cleanup)
         _, ch_names, _ = ChJsonLoader(str(output)).construct_dicts(str(output))
         _, pkt_names, _ = PktJsonLoader(str(output)).construct_dicts("Pkts", ch_names)
-        self.assertEqual(list(pkt_names), ["P"])
+        self.assertEqual({n: c.get_op_code() for n, c in cmd_names.items() if n.endswith(NO_OP)},
+                         {f"Alpha.{NO_OP}": 0x500, f"Beta.{NO_OP}": 0x20000500})
+        self.assertEqual(cmd_names[f"Beta.{NO_OP}"].get_comp_name(), "Beta.CdhCore.cmdDisp")
+        self.assertEqual(len(evr_ids), 4)
+        self.assertEqual([ch.get_full_name() for ch in pkt_names["P"].get_ch_list()], [f"Beta.{DISPATCHED}"])
 
-    def test_packet_set_dedupe_rename_prefer(self):
-        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Ref.a.X", 1)],
-                             packet_sets=[packet_set("Pkts", [packet("P", 1, ["Ref.a.X"])])])
-        same = copy.deepcopy(d1)
-        same["metadata"]["deploymentName"] = "Ref.DeploymentB"
-        merged, report = merge_ok(d1, same)
-        self.assertEqual((merged["telemetryPacketSets"], report.warnings), (d1["telemetryPacketSets"], []))
-        differing = make_dictionary("Ref.DeploymentB", channels=[channel("Ref.b.Y", 2)],
-                                    packet_sets=[packet_set("Pkts", [packet("Q", 1, ["Ref.b.Y"])])])
-        merged, report = merge_ok(d1, differing)
-        self.assertEqual([s["name"] for s in merged["telemetryPacketSets"]], ["DeploymentA.Pkts", "DeploymentB.Pkts"])
-        self.assertEqual(count(report.warnings, W2), 1)
-        self.assertEqual(count(report.warnings, W11), 1)
-        self.assertNotIn("0x", report.warnings[0])
-        report = merge_fails(d1, differing, no_namespace=True)
-        self.assertEqual(count(report.errors, "with different definitions; use --prefer-primary"), 1)
-        merged, report = merge_ok(d1, differing, no_namespace=True, prefer_primary=True)
-        self.assertEqual(merged["telemetryPacketSets"], d1["telemetryPacketSets"])
-        self.assertEqual(count(report.warnings, W1), 1)
-        self.assertEqual(count(report.warnings, W11), 0)
+    def test_exit_codes(self):
+        code, lines, output = self.run_cli(self.a, self.write("B.json", B))
+        self.assertEqual((code, count(lines, E_ID_CLASH), output.exists()), (1, 3, False))
+        self.assertIn("Merge failed with 3 error(s) and 0 warning(s); no output written", lines[-1])
+        (self.tmp / "bad.json").write_text("{not json")
+        self.assertEqual(self.run_cli(self.a, self.tmp / "bad.json")[0], 1)
+        self.assertEqual(self.run_cli(self.a, self.tmp / "missing.json")[0], 1)
+        self.assertEqual(self.run_cli("--name", "1bad", self.a, self.b2)[0], 1)
+        usage = [[self.a], ["--prefix", "Alpha", self.a, self.b2], ["--prefix", "A", "--prefix", "A", self.a, self.b2],
+                 ["--no-namespace", "--prefix", "A", "--prefix", "B", self.a, self.b2],
+                 ["--no-namespace", "--namespace-all", self.a, self.b2]]
+        for argv in usage:
+            self.assertEqual(self.run_cli(*argv)[0], 2, argv)
+        # options may appear between positionals
+        self.assertEqual(self.run_cli(self.a, "--prefix", "Alpha", self.b2, "--prefix", "Beta")[0], 0)
 
-
-class TestAtomicWrite(DictionaryMergeTestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.d1 = self.write("d1.json", make_dictionary("Ref.One", commands=[command("Ref.a.X", 1)]))
-        self.d2 = self.write("d2.json", make_dictionary("Ref.Two", commands=[command("Ref.b.Y", 2)]))
-
-    def test_atomic_write(self):
-        for umask in (0o022, 0o077):
-            previous = os.umask(umask)
-            try:
-                output = self.tmp / f"mode_{umask:o}.json"
-                code, _, _ = self.run_cli(self.d1, self.d2, output=output)
-            finally:
-                os.umask(previous)
-            self.assertEqual(code, 0)
-            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o666 & ~umask)
-        self.assertEqual([p.name for p in self.tmp.glob("*.tmp")], [])
-        # a symlink is replaced by a regular file; the target is untouched
-        target = self.tmp / "target.json"
-        target.write_text("target")
-        link = self.tmp / "link.json"
-        link.symlink_to(target)
-        code, _, _ = self.run_cli(self.d1, self.d2, output=link)
-        self.assertEqual(code, 0)
-        self.assertFalse(link.is_symlink())
-        self.assertEqual(target.read_text(), "target")
-        # a failing replace leaves the old file and no temporary
+    def test_output_is_written_atomically(self):
         existing = self.tmp / "existing.json"
         existing.write_text("old")
+        existing.chmod(0o640)
         with mock.patch.object(dictionary_merge.os, "replace", side_effect=OSError("disk full")):
-            code, lines, _ = self.run_cli(self.d1, self.d2, output=existing)
-        self.assertEqual(code, 1)
-        self.assertEqual(lines[-1], f"[ERROR] cannot write '{existing}': disk full")
+            code, lines, _ = self.run_cli(self.a, self.b2, output=existing)
+        self.assertEqual((code, lines[-1]), (1, f"[ERROR] cannot write '{existing}': disk full"))
         self.assertEqual(existing.read_text(), "old")
-        self.assertEqual([p.name for p in self.tmp.glob("*.tmp")], [])
-        # an existing file keeps its mode, whatever the umask
-        existing.chmod(0o644)
-        previous = os.umask(0o077)
-        try:
-            code, _, _ = self.run_cli(self.d1, self.d2, output=existing)
-        finally:
-            os.umask(previous)
-        self.assertEqual(code, 0)
-        self.assertEqual(stat.S_IMODE(existing.stat().st_mode), 0o644)
-        # a directory that refuses the temporary file is an error, never a truncating direct write
-        existing.write_text("old")
-        with mock.patch.object(dictionary_merge, "open_temporary", side_effect=PermissionError("read-only directory")):
-            code, lines, _ = self.run_cli(self.d1, self.d2, output=existing)
-        self.assertEqual(code, 1)
-        self.assertEqual(lines[-1], f"[ERROR] cannot write '{existing}': read-only directory")
-        self.assertEqual(existing.read_text(), "old")
+        code, _, _ = self.run_cli(self.a, self.b2, output=existing)
+        self.assertEqual((code, stat.S_IMODE(existing.stat().st_mode)), (0, 0o640))
+        self.assertEqual(list(self.tmp.glob("*.tmp")), [])
+        self.assertEqual(self.run_cli(self.a, self.b2, output=self.tmp / "nope" / "out.json")[0], 1)
 
-    def test_unwritable_directory(self):
-        output = self.tmp / "nope" / "out.json"
-        code, lines, _ = self.run_cli(self.d1, self.d2, output=output)
-        self.assertEqual(code, 1)
-        self.assertTrue(lines[-1].startswith(f"[ERROR] cannot write '{output}': "))
-        self.assertFalse(output.parent.exists())
-
-    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs are POSIX-only")
-    def test_fifo_output_uses_direct_write(self):
-        fifo = self.tmp / "out.fifo"
-        os.mkfifo(fifo)
-        received = []
-
-        def reader():
-            with open(fifo, "r") as file_handle:
-                received.append(file_handle.read())
-
-        thread = threading.Thread(target=reader, daemon=True)
-        thread.start()
-        code, _, _ = self.run_cli(self.d1, self.d2, output=fifo)
-        thread.join(timeout=10)
-        self.assertFalse(thread.is_alive(), "the tool never opened the FIFO for writing")
-        self.assertEqual(code, 0)
-        code, _, regular = self.run_cli(self.d1, self.d2)
-        self.assertEqual(received, [regular.read_text()])
-
-    @unittest.skipUnless(Path("/dev/stdout").exists(), "/dev/stdout is POSIX-only")
-    def test_dev_stdout_redirected_to_file_uses_direct_write(self):
-        _, _, regular = self.run_cli(self.d1, self.d2)
-        for descriptor in (Path("/dev/stdout"), Path("/dev/fd/1"), Path("/proc/self/fd/1")):
-            if not descriptor.exists():
-                continue
-            redirected = self.tmp / "redirected.json"
-            saved = os.dup(1)
-            try:
-                with open(redirected, "w") as file_handle:
-                    os.dup2(file_handle.fileno(), 1)
-                self.assertTrue(descriptor.is_file())
-                code, _, _ = self.run_cli(self.d1, self.d2, output=descriptor)
-            finally:
-                os.dup2(saved, 1)
-                os.close(saved)
-            self.assertEqual(code, 0, descriptor)
-            self.assertEqual(redirected.read_text(), regular.read_text(), descriptor)
-
-    def test_stream_output_detection(self):
-        regular = self.tmp / "plain.json"
-        regular.write_text("{}")
-        self.assertFalse(dictionary_merge.is_stream_output(regular))
-        self.assertFalse(dictionary_merge.is_stream_output(self.tmp / "new.json"))
-        link = self.tmp / "link.json"
-        link.symlink_to(regular)
-        self.assertFalse(dictionary_merge.is_stream_output(link))
-        descriptor = self.tmp / "fd.json"
-        descriptor.symlink_to("/proc/self/fd/1")
-        self.assertTrue(dictionary_merge.is_stream_output(descriptor))
+    @unittest.skipUnless(Path("/dev/stdout").exists(), "POSIX only")
+    def test_stream_outputs_are_written_directly(self):
+        self.assertTrue(dictionary_merge.is_stream_output(Path("/dev/stdout")))
         self.assertTrue(dictionary_merge.is_stream_output(Path("/proc/self/fd/1")))
-        if Path("/dev/fd").is_dir():
-            self.assertTrue(dictionary_merge.is_stream_output(Path("/dev/fd/1")))
-        if Path("/dev/shm").is_dir() and os.access("/dev/shm", os.W_OK):
-            shm = Path("/dev/shm") / f"fprime_merge_test_{os.getpid()}.json"
-            shm.write_text("{}")
-            self.addCleanup(shm.unlink)
-            self.assertFalse(dictionary_merge.is_stream_output(shm))
-        self.assertEqual([p.name for p in self.tmp.glob("*.tmp")], [])
+        self.assertFalse(dictionary_merge.is_stream_output(self.tmp / "new.json"))
+        redirected, saved = self.tmp / "redirected.json", os.dup(1)
+        try:
+            with open(redirected, "w") as file_handle:
+                os.dup2(file_handle.fileno(), 1)
+            code, _, _ = self.run_cli(self.a, self.b2, output=Path("/dev/stdout"))
+        finally:
+            os.dup2(saved, 1)
+            os.close(saved)
+        _, _, regular = self.run_cli(self.a, self.b2)
+        self.assertEqual((code, redirected.read_text()), (0, regular.read_text()))
