@@ -1040,6 +1040,21 @@ class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
         self.assertEqual([(c["name"], c["opcode"]) for c in merged["commands"]], [("Alpha.X", 1), ("Beta.Alpha.X", 2)])
         self.assertEqual(report.warnings, [])
 
+    def test_literal_prefixed_name_with_differing_body_is_an_id_clash(self):
+        # A holds a literal 'Beta.X'; B (prefix Beta) has 'X' at the same id with another type: not a same-name
+        # definition conflict but an id clash, so under --prefer-primary B's 'X' is dropped and its packet with it
+        d1 = make_dictionary("Ref.DeploymentA", channels=[channel("Beta.X", 1)])
+        d2 = make_dictionary("Ref.DeploymentB", channels=[channel("X", 1, type=type_of("U16", 16))],
+                             packet_sets=[packet_set("Pkts", [packet("P1", 1, ["X"])])])
+        for kwargs in ({}, {"namespace_all": True}):
+            report = merge_fails(d1, d2, **kwargs)
+            self.assertEqual((count(report.errors, E3), count(report.errors, E2)), (1, 0))
+            merged, report = merge_ok(d1, d2, prefer_primary=True, **kwargs)
+            self.assertEqual((count(report.warnings, W4), count(report.warnings, W3)), (1, 0))
+            self.assertEqual(count(report.warnings, W7), 1)
+            self.assertEqual([c["type"]["size"] for c in merged["telemetryChannels"]], [32])
+            self.assertEqual(merged["telemetryPacketSets"][0]["members"], [])
+
     def test_manual_prefixes_for_collisions(self):
         merged, report = merge_ok(self.A, self.B2, prefixes=["Alpha", "Site.Beta"])
         self.assertEqual(count(report.warnings, W2), 27)
@@ -1259,8 +1274,7 @@ class TestAtomicWrite(DictionaryMergeTestCase):
         self.assertEqual(stat.S_IMODE(existing.stat().st_mode), 0o644)
         # a directory that refuses the temporary file is an error, never a truncating direct write
         existing.write_text("old")
-        with mock.patch.object(dictionary_merge.tempfile, "NamedTemporaryFile",
-                               side_effect=PermissionError("read-only directory")):
+        with mock.patch.object(dictionary_merge, "open_temporary", side_effect=PermissionError("read-only directory")):
             code, lines, _ = self.run_cli(self.d1, self.d2, output=existing)
         self.assertEqual(code, 1)
         self.assertEqual(lines[-1], f"[ERROR] cannot write '{existing}': read-only directory")

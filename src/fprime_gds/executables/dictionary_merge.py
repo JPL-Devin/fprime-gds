@@ -36,9 +36,9 @@ import copy
 import json
 import os
 import re
+import secrets
 import stat
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -518,11 +518,12 @@ class Merger:
                 acc.attach(acc.by_name[t], k, n, rename_map)
                 return
 
-        # 2. id already held
+        # 2. id already held. Only an entry that arrived under the same name is the same item with a differing
+        #    definition; a held literal '<k's prefix>.<n>' is a different item (identical bodies were caught above).
         if id_key and i in acc.by_id:
             h_idx = acc.by_id[i]
             held = acc.slots[h_idx]
-            if held.orig_name == n or (not opts.no_namespace and held.orig_name == t):
+            if held.orig_name == n:
                 if opts.prefer_primary:
                     report.warning("overridden", f"{section}: '{n}' ({id_text}) differs in '{self.path(k)}'; kept "
                                                  f"definition '{held.entry['name']}' from '{self.path(held.origin)}' "
@@ -767,6 +768,18 @@ def is_stream_output(path: Path):
     return path.exists() and not path.is_file()
 
 
+def open_temporary(path: Path):
+    """ Create '<path>.<random>.tmp' next to path with the umask default mode (0666 & ~umask, applied by the kernel);
+    returns (name, descriptor) """
+    for _ in range(100):
+        name = f"{path}.{secrets.token_hex(4)}.tmp"
+        try:
+            return name, os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"cannot create a temporary file next to '{path}'")
+
+
 def write_output(path: Path, merged):
     """ Write the merged dictionary atomically: temporary file in the output directory, then rename, so a failure never
     leaves a truncated dictionary behind. An existing file keeps its mode; a new one gets the umask default. Non-regular
@@ -776,24 +789,19 @@ def write_output(path: Path, merged):
         with open(path, "w") as output_fh:
             output_fh.write(text)
         return
-    if path.is_file():
-        mode = stat.S_IMODE(path.stat().st_mode)
-    else:
-        umask = os.umask(0)
-        os.umask(umask)
-        mode = 0o666 & ~umask
-    temporary = tempfile.NamedTemporaryFile(mode="w", dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp",
-                                            delete=False)
+    mode = stat.S_IMODE(path.stat().st_mode) if path.is_file() else None
+    name, descriptor = open_temporary(path)
     try:
-        with temporary:
+        with os.fdopen(descriptor, "w") as temporary:
             temporary.write(text)
             temporary.flush()
             os.fsync(temporary.fileno())
-        os.chmod(temporary.name, mode)
-        os.replace(temporary.name, path)
+        if mode is not None:
+            os.chmod(name, mode)
+        os.replace(name, path)
     except BaseException:
         try:
-            os.unlink(temporary.name)
+            os.unlink(name)
         except OSError:
             pass
         raise
