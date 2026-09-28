@@ -1,10 +1,11 @@
 """ Tests for fprime_gds.executables.dictionary_merge
 
-Real fixtures: the two hub-reference deployment dictionaries (fprime-generic-hub-reference @ a32988b2), which share the
-CdhCore/ComCcsds/FileHandling/DataProducts subtopologies at identical base ids and reuse local base ids for their
-deployment-local instances. Derived in-test: B2 (B with every id shifted so that shared names collide with A's while ids
-do not), C (A's shared subtopologies under a third deployment name, at A's ids) and C2 (same, at new ids). Every other
-case is built from small spec-complete entries so the differing field is explicit.
+Real fixtures: the two hub-reference deployment dictionaries (fprime-generic-hub-reference @ a32988b2), trimmed to a few
+components (see resources/dictionary_merge/README.md): the shared CdhCore subtopology at identical base ids (7 commands,
+17 events, 3 channels) and deployment-local instances that reuse local base ids (1 command, 3 events, 2 channels clash).
+Derived in-test: B2 (B with every id shifted so that shared names collide with A's while ids do not), C (A's shared
+subtopologies under a third deployment name, at A's ids) and C2 (same, at new ids). Every other case is built from small
+spec-complete entries so the differing field is explicit.
 """
 
 import contextlib
@@ -26,6 +27,8 @@ from fprime_gds.common.loaders.pkt_json_loader import PktJsonLoader
 from fprime_gds.common.utils.cleanup import globals_cleanup
 from fprime_gds.executables import dictionary_merge
 from fprime_gds.executables.dictionary_merge import (
+    NON_UNIQUE_SECTIONS,
+    PACKET_SECTION,
     UNIQUE_SECTIONS,
     LoadedInput,
     MergeOptions,
@@ -38,7 +41,6 @@ A_PATH = RESOURCES / "DeploymentATopologyDictionary.json"
 B_PATH = RESOURCES / "DeploymentBTopologyDictionary.json"
 GROUND_PATH = RESOURCES / "GroundChannels.json"
 GROUND_MINIMAL_PATH = RESOURCES / "GroundChannelsMinimal.json"
-GOLDEN_GROUND = RESOURCES / "expected" / "ground_channels_merged.json"
 
 COUNTED = ["commands", "events", "telemetryChannels"]
 B2_SHIFT = 0x20000000
@@ -223,6 +225,21 @@ def merge_fails(*dictionaries, **options):
     return report
 
 
+def legacy_merge(d1, d2):
+    """ What the two-input tool produced before this rewrite for inputs without any name/id overlap: d1's keys over
+    d2's, every section list concatenated, deploymentName '<d1>_<d2>_merged' (unknown deploymentName: 'unknown') """
+    merged = {**d2, **d1}
+    names = [d.get("metadata", {}).get("deploymentName", "unknown") for d in (d1, d2)]
+    merged["metadata"] = {**d1["metadata"], "deploymentName": "_".join(names) + "_merged"}
+    for section in list(UNIQUE_SECTIONS) + list(NON_UNIQUE_SECTIONS) + [PACKET_SECTION]:
+        merged[section] = d1[section] + d2[section]
+    return merged
+
+
+def legacy_bytes(d1, d2):
+    return json.dumps(legacy_merge(d1, d2), indent=2).encode()
+
+
 class DictionaryMergeTestCase(unittest.TestCase):
     """ Shared fixtures: real A and B, derived B2/C/C2, and a CLI runner """
 
@@ -269,7 +286,7 @@ class TestFeatureOffCompatibility(DictionaryMergeTestCase):
         code, lines, output = self.run_cli("--permissive", A_PATH, GROUND_PATH)
         self.assertEqual(code, 0)
         self.assertEqual(lines, [])
-        self.assertEqual(output.read_bytes(), GOLDEN_GROUND.read_bytes())
+        self.assertEqual(output.read_bytes(), legacy_bytes(self.A, load(GROUND_PATH)))
         # --name is usable (dotted identifier) and unknown top-level keys keep today's order/precedence
         d1 = make_dictionary("Ref.One", commands=[command("Ref.a.CMD", 1)])
         d2 = make_dictionary("Ref.Two", commands=[command("Ref.b.CMD", 2)])
@@ -282,9 +299,9 @@ class TestFeatureOffCompatibility(DictionaryMergeTestCase):
     def test_ground_channels_minimal_metadata(self):
         code, lines, output = self.run_cli("--permissive", A_PATH, GROUND_MINIMAL_PATH)
         self.assertEqual((code, lines), (0, []))
-        # identical to the GroundChannels golden except for the missing deploymentName, which reads 'unknown'
-        expected = GOLDEN_GROUND.read_text().replace("DeploymentA_GroundChannels_merged", "DeploymentA_unknown_merged")
-        self.assertEqual(output.read_text(), expected)
+        self.assertEqual(output.read_bytes(), legacy_bytes(self.A, load(GROUND_MINIMAL_PATH)))
+        self.assertEqual(load(output)["metadata"]["deploymentName"],
+                         "FprimeGenericHubReference.DeploymentA.DeploymentA_unknown_merged")
         code, lines, _ = self.run_cli(A_PATH, GROUND_MINIMAL_PATH)
         self.assertEqual(code, 1)
         self.assertIn("(a32988b vs None)", "\n".join(lines))
@@ -329,8 +346,8 @@ class TestRealHubReference(DictionaryMergeTestCase):
 
     def test_identical_shared_entries_dedupe(self):
         report = merge_fails(self.A, self.B)
-        self.assertEqual(len(report.errors), 85)
-        self.assertEqual(count(report.errors, E3), 85)
+        self.assertEqual(len(report.errors), 6)
+        self.assertEqual(count(report.errors, E3), 6)
         self.assertEqual(report.warnings, [])
         merged, report = merge_ok(self.A, self.B, prefer_primary=True)
         for section in list(UNIQUE_SECTIONS) + ["typeDefinitions", "constants"]:
@@ -342,38 +359,38 @@ class TestRealHubReference(DictionaryMergeTestCase):
         self.assertEqual(code, 1)
         self.assertFalse(output.exists())
         by_section = [count(errors(lines), f"] {section}:") for section in COUNTED]
-        self.assertEqual(by_section, [10, 38, 37])
-        self.assertTrue(lines[0].startswith(
-            "[ERROR] commands: opcode 0x600 is used by 'FprimeGenericHubReference.DeploymentA.a_cmdSeq.CS_RUN' in '"))
-        self.assertIn("Merge failed with 85 error(s) and 0 warning(s); no output written", lines[-1])
+        self.assertEqual(by_section, [1, 3, 2])
+        self.assertTrue(lines[0].startswith("[ERROR] commands: opcode 0x11017500 is used by "
+                                            "'FprimeGenericHubReference.DeploymentA.c_comp.HubCommandTest' in '"))
+        self.assertIn("Merge failed with 6 error(s) and 0 warning(s); no output written", lines[-1])
         code, lines, output = self.run_cli("--prefer-primary", "--name", "FprimeGenericHubReference.Hub",
                                            A_PATH, B_PATH)
         self.assertEqual(code, 0)
-        self.assertEqual(count(lines, W4), 85)
+        self.assertEqual(count(lines, W4), 6)
         self.assertEqual(count(lines, W2), 0)
         merged = load(output)
-        self.assertCounts(merged, 47, 214, 97)
+        self.assertCounts(merged, 9, 29, 8)
         self.assertEqual(merged["metadata"]["deploymentName"], "FprimeGenericHubReference.Hub")
         hub_commands = [c for c in merged["commands"] if c["opcode"] == 0x11017500]
         self.assertEqual([c["name"] for c in hub_commands],
                          ["FprimeGenericHubReference.DeploymentA.c_comp.HubCommandTest"])
         # B as main: A's non-colliding locals are appended
         merged, report = merge_ok(self.B, self.A, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 85)
-        self.assertCounts(merged, 47, 214, 97)
+        self.assertEqual(count(report.warnings, W4), 6)
+        self.assertCounts(merged, 9, 29, 8)
         self.assertNotEqual(merged["commands"], self.B["commands"])
         # --no-namespace changes nothing here: there is no same-name/different-id pair
-        self.assertEqual(count(merge_fails(self.A, self.B, no_namespace=True).errors, E3), 85)
+        self.assertEqual(count(merge_fails(self.A, self.B, no_namespace=True).errors, E3), 6)
 
     def test_same_name_different_id_default_renames_both(self):
         code, lines, output = self.run_cli(A_PATH, self.write("B2.json", self.B2))
         self.assertEqual(code, 0)
-        self.assertEqual(len(warnings(lines)), 261)
-        self.assertEqual(count(lines, W2), 260)
-        self.assertEqual(lines[-1], "[WARNING] Merged 2 dictionaries with 260 warning(s): 260 renamed")
+        self.assertEqual(len(warnings(lines)), 28)
+        self.assertEqual(count(lines, W2), 27)
+        self.assertEqual(lines[-1], "[WARNING] Merged 2 dictionaries with 27 warning(s): 27 renamed")
         merged = load(output)
-        self.assertCounts(merged, 93, 419, 191)
-        self.assertEqual(len(self.prefixed_names(merged)), 520)
+        self.assertCounts(merged, 17, 49, 13)
+        self.assertEqual(len(self.prefixed_names(merged)), 54)
         names = {section: [e["name"] for e in merged[section]] for section in UNIQUE_SECTIONS}
         for section in UNIQUE_SECTIONS:
             self.assertFalse(self.shared_names[section] & set(names[section]), section)
@@ -384,7 +401,8 @@ class TestRealHubReference(DictionaryMergeTestCase):
         self.assertEqual(opcodes["DeploymentA.CdhCore.cmdDisp.CMD_NO_OP"], 0x1000000)
         self.assertEqual(opcodes["DeploymentB.CdhCore.cmdDisp.CMD_NO_OP"], 0x21000000)
         # A's entries keep their slots, B2's follow in B2's order; ids untouched
-        self.assertEqual([c["opcode"] for c in merged["commands"][:47]], [c["opcode"] for c in self.A["commands"]])
+        a_opcodes = [c["opcode"] for c in self.A["commands"]]
+        self.assertEqual([c["opcode"] for c in merged["commands"][:len(a_opcodes)]], a_opcodes)
         self.assertEqual(count(lines, W9), 0)
         first = [line for line in lines if "CdhCore.cmdDisp.CMD_NO_OP" in line][0]
         self.assertIn("has opcode 0x1000000 in", first)
@@ -393,14 +411,14 @@ class TestRealHubReference(DictionaryMergeTestCase):
         # --prefer-primary does not change a same-name/different-id outcome
         merged2, report = merge_ok(self.A, self.B2, prefer_primary=True)
         self.assertEqual(merged2, merged)
-        self.assertEqual(count(report.warnings, W2), 260)
+        self.assertEqual(count(report.warnings, W2), 27)
 
     def test_no_namespace_restores_error(self):
         code, lines, output = self.run_cli("--no-namespace", A_PATH, self.write("B2.json", self.B2))
         self.assertEqual(code, 1)
         self.assertFalse(output.exists())
-        self.assertEqual(count(errors(lines), *E1), 260)
-        self.assertEqual(len(errors(lines)), 260)
+        self.assertEqual(count(errors(lines), *E1), 27)
+        self.assertEqual(len(errors(lines)), 27)
         d1 = make_dictionary("Ref.One", commands=[command("Ref.a.CMD", 1)])
         d2 = make_dictionary("Ref.Two", commands=[command("Ref.a.CMD", 2)])
         report = merge_fails(d1, d2, no_namespace=True)
@@ -411,13 +429,13 @@ class TestRealHubReference(DictionaryMergeTestCase):
 
     def test_no_namespace_prefer_primary_drops(self):
         merged, report = merge_ok(self.A, self.B2, no_namespace=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W1), 260)
-        self.assertEqual(len(report.warnings), 260)
-        self.assertCounts(merged, 57, 252, 134)
+        self.assertEqual(count(report.warnings, W1), 27)
+        self.assertEqual(len(report.warnings), 27)
+        self.assertCounts(merged, 10, 32, 10)
         self.assertEqual(self.prefixed_names(merged), [])
         opcodes = {c["name"]: c["opcode"] for c in merged["commands"]}
         self.assertEqual(opcodes["CdhCore.cmdDisp.CMD_NO_OP"], 0x1000000)
-        self.assertEqual(opcodes["FprimeGenericHubReference.DeploymentB.b_cmdSeq.CS_RUN"], 0x20000600)
+        self.assertEqual(opcodes["FprimeGenericHubReference.DeploymentB.c_comp.HubCommandTest"], 0x31017500)
 
     def test_remerge_with_own_input_is_noop(self):
         for other in (self.B2, self.A):
@@ -428,27 +446,27 @@ class TestRealHubReference(DictionaryMergeTestCase):
 
     def test_chained_merge_is_not_nway(self):
         report = merge_fails(self.M, self.C)
-        self.assertEqual(count(report.errors, E3), 260)
+        self.assertEqual(count(report.errors, E3), 27)
         merged, report = merge_ok(self.M, self.C2)
-        self.assertEqual(count(report.warnings, W9_SUFFIX), 260)
+        self.assertEqual(count(report.warnings, W9_SUFFIX), 27)
         self.assertEqual(count(report.warnings, W2), 0)
-        self.assertCounts(merged, 129, 586, 248)
+        self.assertCounts(merged, 24, 66, 16)
         bare = [c for c in merged["commands"] if c["name"] == "CdhCore.cmdDisp.CMD_NO_OP"]
         self.assertEqual([c["opcode"] for c in bare], [0x41000000])
         nway, _ = merge_ok(self.A, self.B2, self.C2)
         self.assertNotEqual(as_set(merged["commands"]), as_set(nway["commands"]))
         merged, report = merge_ok(self.M, self.C, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 260)
+        self.assertEqual(count(report.warnings, W4), 27)
 
     def test_no_namespace_remerge_packet_set(self):
         b2 = copy.deepcopy(self.B2)
         b2["telemetryPacketSets"] = [packet_set("Pkts", [packet("P1", 1, ["CdhCore.cmdDisp.CommandsDispatched"]),
                                                         packet("P2", 2, [b2["telemetryChannels"][0]["name"]])])]
         report = merge_fails(self.M, b2, no_namespace=True)
-        self.assertEqual(count(report.errors, E3), 260)
+        self.assertEqual(count(report.errors, E3), 27)
         self.assertEqual(count(report.errors, E2), 0)
         merged, report = merge_ok(self.M, b2, no_namespace=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 260)
+        self.assertEqual(count(report.warnings, W4), 27)
         self.assertEqual(count(report.warnings, W7), 1)
         self.assertEqual(count(report.warnings, W3), 0)
         for section in UNIQUE_SECTIONS:
@@ -461,8 +479,8 @@ class TestRealHubReference(DictionaryMergeTestCase):
                                               omitted=["CdhCore.cmdDisp.CommandErrors"])]
         merged, report, merger = merge(self.A, self.B2, c)
         self.assertIsNotNone(merged, report.errors)
-        self.assertEqual(count(report.warnings, W2), 260)
-        self.assertEqual(len(report.warnings), 260)
+        self.assertEqual(count(report.warnings, W2), 27)
+        self.assertEqual(len(report.warnings), 27)
         for section in UNIQUE_SECTIONS:
             self.assertEqual(merged[section], self.M[section], section)
         self.assertEqual(merger.rename_map[3]["telemetryChannels"]["CdhCore.cmdDisp.CommandsDispatched"],
@@ -473,9 +491,9 @@ class TestRealHubReference(DictionaryMergeTestCase):
 
     def test_third_input_own_id_gets_own_prefix(self):
         merged, report = merge_ok(self.A, self.B2, self.C2)
-        self.assertEqual(count(report.warnings, W2), 260)
-        self.assertEqual(count(report.warnings, W2P), 260)
-        self.assertCounts(merged, 129, 586, 248)
+        self.assertEqual(count(report.warnings, W2), 27)
+        self.assertEqual(count(report.warnings, W2P), 27)
+        self.assertCounts(merged, 24, 66, 16)
         opcodes = {c["name"]: c["opcode"] for c in merged["commands"]}
         self.assertEqual(opcodes["DeploymentC.CdhCore.cmdDisp.CMD_NO_OP"], 0x41000000)
         line = [w for w in report.warnings if W2P in w and "CMD_NO_OP" in w][0]
@@ -493,8 +511,8 @@ class TestRealHubReference(DictionaryMergeTestCase):
         c3 = copy.deepcopy(self.C2)
         c3["metadata"]["deploymentName"] = "FprimeGenericHubReference.DeploymentB.DeploymentB"
         report = merge_fails(self.A, self.B2, c3)
-        self.assertEqual(count(report.errors, E15), 260)
-        self.assertEqual(len(report.errors), 260)
+        self.assertEqual(count(report.errors, E15), 27)
+        self.assertEqual(len(report.errors), 27)
         # without a collision the shared last segment is harmless
         d1 = make_dictionary("X.Same", commands=[command("Ref.a.CMD", 1)])
         d2 = make_dictionary("Y.Same", commands=[command("Ref.b.CMD", 2)])
@@ -882,10 +900,10 @@ class TestStructure(DictionaryMergeTestCase):
 
     def test_merge_dictionaries_wrapper(self):
         merged = merge_dictionaries(self.A, load(GROUND_PATH), permissive=True)
-        self.assertEqual(merged, load(GOLDEN_GROUND))
+        self.assertEqual(merged, legacy_merge(self.A, load(GROUND_PATH)))
         with self.assertRaises(ValueError) as context:
             merge_dictionaries(self.A, self.B)
-        self.assertEqual(len(str(context.exception).splitlines()), 85)
+        self.assertEqual(len(str(context.exception).splitlines()), 6)
         self.assertEqual(self.A, load(A_PATH))
 
 
@@ -898,9 +916,9 @@ class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
     def test_namespace_all_real_shifted(self):
         merged, report = merge_ok(self.A, self.B2, namespace_all=True)
         self.assertEqual(report.warnings, [])
-        self.assertCounts(merged, 93, 419, 191)
+        self.assertCounts(merged, 17, 49, 13)
         self.assertTrue(self.all_prefixed(merged, ("DeploymentA.", "DeploymentB.")))
-        self.assertEqual(len(self.prefixed_names(merged)), 93 + 419 + 191)
+        self.assertEqual(len(self.prefixed_names(merged)), 17 + 49 + 13)
         for section in UNIQUE_SECTIONS:
             originals = [e["name"] for e in self.A[section]] + [e["name"] for e in self.B2[section]]
             self.assertEqual([e["name"].split(".", 1)[1] for e in merged[section]], originals, section)
@@ -918,10 +936,10 @@ class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
         # A + B as shipped: shared subtopologies at the same ids merge into one entry under A's prefix; the id
         # clashes of the deployment-local instances are still errors / --prefer-primary drops
         report = merge_fails(self.A, self.B, namespace_all=True)
-        self.assertEqual((len(report.errors), count(report.errors, E3)), (85, 85))
+        self.assertEqual((len(report.errors), count(report.errors, E3)), (6, 6))
         merged, report = merge_ok(self.A, self.B, namespace_all=True, prefer_primary=True)
-        self.assertEqual(count(report.warnings, W4), 85)
-        self.assertCounts(merged, 47, 214, 97)
+        self.assertEqual(count(report.warnings, W4), 6)
+        self.assertCounts(merged, 9, 29, 8)
         self.assertTrue(self.all_prefixed(merged, ("DeploymentA.",)))
         self.assertEqual([e["name"] for s in COUNTED for e in merged[s]],
                          [f"DeploymentA.{e['name']}" for s in COUNTED for e in self.A[s]])
@@ -1021,23 +1039,25 @@ class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
         merged, report = merge_ok(d1, d2, namespace_all=True, prefixes=["Alpha", "Beta"])
         self.assertEqual([(c["name"], c["opcode"]) for c in merged["commands"]], [("Alpha.X", 1), ("Beta.Alpha.X", 2)])
         self.assertEqual(report.warnings, [])
+
     def test_manual_prefixes_for_collisions(self):
         merged, report = merge_ok(self.A, self.B2, prefixes=["Alpha", "Site.Beta"])
-        self.assertEqual(count(report.warnings, W2), 260)
-        self.assertCounts(merged, 93, 419, 191)
+        self.assertEqual(count(report.warnings, W2), 27)
+        self.assertCounts(merged, 17, 49, 13)
         self.assertEqual(self.prefixed_names(merged), [])
         renamed_names = [e["name"] for s in UNIQUE_SECTIONS for e in merged[s]
                          if e["name"].startswith(("Alpha.", "Site.Beta."))]
-        self.assertEqual(len(renamed_names), 520)
+        self.assertEqual(len(renamed_names), 54)
         self.assertIn("Alpha.CdhCore.cmdDisp.CMD_NO_OP", renamed_names)
         self.assertIn("Site.Beta.CdhCore.cmdDisp.CMD_NO_OP", renamed_names)
         self.assertIn("renamed to 'Alpha.CdhCore.cmdDisp.CMD_NO_OP' and 'Site.Beta.CdhCore.cmdDisp.CMD_NO_OP'",
                       report.warnings[0])
         # unique names stay bare; prefixes are only used where needed
-        self.assertIn("FprimeGenericHubReference.DeploymentA.a_cmdSeq.CS_RUN", [c["name"] for c in merged["commands"]])
+        self.assertIn("FprimeGenericHubReference.DeploymentA.a_comp.HubMessageTest",
+                      [c["name"] for c in merged["commands"]])
         # equal manual prefixes: E15
         report = merge_fails(self.A, self.B2, prefixes=["Same", "Same"])
-        self.assertEqual(count(report.errors, "both have the namespace prefix 'Same'"), 260)
+        self.assertEqual(count(report.errors, "both have the namespace prefix 'Same'"), 27)
         # a manual prefix also rescues an input without a usable deploymentName
         ground = load(GROUND_MINIMAL_PATH)
         ground["telemetryChannels"][0]["name"] = self.A["telemetryChannels"][0]["name"]
@@ -1051,23 +1071,23 @@ class TestForcedAndManualNamespacing(DictionaryMergeTestCase):
         code, lines, output = self.run_cli(A_PATH, b2, "--namespace-all", "--prefix", "Alpha", "--prefix", "Beta")
         self.assertEqual((code, lines), (0, []))
         merged = load(output)
-        self.assertCounts(merged, 93, 419, 191)
+        self.assertCounts(merged, 17, 49, 13)
         self.assertTrue(self.all_prefixed(merged, ("Alpha.", "Beta.")))
-        self.assertEqual(sum(e["name"].startswith("Beta.") for s in COUNTED for e in merged[s]), 46 + 205 + 94)
+        self.assertEqual(sum(e["name"].startswith("Beta.") for s in COUNTED for e in merged[s]), 8 + 20 + 5)
         globals_cleanup()
         self.addCleanup(globals_cleanup)
         cmd_ids, cmd_names, _ = CmdJsonLoader(str(output)).construct_dicts(str(output))
-        self.assertEqual(len(cmd_ids), 93)
+        self.assertEqual(len(cmd_ids), 17)
         self.assertIn("Alpha.CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
         self.assertIn("Beta.CdhCore.cmdDisp.CMD_NO_OP", cmd_names)
         ch_ids, ch_names, _ = ChJsonLoader(str(output)).construct_dicts(str(output))
-        self.assertEqual((len(ch_ids), len(ch_names)), (191, 191))
+        self.assertEqual((len(ch_ids), len(ch_names)), (13, 13))
         ev_ids, _, _ = EventJsonLoader(str(output)).construct_dicts(str(output))
-        self.assertEqual(len(ev_ids), 419)
+        self.assertEqual(len(ev_ids), 49)
         # prefixes may appear between dictionaries and pair with them positionally
         code, lines, output = self.run_cli(A_PATH, "--prefix", "Alpha", b2, "--prefix", "Beta")
         self.assertEqual(code, 0)
-        self.assertEqual(count(lines, W2), 260)
+        self.assertEqual(count(lines, W2), 27)
         self.assertIn("Beta.CdhCore.cmdDisp.CMD_NO_OP", [c["name"] for c in load(output)["commands"]])
 
     def test_cli_prefix_usage_errors(self):
