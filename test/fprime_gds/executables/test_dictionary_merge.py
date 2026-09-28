@@ -252,8 +252,10 @@ class TestCollisionRules(unittest.TestCase):
 
     def test_chained_merge_is_warned_not_supported(self):
         merged, _ = merge_ok(A, B2)
-        again, report = merge_ok(merged, B2)
-        self.assertEqual((again["commands"], report.warnings), (merged["commands"], []))
+        # the held literal 'DeploymentB.X' and B2's 'X' share an id: a clash, even though it is the same item
+        self.assertEqual(count(merge_fails(merged, B2), E_ID_CLASH), 3)
+        again, report = merge_ok(merged, B2, prefer_primary=True)
+        self.assertEqual((again["commands"], count(report.warnings, W_DROPPED)), (merged["commands"], 3))
         _, report = merge_ok(merged, deployment("C", 0x40000000))
         self.assertEqual(count(report.warnings, W_CHAINED), 3)
 
@@ -417,6 +419,11 @@ class TestCli(unittest.TestCase):
         self.assertEqual((code, stat.S_IMODE(existing.stat().st_mode)), (0, 0o640))
         self.assertEqual(list(self.tmp.glob("*.tmp")), [])
         self.assertEqual(self.run_cli(self.a, self.b2, output=self.tmp / "nope" / "out.json")[0], 1)
+        link = self.tmp / "link.json"
+        link.symlink_to(existing)
+        self.assertEqual(self.run_cli(self.a, self.b2, output=link)[0], 0)
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(existing.read_text(), link.read_text())
 
     @unittest.skipUnless(Path("/dev/stdout").exists(), "POSIX only")
     def test_stream_outputs_are_written_directly(self):

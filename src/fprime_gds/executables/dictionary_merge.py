@@ -505,22 +505,16 @@ class Merger:
         t = f"{prefix_k}.{n}" if prefix_k is not None else None
         rename_map = self.rename_map
 
-        # 1. identical entry already held: it arrived under the same name (and is held bare or renamed), or it was
-        #    held raw under k's own prefixed name (re-merge of an earlier output with one of its inputs). Matching on
+        # 1. identical entry already held: it arrived under the same name (and is held bare or renamed). Matching on
         #    arrival names keeps 'X' and a literal 'A.X' apart even while 'X' is held as 'A.X'.
         for idx in acc.by_orig.get(n, []):
             held = acc.slots[idx]
             if held.entry == renamed(entry, held.entry["name"]):
                 acc.attach(idx, k, n, rename_map)
                 return
-        if not opts.no_namespace and t is not None and t in acc.by_name:
-            held = acc.slots[acc.by_name[t]]
-            if held.orig_name == t and held.entry == renamed(entry, t):
-                acc.attach(acc.by_name[t], k, n, rename_map)
-                return
 
         # 2. id already held. Only an entry that arrived under the same name is the same item with a differing
-        #    definition; a held literal '<k's prefix>.<n>' is a different item (identical bodies were caught above).
+        #    definition; a held literal '<k's prefix>.<n>' is a different item even with an identical body.
         if id_key and i in acc.by_id:
             h_idx = acc.by_id[i]
             held = acc.slots[h_idx]
@@ -784,12 +778,15 @@ def open_temporary(path: Path):
 def write_output(path: Path, merged):
     """ Write the merged dictionary atomically: temporary file in the output directory, then rename, so a failure never
     leaves a truncated dictionary behind. An existing file keeps its mode; a new one gets the umask default. Non-regular
-    outputs (e.g. /dev/stdout, a FIFO) cannot be renamed over and are written directly. """
+    outputs (e.g. /dev/stdout, a FIFO) cannot be renamed over and are written directly; a symlink is followed so its
+    target is replaced, not the link. """
     text = json.dumps(merged, indent=2)
     if is_stream_output(path):
         with open(path, "w") as output_fh:
             output_fh.write(text)
         return
+    if path.is_symlink():
+        path = Path(os.path.realpath(path))
     mode = stat.S_IMODE(path.stat().st_mode) if path.is_file() else None
     name, temporary = open_temporary(path)
     try:
