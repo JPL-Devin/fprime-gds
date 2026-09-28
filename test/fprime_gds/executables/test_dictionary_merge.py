@@ -329,6 +329,10 @@ class TestMetadataAndStructure(unittest.TestCase):
             d2 = make_dictionary("Ref.Two")
             del d2[section]
             self.assertEqual(count(merge_fails(good, d2), E_MALFORMED), 1, section)
+        null_members = {**make_dictionary("Ref.Two"),
+                        "telemetryPacketSets": [{"name": "Pkts", "members": None, "omitted": None}]}
+        merged, _ = merge_ok(good, null_members)
+        self.assertEqual(merged["telemetryPacketSets"], [{"name": "Pkts", "members": [], "omitted": []}])
 
 
 class TestCli(unittest.TestCase):

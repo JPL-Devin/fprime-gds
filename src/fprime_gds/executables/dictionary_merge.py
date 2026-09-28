@@ -341,18 +341,18 @@ class Merger:
         result = []
         for packet_set in copy.deepcopy(inp.data[PACKET_SECTION]):
             kept = []
-            for packet in packet_set.get("members", []):
-                lost = [member for member in packet.get("members", []) if member in dropped]
+            for packet in packet_set.get("members") or []:
+                lost = [member for member in packet.get("members") or [] if member in dropped]
                 if lost:
                     self.report.warning(f"{PACKET_SECTION}: packet '{packet_set['name']}/{packet.get('name')}' from "
                                         f"'{inp.path}' removed because it references dropped channel '{lost[0]}'")
                     continue
-                packet["members"] = [renames.get(member, member) for member in packet.get("members", [])]
+                packet["members"] = [renames.get(member, member) for member in packet.get("members") or []]
                 kept.append(packet)
             if "members" in packet_set:
                 packet_set["members"] = kept
             if "omitted" in packet_set:
-                packet_set["omitted"] = [renames.get(m, m) for m in packet_set["omitted"] if m not in dropped]
+                packet_set["omitted"] = [renames.get(m, m) for m in packet_set["omitted"] or [] if m not in dropped]
             result.append(packet_set)
         return result
 
