@@ -32,6 +32,7 @@ Exit codes: 0 success (warnings possible), 1 any merge / input / output error, 2
 """
 
 import argparse
+import contextlib
 import copy
 import json
 import os
@@ -769,12 +770,12 @@ def is_stream_output(path: Path):
 
 
 def open_temporary(path: Path):
-    """ Create '<path>.<random>.tmp' next to path with the umask default mode (0666 & ~umask, applied by the kernel);
-    returns (name, descriptor) """
+    """ Create '<path>.<random>.tmp' next to path, exclusively, with the umask default mode (0666 & ~umask, applied
+    by the kernel); returns (name, open text handle) """
     for _ in range(100):
         name = f"{path}.{secrets.token_hex(4)}.tmp"
         try:
-            return name, os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+            return name, open(name, "x")
         except FileExistsError:
             continue
     raise FileExistsError(f"cannot create a temporary file next to '{path}'")
@@ -790,9 +791,9 @@ def write_output(path: Path, merged):
             output_fh.write(text)
         return
     mode = stat.S_IMODE(path.stat().st_mode) if path.is_file() else None
-    name, descriptor = open_temporary(path)
+    name, temporary = open_temporary(path)
     try:
-        with os.fdopen(descriptor, "w") as temporary:
+        with temporary:
             temporary.write(text)
             temporary.flush()
             os.fsync(temporary.fileno())
@@ -800,10 +801,8 @@ def write_output(path: Path, merged):
             os.chmod(name, mode)
         os.replace(name, path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(name)
-        except OSError:
-            pass
         raise
 
 
