@@ -257,7 +257,7 @@ class GdsStandardApp(GdsApp):
         """
         cls = self.__class__.__name__
         module = self.__class__.__module__
-        fragments = [cli.CONFIGURATION, cli.STANDARD_PIPELINE, self.get_cli_parser()]
+        fragments = [cli.CONFIGURATION, cli.STANDARD_PIPELINE, self.get_cli_parser(), *self.get_additional_cli_parsers()]
         if namespace is None:
             namespace, _ = cli.parse_args(fragments, client=True)
         arguments = cli.reproduce_arguments(fragments, namespace)

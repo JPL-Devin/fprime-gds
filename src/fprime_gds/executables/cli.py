@@ -177,8 +177,11 @@ def reproduce_arguments(fragments: Iterable[Fragment], args: argparse.Namespace)
     """Command line reproducing the values of the fragments' optional arguments from a parsed namespace
 
     Used to hand a child process the values this process resolved. Values are passed as `--flag=value` so values
-    beginning with '-' survive; flag arguments are emitted when set; positional arguments are not reproduced.
+    beginning with '-' survive; flag arguments are emitted when set; positional arguments are not reproduced. Items an
+    append/extend option received from the configuration file (`args.config_values`) are left to the child's read of
+    that same file rather than appended a second time.
     """
+    configured = (getattr(args, "config_values", None) or {}).get("command-line-options") or {}
     reproduced = []
     for flags, keywords in all_arguments(fragments).items():
         flag = long_flag(flags)
@@ -186,6 +189,12 @@ def reproduce_arguments(fragments: Iterable[Fragment], args: argparse.Namespace)
         value = getattr(args, destination(flags, keywords), None)
         if not flag.startswith("-") or action in ("help", "version") or value is None:
             continue
+        if action in LIST_ACTIONS and isinstance(value, list) and flag[2:] in configured:
+            prefix = [str(item) for item in ([] if configured[flag[2:]] is None else configured[flag[2:]])]
+            if not isinstance(configured[flag[2:]], list):
+                prefix = [str(configured[flag[2:]])]
+            if [str(item) for item in value[: len(prefix)]] == prefix:
+                value = value[len(prefix):]
         if action in FLAG_ACTIONS:
             if value == keywords.get("const", action == "store_true"):
                 reproduced.append(flag)

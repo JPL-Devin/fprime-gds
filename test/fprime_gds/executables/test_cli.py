@@ -175,6 +175,16 @@ class TestReproduceArguments(unittest.TestCase):
         self.assertEqual(reloaded.gui_port, "6001")
         self.assertEqual(reloaded.config_values["flask"]["KEY"], Path(self.tempdir.name).absolute() / "static/custom.js")
 
+    def test_configured_list_items_are_not_reproduced_twice(self):
+        source = Path(self.tempdir.name) / "fprime-gds.yml"
+        source.write_text("command-line-options:\n  application-arguments: ['-p', '50000']\n")
+        namespace, _ = parse_args(self.fragments, arguments=["--config", str(source), "--no-app", "--application-arguments=-x"])
+        self.assertEqual(namespace.application_arguments, ["-p", "50000", "-x"])
+        reproduced = reproduce_arguments([CONFIGURATION, *self.fragments], namespace)
+        self.assertEqual([item for item in reproduced if item.startswith("--application-arguments")], ["--application-arguments=-x"])
+        reloaded, _ = parse_args(self.fragments, arguments=reproduced)
+        self.assertEqual(reloaded.application_arguments, ["-p", "50000", "-x"])
+
     def test_optional_value_flag_reproduces_bare_or_valued(self):
         namespace, _ = parse_args([cli.COMM_EXTRA], arguments=["--output-unframed-data"])
         self.assertEqual(reproduce_arguments([cli.COMM_EXTRA], namespace), ["--output-unframed-data"])
