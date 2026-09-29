@@ -49,6 +49,18 @@ class TestConfiguredDefaults(unittest.TestCase):
         self.assertEqual(namespace.name, "6000")
         self.assertEqual(namespace.path, Path("some/where"))
 
+    def test_optional_value_takes_const_when_bare(self):
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--output-unframed-data", nargs="?", const="unframed.log", default=None)
+        ConfigDrivenParser.apply_configuration(
+            parser, {"command-line-options": {"output-unframed-data": None}}
+        )
+        self.assertEqual(parser.parse_args([]).output_unframed_data, "unframed.log")
+        ConfigDrivenParser.apply_configuration(
+            parser, {"command-line-options": {"output-unframed-data": "other.log"}}
+        )
+        self.assertEqual(parser.parse_args([]).output_unframed_data, "other.log")
+
     def test_flags_take_none_true_or_false(self):
         self.apply({"flag": None, "inverted": True})
         namespace = self.parser.parse_args(["--needed", "x"])
@@ -154,6 +166,18 @@ class TestResolvedConfiguration(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
         self.composite = CompositeParser([BinaryDeployment, GdsParser, MiddleWareParser])
+
+    def test_tagged_paths_in_other_sections_are_written_as_strings(self):
+        source = Path(self.tempdir.name) / "fprime-gds.yml"
+        source.write_text("flask:\n  JS_CONFIGURATION_FILE: !PATH static/custom.js\ncommand-line-options:\n  gui-port: 6001\n")
+        composite = CompositeParser([GdsParser, MiddleWareParser])
+        namespace, _ = ParserBase.parse_args([composite], arguments=["--config", str(source)])
+        written = composite.write_configuration(namespace, Path(self.tempdir.name) / "resolved.yml")
+        reloaded = yaml.safe_load(written.read_text())
+        self.assertEqual(
+            reloaded["flask"]["JS_CONFIGURATION_FILE"], str(Path(self.tempdir.name).absolute() / "static/custom.js")
+        )
+        self.assertEqual(reloaded["command-line-options"]["gui-port"], namespace.gui_port)
 
     def test_round_trip(self):
         cli = [

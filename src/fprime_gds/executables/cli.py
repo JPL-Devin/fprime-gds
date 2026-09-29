@@ -48,6 +48,17 @@ FLAG_ACTIONS = ("store_true", "store_false", "store_const")
 LIST_ACTIONS = ("append", "extend")
 
 
+def _stringify_paths(value: Any) -> Any:
+    """Recursively replace pathlib.Path values (e.g. from !PATH tags) with strings for YAML serialization"""
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {key: _stringify_paths(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_stringify_paths(item) for item in value]
+    return value
+
+
 def _long_flag(flags: Iterable[str]) -> str:
     """Best flag for an argument: the first --long flag, else the first flag"""
     flags = list(flags)
@@ -158,8 +169,8 @@ class ParserBase(ABC):
         loaded["command-line-options"] = self.resolved_options(args_ns)
         loaded["generated"] = True
         path = Path(path)
-        with open(path, "w") as file_handle:
-            yaml.safe_dump(loaded, file_handle, default_flow_style=False)
+        with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as file_handle:
+            yaml.safe_dump(_stringify_paths(loaded), file_handle, default_flow_style=False)
         return path
 
     def reproduce_cli_args(self, args_ns: argparse.Namespace) -> List[str]:
@@ -352,12 +363,15 @@ class ConfigDrivenParser(ParserBase):
         """Convert a configuration value into a default for an argparse action
 
         Flag actions (nargs == 0) take their constant when the value is None or True, and the opposite when False.
+        Optional-value actions (nargs == "?") take their constant when the value is None, as a bare flag would.
         Other actions apply the action's `type` to scalars, or to each item of a list for multi-valued actions.
         """
         if action.nargs == 0:
             if value is None or value is True:
                 return action.const
             return (not action.const) if isinstance(action.const, bool) else action.default
+        if action.nargs == argparse.OPTIONAL and value is None:
+            return action.const
         convert = action.type if callable(action.type) else (lambda item: item)
 
         def convert_item(item):
