@@ -8,17 +8,8 @@ import sys
 import copy
 import functools
 import webbrowser
-from pathlib import Path
 
-from fprime_gds.executables.cli import (
-    BinaryDeployment,
-    CompositeParser,
-    CommParser,
-    GdsParser,
-    ParserBase,
-    StandardPipelineParser,
-    PluginArgumentParser,
-)
+from fprime_gds.executables import cli
 from fprime_gds.common.communication.adapters.ip import IpAdapter
 from fprime_gds.common.communication.adapters.tcp_fast import TcpFastServerAdapter
 from fprime_gds.executables.utils import AppWrapperException, run_wrapped_application
@@ -40,36 +31,21 @@ def app_connection(parsed_args):
     return None
 
 
-RESOLVED_CONFIGURATION_NAME = "fprime-gds.resolved.yml"
-
-
 def parse_args():
-    """Parse command line arguments
-
-    Parses the command line (and configuration file) for every executable launched here, then writes the fully
-    resolved options to `<logs>/fprime-gds.resolved.yml` and points `args.config` at it: child processes are started
-    with `--config <that file>` so they see exactly the values this process resolved.
+    """Parse the command line (and configuration file) for every executable launched here
 
     :return: parsed argument namespace
     """
-    # Get custom handlers for all executables we are running
-    composite = CompositeParser(
-        [
-            StandardPipelineParser,
-            GdsParser,
-            BinaryDeployment,
-            CommParser,
-            PluginArgumentParser,
-        ]
+    args, _ = cli.parse_args(
+        [cli.STANDARD_PIPELINE, cli.GUI, cli.BINARY, cli.COMM, cli.plugin_arguments()],
+        "Run F prime deployment and GDS",
     )
-    args, _ = ParserBase.parse_args([composite], "Run F prime deployment and GDS")
-    args.config = composite.write_configuration(args, Path(args.logs) / RESOLVED_CONFIGURATION_NAME)
     return args
 
 
-def child_arguments(parsed_args):
-    """Arguments handing a child process this process' resolved configuration"""
-    return ["--config", str(parsed_args.config), "--log-directly"]
+def child_arguments(parsed_args, fragments):
+    """Command line handing a child process the values resolved here for `fragments`, and the configuration file read"""
+    return cli.reproduce_arguments([cli.CONFIGURATION, *fragments], parsed_args)
 
 
 def launch_process(cmd, logfile=None, name=None, env=None, launch_time=5, cwd=None):
@@ -136,7 +112,7 @@ def launch_html(parsed_args):
     flask_env.update(
         {
             "FLASK_APP": "fprime_gds.flask.app",
-            "STANDARD_PIPELINE_ARGUMENTS": "|".join(child_arguments(parsed_args)),
+            "STANDARD_PIPELINE_ARGUMENTS": "|".join(child_arguments(parsed_args, [cli.STANDARD_PIPELINE])),
             "SERVE_LOGS": "YES",
         }
     )
@@ -201,7 +177,10 @@ def launch_comm(parsed_args):
     Return:
         launched process
     """
-    app_cmd = BASE_MODULE_ARGUMENTS + ["fprime_gds.executables.comm"] + child_arguments(parsed_args)
+    # comm only knows the communication and framing plugins, so only their arguments are handed over
+    comm_plugins = cli.plugin_arguments(Plugins(["communication", "framing"]))
+    arguments = child_arguments(parsed_args, [cli.COMM, comm_plugins])
+    app_cmd = BASE_MODULE_ARGUMENTS + ["fprime_gds.executables.comm"] + arguments
     return launch_process(
         app_cmd,
         name=f"comm[{parsed_args.communication_selection}] Application",

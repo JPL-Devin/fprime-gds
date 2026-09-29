@@ -23,7 +23,7 @@ from fprime_gds.common.communication.adapters.base import NoneAdapter
 from fprime_gds.common.communication.adapters.uart import SerialAdapter
 from fprime_gds.common.communication.framing import FramerDeframer, FpFramerDeframer
 from fprime_gds.common.pipeline.standard import StandardPipeline
-from fprime_gds.executables.cli import ParserBase, PluginArgumentParser
+from fprime_gds.executables.cli import parse_args, plugin_arguments
 from fprime_gds.executables.apps import GdsFunction, GdsApp, GdsStandardApp
 from fprime_gds.plugin.definitions import gds_plugin_implementation, gds_plugin
 from fprime_gds.plugin.system import Plugins
@@ -368,9 +368,9 @@ def test_plugin_arguments(plugins):
         "--my-fancy-arg-with-dest",
         a_number,
     ]
-    args, _ = ParserBase.parse_args(
+    args, _ = parse_args(
         [
-            PluginArgumentParser(plugin_system),
+            plugin_arguments(plugin_system),
         ],
         arguments=to_parse,
     )
@@ -396,9 +396,9 @@ def test_plugin_check_arguments(plugins):
         a_number,
     ]
     with pytest.raises(SystemExit):
-        args, _ = ParserBase.parse_args(
+        args, _ = parse_args(
             [
-                PluginArgumentParser(plugins),
+                plugin_arguments(plugins),
             ],
             arguments=to_parse,
         )

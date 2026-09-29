@@ -13,7 +13,7 @@ import fprime_gds.common.gds_cli.test_api_utils as test_api_utils
 from fprime_gds.common.models.dictionaries import Dictionaries
 from fprime_gds.common.testing_fw import predicates
 from fprime_gds.common.testing_fw.api import IntegrationTestAPI
-from fprime_gds.executables.cli import StandardPipelineParser
+from fprime_gds.executables.cli import STANDARD_PIPELINE, handle_arguments, pipeline_factory
 
 
 class BaseCommand(abc.ABC):
@@ -145,8 +145,7 @@ class BaseCommand(abc.ABC):
         api = None
         try:
             # Parsing the arguments
-            pipeline_parser = StandardPipelineParser()
-            pipeline_parser.handle_arguments(args, **kwargs, client=True)
+            handle_arguments([STANDARD_PIPELINE], args, **kwargs, client=True)
 
             # If the user is just listing all possible items, do that and exit
             if hasattr(args, "is_printing_list") and args.is_printing_list:
@@ -161,7 +160,7 @@ class BaseCommand(abc.ABC):
                 return
 
             # Set up StandardPipeline and Integration API
-            pipeline = pipeline_parser.pipeline_factory(args)
+            pipeline = pipeline_factory(args)
             api = IntegrationTestAPI(pipeline)
             api.setup()
 

@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 from fprime_gds.common.testing_fw.api import IntegrationTestAPI
-from fprime_gds.executables.cli import StandardPipelineParser, ConfigDrivenParser
+from fprime_gds.executables import cli
 
 SEQUENCE_COUNTER = itertools.count()
 
@@ -41,13 +41,12 @@ def pytest_addoption(parser):
     Args:
         parser: pytest style parser. Use "addoption" to add an option to it.
     """
-    pipeline_parser = StandardPipelineParser()
-    argparse_parser = pipeline_parser.get_parser()
-    _, config_values = ConfigDrivenParser().load([])
-    ConfigDrivenParser.apply_configuration(argparse_parser, config_values)
+    argparse_parser = cli.build_parser([cli.STANDARD_PIPELINE])
+    _, config_values = cli.load_configuration([])
+    cli.apply_configuration(argparse_parser, config_values)
     configured = {flag: action for action in argparse_parser._actions for flag in action.option_strings}
 
-    for flags, specifiers in pipeline_parser.get_arguments().items():
+    for flags, specifiers in cli.all_arguments([cli.STANDARD_PIPELINE]).items():
         # Reduce flags to only the long option (i.e. --something) form
         flags = [flag for flag in flags if flag.startswith("--")]
         action = configured[flags[0]]
@@ -119,10 +118,9 @@ def fprime_test_api_session(request):
         fprime test API connected to the GDS.  Note: a second call will shut down that object.
     """
     # pytest already parsed the standard pipeline options (with configuration-file values as their defaults, see
-    # pytest_addoption); only the fragment handlers remain to be run, exactly as ParserBase.parse_args would.
-    pipeline_parser = StandardPipelineParser()
+    # pytest_addoption); only the fragment handlers remain to be run, exactly as cli.parse_args would.
     try:
-        arg_ns = pipeline_parser.handle_arguments(request.config.known_args_namespace, client=True)
+        arg_ns = cli.handle_arguments([cli.STANDARD_PIPELINE], request.config.known_args_namespace, client=True)
     except Exception as exc:
         raise pytest.UsageError(str(exc))
 
@@ -145,7 +143,7 @@ def fprime_test_api_session(request):
             arg_ns.connection_transport = YamcsClient
             arg_ns.connection_uri = f"{scheme}://{yamcs_host}"
 
-        pipeline = pipeline_parser.pipeline_factory(arg_ns, pipeline)
+        pipeline = cli.pipeline_factory(arg_ns, pipeline)
 
         # Get deployment configuration from command line arguments
         if request.config.option.deployment_config:

@@ -11,7 +11,7 @@ from fprime_gds.common.utils.config_manager import (
     ConfigBadTypeException,
     ConfigManager,
 )
-from fprime_gds.executables.cli import ParserBase, PluginArgumentParser
+from fprime_gds.executables.cli import parse_args, plugin_arguments
 from fprime_gds.plugin.system import Plugins
 
 FRAME_SIZE = 64
@@ -310,8 +310,8 @@ class TestPlugin:
         TmFrameAggregatorFramerDeframer.check_arguments(frame_size=None, scid=None)
 
     def test_cli_binding(self, constants, plugin_system):
-        ParserBase.parse_args(
-            [PluginArgumentParser(plugin_system)],
+        parse_args(
+            [plugin_arguments(plugin_system)],
             arguments=["--framing-selection", "tm-frame-aggregator", "--frame-size", "0x80", "--scid", "0x55"],
         )
         instance = plugin_system.get_selected_class("framing")()
@@ -320,16 +320,16 @@ class TestPlugin:
 
     def test_cli_rejects_invalid_frame_size(self, constants, plugin_system):
         with pytest.raises(SystemExit):
-            ParserBase.parse_args(
-                [PluginArgumentParser(plugin_system)],
+            parse_args(
+                [plugin_arguments(plugin_system)],
                 arguments=["--framing-selection", "tm-frame-aggregator", "--frame-size", "8"],
             )
 
     def test_cli_without_frame_size_defers_to_constructor(self, constants, plugin_system):
         # The dictionary parser may run after this plugin's check; only construction can fail
         del constants[FRAME_SIZE_CONSTANT]
-        ParserBase.parse_args(
-            [PluginArgumentParser(plugin_system)],
+        parse_args(
+            [plugin_arguments(plugin_system)],
             arguments=["--framing-selection", "tm-frame-aggregator"],
         )
         with pytest.raises(ValueError, match=FRAME_SIZE_CONSTANT):

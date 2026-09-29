@@ -9,15 +9,21 @@ from unittest import mock
 
 import yaml
 
+from fprime_gds.executables import cli
 from fprime_gds.executables.cli import (
-    BinaryDeployment,
-    CompositeParser,
-    ConfigDrivenParser,
-    DictionaryParser,
-    GdsParser,
-    MiddleWareParser,
-    ParserBase,
-    StandardPipelineParser,
+    BINARY,
+    CONFIGURATION,
+    DICTIONARY,
+    GUI,
+    MIDDLEWARE,
+    STANDARD_PIPELINE,
+    Fragment,
+    apply_configuration,
+    flatten,
+    handle_arguments,
+    parse_args,
+    reproduce_arguments,
+    set_default_configuration,
 )
 
 
@@ -36,11 +42,8 @@ class TestConfiguredDefaults(unittest.TestCase):
         self.parser.add_argument("--many", action="extend", nargs="*", type=str, default=None)
         self.parser.add_argument("--needed", type=str, required=True)
 
-    def apply(self, options, generated=False):
-        config = {"command-line-options": options}
-        if generated:
-            config["generated"] = True
-        ConfigDrivenParser.apply_configuration(self.parser, config)
+    def apply(self, options):
+        apply_configuration(self.parser, {"command-line-options": options})
 
     def test_scalars_are_type_converted(self):
         self.apply({"port": "6000", "name": 6000, "path": "some/where"})
@@ -52,11 +55,11 @@ class TestConfiguredDefaults(unittest.TestCase):
     def test_optional_value_takes_const_when_bare(self):
         parser = argparse.ArgumentParser()
         parser.add_argument("--output-unframed-data", nargs="?", const="unframed.log", default=None)
-        ConfigDrivenParser.apply_configuration(
+        apply_configuration(
             parser, {"command-line-options": {"output-unframed-data": None}}
         )
         self.assertEqual(parser.parse_args([]).output_unframed_data, "unframed.log")
-        ConfigDrivenParser.apply_configuration(
+        apply_configuration(
             parser, {"command-line-options": {"output-unframed-data": "other.log"}}
         )
         self.assertEqual(parser.parse_args([]).output_unframed_data, "other.log")
@@ -97,126 +100,86 @@ class TestConfiguredDefaults(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.apply({"gui": "qt"})
 
-    def test_unknown_option_warns_unless_generated(self):
+    def test_unknown_option_warns(self):
         with mock.patch("sys.stderr") as stderr:
             self.apply({"unknown-option": 1})
             self.assertTrue(stderr.write.called)
-        with mock.patch("sys.stderr") as stderr:
-            self.apply({"unknown-option": 1}, generated=True)
-            self.assertFalse(stderr.write.called)
 
 
-class Recording(ParserBase):
+ORDER = []
+
+
+def recording(name: str) -> Fragment:
     """Fragment recording the order handlers run in"""
-
-    ORDER = []
-    DESCRIPTION = "Recording"
-
-    def get_arguments(self):
-        return {(f"--{self.__class__.__name__.lower()}",): {"default": None}}
-
-    def handle_arguments(self, args, **kwargs):
-        self.ORDER.append(self.__class__.__name__)
-        return args
+    return Fragment(name, {(f"--{name.lower()}",): {"default": None}}, lambda args, **kwargs: ORDER.append(name))
 
 
-class First(Recording):
-    pass
+FIRST, SECOND, THIRD = recording("First"), recording("Second"), recording("Third")
 
 
-class Second(Recording):
-    pass
-
-
-class Third(Recording):
-    pass
-
-
-class TestCompositeParser(unittest.TestCase):
-    """Composition preserves declaration order and removes repeated fragments"""
+class TestComposition(unittest.TestCase):
+    """Composition preserves declaration order and uses a repeated fragment once"""
 
     def setUp(self):
-        Recording.ORDER.clear()
+        ORDER.clear()
 
     def test_handlers_run_in_declaration_order(self):
-        inner = CompositeParser([Third, Second])
-        composite = CompositeParser([First, inner, Third])
-        composite.handle_arguments(argparse.Namespace())
-        self.assertEqual(Recording.ORDER, ["First", "Third", "Second"])
+        inner = Fragment("inner", parts=[THIRD, SECOND])
+        handle_arguments([FIRST, inner, THIRD], argparse.Namespace())
+        self.assertEqual(ORDER, ["First", "Third", "Second"])
 
     def test_repeated_fragments_are_kept_once(self):
-        composite = CompositeParser(
-            [StandardPipelineParser, DictionaryParser, CompositeParser([DictionaryParser])]
-        )
-        dictionary_parsers = [
-            item for item in composite.constituents if isinstance(item, DictionaryParser)
-        ]
-        self.assertEqual(len(dictionary_parsers), 1)
+        fragments = flatten([STANDARD_PIPELINE, DICTIONARY, Fragment("again", parts=[DICTIONARY])])
+        self.assertEqual(sum(1 for fragment in fragments if fragment is DICTIONARY), 1)
 
     def test_parse_args_runs_handlers_once_in_order(self):
-        namespace, _ = ParserBase.parse_args([Second, First, Second], arguments=[])
-        self.assertEqual(Recording.ORDER, ["Second", "First"])
+        namespace, _ = parse_args([SECOND, FIRST, SECOND], arguments=[])
+        self.assertEqual(ORDER, ["Second", "First"])
         self.assertIsNone(namespace.first)
 
+    def test_handler_error_exits_with_usage(self):
+        failing = Fragment("failing", {("--fail",): {}}, lambda args, **kwargs: (_ for _ in ()).throw(ValueError("bad")))
+        with mock.patch("sys.stderr") as stderr, self.assertRaises(SystemExit):
+            parse_args([failing], arguments=[])
+        self.assertIn("[ERROR] Failed to parse arguments: bad", "".join(str(c.args[0]) for c in stderr.write.call_args_list))
 
-class TestResolvedConfiguration(unittest.TestCase):
-    """A parsed namespace written with write_configuration reloads to the same values"""
+
+class TestReproduceArguments(unittest.TestCase):
+    """A namespace reproduced as a command line parses back to the same values"""
 
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
-        self.composite = CompositeParser([BinaryDeployment, GdsParser, MiddleWareParser])
-
-    def test_tagged_paths_in_other_sections_are_written_as_strings(self):
-        source = Path(self.tempdir.name) / "fprime-gds.yml"
-        source.write_text("flask:\n  JS_CONFIGURATION_FILE: !PATH static/custom.js\ncommand-line-options:\n  gui-port: 6001\n")
-        composite = CompositeParser([GdsParser, MiddleWareParser])
-        namespace, _ = ParserBase.parse_args([composite], arguments=["--config", str(source)])
-        written = composite.write_configuration(namespace, Path(self.tempdir.name) / "resolved.yml")
-        reloaded = yaml.safe_load(written.read_text())
-        self.assertEqual(
-            reloaded["flask"]["JS_CONFIGURATION_FILE"], str(Path(self.tempdir.name).absolute() / "static/custom.js")
-        )
-        self.assertEqual(reloaded["command-line-options"]["gui-port"], namespace.gui_port)
+        self.fragments = [BINARY, GUI, MIDDLEWARE]
 
     def test_round_trip(self):
-        cli = [
-            "--no-app",
-            "--gui",
-            "none",
-            "--gui-port",
-            "6000",
-            "--zmq-transport",
-            "ipc:///tmp/a",
-            "ipc:///tmp/b",
-            "--application-arguments=-p",
-            "--application-arguments=50000",
+        cli_arguments = [
+            "--no-app", "--gui", "none", "--gui-port", "6000", "--skip-browser-open",
+            "--zmq-transport", "ipc:///tmp/a", "ipc:///tmp/b",
+            "--application-arguments=-p", "--application-arguments=50000",
         ]
-        namespace, _ = ParserBase.parse_args([self.composite], arguments=cli)
-        written = self.composite.write_configuration(
-            namespace, Path(self.tempdir.name) / "resolved.yml"
-        )
-        self.assertTrue(yaml.safe_load(written.read_text())["generated"])
-
-        reloaded, _ = ParserBase.parse_args(
-            [self.composite], arguments=["--config", str(written)]
-        )
-        for key in ("app", "gui", "gui_port", "zmq", "zmq_transport", "application_arguments"):
+        namespace, _ = parse_args(self.fragments, arguments=cli_arguments)
+        reproduced = reproduce_arguments([CONFIGURATION, *self.fragments], namespace)
+        self.assertNotIn("--config", " ".join(reproduced))
+        reloaded, _ = parse_args(self.fragments, arguments=reproduced)
+        for key in ("noapp", "gui", "gui_port", "browser_auto_open", "zmq", "zmq_transport", "application_arguments"):
             self.assertEqual(getattr(reloaded, key), getattr(namespace, key), key)
 
-    def test_reload_with_a_subset_of_fragments_does_not_warn(self):
-        namespace, _ = ParserBase.parse_args(
-            [self.composite], arguments=["--no-app", "--gui", "none"]
-        )
-        written = self.composite.write_configuration(
-            namespace, Path(self.tempdir.name) / "resolved.yml"
-        )
-        with mock.patch("sys.stderr") as stderr:
-            reloaded, _ = ParserBase.parse_args(
-                [MiddleWareParser], arguments=["--config", str(written)]
-            )
-            self.assertFalse(stderr.write.called)
-        self.assertEqual(reloaded.zmq_transport, namespace.zmq_transport)
+    def test_configuration_file_read_is_handed_on(self):
+        source = Path(self.tempdir.name) / "fprime-gds.yml"
+        source.write_text("flask:\n  KEY: !PATH static/custom.js\ncommand-line-options:\n  gui-port: 6001\n  no-app:\n")
+        namespace, _ = parse_args(self.fragments, arguments=["--config", str(source)])
+        reproduced = reproduce_arguments([CONFIGURATION, *self.fragments], namespace)
+        self.assertIn(f"--config={source}", reproduced)
+        reloaded, _ = parse_args([GUI], arguments=reproduced[:1])
+        self.assertEqual(reloaded.gui_port, "6001")
+        self.assertEqual(reloaded.config_values["flask"]["KEY"], Path(self.tempdir.name).absolute() / "static/custom.js")
+
+    def test_optional_value_flag_reproduces_bare_or_valued(self):
+        namespace, _ = parse_args([cli.COMM_EXTRA], arguments=["--output-unframed-data"])
+        self.assertEqual(reproduce_arguments([cli.COMM_EXTRA], namespace), ["--output-unframed-data"])
+        namespace, _ = parse_args([cli.COMM_EXTRA], arguments=["--output-unframed-data", "-"])
+        self.assertEqual(reproduce_arguments([cli.COMM_EXTRA], namespace), ["--output-unframed-data=-"])
 
 
 class TestApplicationArguments(unittest.TestCase):
@@ -226,14 +189,13 @@ class TestApplicationArguments(unittest.TestCase):
         self.tempdir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tempdir.cleanup)
 
-    def parse(self, config, *cli):
+    def parse(self, config, *cli_arguments):
         config_path = Path(self.tempdir.name) / "fprime-gds.yml"
         config_path.write_text(yaml.safe_dump({"command-line-options": config}))
-        namespace, _, remaining = ConfigDrivenParser.parse_known_args(
-            [BinaryDeployment, GdsParser, MiddleWareParser],
-            arguments=["--config", str(config_path), "--no-app", *cli],
+        namespace, _ = parse_args(
+            [BINARY, GUI, MIDDLEWARE], arguments=["--config", str(config_path), "--no-app", *cli_arguments]
         )
-        return namespace, remaining
+        return namespace, []
 
     def test_config_list_with_dash_values(self):
         expected = ["-p", "50000", "-a", "0.0.0.0", "-k", "sdls.key"]
@@ -276,91 +238,80 @@ class TestApplicationArguments(unittest.TestCase):
         self.assertEqual(namespace.application_arguments, ["-p", "50000", "-k"])
 
 
-class TestConfigDrivenParserDefaultConfiguration(unittest.TestCase):
-    """Tests for ConfigDrivenParser's (global) default configuration resolution
-
-    Covers get_default_configuration()/set_default_configuration() precedence (-c/--config >
-    FPRIME_GDS_CONFIG_PATH > built-in default), and that set_default_configuration() does not
-    mutate os.environ (so child processes still see the original variable).
-    """
+class ConfigurationStateTestCase(unittest.TestCase):
+    """Snapshots/restores the module-level default configuration state so tests don't leak into each other"""
 
     def setUp(self):
-        # Snapshot/restore ConfigDrivenParser's class-level state so tests don't leak into each other.
-        self._orig_default_path = ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH
-        self._orig_explicit = ConfigDrivenParser._DEFAULT_CONFIGURATION_EXPLICIT
+        self._orig_default_path = cli._default_configuration
+        self._orig_ignore_env = cli._ignore_configuration_env
 
     def tearDown(self):
-        ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH = self._orig_default_path
-        ConfigDrivenParser._DEFAULT_CONFIGURATION_EXPLICIT = self._orig_explicit
+        cli._default_configuration = self._orig_default_path
+        cli._ignore_configuration_env = self._orig_ignore_env
+
+
+class TestDefaultConfiguration(ConfigurationStateTestCase):
+    """Default configuration resolution: FPRIME_GDS_CONFIG_PATH > built-in default, unless set_default_configuration"""
 
     def test_default_configuration_without_env_var(self):
         with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV, None)
+            os.environ.pop(cli.CONFIGURATION_PATH_ENV, None)
             self.assertEqual(
-                ConfigDrivenParser.get_default_configuration(),
+                cli.default_configuration(),
                 Path("fprime-gds.yml"),
             )
 
     def test_env_var_overrides_built_in_default(self):
         with mock.patch.dict(
             os.environ,
-            {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: "/tmp/custom.yml"},
+            {cli.CONFIGURATION_PATH_ENV: "/tmp/custom.yml"},
         ):
             self.assertEqual(
-                ConfigDrivenParser.get_default_configuration(), Path("/tmp/custom.yml")
+                cli.default_configuration(), Path("/tmp/custom.yml")
             )
 
     def test_empty_env_var_is_treated_as_unset(self):
         # Must not resolve to Path(""), i.e. the current working directory.
         with mock.patch.dict(
-            os.environ, {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: ""}
+            os.environ, {cli.CONFIGURATION_PATH_ENV: ""}
         ):
             self.assertEqual(
-                ConfigDrivenParser.get_default_configuration(),
-                ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH,
+                cli.default_configuration(),
+                cli.DEFAULT_CONFIGURATION_PATH,
             )
 
     def test_set_default_configuration_wins_over_env_var(self):
         with mock.patch.dict(
             os.environ,
-            {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: "/tmp/from-env.yml"},
+            {cli.CONFIGURATION_PATH_ENV: "/tmp/from-env.yml"},
         ):
-            ConfigDrivenParser.set_default_configuration(Path("/tmp/explicit.yml"))
+            set_default_configuration(Path("/tmp/explicit.yml"))
             self.assertEqual(
-                ConfigDrivenParser.get_default_configuration(),
+                cli.default_configuration(),
                 Path("/tmp/explicit.yml"),
             )
             # Must not mutate the environment (child processes still see the original variable).
             self.assertEqual(
-                os.environ[ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV],
+                os.environ[cli.CONFIGURATION_PATH_ENV],
                 "/tmp/from-env.yml",
             )
 
     def test_set_default_configuration_none_ignores_env_var(self):
         with mock.patch.dict(
             os.environ,
-            {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: "/tmp/from-env.yml"},
+            {cli.CONFIGURATION_PATH_ENV: "/tmp/from-env.yml"},
         ):
-            ConfigDrivenParser.set_default_configuration(None)
-            self.assertIsNone(ConfigDrivenParser.get_default_configuration())
+            set_default_configuration(None)
+            self.assertIsNone(cli.default_configuration())
 
 
-class TestConfigDrivenParserHandleArguments(unittest.TestCase):
-    """Tests for ConfigDrivenParser.handle_arguments()'s explicit-configuration detection
+class TestLoadConfiguration(ConfigurationStateTestCase):
+    """The configuration fragment's explicit-configuration detection
 
-    Must use the `arguments` passed to the parser, not sys.argv (callers like the pytest fixture
-    in pytest_integration.py parse an argument list that differs from pytest's own sys.argv), and
-    must agree with get_default_configuration() on whether set_default_configuration() has
+    Must use the arguments given, not sys.argv (callers like the pytest fixture parse an argument list that differs from
+    pytest's own sys.argv), and must agree with default_configuration() on whether set_default_configuration() has
     overridden the environment variable.
     """
-
-    def setUp(self):
-        self._orig_default_path = ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH
-        self._orig_explicit = ConfigDrivenParser._DEFAULT_CONFIGURATION_EXPLICIT
-
-    def tearDown(self):
-        ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH = self._orig_default_path
-        ConfigDrivenParser._DEFAULT_CONFIGURATION_EXPLICIT = self._orig_explicit
 
     def _make_args(self, config_path):
         return argparse.Namespace(
@@ -369,59 +320,51 @@ class TestConfigDrivenParserHandleArguments(unittest.TestCase):
 
     def test_missing_config_not_explicit_is_ignored(self):
         with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV, None)
+            os.environ.pop(cli.CONFIGURATION_PATH_ENV, None)
             args = self._make_args("does-not-exist.yml")
-            result = ConfigDrivenParser().handle_arguments(
-                args, arguments=["--foo", "bar"]
-            )
+            result = handle_arguments([CONFIGURATION], args, arguments=["--foo", "bar"])
             self.assertEqual(result.config_values, {})
 
     def test_missing_config_explicit_via_arguments_raises(self):
         with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV, None)
+            os.environ.pop(cli.CONFIGURATION_PATH_ENV, None)
             args = self._make_args("does-not-exist.yml")
             with self.assertRaises(ValueError):
-                ConfigDrivenParser().handle_arguments(
-                    args, arguments=["--config", "does-not-exist.yml"]
-                )
+                handle_arguments([CONFIGURATION], args, arguments=["--config", "does-not-exist.yml"])
 
     def test_missing_config_explicit_via_env_var_raises(self):
         # Must fail loudly rather than silently falling back to built-in defaults.
         with mock.patch.dict(
             os.environ,
-            {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: "does-not-exist.yml"},
+            {cli.CONFIGURATION_PATH_ENV: "does-not-exist.yml"},
         ):
             args = self._make_args("does-not-exist.yml")
             with self.assertRaises(ValueError):
-                ConfigDrivenParser().handle_arguments(args, arguments=["--foo", "bar"])
+                handle_arguments([CONFIGURATION], args, arguments=["--foo", "bar"])
 
     def test_env_var_ignored_after_set_default_configuration_none(self):
         # A stale env var must not be treated as explicit (args.config is None here, so
         # args.config.exists() would crash).
         with mock.patch.dict(
             os.environ,
-            {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: "/nonexistent.yml"},
+            {cli.CONFIGURATION_PATH_ENV: "/nonexistent.yml"},
         ):
-            ConfigDrivenParser.set_default_configuration(None)
+            set_default_configuration(None)
             args = self._make_args(None)
-            result = ConfigDrivenParser().handle_arguments(
-                args, arguments=["--foo", "bar"]
-            )
+            result = handle_arguments([CONFIGURATION], args, arguments=["--foo", "bar"])
             self.assertEqual(result.config_values, {})
 
     def test_env_var_ignored_after_set_default_configuration_override(self):
         with mock.patch.dict(
             os.environ,
-            {ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV: "/nonexistent-env.yml"},
+            {cli.CONFIGURATION_PATH_ENV: "/nonexistent-env.yml"},
         ):
             with tempfile.TemporaryDirectory() as tmp_dir:
                 override_path = Path(tmp_dir) / "override.yml"
                 override_path.write_text("command-line-options:\n  logs: /tmp/logs\n")
-                ConfigDrivenParser.set_default_configuration(override_path)
+                set_default_configuration(override_path)
                 args = self._make_args(override_path)
-                result = ConfigDrivenParser().handle_arguments(
-                    args, arguments=["--foo", "bar"]
-                )
+                result = handle_arguments([CONFIGURATION], args, arguments=["--foo", "bar"])
         self.assertEqual(
             result.config_values, {"command-line-options": {"logs": "/tmp/logs"}}
         )
@@ -430,12 +373,10 @@ class TestConfigDrivenParserHandleArguments(unittest.TestCase):
         # A driving tool's own sys.argv (e.g. pytest's `-c pytest.ini`) must not be mistaken
         # for an explicit --config to this parser.
         with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV, None)
+            os.environ.pop(cli.CONFIGURATION_PATH_ENV, None)
             args = self._make_args("does-not-exist.yml")
             with mock.patch("sys.argv", ["pytest", "-c", "pytest.ini"]):
-                result = ConfigDrivenParser().handle_arguments(
-                    args, arguments=["--foo", "bar"]
-                )
+                result = handle_arguments([CONFIGURATION], args, arguments=["--foo", "bar"])
             self.assertEqual(result.config_values, {})
 
     def test_existing_config_file_is_loaded(self):
@@ -443,9 +384,7 @@ class TestConfigDrivenParserHandleArguments(unittest.TestCase):
             config_path = Path(tmp_dir) / "config.yml"
             config_path.write_text("command-line-options:\n  logs: /tmp/logs\n")
             args = self._make_args(str(config_path))
-            result = ConfigDrivenParser().handle_arguments(
-                args, arguments=["--config", str(config_path)]
-            )
+            result = handle_arguments([CONFIGURATION], args, arguments=["--config", str(config_path)])
             self.assertEqual(
                 result.config_values, {"command-line-options": {"logs": "/tmp/logs"}}
             )

@@ -13,7 +13,6 @@
 # ALL RIGHTS RESERVED. U.S. Government Sponsorship acknowledged.
 # ===============================================================================
 
-import argparse
 import os
 from pathlib import Path
 import sys
@@ -25,8 +24,7 @@ from fprime_gds.common.data_types.cmd_data import CmdData, CommandArgumentsExcep
 from fprime_gds.common.encoders.seq_writer import SeqBinaryWriter
 from fprime_gds.common.loaders.cmd_json_loader import CmdJsonLoader
 from fprime_gds.common.parsers.lark_seq_parser import LarkSeqFileParser
-from fprime_gds.executables.cli import DictionaryParser, ParserBase
-from typing import Any, Dict, Tuple
+from fprime_gds.executables.cli import DICTIONARY, Fragment, parse_args
 
 __author__ = "Tim Canham"
 __version__ = "1.0"
@@ -125,30 +123,18 @@ def generateSequence(inputFile, outputFile, dictionary, timebase, cont=False):
 help_text = "seqgen.py -d"
 
 
-class SeqGenParser(ParserBase):
-    """Parser for deployments"""
-
-    DESCRIPTION = "Seqgen options"
-
-    def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
-        """Arguments to handle deployments"""
-        return {
-            ("sequence",): {"help": "Path to input sequence file"},
-            ("output",): {
-                "nargs": "?",
-                "help": "Path to output binary file",
-                "default": None,
-            },
-            ("-t", "--timebase"): {
-                "dest": "timebase",
-                "help": "Set base path to generated command/telemetry definition files [default: any]",
-                "default": None,
-            },
-        }
-
-    def handle_arguments(self, args, **kwargs):
-        """Handle arguments as parsed"""
-        return args
+SEQGEN = Fragment(
+    "Seqgen options",
+    {
+        ("sequence",): {"help": "Path to input sequence file"},
+        ("output",): {"nargs": "?", "help": "Path to output binary file", "default": None},
+        ("-t", "--timebase"): {
+            "dest": "timebase",
+            "help": "Set base path to generated command/telemetry definition files [default: any]",
+            "default": None,
+        },
+    },
+)
 
 
 def main():
@@ -158,8 +144,8 @@ def main():
     """
 
     # Parse and handle arguments, including SeqGen options and loading the dictionary into config
-    args, _ = ParserBase.parse_args(
-        [DictionaryParser, SeqGenParser],
+    args, _ = parse_args(
+        [DICTIONARY, SEQGEN],
         description="F prime SeqGen layer.",
         client=True,
     )

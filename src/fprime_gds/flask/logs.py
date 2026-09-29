@@ -46,7 +46,7 @@ class LogFile(flask_restful.Resource):
         name = name.replace(os.path.sep, "_")
         # normpath() + startswith() to ensure the file is strictly within logdir
         full_path = os.path.normpath(os.path.join(self.logdir, name))
-        if not full_path.startswith(self.logdir) or not name.endswith(".log"):
+        if not full_path.startswith(self.logdir):
             return ""
         if not os.path.exists(full_path):
             return ""

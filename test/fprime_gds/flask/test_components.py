@@ -1,6 +1,6 @@
 import unittest
 
-from fprime_gds.executables.cli import HistoryParser, ParserBase
+from fprime_gds.executables.cli import HISTORY, parse_args
 from fprime_gds.flask.components import (
     FlaskEndpointRamHistory,
     NonClearingHistory,
@@ -12,12 +12,12 @@ class TestHistoryParser(unittest.TestCase):
     """--no-clear-history defaults to off and round-trips through the parser"""
 
     def test_default_is_clearing(self):
-        args_ns, _parser = ParserBase.parse_args([HistoryParser], "test", [])
+        args_ns, _parser = parse_args([HISTORY], "test", [])
         self.assertFalse(args_ns.no_clear_history)
 
     def test_flag_enables_non_clearing(self):
-        args_ns, _parser = ParserBase.parse_args(
-            [HistoryParser], "test", ["--no-clear-history"]
+        args_ns, _parser = parse_args(
+            [HISTORY], "test", ["--no-clear-history"]
         )
         self.assertTrue(args_ns.no_clear_history)
 
@@ -32,12 +32,12 @@ class TestSelectHistoryImplementation(unittest.TestCase):
     """
 
     def test_flag_off_selects_clearing_history(self):
-        args_ns, _parser = ParserBase.parse_args([HistoryParser], "test", [])
+        args_ns, _parser = parse_args([HISTORY], "test", [])
         self.assertIs(select_history_implementation(args_ns), FlaskEndpointRamHistory)
 
     def test_flag_on_selects_non_clearing_history(self):
-        args_ns, _parser = ParserBase.parse_args(
-            [HistoryParser], "test", ["--no-clear-history"]
+        args_ns, _parser = parse_args(
+            [HISTORY], "test", ["--no-clear-history"]
         )
         self.assertIs(select_history_implementation(args_ns), NonClearingHistory)
 

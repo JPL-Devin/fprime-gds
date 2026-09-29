@@ -23,9 +23,10 @@ import importlib.metadata
 # import fprime_gds.common.gds_cli.events as events
 # from fprime_gds.common.pipeline.dictionaries import Dictionaries
 from fprime_gds.executables.cli import (
-    RetrievalArgumentsParser,
-    SearchArgumentsParser,
-    StandardPipelineParser,
+    STANDARD_PIPELINE,
+    all_arguments,
+    retrieval_arguments,
+    search_arguments,
 )
 
 
@@ -35,7 +36,7 @@ def add_connection_arguments(parser: argparse.ArgumentParser):
     want to specify
     """
 
-    pipeline_parser_args = StandardPipelineParser().get_arguments()
+    pipeline_parser_args = all_arguments([STANDARD_PIPELINE])
     pipeline_parser = parser.add_argument_group("GDS Options")
 
     for arg, kwargs in pipeline_parser_args.items():
@@ -52,7 +53,7 @@ def add_retrieval_arguments(
     if exclude is None:
         exclude = []
 
-    retrieval_parser_args = RetrievalArgumentsParser(command_name).get_arguments()
+    retrieval_parser_args = retrieval_arguments(command_name).arguments
     retrieval_parser = parser.add_argument_group("Retrieval Options")
 
     for arg, kwargs in retrieval_parser_args.items():
@@ -67,7 +68,7 @@ def add_search_arguments(parser: argparse.ArgumentParser, command_name: str):
     the help text, due to the similarity of each of these commands
     """
 
-    search_parser_args = SearchArgumentsParser(command_name).get_arguments()
+    search_parser_args = search_arguments(command_name).arguments
     search_parser = parser.add_argument_group("Search/Filtering Options")
 
     for arg, kwargs in search_parser_args.items():

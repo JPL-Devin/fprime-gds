@@ -18,7 +18,7 @@ from unittest import mock
 from _pytest.config.argparsing import Parser
 
 from fprime_gds.common.testing_fw.pytest_integration import pytest_addoption
-from fprime_gds.executables.cli import ConfigDrivenParser, StandardPipelineParser
+from fprime_gds.executables import cli
 
 UNIT_TEST_DICTIONARY = str(Path(__file__).parent / "UnitTestDictionary.xml")
 
@@ -30,7 +30,7 @@ def _parse_pytest_args(args, config_text=None):
         environment = {}
         if config_text is not None:
             config_path.write_text(config_text)
-            environment[ConfigDrivenParser.DEFAULT_CONFIGURATION_PATH_ENV] = str(config_path)
+            environment[cli.CONFIGURATION_PATH_ENV] = str(config_path)
         with mock.patch.dict(os.environ, environment):
             parser = Parser(_ispytest=True)
             pytest_addoption(parser)
@@ -58,7 +58,7 @@ class TestPytestIntegrationConfigPrecedence(unittest.TestCase):
         """Without a configuration file the pytest options carry the standard defaults"""
         real_default = next(
             specifiers["default"]
-            for flags, specifiers in StandardPipelineParser().get_arguments().items()
+            for flags, specifiers in cli.all_arguments([cli.STANDARD_PIPELINE]).items()
             if "--tts-port" in flags
         )
         namespace = _parse_pytest_args([])

@@ -21,7 +21,7 @@ from fprime_gds.common.communication.adapters.tcp_fast import (
     TcpFastClientAdapter,
     TcpFastServerAdapter,
 )
-from fprime_gds.executables.cli import ParserBase, PluginArgumentParser
+from fprime_gds.executables.cli import parse_args, plugin_arguments
 from fprime_gds.plugin.system import Plugins
 
 TIMEOUT = 0.050
@@ -1140,8 +1140,8 @@ class TestPlugin:
 
     def test_cli_binding_server(self, plugin_system):
         port = free_port()
-        ParserBase.parse_args(
-            [PluginArgumentParser(plugin_system)],
+        parse_args(
+            [plugin_arguments(plugin_system)],
             arguments=["--communication-selection", "tcp-fast-server", "--tcp-fast-address", "127.0.0.1", "--tcp-fast-port", str(port)],
         )
         instance = plugin_system.get_selected_class("communication")()
@@ -1149,8 +1149,8 @@ class TestPlugin:
         assert (instance.address, instance.port) == ("127.0.0.1", port)
 
     def test_cli_binding_client_default_address(self, plugin_system):
-        ParserBase.parse_args(
-            [PluginArgumentParser(plugin_system)],
+        parse_args(
+            [plugin_arguments(plugin_system)],
             arguments=["--communication-selection", "tcp-fast-client", "--tcp-fast-port", "50001"],
         )
         instance = plugin_system.get_selected_class("communication")()
@@ -1162,8 +1162,8 @@ class TestPlugin:
             busy.bind(("127.0.0.1", 0))
             busy.listen(1)
             with pytest.raises(SystemExit) as exit_info:
-                ParserBase.parse_args(
-                    [PluginArgumentParser(plugin_system)],
+                parse_args(
+                    [plugin_arguments(plugin_system)],
                     arguments=[
                         "--communication-selection",
                         "tcp-fast-server",

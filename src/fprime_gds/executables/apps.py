@@ -14,21 +14,12 @@ command line that will be spun into its own process.
 import subprocess
 import sys
 from abc import ABC, abstractmethod
-from pathlib import Path
 import argparse
 from typing import final, List, Dict, Tuple, Type, Optional
 
 from fprime_gds.plugin.definitions import gds_plugin_specification, gds_plugin
 from fprime_gds.plugin.system import Plugins
-from fprime_gds.executables.cli import (
-    CompositeParser,
-    ParserBase,
-    BareArgumentParser,
-    MiddleWareParser,
-    DictionaryParser,
-    StandardPipelineParser,
-    PluginArgumentParser,
-)
+from fprime_gds.executables import cli
 from fprime_gds.common.pipeline.standard import StandardPipeline
 from fprime_gds.common.pipeline.publishing import PublishingPipeline
 
@@ -207,14 +198,15 @@ class GdsStandardApp(GdsApp):
         return {}
     
     @classmethod
-    def get_additional_cli_parsers(cls) -> List[ParserBase]:
-        """ Supply a list of CLI parser objects
-        
-        Supply a list of CLI parser objects to the CLI system. This allows use of full ParserBase objects instead of
-        the more restrictive dictionary approach seen in get_additional_arguments.
+    def get_additional_cli_parsers(cls) -> List[cli.Fragment]:
+        """ Supply a list of command line fragments
+
+        Supply fprime_gds.executables.cli fragments (e.g. cli.MIDDLEWARE) to the command line of this application. This
+        allows use of fragments with handlers instead of the more restrictive dictionary approach seen in
+        get_additional_arguments.
 
         Returns:
-            list of parser objects as passed to ParserBase
+            list of fragments as passed to cli.parse_args
         """
         return []
 
@@ -233,15 +225,20 @@ class GdsStandardApp(GdsApp):
         """
         return {
             **cls.get_additional_arguments(),
-            **StandardPipelineParser().get_arguments(),
+            **cli.all_arguments([cli.STANDARD_PIPELINE]),
         }
 
     @classmethod
-    def get_cli_parser(cls):
-        """Helper to get a parser for this applications' additional arguments"""
-        return BareArgumentParser(
-            cls.get_additional_arguments(), getattr(cls, "check_arguments", None)
-        )
+    def get_cli_parser(cls) -> cli.Fragment:
+        """Fragment of this application's additional arguments, checked by `check_arguments` when defined"""
+        additional = cls.get_additional_arguments()
+        check = getattr(cls, "check_arguments", None)
+
+        def handle(args, **kwargs):
+            if check is not None:
+                check(**cli.extract_arguments(additional, args))
+
+        return cli.Fragment(f"{cls.__name__} options", additional, handle)
 
     @abstractmethod
     def start(self, pipeline: StandardPipeline):
@@ -251,31 +248,20 @@ class GdsStandardApp(GdsApp):
     def get_process_invocation(self, namespace=None):
         """Return the process invocation for this class' main
 
-        The child process runs cls.main with `--config namespace.config`, the fully-resolved configuration file the
-        launching `fprime-gds` wrote (see run_deployment.parse_args), plus the log directory chosen for this plugin.
-        main dispatches to the sub-classing plugin's start method with the plugin's arguments bound by the plugin
-        parser. When no namespace is supplied the command line is parsed here and a resolved configuration written.
+        The child process runs cls.main with the standard pipeline and additional arguments reproduced from `namespace`
+        (parsed here when not supplied) plus the configuration file read. main dispatches to the sub-classing plugin's
+        start method with the plugin's arguments bound by the plugin parser.
 
         Returns:
             list of arguments to pass to subprocess
         """
         cls = self.__class__.__name__
         module = self.__class__.__module__
-
+        fragments = [cli.CONFIGURATION, cli.STANDARD_PIPELINE, self.get_cli_parser()]
         if namespace is None:
-            composite_parser = CompositeParser([StandardPipelineParser, self.get_cli_parser()])
-            namespace, _, _ = ParserBase.parse_known_args([composite_parser], client=True)
-            namespace.config = composite_parser.write_configuration(namespace, Path(namespace.logs) / f"{cls}.yml")
-        return [
-            sys.executable,
-            "-c",
-            f"import {module}\n{module}.{cls}.main()",
-            "--config",
-            str(namespace.config),
-            "--logs",
-            str(namespace.logs),
-            "--log-directly",
-        ]
+            namespace, _ = cli.parse_args(fragments, client=True)
+        arguments = cli.reproduce_arguments(fragments, namespace)
+        return [sys.executable, "-c", f"import {module}\n{module}.{cls}.main()"] + arguments
 
     @classmethod
     def main(cls):
@@ -291,11 +277,9 @@ class GdsStandardApp(GdsApp):
             except AssertionError:
                 pass
             plugin_name = getattr(cls, "get_name", lambda: cls.__name__)()
-            plugin_composite = CompositeParser([cls.get_cli_parser()] + cls.get_additional_cli_parsers())
-
-            parsed_arguments, _ = ParserBase.parse_args(
-                # StandardPipelineParser first as it loads the FSW dictionary into global config
-                [ StandardPipelineParser, PluginArgumentParser, plugin_composite],
+            parsed_arguments, _ = cli.parse_args(
+                # STANDARD_PIPELINE first as it loads the FSW dictionary into global config
+                [cli.STANDARD_PIPELINE, cli.plugin_arguments(), cls.get_cli_parser(), *cls.get_additional_cli_parsers()],
                 f"{plugin_name}: a standard app plugin",
                 client=True,
             )
@@ -304,13 +288,10 @@ class GdsStandardApp(GdsApp):
             pipeline.histories.implementation = None
             pipeline.filing = None
             parsed_arguments.disable_data_logging = True 
-            pipeline = StandardPipelineParser.pipeline_factory(
-                parsed_arguments, pipeline
-            )
+            pipeline = cli.pipeline_factory(parsed_arguments, pipeline)
             application = cls(
-                **cls.get_cli_parser().extract_arguments(parsed_arguments),
-                namespace=parsed_arguments, 
-
+                **cli.extract_arguments(cls.get_additional_arguments(), parsed_arguments),
+                namespace=parsed_arguments,
             )
             application.start(pipeline)
             sys.exit(0)
@@ -328,7 +309,6 @@ class CustomDataHandlers(GdsStandardApp):
     A GdsApp plugin, built using the GdsStandardApp helper, that uses the provided standard pipeline to register each
     custom DataHandler plugin as a consumer of the appropriate type.
     """
-    PLUGIN_PARSER = CompositeParser([DictionaryParser, MiddleWareParser])
 
     def __init__(self, namespace, **kwargs):
         """Required __init__ implementation"""
@@ -344,8 +324,8 @@ class CustomDataHandlers(GdsStandardApp):
 
     @classmethod
     def get_additional_cli_parsers(cls):
-        """ Requires MiddleWareParser and Dictionary Parser"""
-        return [cls.PLUGIN_PARSER]
+        """ Requires the dictionary and middleware fragments"""
+        return [cli.DICTIONARY, cli.MIDDLEWARE]
 
 
     @classmethod

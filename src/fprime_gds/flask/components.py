@@ -8,7 +8,7 @@ import os
 
 from fprime_gds.common.history.ram import SelfCleaningRamHistory
 from fprime_gds.common.pipeline.standard import StandardPipeline
-from fprime_gds.executables.cli import StandardPipelineParser
+from fprime_gds.executables.cli import pipeline_factory
 
 # Module variables, should remain hidden. These are singleton top-level objects used by Flask, and its various
 # blueprints needed to run the system.
@@ -131,7 +131,7 @@ def setup_pipelined_components(debug: bool, pipeline_arguments):
     ):
         pipeline = StandardPipeline()
         pipeline.histories.implementation = select_history_implementation(pipeline_arguments)
-        pipeline = StandardPipelineParser.pipeline_factory(pipeline_arguments, pipeline)
+        pipeline = pipeline_factory(pipeline_arguments, pipeline)
         __PIPELINE = pipeline
     assert __PIPELINE is not None, "Main thread did not setup pipeline appropriately"
     return __PIPELINE

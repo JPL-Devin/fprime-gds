@@ -50,13 +50,8 @@ def main():
     """
     # comm.py supports 2 and only 2 plugin categories
     Plugins.system(["communication", "framing"])
-    args, _ = fprime_gds.executables.cli.ParserBase.parse_args(
-        [
-            # CommParser must be first as it includes dictionary/config
-            # loading which feeds into instantiation of the Framers
-            fprime_gds.executables.cli.CommParser,
-            fprime_gds.executables.cli.PluginArgumentParser,
-        ],
+    args, _ = fprime_gds.executables.cli.parse_args(
+        [fprime_gds.executables.cli.COMM, fprime_gds.executables.cli.plugin_arguments()],
         description="F prime communications layer.",
         client=True,
     )
