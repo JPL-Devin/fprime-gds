@@ -14,6 +14,7 @@ command line that will be spun into its own process.
 import subprocess
 import sys
 from abc import ABC, abstractmethod
+from pathlib import Path
 import argparse
 from typing import final, List, Dict, Tuple, Type, Optional
 
@@ -250,10 +251,10 @@ class GdsStandardApp(GdsApp):
     def get_process_invocation(self, namespace=None):
         """Return the process invocation for this class' main
 
-        The process invocation of this application is to run cls.main and supply it a reproduced version of the
-        arguments needed for the given parsers.  When main is loaded, it will dispatch to the sub-classing plugin's
-        start method. The subclassing plugin will already have had the arguments supplied via the PluginParser's
-        construction of plugin objects.
+        The child process runs cls.main with `--config namespace.config`, the fully-resolved configuration file the
+        launching `fprime-gds` wrote (see run_deployment.parse_args), plus the log directory chosen for this plugin.
+        main dispatches to the sub-classing plugin's start method with the plugin's arguments bound by the plugin
+        parser. When no namespace is supplied the command line is parsed here and a resolved configuration written.
 
         Returns:
             list of arguments to pass to subprocess
@@ -261,13 +262,20 @@ class GdsStandardApp(GdsApp):
         cls = self.__class__.__name__
         module = self.__class__.__module__
 
-        composite_parser = CompositeParser(
-            [self.get_cli_parser(), StandardPipelineParser]
-        )
         if namespace is None:
+            composite_parser = CompositeParser([StandardPipelineParser, self.get_cli_parser()])
             namespace, _, _ = ParserBase.parse_known_args([composite_parser], client=True)
-        args = composite_parser.reproduce_cli_args(namespace)
-        return [sys.executable, "-c", f"import {module}\n{module}.{cls}.main()"] + args
+            namespace.config = composite_parser.write_configuration(namespace, Path(namespace.logs) / f"{cls}.yml")
+        return [
+            sys.executable,
+            "-c",
+            f"import {module}\n{module}.{cls}.main()",
+            "--config",
+            str(namespace.config),
+            "--logs",
+            str(namespace.logs),
+            "--log-directly",
+        ]
 
     @classmethod
     def main(cls):

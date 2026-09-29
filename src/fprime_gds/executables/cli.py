@@ -1,9 +1,12 @@
 """
 cli.py:
 
-This file sets up the command line interface and argument parsing that is done to support the F prime executable tools
-layer. It is designed to allow users to import standard sets of arguments that applied to the various aspects of the
-code that they are importing.
+Command line handling for the F prime GDS tools. Tools assemble their command line from small, reusable argument
+fragments (subclasses of `ParserBase`), each of which declares its arguments as data and optionally post-processes the
+parsed values. `ParserBase.parse_args` composes those fragments into a single `argparse` parser, layers in values from
+the fprime-gds configuration file, and runs the fragments' post-processing in declaration order.
+
+Precedence of an option's value is: command line > configuration file > declared default.
 
 @author mstarch
 """
@@ -13,7 +16,6 @@ import datetime
 import errno
 import functools
 import getpass
-import itertools
 import os
 import platform
 import re
@@ -24,7 +26,7 @@ import yaml
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # Required to set the checksum as a module variable
 import fprime_gds.common.logger
@@ -40,13 +42,29 @@ from fprime_gds.common.zmq_transport import ZmqClient
 
 GUIS = ["none", "html"]
 
+ArgumentSpecification = Dict[Tuple[str, ...], Dict[str, Any]]
+
+FLAG_ACTIONS = ("store_true", "store_false", "store_const")
+LIST_ACTIONS = ("append", "extend")
+
+
+def _long_flag(flags: Iterable[str]) -> str:
+    """Best flag for an argument: the first --long flag, else the first flag"""
+    flags = list(flags)
+    return ([flag for flag in flags if flag.startswith("--")] + flags)[0]
+
+
+def _destination(flags: Iterable[str], argparse_inputs: Dict[str, Any]) -> str:
+    """Namespace member an argument specification is stored into (mirrors argparse's dest derivation)"""
+    return argparse_inputs.get("dest", re.sub(r"^-+", "", _long_flag(flags)).replace("-", "_"))
+
 
 class ParserBase(ABC):
-    """Base parser for handling fprime command lines
+    """Base of all command line fragments
 
-    Parsers must define several functions. They must define "get_parser", which will produce a parser to parse the
-    arguments, and an optional "handle_arguments" function to do any necessary processing of the arguments. Note: when
-    handling arguments.
+    A fragment declares its arguments through `get_arguments` and may post-process the parsed namespace through
+    `handle_arguments`. Fragments are composed by `ParserBase.parse_args` (or a `CompositeParser`); post-processing runs
+    in the order fragments are listed, so list producers (e.g. `DictionaryParser`) before consumers.
     """
 
     DESCRIPTION: Optional[str] = None
@@ -54,33 +72,26 @@ class ParserBase(ABC):
     @property
     def description(self) -> str:
         """Return parser description"""
-        return (
-            self.DESCRIPTION
-            if self.DESCRIPTION is not None
-            else "Unknown command line parser"
-        )
+        return self.DESCRIPTION if self.DESCRIPTION is not None else "Unknown command line parser"
 
     @abstractmethod
-    def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
-        """Return argument list handled by this parser
-
-        Produce the arguments that can be processed by multiple parsers. i.e. argparse, and pytest parsers are the
-        intended consumers. Returns a tuple of dictionary of flag tuples (--flag, -f) to keyword arguments to pass to
-        argparse and list of arguments calculated by the parser (generated).
+    def get_arguments(self) -> ArgumentSpecification:
+        """Return the arguments declared by this fragment
 
         Returns:
-            tuple of dictionary of flag tuple to keyword arguments, list of generated fields
+            dictionary of flag tuples (e.g. ("-d", "--deployment")) to keyword arguments for `argparse.add_argument`
         """
+
+    def handle_arguments(self, args: argparse.Namespace, **kwargs) -> argparse.Namespace:
+        """Post-process the parsed namespace, returning it
+
+        Override to validate or derive values. Raise ValueError to report a usage error. `kwargs` carry tool-wide
+        flags, e.g. `client=True` when the tool connects to a running GDS rather than hosting it.
+        """
+        return args
 
     def get_parser(self) -> argparse.ArgumentParser:
-        """Return an argument parser to parse arguments here-in
-
-        Produce a parser that will handle the given arguments. These parsers can be combined for a CLI for a tool by
-        assembling them as parent processors to a parser for the given tool.
-
-        Return:
-            argparse parser for supplied arguments
-        """
+        """Return a stand-alone argparse parser for this fragment's arguments"""
         parser = argparse.ArgumentParser(
             description=self.description,
             add_help=True,
@@ -91,117 +102,93 @@ class ParserBase(ABC):
 
     @staticmethod
     def safe_add_argument(parser, *flags, **keywords):
-        """Add an argument allowing duplicates
+        """Add an argument, ignoring the argparse error raised when the flag already exists
 
-        Add arguments to the parser (passes through *flags and **keywords) to the supplied parser. This method traps
-        errors to prevent duplicates from crashing the system when two plugins use the same flags.
-
-        Args:
-            parser: parser or argument group to add arguments to
-            *flags: positional arguments passed to `add_argument`
-            **keywords: key word arguments passed to `add_argument`
+        Used when merging fragments and plugins so that two contributors declaring the same flag do not crash the tool.
         """
         try:
             parser.add_argument(*flags, **keywords)
         except argparse.ArgumentError:
-            # flag has already been added, pass
             pass
 
     @classmethod
-    def add_arguments_from_specification(cls, parser, arguments):
-        """Safely add arguments to parser
-
-        In parsers and plugins, arguments are represented as a map of flag tuples to argparse keyword arguments. This
-        function will add arguments of that representation supplied as `arguments` to the supplied parser in a safe
-        collision-avoidant manner.
-
-        Args:
-            parser: argparse Parser or ArgumentGroup, or anything with an `add_argument` function
-            arguments: arguments specification
-
-        """
+    def add_arguments_from_specification(cls, parser, arguments: ArgumentSpecification):
+        """Add every argument of a specification to parser (or argument group), tolerating duplicates"""
         for flags, keywords in arguments.items():
             cls.safe_add_argument(parser, *flags, **keywords)
 
     def fill_parser(self, parser):
-        """Fill supplied parser with arguments
+        """Add this fragment's arguments to an argparse parser, as an argument group titled with the description"""
+        group = parser.add_argument_group(title=self.description)
+        self.add_arguments_from_specification(group, self.get_arguments())
 
-        Fills the supplied parser with the arguments returned via the `get_arguments` method invocation. This
-        implementation adds the arguments directly to the parser.
+    def resolved_options(self, args_ns: argparse.Namespace) -> Dict[str, Any]:
+        """Values of this fragment's arguments as configuration-file options
 
-        Args:
-            parser: parser to fill with arguments
-
+        Returns a dictionary keyed by long flag name without the leading dashes (the form used under
+        `command-line-options` in a configuration file) whose values reload to the same namespace values. Flag
+        arguments (store_true/store_false/store_const) become booleans, None values are omitted, and paths become
+        strings. Feed the result to `write_configuration` to hand a fully-resolved command line to a child process.
         """
-        self.add_arguments_from_specification(parser, self.get_arguments())
-
-    def reproduce_cli_args(self, args_ns):
-        """Reproduce the list of arguments needed on the command line"""
-
-        def flag_member(flags, argparse_inputs) -> Tuple[str, str]:
-            """Get the best CLI flag and namespace member"""
-            best_flag = (
-                [flag for flag in flags if flag.startswith("--")] + list(flags)
-            )[0]
-            member = argparse_inputs.get(
-                "dest", re.sub(r"^-+", "", best_flag).replace("-", "_")
-            )
-            return best_flag, member
-
-        def cli_arguments(flags, argparse_inputs) -> List[str]:
-            """Get CLI argument list fro argument entry"""
-            best_flag, member = flag_member(flags, argparse_inputs)
-            value = getattr(args_ns, member, None)
-
+        options = {}
+        for flags, argparse_inputs in self.get_arguments().items():
             action = argparse_inputs.get("action", "store")
-            assert action in [
-                "store",
-                "store_true",
-                "store_false",
-            ], f"{action} not supported by reproduce_cli_args"
+            if action in ("help", "version"):
+                continue
+            value = getattr(args_ns, _destination(flags, argparse_inputs), None)
+            if value is None:
+                continue
+            if action in FLAG_ACTIONS:
+                value = value == argparse_inputs.get("const", action == "store_true")
+            elif isinstance(value, (list, tuple)):
+                value = [str(item) if isinstance(item, Path) else item for item in value]
+            elif isinstance(value, Path):
+                value = str(value)
+            options[_long_flag(flags).lstrip("-")] = value
+        return options
 
-            # Handle arguments
-            if (action == "store_true" and value) or (
-                action == "store_false" and not value
-            ):
-                return [best_flag]
-            elif action != "store" or value is None:
-                return []
-            return [best_flag] + (
-                [str(item) for item in value]
-                if isinstance(value, list)
-                else [str(value)]
-            )
+    def write_configuration(self, args_ns: argparse.Namespace, path: Path) -> Path:
+        """Write a configuration file reproducing the values of this fragment's arguments
 
-        cli_pairs = [
-            cli_arguments(flags, argparse_ins)
-            for flags, argparse_ins in self.get_arguments().items()
-        ]
-        return list(itertools.chain.from_iterable(cli_pairs))
-
-    def handle_values(self, values: Dict[str, Any]):
-        """Post-process the parser's arguments in dictionary form
-
-        Handle arguments from the given parser in dictionary form. This will convert to/from the namespace and then
-        delegate to handle_arguments.
-
-        Args:
-            args: arguments namespace of processed arguments
-        Returns: dictionary with processed results of arguments.
+        The file is a complete fprime-gds configuration: any non-argument sections of the configuration the tool
+        itself loaded (e.g. `flask:`) are carried over, and `command-line-options` holds `resolved_options`. It is
+        marked `generated: true` so tools reading it do not warn about options they do not support.
         """
-        return vars(self.handle_arguments(args=argparse.Namespace(**values), kwargs={}))
+        loaded = dict(getattr(args_ns, "config_values", None) or {})
+        loaded["command-line-options"] = self.resolved_options(args_ns)
+        loaded["generated"] = True
+        path = Path(path)
+        with open(path, "w") as file_handle:
+            yaml.safe_dump(loaded, file_handle, default_flow_style=False)
+        return path
 
-    @abstractmethod
-    def handle_arguments(self, args, **kwargs):
-        """Post-process the parser's arguments
+    def reproduce_cli_args(self, args_ns: argparse.Namespace) -> List[str]:
+        """Reproduce a command line from a namespace for this fragment's arguments
 
-        Handle arguments from the given parser. The expectation is that the "args" namespace is taken in, processed, and
-        a new namespace object is returned with the processed variants of the arguments.
-
-        Args:
-            args: arguments namespace of processed arguments
-        Returns: namespace with processed results of arguments.
+        Prefer `write_configuration` plus `--config` when launching a child process; this exists for callers that must
+        build an argument list.
         """
+        arguments = []
+        for flags, argparse_inputs in self.get_arguments().items():
+            action = argparse_inputs.get("action", "store")
+            if action in ("help", "version"):
+                continue
+            flag = _long_flag(flags)
+            value = getattr(args_ns, _destination(flags, argparse_inputs), None)
+            if action in FLAG_ACTIONS:
+                if value == argparse_inputs.get("const", action == "store_true"):
+                    arguments.append(flag)
+            elif action == "count":
+                arguments.extend([flag] * int(value or 0))
+            elif value is None:
+                continue
+            elif action in LIST_ACTIONS:
+                values = value if isinstance(value, (list, tuple)) else [value]
+                arguments.extend(f"{flag}={item}" for item in values)
+            else:
+                values = value if isinstance(value, (list, tuple)) else [value]
+                arguments.extend([flag] + [str(item) for item in values])
+        return arguments
 
     @classmethod
     def parse_known_args(
@@ -211,22 +198,11 @@ class ParserBase(ABC):
         arguments=None,
         **kwargs,
     ):
-        """Parse and post-process arguments
+        """Parse and post-process arguments, tolerating unknown arguments
 
-        Create a parser for the given application using the description provided. This will then add all specified
-        ParserBase subclasses' get_parser output as parent parses for the created parser. Then all of the handle
-        arguments methods will be called, and the final namespace will be returned. This will allow unknown arguments
-        which are returned as the last tuple result.
-
-        Args:
-            parser_classes: a list of ParserBase subclasses that will be used to
-            description: description passed ot the argument parser
-            arguments: arguments to process, None to use command line input
-        Returns: namespace with all parsed arguments from all provided ParserBase subclasses
+        See `parse_args`. Returns (namespace, parser, unknown arguments).
         """
-        return cls._parse_args(
-            parser_classes, description, arguments, use_parse_known=True, **kwargs
-        )
+        return cls._parse_args(parser_classes, description, arguments, use_parse_known=True, **kwargs)
 
     @classmethod
     def parse_args(
@@ -236,269 +212,191 @@ class ParserBase(ABC):
         arguments=None,
         **kwargs,
     ):
-        """Parse and post-process arguments
+        """Parse and post-process a tool's command line
 
-        Create a parser for the given application using the description provided. This will then add all specified
-        ParserBase subclasses' get_parser output as parent parses for the created parser. Then all of the handle
-        arguments methods will be called, and the final namespace will be returned. This does not allow unknown
-        arguments.
+        Composes the supplied fragments (classes or instances) and the configuration fragment into one parser, applies
+        the configuration file's `command-line-options` as defaults, parses `arguments` (the command line when None),
+        then runs each fragment's `handle_arguments` in order. Errors raised from handlers print the usage and the error,
+        then exit the process.
 
         Args:
-            parser_classes: a list of ParserBase subclasses that will be used to
-            description: description passed ot the argument parser
-            arguments: arguments to process, None to use command line input
-        Returns: namespace with all parsed arguments from all provided ParserBase subclasses
+            parser_classes: ParserBase subclasses or instances to compose
+            description: tool description shown in help
+            arguments: arguments to parse; None uses sys.argv[1:]
+            **kwargs: passed to every fragment's handle_arguments (e.g. client=True)
+        Returns: (namespace, argparse parser)
         """
-        return cls._parse_args(parser_classes, description, arguments, **kwargs)
+        ns, parser, _ = cls._parse_args(parser_classes, description, arguments, **kwargs)
+        return ns, parser
 
     @staticmethod
-    def _parse_args(
-        parser_classes,
-        description="No tool description provided",
-        arguments=None,
-        use_parse_known=False,
-        **kwargs,
-    ):
-        """Parse and post-process arguments helper
-
-        Create a parser for the given application using the description provided. This will then add all specified
-        ParserBase subclasses' get_parser output as parent parses for the created parser. Then all of the handle
-        arguments methods will be called, and the final namespace will be returned.
-
-        This takes a function that will take in a parser and return the parsing function to call on arguments.
-
-        Args:
-            parse_function_processor: takes a parser, returns the parse function to call
-            parser_classes: a list of ParserBase subclasses that will be used to
-            description: description passed ot the argument parser
-            arguments: arguments to process, None to use command line input
-            use_parse_known: use parse_known_arguments from argparse
-
-        Returns: namespace with all parsed arguments from all provided ParserBase subclasses
-        """
-        composition = CompositeParser(parser_classes, description)
-        parser = composition.get_parser()
-        effective_arguments = sys.argv[1:] if arguments is None else arguments
+    def _parse_args(parser_classes, description, arguments, use_parse_known=False, **kwargs):
+        """Parsing flow shared by parse_args and parse_known_args"""
+        arguments = sys.argv[1:] if arguments is None else list(arguments)
+        composite = CompositeParser([ConfigDrivenParser, *parser_classes], description)
+        parser = composite.get_parser()
+        config_parser = composite.constituent(ConfigDrivenParser)
         try:
+            _, config_values = config_parser.load(arguments)
+            ConfigDrivenParser.apply_configuration(parser, config_values)
             if use_parse_known:
-                args_ns, *unknowns = parser.parse_known_args(arguments)
+                args_ns, unknowns = parser.parse_known_args(arguments)
             else:
-                args_ns = parser.parse_args(arguments)
-                unknowns = []
-            args_ns = composition.handle_arguments(
-                args_ns, arguments=effective_arguments, **kwargs
-            )
-        except ValueError as ver:
-            print(f"[ERROR] Failed to parse arguments: {ver}", file=sys.stderr)
-            parser.print_help()
-            sys.exit(-1)
+                args_ns, unknowns = parser.parse_args(arguments), []
+            args_ns = composite.handle_arguments(args_ns, **kwargs)
         except Exception as exc:
-            print(f"[ERROR] {exc}", file=sys.stderr)
+            parser.print_usage(sys.stderr)
+            print(f"[ERROR] Failed to parse arguments: {exc}", file=sys.stderr)
             sys.exit(-1)
-        return args_ns, parser, *unknowns
-
-    @staticmethod
-    def find_in(token, deploy, is_file=True):
-        """
-        Find token in deploy directory by walking the directory looking for reg-ex. This effectively finds a file in a
-        subtree and provides the path to it. Returns None when not found
-
-        :param token: token to search for in the directory structure
-        :param deploy: directory to start with
-        :param is_file: true if looking for file, otherwise false
-        :return: full path to token in tree
-        """
-        for dirpath, dirs, files in os.walk(deploy):
-            for check in files if is_file else dirs:
-                if re.match(f"^{str(token)}$", check):
-                    return os.path.join(dirpath, check)
-        return None
+        return args_ns, parser, unknowns
 
 
 class ConfigDrivenParser(ParserBase):
-    """Parser that allows options from configuration and command line
+    """Configuration file fragment
 
-    This parser reads a configuration file (if supplied) and uses the values to drive the inputs to arguments. Command
-    line arguments will still take precedence over the configured values. The configuration file itself is resolved,
-    in order of precedence: the -c/--config command-line flag, then the DEFAULT_CONFIGURATION_PATH_ENV environment
-    variable, then the built-in 'fprime-gds.yml' default (DEFAULT_CONFIGURATION_PATH).
+    Adds -c/--config and -v/--version, loads the YAML configuration file, and exposes it as `args.config_values`. The
+    file is resolved, in order of precedence: -c/--config, the FPRIME_GDS_CONFIG_PATH environment variable, then
+    `fprime-gds.yml` in the working directory. A file selected explicitly must exist; the implicit default is skipped
+    when absent. `set_default_configuration` replaces the implicit default and disables the environment variable.
+
+    Values under `command-line-options` (keyed by long flag name without dashes) become the defaults of the matching
+    arguments, so the command line still wins. Flag options (e.g. `no-app:`) may be given without a value, or with a
+    boolean. Options unknown to the tool are ignored with a warning unless the file is marked `generated: true`.
     """
 
+    DESCRIPTION = "Configuration options"
     DEFAULT_CONFIGURATION_PATH = Path("fprime-gds.yml")
-
-    # Takes precedence over DEFAULT_CONFIGURATION_PATH
     DEFAULT_CONFIGURATION_PATH_ENV = "FPRIME_GDS_CONFIG_PATH"
-
-    # Set once set_default_configuration() is called, so the environment variable no longer
-    # overrides DEFAULT_CONFIGURATION_PATH
     _DEFAULT_CONFIGURATION_EXPLICIT = False
 
-    @classmethod
-    def set_default_configuration(cls, path: Path):
-        """Set path for (global) default configuration file
+    def __init__(self):
+        self._loaded: Optional[Tuple[Optional[Path], Dict[str, Any]]] = None
 
-        Set the path for default configuration file. If unset, will use 'fprime-gds.yml'. Set to None to disable default
-        configuration. Calling this function disables the environment variable override.
-        """
+    @classmethod
+    def set_default_configuration(cls, path: Optional[Path]):
+        """Set the implicit configuration path (None disables it) and ignore the environment variable"""
         cls.DEFAULT_CONFIGURATION_PATH = path
         cls._DEFAULT_CONFIGURATION_EXPLICIT = True
 
     @classmethod
-    def _env_configuration_path(cls):
-        """Path from DEFAULT_CONFIGURATION_PATH_ENV, or None if unset/empty/overridden
-
-        Shared by get_default_configuration() and handle_arguments() so both agree on whether
-        set_default_configuration() has overridden the environment variable.
-        """
+    def _env_configuration_path(cls) -> Optional[Path]:
+        """Path from the environment variable, or None when unset, empty, or overridden"""
         if cls._DEFAULT_CONFIGURATION_EXPLICIT:
             return None
         env_path = os.environ.get(cls.DEFAULT_CONFIGURATION_PATH_ENV)
         return Path(env_path) if env_path else None
 
     @classmethod
-    def get_default_configuration(cls):
-        """Get path for (global) default configuration file
-
-        If set (and set_default_configuration() has not been called), the environment variable
-        (DEFAULT_CONFIGURATION_PATH_ENV) overrides DEFAULT_CONFIGURATION_PATH. An empty value is treated the same as
-        unset. If unset, will use 'fprime-gds.yml'.
-        """
+    def get_default_configuration(cls) -> Optional[Path]:
+        """Configuration path used when -c/--config is not supplied"""
         return cls._env_configuration_path() or cls.DEFAULT_CONFIGURATION_PATH
 
     @classmethod
-    def parse_args(
-        cls,
-        parser_classes,
-        description="No tool description provided",
-        arguments=None,
-        **kwargs,
-    ):
-        """Parse and post-process arguments using inputs and config
+    def resolve_configuration(cls, arguments: List[str]) -> Tuple[Optional[Path], bool]:
+        """Determine the configuration file for a command line
 
-        Parse the arguments in two stages: first parse the configuration data, ignoring unknown inputs, then parse the
-        full argument set with the supplied configuration to fill in additional options.
-
-        Args:
-            parser_classes: a list of ParserBase subclasses that will be used to
-            description: description passed ot the argument parser
-            arguments: arguments to process, None to use command line input
-        Returns: namespace with all parsed arguments from all provided ParserBase subclasses
+        Returns:
+            (path or None, whether the path was explicitly requested via --config or the environment)
         """
-        ns, parser, _ = cls._parse_args(
-            parser_classes, description, arguments, **kwargs
-        )
-        return ns, parser
+        pre_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+        pre_parser.add_argument("-c", "--config", dest="config", type=Path, default=None)
+        pre_parsed, _ = pre_parser.parse_known_args(arguments)
+        if pre_parsed.config is not None:
+            return pre_parsed.config, True
+        env_path = cls._env_configuration_path()
+        if env_path is not None:
+            return env_path, True
+        return cls.DEFAULT_CONFIGURATION_PATH, False
 
     @classmethod
-    def parse_known_args(
-        cls,
-        parser_classes,
-        description="No tool description provided",
-        arguments=None,
-        **kwargs,
-    ):
-        """Parse and post-process known arguments using inputs and config
+    def read_configuration(cls, path: Optional[Path], explicit: bool) -> Dict[str, Any]:
+        """Read a configuration file, returning {} when an implicit file is absent
 
-        Parse the arguments in two stages: first parse the configuration data, ignoring unknown inputs, then parse the
-        full argument set with the supplied configuration to fill in additional options.
-
-        Args:
-            parser_classes: a list of ParserBase subclasses that will be used to
-            description: description passed ot the argument parser
-            arguments: arguments to process, None to use command line input
-        Returns: namespace with all parsed arguments from all provided ParserBase subclasses
+        Raises ValueError when an explicitly selected file is missing or malformed.
         """
-        return cls._parse_args(
-            parser_classes, description, arguments, use_parse_known=True, **kwargs
-        )
+        if path is None:
+            return {}
+        path = Path(path)
+        if not path.exists():
+            if explicit:
+                raise ValueError(f"Specified configuration file '{path}' does not exist")
+            return {}
+        print(f"[INFO] Reading command-line configuration from: {path}")
+        relative_base = path.parent.absolute()
+
+        class Loader(yaml.SafeLoader):
+            """Loader with a !PATH tag resolving paths relative to the configuration file"""
+
+        Loader.add_constructor("!PATH", lambda loader, node: relative_base / loader.construct_scalar(node))
+        try:
+            with open(path, "r") as file_handle:
+                loaded = yaml.load(file_handle, Loader=Loader)
+        except Exception as exc:
+            raise ValueError(f"Malformed configuration {path}: {exc}")
+        if loaded is None:
+            return {}
+        if not isinstance(loaded, dict):
+            raise ValueError(f"Malformed configuration {path}: expected a mapping at the top level")
+        return loaded
+
+    def load(self, arguments: List[str]) -> Tuple[Optional[Path], Dict[str, Any]]:
+        """Resolve and read the configuration for a command line, once per instance"""
+        if self._loaded is None:
+            path, explicit = self.resolve_configuration(arguments)
+            values = self.read_configuration(path, explicit)
+            self._loaded = (path, values)
+        return self._loaded
 
     @staticmethod
-    def _parse_args(
-        parser_classes,
-        description="No tool description provided",
-        arguments=None,
-        use_parse_known=False,
-        **kwargs,
-    ):
-        arguments = sys.argv[1:] if arguments is None else arguments
+    def configured_default(action: argparse.Action, value: Any) -> Any:
+        """Convert a configuration value into a default for an argparse action
 
-        # Help should spill all the arguments, so delegate to the normal parsing flow including
-        # this and supplied parsers
-        if "-h" in arguments or "--help" in arguments:
-            parsers = [ConfigDrivenParser] + parser_classes
-            ParserBase.parse_args(parsers, description, arguments, **kwargs)
-            sys.exit(0)
-
-        # Custom flow involving parsing the arguments of this parser first, then passing the configured values
-        # as part of the argument source
-        ns_config, _, remaining = ParserBase.parse_known_args(
-            [ConfigDrivenParser], description, arguments, **kwargs
-        )
-        config_options = ns_config.config_values.get("command-line-options", {})
-        # Configuration files may be shared between tools; drop options unsupported by this tool
-        argument_specs = CompositeParser(parser_classes, description).get_arguments()
-        supported_flags = {flag for flags in argument_specs for flag in flags}
-        extend_flags = {
-            flag
-            for flags, spec in argument_specs.items()
-            if spec.get("action") in ("extend", "append")
-            for flag in flags
-        }
-        unsupported = [
-            option
-            for option in (config_options or {})
-            if f"--{option}" not in supported_flags
-        ]
-        for option in unsupported:
-            print(
-                f"[WARNING] Ignoring configured option '{option}' not supported by this tool",
-                file=sys.stderr,
-            )
-            del config_options[option]
-        config_args = ConfigDrivenParser.flatten_options(config_options, extend_flags)
-
-        # Argparse allows repeated (overridden) arguments, thus the CLI override is accomplished by providing
-        # remaining arguments after the configured ones
-        if use_parse_known:
-            ns_full, parser, remaining = ParserBase.parse_known_args(
-                parser_classes, description, config_args + remaining, **kwargs
-            )
-        else:
-            ns_full, parser = ParserBase.parse_args(
-                parser_classes, description, config_args + remaining, **kwargs
-            )
-            remaining = []
-        ns_final = argparse.Namespace(**vars(ns_config), **vars(ns_full))
-        return ns_final, parser, remaining
-
-    @staticmethod
-    def flatten_options(configured_options, extend_flags=frozenset()):
-        """Flatten options down to arguments
-
-        Options whose flag is in extend_flags (extend/append actions) are emitted as one "--flag=value" per
-        item so values beginning with "-" are not mistaken for flags by argparse.
+        Flag actions (nargs == 0) take their constant when the value is None or True, and the opposite when False.
+        Other actions apply the action's `type` to scalars, or to each item of a list for multi-valued actions.
         """
-        flattened = []
-        if configured_options is None:
-            return flattened
-        for option, value in configured_options.items():
-            values = (
-                []
-                if value is None
-                else (
-                    [f"{item}" for item in value]
-                    if isinstance(value, (list, tuple))
-                    else [f"{value}"]
-                )
-            )
-            if f"--{option}" in extend_flags:
-                flattened.extend(f"--{option}={item}" for item in values)
-            else:
-                flattened.append(f"--{option}")
-                flattened.extend(values)
-        return flattened
+        if action.nargs == 0:
+            if value is None or value is True:
+                return action.const
+            return (not action.const) if isinstance(action.const, bool) else action.default
+        convert = action.type if callable(action.type) else (lambda item: item)
 
-    def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
+        def convert_item(item):
+            return item if item is None else convert(str(item))
+
+        multi_valued = action.nargs not in (None, argparse.OPTIONAL) or isinstance(
+            action, (argparse._AppendAction, argparse._ExtendAction)
+        )
+        if multi_valued:
+            items = value if isinstance(value, (list, tuple)) else [value]
+            return [convert_item(item) for item in items]
+        converted = convert_item(value)
+        if action.choices is not None and converted not in action.choices:
+            choices = ", ".join(str(choice) for choice in action.choices)
+            raise ValueError(f"configured value '{value}' for '{_long_flag(action.option_strings)}' not in: {choices}")
+        return converted
+
+    @classmethod
+    def apply_configuration(cls, parser: argparse.ArgumentParser, config_values: Dict[str, Any]):
+        """Apply a configuration's `command-line-options` as the defaults of the parser's arguments
+
+        Arguments given a configured value are no longer required. Options not declared by the parser are dropped
+        with a warning, unless the configuration is marked `generated: true`.
+        """
+        options = config_values.get("command-line-options") or {}
+        actions = {flag: action for action in parser._actions for flag in action.option_strings}
+        for option, value in options.items():
+            action = actions.get(f"--{option}")
+            if action is None or isinstance(action, (argparse._HelpAction, argparse._VersionAction)):
+                if not config_values.get("generated", False):
+                    print(
+                        f"[WARNING] Ignoring configured option '{option}' not supported by this tool",
+                        file=sys.stderr,
+                    )
+                continue
+            action.default = cls.configured_default(action, value)
+            action.required = False
+
+    def get_arguments(self) -> ArgumentSpecification:
         """Arguments needed for config processing"""
         return {
             ("-c", "--config"): {
@@ -515,52 +413,19 @@ class ConfigDrivenParser(ParserBase):
         }
 
     def handle_arguments(self, args, **kwargs):
-        """Handle the arguments
+        """Expose the loaded configuration as args.config (path) and args.config_values (dictionary)
 
-        Loads the configuration file specified and fills in the `config_values` attribute of the namespace with the
-        loaded configuration dictionary. A file selected explicitly (via -c/--config or DEFAULT_CONFIGURATION_PATH_ENV)
-        must exist, otherwise ValueError is raised; the implicit 'fprime-gds.yml' default is skipped when absent.
+        The configuration is loaded once per instance, by `ParserBase.parse_args` before parsing. When called directly,
+        the command line to resolve `--config` from may be supplied as `arguments`; sys.argv is never consulted.
         """
-        args.config_values = {}
-        # Was a configuration file explicitly requested, vs. falling back to a default?
-        # See _env_configuration_path() for why the env var is checked through that helper.
-        arguments = kwargs.get("arguments", sys.argv[1:])
-        explicitly_configured = (
-            "-c" in arguments
-            or "--config" in arguments
-            or self._env_configuration_path() is not None
-        )
-        # Specified but non-existent config file is a hard error
-        if explicitly_configured and not args.config.exists():
-            raise ValueError(
-                f"Specified configuration file '{args.config}' does not exist"
-            )
-        # Read configuration if the file was set and exists
-        if args.config is not None and args.config.exists():
-            print(f"[INFO] Reading command-line configuration from: {args.config}")
-            with open(args.config, "r") as file_handle:
-                try:
-                    relative_base = args.config.parent.absolute()
-
-                    def path_constructor(loader, node):
-                        """Processes !PATH annotations as relative to current file"""
-                        calculated_path = relative_base / loader.construct_scalar(node)
-                        return calculated_path
-
-                    yaml.SafeLoader.add_constructor("!PATH", path_constructor)
-                    loaded = yaml.safe_load(file_handle)
-                    args.config_values = loaded if loaded is not None else {}
-                except Exception as exc:
-                    raise ValueError(
-                        f"Malformed configuration {args.config}: {exc}", exc
-                    )
+        args.config, args.config_values = self.load(kwargs.get("arguments", []))
         return args
 
 
 class DetectionParser(ParserBase):
-    """Parser that detects items from a root/directory or deployment"""
+    """Fragment locating the deployment (build output) directory, detecting it from settings.ini when not given"""
 
-    def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
+    def get_arguments(self) -> ArgumentSpecification:
         """Arguments needed for root processing"""
         return {
             ("-d", "--deployment"): {
@@ -586,16 +451,12 @@ class DetectionParser(ParserBase):
         if likely_deployment.exists():
             args.deployment = likely_deployment
             return args
-        child_directories = [
-            child for child in detected_toolchain.iterdir() if child.is_dir()
-        ]
+        child_directories = [child for child in detected_toolchain.iterdir() if child.is_dir()]
         if not child_directories:
             msg = f"No deployments found in {detected_toolchain}. Specify deployment with: --deployment"
             raise Exception(msg)
         # Works for the old structure where the bin, lib, and dict directories live immediately under the platform
-        elif len(child_directories) == 3 and set(
-            [path.name for path in child_directories]
-        ) == {"bin", "lib", "dict"}:
+        elif len(child_directories) == 3 and set([path.name for path in child_directories]) == {"bin", "lib", "dict"}:
             args.deployment = detected_toolchain
             return args
         elif len(child_directories) > 1:
@@ -606,22 +467,18 @@ class DetectionParser(ParserBase):
 
 
 class BareArgumentParser(ParserBase):
-    """Takes in the argument specification (used in plugins and get_arguments) to parse args
+    """Fragment built from a raw argument specification (the form plugins return from `get_arguments`)
 
-    This parser takes in and uses a raw specification of arguments as seen in plugins and arguments to perform argument
-    parsing. The spec is a map of flag tuples to argparse kwargs.
-
-    Argument handling only validates using the checking_function which is a function taking in keyword arguments for
-    each cli argument specified. This function will be called as such: `checking_function(**args)`. Use None to skip
-    argument checking.  checking_function should raise ValueError to indicate an error with an argument.
+    `checking_function`, when supplied, is called as `checking_function(**values)` with the parsed value of each
+    argument and should raise ValueError to reject them.
     """
 
-    def __init__(self, specification, checking_function=None):
+    def __init__(self, specification: ArgumentSpecification, checking_function=None):
         """Initialize this parser with the provided specification"""
         self.specification = specification
         self.checking_function = checking_function
 
-    def get_arguments(self):
+    def get_arguments(self) -> ArgumentSpecification:
         """Raw specification is returned immediately"""
         return self.specification
 
@@ -632,109 +489,21 @@ class BareArgumentParser(ParserBase):
         return args
 
     def extract_arguments(self, args) -> Dict[str, Any]:
-        """Extract argument values from the args namespace into a map matching the original specification
-
-        This function extracts arguments matching the original specification and returns them as a dictionary of key-
-        value pairs.
-
-        Return:
-            filled arguments dictionary
-        """
-        expected_args = self.specification
-        argument_destinations = [
-            (
-                value["dest"]
-                if "dest" in value
-                else key[0].replace("--", "").replace("-", "_")
-            )
-            for key, value in expected_args.items()
-        ]
-        filled_arguments = {
-            destination: getattr(args, destination)
-            for destination in argument_destinations
+        """Extract this specification's values from the namespace as a {destination: value} dictionary"""
+        return {
+            _destination(flags, inputs): getattr(args, _destination(flags, inputs))
+            for flags, inputs in self.specification.items()
         }
-        return filled_arguments
-
-
-class IndividualPluginParser(BareArgumentParser):
-    """Parser for an individual plugin's command line
-
-    A CLI parser for an individual plugin. This handles all the functions and arguments that apply to the parsing of a
-    single plugin's arguments. It also handles FEATURE plugin disable flags.
-    """
-
-    def __init__(self, plugin_system: Plugins, plugin_class: type):
-        """Initialize the plugin parser
-
-        Args:
-            plugin_system: Plugins object used to work with the plugin system
-            plugin_class: plugin class used for this specific parser
-        """
-        # Add disable flags for feature type plugins
-        super().__init__(plugin_class.get_arguments(), plugin_class.check_arguments)
-        self.disable_flag_destination = (
-            f"disable-{plugin_class.get_name()}".lower().replace("-", "_")
-        )
-        self.plugin_class = plugin_class
-        self.plugin_system = plugin_system
-
-    def get_arguments(self):
-        """Get the arguments for this plugin
-
-        The individual plugin parser will read the arguments from the supplied plugin class. Additionally, if the
-        plugin_class's plugin_type is FEATURE then this parser will add an disable flag to allow users to turn disable
-        the plugin feature.
-        """
-        arguments = {}
-        if self.plugin_class.type == PluginType.FEATURE:
-            arguments.update(
-                {
-                    (f"--disable-{self.plugin_class.get_name()}",): {
-                        "action": "store_true",
-                        "default": False,
-                        "dest": self.disable_flag_destination,
-                        "help": f"Disable the {self.plugin_class.category} plugin '{self.plugin_class.get_name()}'",
-                    }
-                }
-            )
-        arguments.update(super().get_arguments())
-        return arguments
-
-    def handle_arguments(self, args, **kwargs):
-        """Handle the given arguments for a plugin
-
-        This will process the arguments for a given plugin. Additionally, it will construct the plugin object and
-        supply the constructed object to the plugin system if the plugin is a selection or is enabled.
-
-        Args:
-            args: argparse namespace
-        """
-        arguments = super().handle_arguments(
-            args, **kwargs
-        )  # Perform argument checking first
-        if not getattr(args, self.disable_flag_destination, False):
-            # Remove the disable flag from the arguments
-            plugin_arguments = {
-                key: value
-                for key, value in self.extract_arguments(arguments).items()
-                if key != self.disable_flag_destination
-            }
-
-            plugin_zero_argument_class = functools.partial(
-                self.plugin_class.get_implementor(), **plugin_arguments
-            )
-            self.plugin_system.add_bound_class(
-                self.plugin_class.category, plugin_zero_argument_class
-            )
-        return arguments
-
-    def get_plugin_class(self):
-        """Plugin class accessor"""
-        return self.plugin_class
 
 
 class PluginArgumentParser(ParserBase):
-    """Parser for arguments coming from plugins"""
+    """Fragment sourcing arguments from the plugin system
+
+    For every plugin category this adds the category's arguments (a `--<category>-selection` flag for SELECTION
+    categories) and each plugin's own `get_arguments` (plus `--disable-<name>` for FEATURE plugins). Handling validates
+    each selected/enabled plugin's arguments via `check_arguments` and registers a constructor-bound class with the
+    plugin system, ready for zero-argument construction.
+    """
 
     DESCRIPTION = "Plugin options"
     # Defaults:
@@ -744,186 +513,134 @@ class PluginArgumentParser(ParserBase):
     }
 
     def __init__(self, plugin_system: Plugins = None):
-        """Initialize the plugin information for this parser
-
-        This will initialize this plugin argument parser with the supplied plugin system. If not supplied this will use
-        the system plugin singleton, which is configured elsewhere.
-        """
-        # Accept the supplied plugin system defaulting to the global singleton
+        """Initialize with the supplied plugin system, defaulting to the system singleton"""
         self.plugin_system = plugin_system if plugin_system else Plugins.system()
         self._plugin_map = {
-            category: [
-                IndividualPluginParser(self.plugin_system, plugin)
-                for plugin in self.plugin_system.get_plugins(category)
-            ]
+            category: list(self.plugin_system.get_plugins(category))
             for category in self.plugin_system.get_categories()
         }
 
-    def fill_parser(self, parser):
-        """Fill supplied parser with grouped arguments
+    @staticmethod
+    def disable_flag_destination(plugin) -> str:
+        """Namespace member of a FEATURE plugin's --disable-<name> flag"""
+        return f"disable_{plugin.get_name()}".lower().replace("-", "_")
 
-        Fill the supplied parser with arguments from the `get_arguments` method invocation. This implementation groups
-        arguments based on the constituent parser that the argument comes from. Category specific arguments are also
-        added (i.e. SELECTION type selection arguments).
-
-        Args:
-            parser: parser to fill
-        """
-        for category, plugin_parsers in self._plugin_map.items():
-            # Add category specific flags (selection flags, etc)
-            argument_group = parser.add_argument_group(
-                title=f"{category.title()} Plugin Options"
-            )
-            self.add_arguments_from_specification(
-                argument_group, self.get_category_arguments(category)
-            )
-
-            # Handle the individual plugin parsers
-            for plugin_parser in plugin_parsers:
-                plugin = plugin_parser.get_plugin_class()
-                argument_group = parser.add_argument_group(
-                    title=f"{category.title()} Plugin '{plugin.get_name()}' Options"
-                )
-                plugin_parser.fill_parser(argument_group)
-
-    def get_category_arguments(self, category):
-        """Get category arguments for a given plugin category
-
-        This function will generate category arguments for the supplied category. These arguments will follow the
-        standard argument specification of a dictionary of flag tuples to argparse keyword arguments.
-
-        Currently category specific arguments are just selection flags for SELECTION type plugins.
-
-        Args:
-            category: category arguments
-        """
-        plugin_type = self.plugin_system.get_category_plugin_type(category)
-        plugins = [
-            plugin_parser.get_plugin_class()
-            for plugin_parser in self._plugin_map[category]
-        ]
-
-        arguments: Dict[Tuple[str, ...], Dict[str, Any]] = {}
-
-        # Add category options: SELECTION plugins add a selection flag
-        if plugin_type == PluginType.SELECTION:
-            arguments.update(
-                {
-                    (f"--{category}-selection",): {
-                        "choices": [choice.get_name() for choice in plugins],
-                        "help": f"Select {category} implementer.",
-                        "default": self.FPRIME_CHOICES.get(
-                            category, list(plugins)[0].get_name()
-                        ),
-                    }
-                }
-            )
+    def get_plugin_arguments(self, plugin) -> ArgumentSpecification:
+        """Arguments of one plugin, including the disable flag of FEATURE plugins"""
+        arguments: ArgumentSpecification = {}
+        if plugin.type == PluginType.FEATURE:
+            arguments[(f"--disable-{plugin.get_name()}",)] = {
+                "action": "store_true",
+                "default": False,
+                "dest": self.disable_flag_destination(plugin),
+                "help": f"Disable the {plugin.category} plugin '{plugin.get_name()}'",
+            }
+        arguments.update(plugin.get_arguments())
         return arguments
 
-    def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
-        """Return arguments to used in plugin system
+    def get_category_arguments(self, category) -> ArgumentSpecification:
+        """Category-level arguments: a selection flag for SELECTION categories"""
+        plugins = self._plugin_map[category]
+        if self.plugin_system.get_category_plugin_type(category) != PluginType.SELECTION:
+            return {}
+        return {
+            (f"--{category}-selection",): {
+                "choices": [plugin.get_name() for plugin in plugins],
+                "help": f"Select {category} implementer.",
+                "default": self.FPRIME_CHOICES.get(category, plugins[0].get_name()),
+            }
+        }
 
-        This will return the command line arguments all the plugins contained within the supplied plugin system. This
-        will recursively return plugins from all of the IndividualPluginParser objects composing this plugin argument
-        parser. Arguments are returned in the standard specification form of tuple of flags mapped to a dictionary of
-        argparse kwarg inputs.
-        """
-        arguments: Dict[Tuple[str, ...], Dict[str, Any]] = {}
-        for category, plugin_parsers in self._plugin_map.items():
+    def get_arguments(self) -> ArgumentSpecification:
+        """All category and plugin arguments"""
+        arguments: ArgumentSpecification = {}
+        for category, plugins in self._plugin_map.items():
             arguments.update(self.get_category_arguments(category))
-            [
-                arguments.update(plugin_parser.get_arguments())
-                for plugin_parser in plugin_parsers
-            ]
+            for plugin in plugins:
+                arguments.update(self.get_plugin_arguments(plugin))
         return arguments
+
+    def fill_parser(self, parser):
+        """Add one argument group per category and per plugin"""
+        for category, plugins in self._plugin_map.items():
+            group = parser.add_argument_group(title=f"{category.title()} Plugin Options")
+            self.add_arguments_from_specification(group, self.get_category_arguments(category))
+            for plugin in plugins:
+                group = parser.add_argument_group(title=f"{category.title()} Plugin '{plugin.get_name()}' Options")
+                self.add_arguments_from_specification(group, self.get_plugin_arguments(plugin))
+
+    def bind_plugin(self, plugin, args):
+        """Validate a plugin's arguments and register its constructor-bound class with the plugin system"""
+        specification = BareArgumentParser(plugin.get_arguments(), plugin.check_arguments)
+        specification.handle_arguments(args)
+        bound = functools.partial(plugin.get_implementor(), **specification.extract_arguments(args))
+        self.plugin_system.add_bound_class(plugin.category, bound)
 
     def handle_arguments(self, args, **kwargs):
-        """Handle the plugin arguments
-
-        This will handle the plugin arguments delegating each to the IndividualPluginParser. For SELECTION plugins this
-        will bind a single instance of the selected plugin to its arguments. For FEATURE plugins it will bind arguments
-        to every enabled plugin. Bound plugins are registered with the plugin system.
-        """
-        for category, plugin_parsers in self._plugin_map.items():
+        """Bind the selected plugin of each SELECTION category and every enabled plugin of each FEATURE category"""
+        for category, plugins in self._plugin_map.items():
             plugin_type = self.plugin_system.get_category_plugin_type(category)
             self.plugin_system.start_loading(category)
-            # Selection plugins choose one plugin and instantiate it
             if plugin_type == PluginType.SELECTION:
                 try:
                     self.plugin_system.get_selected_class(category)
+                    continue  # Already bound (e.g. by an earlier parse)
                 except PluginsNotLoadedException:
-                    selection_string = getattr(args, f"{category}_selection")
-                    matching_plugin_parsers = [
-                        plugin_parser
-                        for plugin_parser in plugin_parsers
-                        if plugin_parser.get_plugin_class().get_name()
-                        == selection_string
-                    ]
-                    assert (
-                        len(matching_plugin_parsers) == 1
-                    ), "Plugin selection system failed"
-                    args = matching_plugin_parsers[0].handle_arguments(args, **kwargs)
-            # Feature plugins instantiate all enabled plugins
-            elif plugin_type == PluginType.FEATURE:
-                for plugin_parser in plugin_parsers:
-                    args = plugin_parser.handle_arguments(args, **kwargs)
+                    pass
+                selection = getattr(args, f"{category}_selection")
+                matching = [plugin for plugin in plugins if plugin.get_name() == selection]
+                assert len(matching) == 1, "Plugin selection system failed"
+                self.bind_plugin(matching[0], args)
+            else:
+                for plugin in plugins:
+                    if not getattr(args, self.disable_flag_destination(plugin), False):
+                        self.bind_plugin(plugin, args)
         return args
 
 
 class CompositeParser(ParserBase):
-    """Composite parser handles parsing as a composition of multiple other parsers"""
+    """Composition of fragments into one fragment
+
+    Constituents may be classes (constructed without arguments) or instances; nested composites are flattened.
+    Declaration order is preserved and is the order `handle_arguments` runs in. A fragment appearing more than once
+    (same class declaring the same flags, e.g. `DictionaryParser` reached through two composites) is kept once.
+    """
 
     def __init__(self, constituents, description=None):
-        """Construct this parser by instantiating the sub-parsers"""
+        """Construct this parser by instantiating and flattening the constituents"""
         self.given = description
-        constructed = [
-            constituent() if callable(constituent) else constituent
-            for constituent in constituents
-        ]
-        # Check to ensure everything passed in became a ParserBase after construction
-        for i, construct in enumerate(constructed):
-            assert isinstance(
-                construct, ParserBase
-            ), f"{construct.__class__.__name__} ({i}) not a ParserBase child"
-        flattened = [
-            item.constituents if isinstance(item, CompositeParser) else [item]
-            for item in constructed
-        ]
-        self.constituent_parsers = {*itertools.chain.from_iterable(flattened)}
-
-    def fill_parser(self, parser):
-        """File supplied parser with grouped arguments
-
-        Fill the supplied parser with arguments from the `get_arguments` method invocation. This implementation groups
-        arguments based on the constituent that sources the argument.
-
-        Args:
-            parser: parser to fill
-        """
-        for constituent in sorted(self.constituents, key=lambda x: x.description):
-            if isinstance(constituent, (PluginArgumentParser, CompositeParser)):
-                constituent.fill_parser(parser)
-            else:
-                argument_group = parser.add_argument_group(
-                    title=constituent.description
-                )
-                constituent.fill_parser(argument_group)
+        self.constituent_parsers: List[ParserBase] = []
+        seen = set()
+        for constituent in constituents:
+            constructed = constituent() if isinstance(constituent, type) else constituent
+            assert isinstance(constructed, ParserBase), f"{constructed.__class__.__name__} not a ParserBase child"
+            items = constructed.constituents if isinstance(constructed, CompositeParser) else [constructed]
+            for item in items:
+                key = (type(item), frozenset(item.get_arguments().keys()))
+                if key not in seen:
+                    seen.add(key)
+                    self.constituent_parsers.append(item)
 
     @property
-    def constituents(self):
-        """Get constituent"""
+    def constituents(self) -> List[ParserBase]:
+        """Flattened constituent fragments, in order"""
         return self.constituent_parsers
 
-    @property
-    def description(self):
-        """Return parser description"""
-        return (
-            self.given
-            if self.given
-            else ",".join(item.description for item in self.constituents)
-        )
+    def constituent(self, parser_class):
+        """First constituent that is an instance of parser_class, or None"""
+        return next((item for item in self.constituents if isinstance(item, parser_class)), None)
 
-    def get_arguments(self) -> Dict[Tuple[str, ...], Dict[str, Any]]:
+    @property
+    def description(self) -> str:
+        """Return parser description"""
+        return self.given if self.given else ",".join(item.description for item in self.constituents)
+
+    def fill_parser(self, parser):
+        """Fill the parser from each constituent, in declaration order"""
+        for constituent in self.constituents:
+            constituent.fill_parser(parser)
+
+    def get_arguments(self) -> ArgumentSpecification:
         """Get the argument from all constituents"""
         arguments = {}
         for constituent in self.constituents:
@@ -931,7 +648,7 @@ class CompositeParser(ParserBase):
         return arguments
 
     def handle_arguments(self, args, **kwargs):
-        """Process all constituent arguments"""
+        """Process all constituent arguments in order"""
         for constituent in self.constituents:
             args = constituent.handle_arguments(args, **kwargs)
         return args
@@ -957,8 +674,6 @@ class CommExtraParser(ParserBase):
         }
         return com_arguments
 
-    def handle_arguments(self, args, **kwargs):
-        return args
 
 
 class LogDeployParser(ParserBase):
@@ -1186,8 +901,8 @@ class DictionaryParser(DetectionParser):
         return args
 
 
-class HashFileParser(DictionaryParser):
-    """Parser for detecting and loading the hashes.txt file for hash decoding"""
+class HashFileParser(ParserBase):
+    """Fragment locating the hashes.txt file used for hash decoding, deriving it from the deployment when not given"""
 
     DESCRIPTION = "Hash file options"
 
@@ -1206,14 +921,8 @@ class HashFileParser(DictionaryParser):
         if args.hash_file:
             args.hash_file = Path(args.hash_file)
             if not args.hash_file.exists():
-                msg = f"[ERROR] hash file location {args.hash_file} does not exist"
-                print(msg, file=sys.stderr)
-                sys.exit(-1)
-            return args
-
-        if args.deployment is None:
-            super().handle_arguments(args, **kwargs)
-        if args.deployment:
+                raise ValueError(f"hash file location {args.hash_file} does not exist")
+        elif getattr(args, "deployment", None):
             hash_file = (Path(args.deployment) / ".." / ".." / "hashes.txt").resolve()
             args.hash_file = hash_file if hash_file.exists() else None
         return args
@@ -1286,9 +995,6 @@ class HistoryParser(ParserBase):
             },
         }
 
-    def handle_arguments(self, args, **kwargs):
-        """Handle arguments as parsed"""
-        return args
 
 
 class StandardPipelineParser(CompositeParser):
@@ -1336,7 +1042,7 @@ class StandardPipelineParser(CompositeParser):
 
 
 class CommParser(CompositeParser):
-    """Comm Executable Parser"""
+    """Comm executable fragments; compose with `PluginArgumentParser` for the communication/framing plugin arguments"""
 
     CONSTITUENTS = [
         DictionaryParser,  # needed to get types from dictionary for framing
@@ -1347,14 +1053,7 @@ class CommParser(CompositeParser):
 
     def __init__(self):
         """Initialization"""
-        # Added here to ensure the call to Plugins does not interfere with the full plugin system
-        comm_plugin_parser_instance = PluginArgumentParser(
-            Plugins(["communication", "framing"])
-        )
-        super().__init__(
-            constituents=self.CONSTITUENTS + [comm_plugin_parser_instance],
-            description="Communications bridge application",
-        )
+        super().__init__(constituents=self.CONSTITUENTS, description="Communications bridge application")
 
 
 class GdsParser(ParserBase):
@@ -1512,8 +1211,6 @@ class SearchArgumentsParser(ParserBase):
             },
         }
 
-    def handle_arguments(self, args, **kwargs):
-        return args
 
 
 class RetrievalArgumentsParser(ParserBase):
@@ -1544,5 +1241,3 @@ class RetrievalArgumentsParser(ParserBase):
             },
         }
 
-    def handle_arguments(self, args, **kwargs):
-        return args

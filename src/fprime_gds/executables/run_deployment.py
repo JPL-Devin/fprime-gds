@@ -8,10 +8,10 @@ import sys
 import copy
 import functools
 import webbrowser
+from pathlib import Path
 
 from fprime_gds.executables.cli import (
     BinaryDeployment,
-    ConfigDrivenParser,
     CompositeParser,
     CommParser,
     GdsParser,
@@ -40,25 +40,36 @@ def app_connection(parsed_args):
     return None
 
 
+RESOLVED_CONFIGURATION_NAME = "fprime-gds.resolved.yml"
+
+
 def parse_args():
     """Parse command line arguments
-    Gets an argument parsers to read the command line and process the arguments. Return
-    the arguments in their namespace.
+
+    Parses the command line (and configuration file) for every executable launched here, then writes the fully
+    resolved options to `<logs>/fprime-gds.resolved.yml` and points `args.config` at it: child processes are started
+    with `--config <that file>` so they see exactly the values this process resolved.
 
     :return: parsed argument namespace
     """
     # Get custom handlers for all executables we are running
-    arg_handlers = [
-        StandardPipelineParser,
-        GdsParser,
-        BinaryDeployment,
-        CommParser,
-        PluginArgumentParser,
-    ]
-    args, parser = ConfigDrivenParser.parse_args(
-        arg_handlers, "Run F prime deployment and GDS"
+    composite = CompositeParser(
+        [
+            StandardPipelineParser,
+            GdsParser,
+            BinaryDeployment,
+            CommParser,
+            PluginArgumentParser,
+        ]
     )
+    args, _ = ParserBase.parse_args([composite], "Run F prime deployment and GDS")
+    args.config = composite.write_configuration(args, Path(args.logs) / RESOLVED_CONFIGURATION_NAME)
     return args
+
+
+def child_arguments(parsed_args):
+    """Arguments handing a child process this process' resolved configuration"""
+    return ["--config", str(parsed_args.config), "--log-directly"]
 
 
 def launch_process(cmd, logfile=None, name=None, env=None, launch_time=5, cwd=None):
@@ -121,15 +132,11 @@ def launch_html(parsed_args):
     Return:
         launched process
     """
-    composite_parser = CompositeParser([StandardPipelineParser, ConfigDrivenParser])
-    reproduced_arguments = StandardPipelineParser().reproduce_cli_args(parsed_args)
-    if "--log-directly" not in reproduced_arguments:
-        reproduced_arguments += ["--log-directly"]
     flask_env = os.environ.copy()
     flask_env.update(
         {
             "FLASK_APP": "fprime_gds.flask.app",
-            "STANDARD_PIPELINE_ARGUMENTS": "|".join(reproduced_arguments),
+            "STANDARD_PIPELINE_ARGUMENTS": "|".join(child_arguments(parsed_args)),
             "SERVE_LOGS": "YES",
         }
     )
@@ -194,13 +201,7 @@ def launch_comm(parsed_args):
     Return:
         launched process
     """
-    arguments = CommParser().reproduce_cli_args(parsed_args)
-    arguments = (
-        arguments + ["--log-directly"]
-        if "--log-directly" not in arguments
-        else arguments
-    )
-    app_cmd = BASE_MODULE_ARGUMENTS + ["fprime_gds.executables.comm"] + arguments
+    app_cmd = BASE_MODULE_ARGUMENTS + ["fprime_gds.executables.comm"] + child_arguments(parsed_args)
     return launch_process(
         app_cmd,
         name=f"comm[{parsed_args.communication_selection}] Application",

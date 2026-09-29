@@ -29,7 +29,7 @@ import fprime_gds.flask.logs
 import fprime_gds.flask.sequence
 import fprime_gds.flask.stats
 import fprime_gds.flask.updown
-from fprime_gds.executables.cli import ParserBase, StandardPipelineParser, ConfigDrivenParser
+from fprime_gds.executables.cli import ParserBase, StandardPipelineParser
 
 from . import components
 
@@ -70,7 +70,7 @@ def construct_app():
     # Standard pipeline creation
     input_arguments = app.config["STANDARD_PIPELINE_ARGUMENTS"]
     args_ns, _ = ParserBase.parse_args(
-        [StandardPipelineParser, ConfigDrivenParser], "n/a", input_arguments, client=True
+        [StandardPipelineParser], "n/a", input_arguments, client=True
     )
     # Load app configuration from file
     for key, value in args_ns.config_values.get("flask", {}).items():
