@@ -2,6 +2,8 @@ name: matrix-dispatch (fork only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ ci/matrix-361 ]
 
 jobs:
   tests:
