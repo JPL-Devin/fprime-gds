@@ -1,0 +1,15 @@
+[package]
+name = "fprime-comm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "F´ ground-system TCP transport (server or client)"
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+bytes.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+fprime-frame.workspace = true
