@@ -38,21 +38,25 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .navbar .navbar-brand img[width="50"] { width: 34px; height: 34px; }
-.navbar-nav { align-self: stretch; align-items: stretch; margin-top: 0 !important; }
+.navbar-nav { align-items: center; gap: 0.2rem; margin-top: 0 !important; }
 .navbar-dark .navbar-nav .nav-item.nav-link {
-  display: flex;
-  align-items: center;
-  padding: 0 0.85rem;
-  border-bottom: 2px solid transparent;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: var(--fp-radius);
   font-size: 0.875rem;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.6);
-  transition: color .12s, border-color .12s;
+  transition: color .12s, background-color .12s, border-color .12s;
 }
-.navbar-dark .navbar-nav .nav-item.nav-link:hover { color: rgba(255, 255, 255, 0.9); }
+.navbar-dark .navbar-nav .nav-item.nav-link:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.06);
+}
 .navbar-dark .navbar-nav .nav-item.nav-link.active {
   color: #fff;
-  border-bottom-color: var(--primary);
+  background-color: rgba(255, 255, 255, 0.12);
+  background-color: color-mix(in srgb, var(--primary) 28%, transparent);
+  border-color: var(--primary);
 }
 .navbar-nav > form, .navbar-nav > .navbar-darkmode { align-self: center; }
 .navbar .btn-group-vertical > .btn {
