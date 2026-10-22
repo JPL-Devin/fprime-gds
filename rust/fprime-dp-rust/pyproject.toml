@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "fprime-dp-rust"
+version = "0.1.0"
+description = "Rust implementation of the F Prime data product tools (fprime-dp)"
+requires-python = ">=3.9"
+
+[tool.maturin]
+module-name = "fprime_dp_rust"
