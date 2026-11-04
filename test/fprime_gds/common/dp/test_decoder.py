@@ -15,8 +15,11 @@ import pytest
 import json
 from pathlib import Path
 
-from fprime_gds.common.dp.decoder import DataProductDecoder, CRCError, RecordNotFoundError
+from fprime_gds.common.dp.decoder import DataProductDecoder, CRCError, DataProductError, RecordNotFoundError
 from fprime_gds.common.models.dictionaries import Dictionaries
+from fprime_gds.common.models.serialize.numerical_types import U32Type
+from fprime_gds.common.models.serialize.time_type import TimeType
+from fprime_gds.common.utils.config_manager import ConfigManager
 from fprime_gds.common.utils.cleanup import globals_cleanup
 
 
@@ -523,6 +526,75 @@ class TestDataProductDecoderCompressedProducts:
         result_uncompressed = decoder_uncompressed.decode()
 
         assert result_uncompressed["Records"] == result_compressed["Records"]
+
+
+class TestDataProductDecoderComBufferRecords:
+    """Test decoding of ComLoggerDp ComBuffer records."""
+
+    @staticmethod
+    def make_record(packet_type, payload):
+        config = ConfigManager()
+        apid = config.get_type("ComCfg.Apid")(packet_type)
+        sentry = U32Type(0xDEADBEEF)
+        descriptor = config.get_type("FwPacketDescriptorType")(apid.numeric_value)
+        data = sentry.serialize() + descriptor.serialize() + payload
+        return {
+            "Record": {"record_name": "Ref.comLoggerDp.ComBufferRecord"},
+            "Data": {"values": list(data)},
+        }
+
+    def test_decode_multiple_channels(self, load_dictionary_ref):
+        config = ConfigManager()
+        channel_id = config.get_type("FwChanIdType")
+        time = TimeType().serialize()
+        payload = (
+            channel_id(268439552).serialize() + time + U32Type(123).serialize()
+            + channel_id(268439553).serialize() + time + U32Type(456).serialize()
+        )
+        record = self.make_record("FW_PACKET_TELEM", payload)
+        decoder = DataProductDecoder(load_dictionary_ref, "unused.fdp")
+
+        packets = decoder.decode_com_buffer_record(record)
+
+        assert [packet["name"] for packet in packets] == [
+            "Ref.rateGroup1Comp.RgMaxTime",
+            "Ref.rateGroup1Comp.RgCycleSlips",
+        ]
+        assert [packet["display_text"] for packet in packets] == ["123 us", 456]
+
+    def test_decode_event_with_short_string_argument(self, load_dictionary_ref):
+        config = ConfigManager()
+        event_template = load_dictionary_ref.event_id[16785414]
+        string_type = event_template.get_args()[0][2]
+        payload = (
+            config.get_type("FwEventIdType")(16785414).serialize()
+            + TimeType().serialize()
+            + string_type("ab").serialize()
+            + U32Type(23).serialize()
+            + U32Type(47).serialize()
+        )
+        record = self.make_record("FW_PACKET_LOG", payload)
+        decoder = DataProductDecoder(load_dictionary_ref, "unused.fdp")
+
+        packets = decoder.decode_com_buffer_record(record)
+
+        assert len(packets) == 1
+        assert packets[0]["name"] == "CdhCore.health.HLTH_PING_UPDATED"
+        assert [arg.val for arg in packets[0]["args"]] == ["ab", 23, 47]
+
+    def test_decode_unsupported_packet_type(self, load_dictionary_ref):
+        record = self.make_record("FW_PACKET_FILE", b"")
+        decoder = DataProductDecoder(load_dictionary_ref, "unused.fdp")
+
+        with pytest.raises(DataProductError, match="Unsupported packet type FW_PACKET_FILE"):
+            decoder.decode_com_buffer_record(record)
+
+    def test_is_not_com_buffer_record(self, load_dictionary_ref):
+        decoder = DataProductDecoder(load_dictionary_ref, "unused.fdp")
+        record = {"Record": {"record_name": "Ref.dpDemo.U32ArrayRecord"}}
+
+        assert not decoder.is_com_buffer_record(record)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
