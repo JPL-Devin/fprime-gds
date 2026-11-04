@@ -580,7 +580,8 @@ class TestDataProductDecoderComBufferRecords:
 
         assert len(packets) == 1
         assert packets[0]["name"] == "CdhCore.health.HLTH_PING_UPDATED"
-        assert [arg.val for arg in packets[0]["args"]] == ["ab", 23, 47]
+        assert packets[0]["args"] == ["ab", 23, 47]
+        assert json.loads(json.dumps(packets))[0]["args"] == ["ab", 23, 47]
 
     def test_decode_unsupported_packet_type(self, load_dictionary_ref):
         record = self.make_record("FW_PACKET_FILE", b"")

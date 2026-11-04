@@ -246,7 +246,11 @@ class DataProductDecoder:
             decoder = self.event_decoder
         else:
             raise DataProductError(f"Unsupported packet type {name}")
-        return [item.get_dict() for item in decoder.decode_api(payload)]
+        packets = [item.get_dict() for item in decoder.decode_api(payload)]
+        for packet in packets:
+            if "args" in packet:
+                packet["args"] = [arg.val for arg in packet["args"]]
+        return packets
 
     def decompress_records(self, records):
         uncomp_bytes = bytearray()
