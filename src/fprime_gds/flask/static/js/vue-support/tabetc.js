@@ -11,6 +11,7 @@ import {config} from "../config_init.js"
 // Child component imports ensures that the Vue components exist before using them
 import "./channel.js"
 import "./downlink.js"
+import "./dataproducts.js"
 import "./event.js"
 import "./log.js"
 import "./uplink.js"
@@ -32,7 +33,7 @@ Vue.component("tabbed-etc", {
          * Function to return a dictionary of data items. currentTab is set based on the initial URL.
          */
         function () {
-            let hash = window.location.hash.replace("#", "");
+            let hash = decodeURIComponent(window.location.hash.replace("#", ""));
             return {
                 "currentTab": (hash === "")? "Commanding" : hash,
                 "tabs": [
@@ -41,6 +42,7 @@ Vue.component("tabbed-etc", {
                     ["Channels", "Chn"], 
                     ["Uplink", "UpL"], 
                     ["Downlink", "DnL"], 
+                    ["Data Products", "DPs"],
                     ["Dictionaries", "Dct"],
                     ["Charts", "Chr"], 
                     ["Logs", "Log"],

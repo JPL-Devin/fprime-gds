@@ -118,6 +118,7 @@ Note: Vue.js annotations are used, as Vue is the data-to-view framework of choic
                         <event-list    v-show="currentTab == 'Events'"></event-list>
                         <uplink        v-show="currentTab == 'Uplink'"></uplink>
                         <downlink      v-show="currentTab == 'Downlink'"></downlink>
+                        <data-products v-show="currentTab == 'Data Products'"></data-products>
                         <chart-wrapper v-show="currentTab == 'Charts'"></chart-wrapper>
                         <dictionary    v-show="currentTab == 'Dictionaries'"></dictionary>
                         <logging       v-show="currentTab == 'Logs'"></logging>
@@ -330,6 +331,57 @@ Note: Vue.js annotations are used, as Vue is the data-to-view framework of choic
                               :item-to-columns="columnify"
                     ></fp-table>
                 </div>
+            </template>
+
+            <!-- Data Products:
+
+            Table of the data products detected among downlinked files, with per-row decode buttons and an auto-decode
+            toggle. Uses the dp-row template below.
+            -->
+            <template id="data-products-template">
+                <div class="fp-flex-repeater">
+                    <div class="fp-flex-header">
+                        <h2>Data Products</h2>
+                        <div v-if="!meta.enabled" class="alert alert-secondary">
+                            Data products are not available: the loaded dictionary has no data product containers.
+                        </div>
+                        <div v-else class="form-check">
+                            <input class="form-check-input" type="checkbox" id="dp-auto-decode" :checked="meta.auto_decode" v-on:change="setAuto">
+                            <label class="form-check-label" for="dp-auto-decode">
+                                Auto-decode new data products (server setting, off after each GDS restart)
+                            </label>
+                        </div>
+                    </div>
+                    <fp-table :header-columns="['Received', 'DP Time', 'Container', 'Id', 'Priority', 'Size', 'State', 'Actions', 'File']"
+                              :items="elements"
+                              :item-to-unique="keyify"
+                              :display-template="'dp-row'"
+                              :item-to-columns="columnify"
+                              :reverse="true"
+                    ></fp-table>
+                </div>
+            </template>
+
+            <template id="dp-row-template">
+                <tr>
+                    <td>{{ item.received }}</td>
+                    <td>{{ item.time.seconds }}.{{ String(item.time.microseconds).padStart(6, '0') }}</td>
+                    <td :title="item.container || 'container id not in dictionary'">{{ item.short_name || 'unknown' }}</td>
+                    <td>{{ item.container_id }} (0x{{ item.container_id.toString(16).toUpperCase() }})</td>
+                    <td>{{ item.priority }}</td>
+                    <td :title="'file ' + item.file_size + ' B'">{{ item.data_size }}</td>
+                    <td>
+                        <span :class="['badge', stateClass]">{{ item.state }}</span>
+                        <small v-if="item.error" class="text-danger d-block">{{ item.error }}</small>
+                    </td>
+                    <td>
+                        <button v-if="decodeLabel" class="btn btn-secondary btn-sm" v-on:click="decode">{{ decodeLabel }}</button>
+                        <a v-if="item.state == 'DECODED'" class="btn btn-secondary btn-sm" :href="'/dataproducts/' + encodedName" target="_blank">Open JSON</a>
+                    </td>
+                    <td>
+                        <a :href="'/download/files/' + encodedName" :download="item.name" :title="item.name">Download .fdp</a>
+                    </td>
+                </tr>
             </template>
 
             <!-- FP Table Templates:

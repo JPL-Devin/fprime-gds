@@ -199,6 +199,9 @@ class DataStore {
         this.logs = [];
         this.downfiles = [];
         this.upfiles = [];
+        this.dataproducts = [];
+        this.dataproducts_meta = {enabled: true, auto_decode: false};
+        this.dataproducts_history = new FullListHistory(this.dataproducts, this.flags);
 
         // Listing of endpoints that will be polled in repetition for data.
         this.polling_info = [
@@ -229,6 +232,10 @@ class DataStore {
             {
                 endpoint: "stats",
                 handler: this.updateStats,
+            },
+            {
+                endpoint: "dataproducts",
+                handler: this.updateDataProducts,
             }
         ];
 
@@ -401,6 +408,22 @@ class DataStore {
      */
     updateStats(statistics, errors) {
         _performance.updateStats(statistics);
+    }
+
+    /**
+     * Process a /dataproducts response: {enabled, auto_decode, products}. When the feature is disabled on the server
+     * (dictionary without data product containers) the poller is stopped, as reregisterPoller ignores -1 intervals.
+     * @param data: dataproducts response
+     */
+    updateDataProducts(data) {
+        this.dataproducts_meta.enabled = !!data.enabled;
+        this.dataproducts_meta.auto_decode = !!data.auto_decode;
+        if (!data.enabled && "interval" in _loader.endpoints.dataproducts) {
+            clearInterval(_loader.endpoints.dataproducts.interval);
+            delete _loader.endpoints.dataproducts.interval;
+            _settings.polling_intervals.dataproducts = -1;
+        }
+        this.dataproducts_history.send(data.products || []);
     }
 }
 // Exports the datastore
