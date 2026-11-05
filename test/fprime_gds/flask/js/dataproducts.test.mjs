@@ -16,7 +16,7 @@ const js = "../../../../src/fprime_gds/flask/static/js/";
 const { _datastore } = await import(js + "datastore.js");
 const { _loader } = await import(js + "loader.js");
 const { _settings } = await import(js + "settings.js");
-const { dpTime, decodeLabel, shortError } = await import(js + "vue-support/dataproducts.js");
+const { dpTime, decodeLabel, shortError, displayTime } = await import(js + "vue-support/dataproducts.js");
 
 function product(name, state) {
     return {
@@ -31,6 +31,11 @@ function product(name, state) {
 test("dpTime pads microseconds to six digits", () => {
     assert.equal(dpTime({ seconds: 1781654123, microseconds: 894107 }), "1781654123.894107");
     assert.equal(dpTime({ seconds: 10, microseconds: 20 }), "10.000020");
+});
+
+test("displayTime: calendar time for workstation base, padded raw time otherwise", () => {
+    assert.equal(displayTime({ base: 2, context: 0, seconds: 1781654123, microseconds: 894107 }), "2026-06-17T01:42:03.894Z");
+    assert.equal(displayTime({ base: 1, context: 0, seconds: 10, microseconds: 20 }), "10.000020");
 });
 
 test("decodeLabel per state", () => {

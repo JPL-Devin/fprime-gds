@@ -29,6 +29,15 @@ export function decodeLabel(state) {
 }
 
 /**
+ * Display form of a data product header time: calendar time (through the configurable GUI formatter) for workstation
+ * time (base 2, as Events and Channels), the padded raw seconds.microseconds for any other time base.
+ * @param time: {base, seconds, microseconds} object
+ */
+export function displayTime(time) {
+    return (time.base === 2) ? timeToString(time) : dpTime(time);
+}
+
+/**
  * Error text without the GDS host path, e.g. "FileNotFoundError: [Errno 2] No such file or directory: '/x/y.fdp'"
  * becomes "FileNotFoundError: [Errno 2] No such file or directory". The full text stays in the tooltip.
  * @param error: error string or null
@@ -47,9 +56,9 @@ Vue.component("data-products", {
             return "dp-" + item.name + "-" + item.received;
         },
         columnify(item) {
-            return [item.received, timeToString(item.time), dpTime(item.time), item.short_name || "unknown",
-                    formatHexId(item.container_id), String(item.priority), String(item.data_size), item.state,
-                    item.error || "", item.name];
+            // one entry per header column: the fp-table sorts and filters by index
+            return [item.received, displayTime(item.time), item.short_name || "unknown", formatHexId(item.container_id),
+                    String(item.priority), String(item.data_size), item.state, item.error || "", item.name];
         },
         /**
          * Request a decode of one product. The row's button is disabled until the next poll reports the new state;
@@ -87,7 +96,7 @@ Vue.component("dp-row", {
             return shortError(this.item.error);
         },
         calendarTime() {
-            return timeToString(this.item.time);
+            return displayTime(this.item.time);
         },
         receivedTime() {
             const date = new Date(this.item.received);
