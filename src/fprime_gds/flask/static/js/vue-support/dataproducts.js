@@ -89,6 +89,10 @@ Vue.component("dp-row", {
         calendarTime() {
             return timeToString(this.item.time);
         },
+        receivedTime() {
+            const date = new Date(this.item.received);
+            return isNaN(date) ? this.item.received : date.toISOString();  // same ms + Z format as the DP time
+        },
         rawTime() {
             return dpTime(this.item.time);
         },

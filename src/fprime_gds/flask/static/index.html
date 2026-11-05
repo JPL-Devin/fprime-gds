@@ -369,7 +369,7 @@ Note: Vue.js annotations are used, as Vue is the data-to-view framework of choic
 
             <template id="dp-row-template">
                 <tr>
-                    <td>{{ item.received }}</td>
+                    <td :title="item.received">{{ receivedTime }}</td>
                     <td :title="'F´ time ' + rawTime">{{ calendarTime }}</td>
                     <td :title="item.container || 'container id not in dictionary'">{{ item.short_name || 'unknown' }}</td>
                     <td>{{ item.container_id }} (0x{{ item.container_id.toString(16).toUpperCase() }})</td>
