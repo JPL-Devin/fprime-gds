@@ -195,6 +195,8 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
         for mtime, path in sorted(stamped, key=lambda item: item[0]):
             if self._consider(path, _utc_iso(mtime), from_scan=True):
                 count += 1
+        if count > self._catalog_limit:
+            LOGGER.warning("%d data products found, only the newest %d are listed", count, self._catalog_limit)
         return count
 
     # ------------------------------------------------------------------ detection
@@ -243,10 +245,13 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
             received=received,
             json_name=json_name,
         )
-        if self._header_size + data_size + ChecksumConfig.CHECKSUM_LEN > file_size:
+        incomplete = self._header_size + data_size + ChecksumConfig.CHECKSUM_LEN > file_size
+        if incomplete:
             entry.error = "file shorter than header DataSize"
         json_path = self.directory / json_name
-        existing_json_matches = from_scan and json_path.is_file() and self._json_matches(json_path, entry)
+        existing_json_matches = (
+            from_scan and not incomplete and json_path.is_file() and self._json_matches(json_path, entry)
+        )
         with self._lock:
             previous = self._entries.get(name)
             if previous is not None:
@@ -255,7 +260,7 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
                     self._json_owner.pop(previous.json_name)
             self._entries[name] = entry
             self._entries.move_to_end(name)
-            if from_scan and json_path.is_file():
+            if from_scan and json_path.is_file() and not incomplete:
                 if json_name == name:
                     entry.error = "output name equals input"
                 elif json_name in self._json_owner:

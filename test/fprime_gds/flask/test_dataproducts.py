@@ -70,6 +70,8 @@ def test_settings(client, catalog):
     assert client.put("/dataproducts", json={"auto_decode": False}).get_json() == {"auto_decode": False}
     assert client.put("/dataproducts", json={}).status_code == 400
     assert client.put("/dataproducts", json={"auto_decode": "yes"}).status_code == 400
+    assert client.put("/dataproducts", json={"auto_decode": 1}).status_code == 400
+    assert client.put("/dataproducts", json={"auto_decode": None}).status_code == 400
     assert client.put("/dataproducts", data="auto_decode=true", content_type="text/plain").status_code == 415
     assert catalog.auto_decode is False
 

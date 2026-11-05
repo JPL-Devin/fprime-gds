@@ -10,12 +10,18 @@ import pathlib
 
 import flask
 import flask_restful
-import flask_restful.inputs
 import flask_restful.reqparse
 
 from fprime_gds.common.dp.catalog import DataProductCatalog, DecodeQueueFull, UnknownProduct
 
 LOGGER = logging.getLogger("dataproducts")
+
+
+def json_boolean(value):
+    """Strict JSON boolean argument: true/false only (flask_restful.inputs.boolean accepts strings and leaks on ints)"""
+    if not isinstance(value, bool):
+        raise ValueError("must be a JSON boolean")
+    return value
 
 
 def setup_catalog(pipeline) -> DataProductCatalog:
@@ -47,7 +53,7 @@ class DataProductList(flask_restful.Resource):
         self.catalog = catalog
         self.parser = flask_restful.reqparse.RequestParser()
         self.parser.add_argument(
-            "auto_decode", type=flask_restful.inputs.boolean, required=True, location="json"
+            "auto_decode", type=json_boolean, required=True, nullable=False, location="json"
         )
 
     def get(self):

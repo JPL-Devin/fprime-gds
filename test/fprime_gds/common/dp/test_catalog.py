@@ -427,6 +427,20 @@ class TestScan:
         assert entry(catalog, "a.fdp")["state"] == "DECODED"
         assert catalog.scan() == 1 and entry(catalog, "a.fdp")["state"] == "DECODED"
 
+    def test_scan_incomplete_copy_never_claims_json(self, tmp_path):
+        catalog = make(tmp_path)
+        import os
+
+        short = stage(tmp_path, UNCOMPRESSED, "short.fdp", truncate=200)
+        full = stage(tmp_path, UNCOMPRESSED, "full.fdp")
+        os.utime(short, (1_000_000, 1_000_000))
+        os.utime(full, (2_000_000, 2_000_000))
+        write_decoded_json(tmp_path / REF_JSON)
+        assert catalog.scan() == 2
+        assert entry(catalog, "short.fdp")["state"] == "DETECTED"
+        assert entry(catalog, "short.fdp")["error"] == "file shorter than header DataSize"
+        assert entry(catalog, "full.fdp")["state"] == "DECODED"
+
     def test_scan_missing_directory(self, tmp_path):
         catalog = make(tmp_path / "missing")
         assert catalog.scan() == 0
