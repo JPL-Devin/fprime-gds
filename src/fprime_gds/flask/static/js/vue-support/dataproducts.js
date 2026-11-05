@@ -20,8 +20,8 @@ export function dpTime(time) {
 }
 
 /**
- * Label of the decode button for a product state, or null when no button applies. In auto-decode mode only failed
- * products keep a (Retry) button.
+ * Label of the decode button for a product state, or null when no button applies. Detected (not yet decoded) and failed
+ * products always keep a button: auto-decode only queues products as they arrive. Auto-decode mode hides "Re-decode".
  * @param state: product decode state
  * @param auto: auto-decode flag
  */
@@ -29,10 +29,10 @@ export function decodeLabel(state, auto) {
     if (state === "FAILED") {
         return "Retry";
     }
-    if (auto) {
-        return null;
+    if (state === "DETECTED") {
+        return "Decode";
     }
-    return {"DETECTED": "Decode", "DECODED": "Re-decode"}[state] || null;
+    return (state === "DECODED" && !auto) ? "Re-decode" : null;
 }
 
 Vue.component("data-products", {

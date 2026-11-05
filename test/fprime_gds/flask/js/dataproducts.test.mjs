@@ -39,7 +39,7 @@ test("decodeLabel per state in manual and auto mode", () => {
     assert.equal(decodeLabel("FAILED", false), "Retry");
     assert.equal(decodeLabel("QUEUED", false), null);
     assert.equal(decodeLabel("DECODING", false), null);
-    assert.equal(decodeLabel("DETECTED", true), null);
+    assert.equal(decodeLabel("DETECTED", true), "Decode");
     assert.equal(decodeLabel("DECODED", true), null);
     assert.equal(decodeLabel("FAILED", true), "Retry");
 });
