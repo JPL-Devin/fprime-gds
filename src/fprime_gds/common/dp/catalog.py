@@ -32,8 +32,9 @@ from fprime_gds.common.dp.common import (
     dp_json_filename,
     get_dp_header_type,
 )
-from fprime_gds.common.dp.decoder import DataProductDecoder
+from fprime_gds.common.dp.decoder import CRCError, DataProductDecoder
 from fprime_gds.common.files.helpers import TransmitFile
+from fprime_gds.common.models.serialize.type_exceptions import DeserializeException
 
 LOGGER = logging.getLogger("dataproducts")
 CATALOG_LIMIT = 1000
@@ -203,7 +204,8 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
         try:
             with open(path, "rb") as file_handle:
                 return DataProductDecoder(self._dictionaries, str(path)).decode_header(file_handle).to_jsonable()
-        except Exception:
+        except (CRCError, DeserializeException, OSError, ValueError, IndexError) as exc:
+            LOGGER.debug("%s is not a data product: %s", path.name, exc)
             return None
 
     def _consider(self, path: pathlib.Path, received: str, from_scan: bool) -> bool:
@@ -243,6 +245,8 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
         )
         if self._header_size + data_size + ChecksumConfig.CHECKSUM_LEN > file_size:
             entry.error = "file shorter than header DataSize"
+        json_path = self.directory / json_name
+        existing_json_matches = from_scan and json_path.is_file() and self._json_matches(json_path, entry)
         with self._lock:
             previous = self._entries.get(name)
             if previous is not None:
@@ -251,12 +255,12 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
                     self._json_owner.pop(previous.json_name)
             self._entries[name] = entry
             self._entries.move_to_end(name)
-            if from_scan and (self.directory / json_name).is_file():
+            if from_scan and json_path.is_file():
                 if json_name == name:
                     entry.error = "output name equals input"
                 elif json_name in self._json_owner:
                     entry.error = f"output {json_name} already produced by {self._json_owner[json_name]}"
-                elif self._json_matches(self.directory / json_name, entry):
+                elif existing_json_matches:
                     entry.state = DecodeState.DECODED
                     self._json_owner[json_name] = name
                 else:
@@ -301,14 +305,14 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
         """Queue a decode of entry (caller holds the lock). Returns the resulting state name."""
         if entry.state in ACTIVE_STATES:
             return entry.state.value
-        previous_state, previous_error = entry.state, entry.error
+        previous_state = entry.state
         entry.state = DecodeState.QUEUED
         entry.error = None
         try:
             self._queue.put_nowait((entry.name, entry.generation))
         except queue.Full:
             entry.state = previous_state
-            entry.error = "decode queue full" if previous_error is None else previous_error
+            entry.error = "decode queue full"
             raise DecodeQueueFull(entry.name)
         return entry.state.value
 

@@ -18,8 +18,8 @@ DP_CONTAINER_ID_PATTERN = re.compile(r"Dp_(?P<id>\d+)_(?P<sec>\d+)_(?P<usec>\d+)
 def renamed_output_path(dictionaries: Dictionaries, bin_file: Path) -> Optional[Path]:
     """Compute the output path for --rename-id: <ContainerShortName>_<sec:08d>_<usec:08d>.json next to the input.
 
-    For `Dp_00002576_01791745803_00594527.fdp` and container `Ref.dpDemo.DpDemoContainer` the output is
-    `DpDemoContainer_01791745803_00594527.json`. The same name is produced by the GDS Data Products tab
+    For `Dp_00002576_1791745803_00594527.fdp` and container `Ref.dpDemo.DpDemoContainer` the output is
+    `DpDemoContainer_1791745803_00594527.json`. The same name is produced by the GDS Data Products tab
     (from the header fields), so any prefix of a downlinked copy (`._DpCat_`) is not kept.
 
     Returns None when the file name does not follow the DpWriter naming convention or the container
