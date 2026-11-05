@@ -33,7 +33,12 @@ Vue.component("tabbed-etc", {
          * Function to return a dictionary of data items. currentTab is set based on the initial URL.
          */
         function () {
-            let hash = decodeURIComponent(window.location.hash.replace("#", ""));
+            let hash = window.location.hash.replace("#", "");
+            try {
+                hash = decodeURIComponent(hash);
+            } catch (error) {
+                // malformed percent-encoding: keep the raw hash
+            }
             return {
                 "currentTab": (hash === "")? "Commanding" : hash,
                 "tabs": [
