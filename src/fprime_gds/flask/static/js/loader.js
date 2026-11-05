@@ -131,6 +131,12 @@ class Loader {
                 "last": null,
                 "running": false,
                 "queued": false
+            },
+            "dataproducts": {
+                "url": "/dataproducts",
+                "last": null,
+                "running": false,
+                "queued": false
             }
         };
         // Attach a name to each endpoint
