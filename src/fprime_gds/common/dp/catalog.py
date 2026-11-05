@@ -419,4 +419,4 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
         try:
             os.remove(path)
         except OSError:
-            pass
+            pass  # already gone or never written

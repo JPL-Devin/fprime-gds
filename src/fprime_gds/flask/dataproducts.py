@@ -78,20 +78,19 @@ class DataProduct(flask_restful.Resource):
         if args["action"] != "decode":
             flask_restful.abort(400, message=f"Unknown action '{args['action']}', expected 'decode'")
         try:
-            state = self.catalog.request_decode(name)
+            return {"name": name, "state": self.catalog.request_decode(name)}
         except UnknownProduct:
-            flask_restful.abort(404, message=f"Unknown data product '{name}'")
+            return flask_restful.abort(404, message=f"Unknown data product '{name}'")
         except DecodeQueueFull:
-            flask_restful.abort(503, message="Decode queue full, retry later")
-        return {"name": name, "state": state}
+            return flask_restful.abort(503, message="Decode queue full, retry later")
 
     def get(self, name):
         try:
             json_path = self.catalog.json_path(name)
         except UnknownProduct:
-            flask_restful.abort(404, message=f"No decoded JSON for data product '{name}'")
+            return flask_restful.abort(404, message=f"No decoded JSON for data product '{name}'")
         if not json_path.is_file():
-            flask_restful.abort(404, message=f"Decoded JSON for '{name}' is missing on disk, decode again")
+            return flask_restful.abort(404, message=f"Decoded JSON for '{name}' is missing on disk, decode again")
         return flask.send_from_directory(
             json_path.parent, json_path.name, mimetype="application/json"
         )

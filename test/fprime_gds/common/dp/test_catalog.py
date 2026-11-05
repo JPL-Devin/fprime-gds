@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from fprime_gds.common.dp.catalog import DataProductCatalog, DecodeQueueFull, DecodeState, UnknownProduct
+from fprime_gds.common.dp.catalog import DataProductCatalog, DecodeQueueFull, UnknownProduct
 from fprime_gds.common.dp.common import calculate_crc32, dp_json_filename
 from fprime_gds.common.dp.decoder import DataProductDecoder
 from fprime_gds.common.files.downlinker import FileDownlinker
