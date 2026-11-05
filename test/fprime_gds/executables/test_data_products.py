@@ -86,10 +86,11 @@ class TestDecodeBinFile:
         assert list(tmp_path.glob("*.json")) == [output]
 
     def test_rename_id_downlinked_name(self, tmp_path):
-        """Downlinked copies are named after the sanitized flight path (./DpCat/Dp_... -> ._DpCat_Dp_...)"""
+        """Downlinked copies are named after the sanitized flight path (./DpCat/Dp_... -> ._DpCat_Dp_...);
+        the prefix is dropped so the output matches the GDS Data Products tab"""
         bin_file = stage(tmp_path, "DpDemoUncompressed.fdp", f"._DpCat_Dp_{DP_DEMO_CONTAINER_ID:08d}_00000010_00000020.fdp")
         assert run_decode("-b", str(bin_file), "--rename-id") == 0
-        assert_decoded(tmp_path / f"._DpCat_{DP_DEMO_CONTAINER_NAME}_00000010_00000020.json")
+        assert_decoded(tmp_path / f"{DP_DEMO_CONTAINER_NAME}_00000010_00000020.json")
 
     def test_rename_id_unknown_container_keeps_name(self, tmp_path, capsys):
         bin_file = stage(tmp_path, "DpDemoUncompressed.fdp", "Dp_00000001_00000010_00000020.fdp")

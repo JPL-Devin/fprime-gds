@@ -63,6 +63,18 @@ def calculate_crc32(data: bytes, init_value: int = ChecksumConfig.CHECKSUM_INIT)
     return crc32(data, init_value) & ChecksumConfig.CHECKSUM_XOR_OUT
 
 
+def dp_json_filename(short_name: str, seconds: int, microseconds: int) -> str:
+    """JSON output name shared by the GUI data product catalog and `fprime-dp decode --rename-id`:
+    <ContainerShortName>_<sec:08d>_<usec:08d>.json, the same %08 padding as DpWriter's DP_FILENAME_FORMAT.
+    e.g. DpDemoContainer_1781654123_00894107.json"""
+    return f"{short_name}_{seconds:08d}_{microseconds:08d}.json"
+
+
+def dp_container_short_name(container) -> str:
+    """Last dotted component of a DpContainerTemplate name: 'Ref.dpDemo.DpDemoContainer' -> 'DpDemoContainer'"""
+    return container.get_name().rsplit(".", 1)[-1]
+
+
 # ==============================================================================
 # Data Product Header Type
 # ==============================================================================

@@ -22,6 +22,7 @@ import fprime_gds.flask.channels
 
 # Import the Flask API implementations
 import fprime_gds.flask.commands
+import fprime_gds.flask.dataproducts
 import fprime_gds.flask.errors
 import fprime_gds.flask.events
 import fprime_gds.flask.json
@@ -148,6 +149,17 @@ def construct_app():
         "/download/files",
         "/download/files/<string:source>",
         resource_class_args=[pipeline.files.downlinker],
+    )
+    catalog = fprime_gds.flask.dataproducts.setup_catalog(pipeline)
+    api.add_resource(
+        fprime_gds.flask.dataproducts.DataProductList,
+        "/dataproducts",
+        resource_class_args=[catalog],
+    )
+    api.add_resource(
+        fprime_gds.flask.dataproducts.DataProduct,
+        "/dataproducts/<string:name>",
+        resource_class_args=[catalog],
     )
     api.add_resource(
         fprime_gds.flask.sequence.SequenceCompiler,

@@ -5,20 +5,22 @@ from pathlib import Path
 from typing import List, Optional
 
 from fprime_gds.common.models.dictionaries import Dictionaries
+from fprime_gds.common.dp.common import dp_container_short_name, dp_json_filename
 from fprime_gds.common.dp.decoder import DataProductDecoder
 from fprime_gds.common.dp.validator import DataProductValidator
 
-# Matches the container id in file names produced by Svc::DpWriter (see DP_FILENAME_FORMAT in
-# DpCfg.hpp): Dp_<container id>_<seconds>_<microseconds>.fdp. Searched rather than anchored so that
-# downlinked copies, whose names are the sanitized flight path (e.g. ._DpCat_Dp_<id>_...), also match.
-DP_CONTAINER_ID_PATTERN = re.compile(r"Dp_(?P<id>\d+)_")
+# Matches file names produced by Svc::DpWriter (see DP_FILENAME_FORMAT in DpCfg.hpp):
+# Dp_<container id>_<seconds>_<microseconds>.fdp. Searched rather than anchored so that downlinked
+# copies, whose names are the sanitized flight path (e.g. ._DpCat_Dp_<id>_...), also match.
+DP_CONTAINER_ID_PATTERN = re.compile(r"Dp_(?P<id>\d+)_(?P<sec>\d+)_(?P<usec>\d+)$")
 
 
 def renamed_output_path(dictionaries: Dictionaries, bin_file: Path) -> Optional[Path]:
-    """Compute the output path for --rename-id, replacing `Dp_<container id>` with the container's short name.
+    """Compute the output path for --rename-id: <ContainerShortName>_<sec:08d>_<usec:08d>.json next to the input.
 
-    For `Dp_00002576_01791745803_00594527.fdp` and container `Ref.dpDemo.DpDemoContainer` the output is
-    `DpDemoContainer_01791745803_00594527.json`.
+    For `Dp_00002576_1791745803_00594527.fdp` and container `Ref.dpDemo.DpDemoContainer` the output is
+    `DpDemoContainer_1791745803_00594527.json`. The same name is produced by the GDS Data Products tab
+    (from the header fields), so any prefix of a downlinked copy (`._DpCat_`) is not kept.
 
     Returns None when the file name does not follow the DpWriter naming convention or the container
     id is not present in the dictionary. The caller falls back to the default output path.
@@ -33,9 +35,9 @@ def renamed_output_path(dictionaries: Dictionaries, bin_file: Path) -> Optional[
     if container is None:
         print(f"Warning: container id {container_id} ({bin_file.name}) not found in dictionary, keeping file name", file=sys.stderr)
         return None
-    short_name = container.get_name().rsplit(".", 1)[-1]
-    renamed_stem = f"{stem[:match.start()]}{short_name}_{stem[match.end():]}"
-    return bin_file.with_name(f"{renamed_stem}.json")
+    return bin_file.with_name(
+        dp_json_filename(dp_container_short_name(container), int(match.group("sec")), int(match.group("usec")))
+    )
 
 
 def decode_files(dictionaries: Dictionaries, bin_files: List[Path], output: Optional[str], disable_decompression: bool, rename_id: bool) -> int:
