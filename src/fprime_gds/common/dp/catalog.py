@@ -247,7 +247,8 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
             previous = self._entries.get(name)
             if previous is not None:
                 entry.generation = previous.generation + 1
-                self._json_owner.pop(previous.json_name, None)
+                if self._json_owner.get(previous.json_name) == name:
+                    self._json_owner.pop(previous.json_name)
             self._entries[name] = entry
             self._entries.move_to_end(name)
             if from_scan and (self.directory / json_name).is_file():
@@ -255,9 +256,11 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
                     entry.error = "output name equals input"
                 elif json_name in self._json_owner:
                     entry.error = f"output {json_name} already produced by {self._json_owner[json_name]}"
-                else:
+                elif self._json_matches(self.directory / json_name, entry):
                     entry.state = DecodeState.DECODED
                     self._json_owner[json_name] = name
+                else:
+                    entry.error = f"existing {json_name} does not match this product, decode again"
             elif self._auto_decode:
                 try:
                     self._request_decode_locked(entry)
@@ -266,6 +269,20 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
             self._evict_locked()
         LOGGER.info("Data product %s (%s) %s", name, short_name or container_id, entry.state.value)
         return True
+
+    @staticmethod
+    def _json_matches(json_path: pathlib.Path, entry: DpEntry) -> bool:
+        """True when an existing JSON file is a complete decode of this product (same container id and time)"""
+        try:
+            with open(json_path) as file_handle:
+                header = json.load(file_handle)["Header"]
+            return (
+                header["Id"]["value"] == entry.container_id
+                and header["Time"]["seconds"] == entry.time_seconds
+                and header["Time"]["microseconds"] == entry.time_microseconds
+            )
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
 
     def _evict_locked(self):
         """Drop the oldest non-active entries while over the catalog limit"""
@@ -381,7 +398,12 @@ class DataProductCatalog(fprime_gds.common.handlers.DataHandler):
                 entry.state = DecodeState.FAILED
                 entry.error = f"output {json_name} already produced by {self._json_owner[json_name]}"
             else:
-                os.replace(tmp_path, self.directory / json_name)
+                try:
+                    os.replace(tmp_path, self.directory / json_name)
+                except OSError as exc:
+                    self._remove(tmp_path)
+                    entry.state, entry.error = DecodeState.FAILED, f"{type(exc).__name__}: {exc}"
+                    return
                 entry.state, entry.error = DecodeState.DECODED, None
                 self._json_owner[json_name] = name
 

@@ -49,6 +49,11 @@ def stage(directory, source, name, corrupt_offset=None, truncate=None):
     return destination
 
 
+def write_decoded_json(path, seconds=1781654123, microseconds=894107):
+    """Write a minimal JSON that passes the startup scan's match check for DpDemoUncompressed.fdp"""
+    path.write_text(json.dumps({"Header": {"Id": {"value": CONTAINER_ID}, "Time": {"seconds": seconds, "microseconds": microseconds}}, "Records": []}))
+
+
 def downlink(downlinker, name, source=UNCOMPRESSED, chunks=1):
     """Drive a complete file through the downlinker's start/data/end handlers"""
     raw = (TEST_DATA_DIR / source).read_bytes()
@@ -318,6 +323,34 @@ class TestDecode:
         assert entry(catalog, "b.fdp")["state"] == "DECODED"
         assert entry(catalog, "c.fdp")["state"] == "FAILED"
 
+    def test_redetected_collider_keeps_owner(self, tmp_path):
+        catalog = make(tmp_path)
+        catalog._consider(stage(tmp_path, UNCOMPRESSED, "a.fdp"), "t", False)
+        catalog.request_decode("a.fdp")
+        catalog.decode_next(block=False)
+        written = (tmp_path / REF_JSON).read_bytes()
+        other = stage(tmp_path, UNCOMPRESSED, "b.fdp")
+        catalog._consider(other, "t", False)
+        catalog._consider(other, "t2", False)  # re-detection must not release a.fdp's ownership
+        catalog.request_decode("b.fdp")
+        catalog.decode_next(block=False)
+        assert entry(catalog, "b.fdp")["state"] == "FAILED"
+        assert entry(catalog, "a.fdp")["state"] == "DECODED" and (tmp_path / REF_JSON).read_bytes() == written
+
+    def test_replace_failure_is_retryable(self, tmp_path):
+        catalog = make(tmp_path)
+        catalog._consider(stage(tmp_path, UNCOMPRESSED, "a.fdp"), "t", False)
+        (tmp_path / REF_JSON).mkdir()  # a directory at the output path makes os.replace fail
+        catalog.request_decode("a.fdp")
+        catalog.decode_next(block=False)
+        item = entry(catalog, "a.fdp")
+        assert item["state"] == "FAILED" and "Error" in item["error"]
+        assert not list(tmp_path.glob("*.tmp"))
+        (tmp_path / REF_JSON).rmdir()
+        assert catalog.request_decode("a.fdp") == "QUEUED"
+        catalog.decode_next(block=False)
+        assert entry(catalog, "a.fdp")["state"] == "DECODED"
+
     def test_collision_and_self_name(self, tmp_path):
         catalog = make(tmp_path)
         shutil.copy(TEST_DATA_DIR / UNCOMPRESSED, tmp_path / REF_JSON)
@@ -342,8 +375,7 @@ class TestScan:
         (tmp_path / "notes.json").write_text("{}")
         (tmp_path / "gds.log").write_text("log")
         (tmp_path / "subdir").mkdir()
-        shutil.copy(TEST_DATA_DIR / UNCOMPRESSED, tmp_path / REF_JSON)  # stale "decoded" output: first owns it
-        (tmp_path / REF_JSON).write_text("{}")
+        write_decoded_json(tmp_path / REF_JSON)  # earlier decode output: first owns it
         real_stat = Path.stat
 
         def flaky_stat(self, *args, **kwargs):
@@ -362,7 +394,7 @@ class TestScan:
     def test_scan_and_hook_same_file(self, tmp_path):
         catalog = make(tmp_path)
         path = stage(tmp_path, UNCOMPRESSED, "a.fdp")
-        (tmp_path / REF_JSON).write_text("{}")
+        write_decoded_json(tmp_path / REF_JSON)
         real_sniff = catalog._sniff
 
         def hook_during_scan(sniff_path):
@@ -380,6 +412,20 @@ class TestScan:
             assert catalog._json_owner == {REF_JSON: "a.fdp"}
         else:
             assert item["state"] == "DETECTED" and catalog._json_owner == {}
+
+    def test_scan_stale_json_not_trusted(self, tmp_path):
+        catalog = make(tmp_path)
+        stage(tmp_path, UNCOMPRESSED, "a.fdp")
+        for content in ("{", "{}", json.dumps({"Header": {"Id": {"value": 1}, "Time": {"seconds": 1, "microseconds": 2}}})):
+            (tmp_path / REF_JSON).write_text(content)
+            assert catalog.scan() == 1
+            item = entry(catalog, "a.fdp")
+            assert item["state"] == "DETECTED" and item["error"].startswith("existing ")
+            assert catalog._json_owner == {}
+        catalog.request_decode("a.fdp")
+        catalog.decode_next(block=False)
+        assert entry(catalog, "a.fdp")["state"] == "DECODED"
+        assert catalog.scan() == 1 and entry(catalog, "a.fdp")["state"] == "DECODED"
 
     def test_scan_missing_directory(self, tmp_path):
         catalog = make(tmp_path / "missing")
