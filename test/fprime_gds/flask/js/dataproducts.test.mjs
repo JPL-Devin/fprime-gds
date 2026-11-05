@@ -16,7 +16,7 @@ const js = "../../../../src/fprime_gds/flask/static/js/";
 const { _datastore } = await import(js + "datastore.js");
 const { _loader } = await import(js + "loader.js");
 const { _settings } = await import(js + "settings.js");
-const { dpTime, decodeLabel } = await import(js + "vue-support/dataproducts.js");
+const { dpTime, decodeLabel, shortError } = await import(js + "vue-support/dataproducts.js");
 
 function product(name, state) {
     return {
@@ -33,15 +33,19 @@ test("dpTime pads microseconds to six digits", () => {
     assert.equal(dpTime({ seconds: 10, microseconds: 20 }), "10.000020");
 });
 
-test("decodeLabel per state in manual and auto mode", () => {
-    assert.equal(decodeLabel("DETECTED", false), "Decode");
-    assert.equal(decodeLabel("DECODED", false), "Re-decode");
-    assert.equal(decodeLabel("FAILED", false), "Retry");
-    assert.equal(decodeLabel("QUEUED", false), null);
-    assert.equal(decodeLabel("DECODING", false), null);
-    assert.equal(decodeLabel("DETECTED", true), "Decode");
-    assert.equal(decodeLabel("DECODED", true), null);
-    assert.equal(decodeLabel("FAILED", true), "Retry");
+test("decodeLabel per state", () => {
+    assert.equal(decodeLabel("DETECTED"), "Decode");
+    assert.equal(decodeLabel("DECODED"), "Re-decode");
+    assert.equal(decodeLabel("FAILED"), "Retry");
+    assert.equal(decodeLabel("QUEUED"), null);
+    assert.equal(decodeLabel("DECODING"), null);
+});
+
+test("shortError drops the trailing quoted path", () => {
+    assert.equal(shortError("FileNotFoundError: [Errno 2] No such file or directory: '/tmp/dp/x.fdp'"),
+                 "FileNotFoundError: [Errno 2] No such file or directory");
+    assert.equal(shortError("CRCError: CRC mismatch in Data: expected 0x1, got 0x2"), "CRCError: CRC mismatch in Data: expected 0x1, got 0x2");
+    assert.equal(shortError(null), "");
 });
 
 test("updateDataProducts keeps the array object and mirrors the settings", () => {
