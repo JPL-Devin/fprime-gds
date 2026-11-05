@@ -28,8 +28,10 @@ LOGGER = logging.getLogger("downlink")
 LOGGER.setLevel(logging.INFO)
 
 
-class FileDownlinker(fprime_gds.common.handlers.DataHandler):
-    """File writer class for decoded packets"""
+class FileDownlinker(
+    fprime_gds.common.handlers.DataHandler, fprime_gds.common.handlers.HandlerRegistrar
+):
+    """File writer class for decoded packets. Registrants are notified with each finished TransmitFile."""
 
     def __init__(self, directory, timeout=20.0, log_dir=None):
         """
@@ -195,14 +197,19 @@ class FileDownlinker(fprime_gds.common.handlers.DataHandler):
         self.finish()
 
     def finish(self):
-        """Finish the file downlink"""
+        """Finish the file downlink and notify registrants of the finished TransmitFile"""
         self.timer.stop()
         self.state = FileStates.IDLE
         self.sequence = 0
         self.active.state = "FINISHED"
         LOGGER.removeHandler(self.active.log_handler)
         self.active.close()
-        self.active = None
+        finished, self.active = self.active, None
+        for registrant in list(self._registrants):
+            try:
+                registrant.data_callback(finished, self)
+            except Exception as exc:  # observers must never break the downlink state machine
+                LOGGER.warning("File completion observer failed: %s", exc)
 
     def current_files(self):
         """Return the current list of downlinked files"""
