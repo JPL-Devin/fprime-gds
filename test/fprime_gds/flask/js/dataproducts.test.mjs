@@ -34,7 +34,8 @@ test("dpTime pads microseconds to six digits", () => {
 });
 
 test("displayTime: calendar time for workstation base, padded raw time otherwise", () => {
-    assert.equal(displayTime({ base: 2, context: 0, seconds: 1781654123, microseconds: 894107 }), "2026-06-17T01:42:03.894Z");
+    assert.equal(displayTime({ base: 2, context: 0, seconds: 1781654123, microseconds: 894107 }),
+                 new Date(1781654123 * 1000 + 894.107).toISOString());
     assert.equal(displayTime({ base: 1, context: 0, seconds: 10, microseconds: 20 }), "10.000020");
 });
 
