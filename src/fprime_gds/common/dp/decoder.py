@@ -30,8 +30,11 @@ from fprime_gds.common.dp.common import (
 )
 from fprime_gds.common.models.dictionaries import Dictionaries
 from fprime_gds.common.models.serialize.array_type import ArrayType
+from fprime_gds.common.models.serialize.numerical_types import U32Type
 from fprime_gds.common.utils.config_manager import ConfigManager
 from fprime_gds.common.templates.dp_record_template import DpRecordTemplate
+from fprime_gds.common.decoders.ch_decoder import ChDecoder
+from fprime_gds.common.decoders.event_decoder import EventDecoder
 
 # ==============================================================================
 # Custom Exceptions
@@ -100,6 +103,8 @@ class DataProductDecoder:
         self.dictionaries = dictionaries
         self.binary_file_path = binary_file_path
         self.disable_decompression = disable_decompression
+        self.channel_decoder = ChDecoder(dictionaries.channel_id)
+        self.event_decoder = EventDecoder(dictionaries.event_id)
         if output_json_path is None:
             # Generate default output path if not provided as same path with .json extension
             self.output_json_path = str(Path(binary_file_path).with_suffix('.json'))
@@ -224,6 +229,29 @@ class DataProductDecoder:
     def is_compression_record(self, record):
         return re.search("dpCompressProc.CompressionRecord$", record["Record"]["record_name"]) is not None
 
+    def is_com_buffer_record(self, record):
+        return re.search(r"\.ComBufferRecord$", record["Record"]["record_name"]) is not None
+
+    def decode_com_buffer_record(self, record) -> list:
+        """Decode the packets in a ComBuffer record."""
+        data = bytes(record["Data"]["values"])
+        # Skip the 4-byte ComLoggerDpSentry; projects can override it, and the DP CRC covers corruption.
+        descriptor = ConfigManager().get_type("FwPacketDescriptorType")()
+        descriptor.deserialize(data, U32Type.getSize())
+        name = ConfigManager().get_type("ComCfg.Apid").from_int(descriptor.val).val
+        payload = data[U32Type.getSize() + descriptor.getSize():]
+        if name == "FW_PACKET_TELEM":
+            decoder = self.channel_decoder
+        elif name == "FW_PACKET_LOG":
+            decoder = self.event_decoder
+        else:
+            raise DataProductError(f"Unsupported packet type {name}")
+        packets = [item.get_dict() for item in decoder.decode_api(payload)]
+        for packet in packets:
+            if "args" in packet:
+                packet["args"] = [arg.val for arg in packet["args"]]
+        return packets
+
     def decompress_records(self, records):
         uncomp_bytes = bytearray()
         CompressionMetadata = ConfigManager().get_type("Svc.CompressionMetadata")
@@ -301,6 +329,13 @@ class DataProductDecoder:
                 if uncomp_records is not None:
                     results["Records"] = uncomp_records
 
+        for record in results["Records"]:
+            if self.is_com_buffer_record(record):
+                try:
+                    record["Packets"] = self.decode_com_buffer_record(record)
+                except Exception as e:
+                    record["Error"] = str(e)
+
         return results
 
     def process(self) -> bool:
@@ -323,4 +358,3 @@ class DataProductDecoder:
         except Exception as e:
             print(f"Unexpected error: {e}", file=sys.stderr)
             raise
-
