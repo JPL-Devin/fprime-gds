@@ -71,6 +71,7 @@ impl Handler for UplinkHandler {
                 let paused = state.paused || !connected;
                 state.uplinks.iter_mut().find(|t| t.state == "queued" && !paused).map(|t| {
                     t.state = "transferring";
+                    t.started = Transfer::now();
                     t.clone()
                 })
             };
@@ -91,11 +92,14 @@ impl Handler for UplinkHandler {
                 self.shared.state().paused = true;
             }
             was_connected = ctx.status.link() == "connected";
-            let ended = self.update(&transfer.id, |t| match outcome {
-                Ok(()) => t.state = "finished",
-                Err(Stop::Canceled) => t.state = "canceled",
-                Err(Stop::Failed(reason)) => (t.state, t.reason) = ("failed", Some(reason)),
-                Err(Stop::LinkLost) => (t.state, t.reason) = ("failed", Some("the link is not connected".into())),
+            let ended = self.update(&transfer.id, |t| {
+                t.ended = Transfer::now();
+                match outcome {
+                    Ok(()) => t.state = "finished",
+                    Err(Stop::Canceled) => t.state = "canceled",
+                    Err(Stop::Failed(reason)) => (t.state, t.reason) = ("failed", Some(reason)),
+                    Err(Stop::LinkLost) => (t.state, t.reason) = ("failed", Some("the link is not connected".into())),
+                }
             });
             // The staged copy is of no use once the transfer has ended.
             let _ = std::fs::remove_file(self.options.uplink_dir().join(&ended.name));

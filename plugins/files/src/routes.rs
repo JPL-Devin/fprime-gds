@@ -105,6 +105,8 @@ async fn upload(
         reason: None,
         problems: 0,
         cancel: false,
+        started: None,
+        ended: None,
     };
     {
         // Reserved under the lock: two uploads of one name cannot share the staged copy.

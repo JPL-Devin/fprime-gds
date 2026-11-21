@@ -106,6 +106,8 @@ impl DownlinkHandler {
             reason: None,
             problems: 0,
             cancel: false,
+            started: Transfer::now(),
+            ended: None,
         };
         let directory = self.options.downlink_dir();
         let created =
@@ -118,6 +120,7 @@ impl DownlinkHandler {
             Ok(file) => Some(file),
             Err(reason) => {
                 (transfer.state, transfer.reason) = ("failed", Some(reason));
+                transfer.ended = Transfer::now();
                 None
             }
         };
@@ -176,7 +179,8 @@ impl DownlinkHandler {
         }
     }
 
-    /// The end packet: the file is complete when its checksum is the one the packet gives.
+    /// The end packet: a file of the announced size is finished when its checksum is the one the
+    /// packet gives.
     async fn finish(&mut self, ctx: &Context, seq: u32, checksum: u32) {
         let Some(active) = &mut self.active else {
             return self.problem(ctx, Some(seq), "end packet without a transfer in progress".into()).await;
@@ -188,7 +192,10 @@ impl DownlinkHandler {
         };
         let reason = match checksum_of(file) {
             Err(e) => Some(format!("the file could not be read back: {e}")),
-            Ok((_, length)) if length != active.transfer.size => {
+            // Fewer bytes than the start packet announced is what `SendPartial` sends (the size is
+            // that of the whole file): finished when the checksum agrees, as the Python GDS shows
+            // it, with the bytes received as the progress.
+            Ok((_, length)) if length > active.transfer.size => {
                 Some(format!("received {length} of {} bytes", active.transfer.size))
             }
             Ok((found, _)) if found.0 != checksum => {
@@ -214,6 +221,7 @@ impl DownlinkHandler {
         // A transfer whose file could not be created has failed already.
         if active.file.is_some() {
             (active.transfer.state, active.transfer.reason) = (state, reason);
+            active.transfer.ended = Transfer::now();
             self.set(&active.transfer);
             publish(ctx, active.transfer.record(KIND_DOWNLINK)).await;
         }

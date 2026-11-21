@@ -254,6 +254,13 @@ def rust_side(args, out, store):
 
         gds.post("/commands", {"name": "FileHandling.fileDownlink.SendFile", "args": ["down-source.bin", "down.bin"]})
         scenario.wait_for("the downlink of down.bin", lambda: gds.downlink("down.bin"), 60)
+        # A part of a file: the start packet announces the whole file. Finished, with the bytes
+        # received as the progress, as the Python GDS shows it (FINISHED, 25%).
+        gds.post("/commands", {"name": "FileHandling.fileDownlink.SendPartial", "args": ["down-source.bin", "part.bin", 100, DOWN_SIZE // 4]})
+        part = scenario.wait_for("the downlink of part.bin", lambda: gds.downlink("part.bin"), 60)[-1]
+        assert part["size"] == DOWN_SIZE and 0 < part["done"] < DOWN_SIZE and part["started"] <= part["ended"], part
+        assert read(f"{store}/downlink/part.bin")[100:] == content("down", DOWN_SIZE)[100:100 + DOWN_SIZE // 4]
+        ok(f"SendPartial: part.bin finished with {part['done']} of {part['size']} bytes ({part['done'] * 100 // part['size']}%), the bytes of the source")
         gds.post("/commands", {"name": "DataProducts.dpCat.BUILD_CATALOG", "args": []})
         time.sleep(1)
         gds.post("/commands", {"name": "Ref.dpDemo.Dp", "args": ["IMMEDIATE", 10, "PROC_TYPE_NONE"]})
@@ -383,7 +390,8 @@ def bad_packets(args, out):
             ("corrupted data", [start(0, 677, b"s", b"corrupt.bin"), data(1, 0, a), data(2, 300, b"X" + b[1:]), data(3, 600, c), end(4, [a, b, c])],
              ("corrupt.bin", "failed"), None),
             ("data past the file size", [start(0, 10, b"s", b"past.bin"), data(1, 0, a), end(2, [a])], ("past.bin", "failed"), "ends after the file size"),
-            ("a truncated file", [start(0, 677, b"s", b"short.bin"), data(1, 0, a), end(2, [a])], ("short.bin", "failed"), None),
+            # Fewer bytes than announced, as `SendPartial` sends: finished, as the Python GDS shows it.
+            ("a file shorter than announced", [start(0, 677, b"s", b"short.bin"), data(1, 0, a), end(2, [a])], ("short.bin", "finished"), None),
             ("a canceled file", [start(0, 677, b"s", b"cancel.bin"), data(1, 0, a), cancel(2)], ("cancel.bin", "canceled"), None),
             ("a start during a transfer", [start(0, 677, b"s", b"first.bin"), data(1, 0, a), start(0, 77, b"s", b"second.bin"), data(1, 0, c), end(2, [c])],
              ("first.bin", "failed"), "start packet during a transfer"),
@@ -527,7 +535,7 @@ def main():
             assert sha == found["product_on_ref"] and size == found["product_size"], side
         assert python["product_size"] == rust["product_size"]
         assert sorted(python["downlinked"]) == sorted(["down.bin", ground_name(python["product"])])
-        assert sorted(rust["downlinked"]) == sorted(["down.bin", ground_name(rust["product"])])
+        assert sorted(rust["downlinked"]) == sorted(["down.bin", "part.bin", ground_name(rust["product"])])
         ok(f"data product (dpDemo.Dp, dpCat.START_XMIT_CATALOG): python {python['product']}, fgds {rust['product']}; "
            f"each downlinked as ._DpCat_<name>, {rust['product_size']} bytes, identical to the file Ref wrote")
         link_loss(gds, ref, f"{args.out}/rust")

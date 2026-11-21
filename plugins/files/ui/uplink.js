@@ -39,7 +39,7 @@ class FgdsUplink extends FilesTab {
         <span class="error">${this.error}</span>
       </div>
       <table>
-        <tr><th>File</th><th>Source</th><th>Destination</th><th>State</th><th>Progress</th><th></th></tr>
+        <tr><th>Start time</th><th>End time</th><th>File</th><th>Source</th><th>Destination</th><th>State</th><th>Progress</th><th></th></tr>
         ${data.files.map((t) => row(t, active(t)
           ? html`<button @click=${post("/" + encodeURIComponent(t.id) + "/cancel")}>
               ${t.state === "queued" ? "Remove" : "Cancel"}</button>`

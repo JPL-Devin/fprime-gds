@@ -145,6 +145,9 @@ pub(crate) struct Transfer {
     pub problems: u64,
     /// Uplink only: the operator asked to cancel it.
     pub cancel: bool,
+    /// Ground time when the first packet was sent or received, and when the transfer ended.
+    pub started: Option<String>,
+    pub ended: Option<String>,
 }
 
 impl Transfer {
@@ -152,12 +155,17 @@ impl Transfer {
         json!({
             "id": self.id, "name": self.name, "source": self.source, "destination": self.destination,
             "size": self.size, "done": self.done, "state": self.state, "reason": self.reason,
-            "problems": self.problems,
+            "problems": self.problems, "started": self.started, "ended": self.ended,
         })
     }
 
     pub fn record(&self, kind: &str) -> NewRecord {
         NewRecord { entity: Some(self.id.clone()), ..NewRecord::new(kind, self.to_json()) }
+    }
+
+    /// The ground time of now, as the record API writes one.
+    pub fn now() -> Option<String> {
+        Some(fgds_core::Timestamp::now().to_iso())
     }
 
     pub fn ended(&self) -> bool {

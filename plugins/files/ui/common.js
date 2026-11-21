@@ -49,14 +49,21 @@ export class FilesTab extends LitElement {
   }
 }
 
+// The percentage of the Python GDS page: whole percent, rounded down; a file without bytes is whole.
+export function percent(t) {
+  return t.size ? Math.floor((t.done * 100) / t.size) : 100;
+}
+
 export function row(t, extra) {
   return html`<tr>
+    <td>${t.started || ""}</td>
+    <td>${t.ended || ""}</td>
     <td>${t.name}</td>
     <td>${t.source}</td>
     <td>${t.destination}</td>
     <td class=${t.state}>${t.state}${t.reason ? ": " + t.reason : ""}</td>
     <td><progress max=${t.size || 1} value=${t.size ? t.done : (t.state === "finished" ? 1 : 0)}></progress>
-      ${t.done} / ${t.size} bytes</td>
+      ${t.done} / ${t.size} bytes (${percent(t)}%)</td>
     <td>${extra}</td>
   </tr>`;
 }

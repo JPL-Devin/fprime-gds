@@ -13,7 +13,7 @@ class FgdsDownlink extends FilesTab {
       <span class="error">${this.error}</span>
       <h3>Transfers</h3>
       <table>
-        <tr><th>File</th><th>Source</th><th>Destination</th><th>State</th><th>Progress</th><th>Problems</th></tr>
+        <tr><th>Start time</th><th>End time</th><th>File</th><th>Source</th><th>Destination</th><th>State</th><th>Progress</th><th>Problems</th></tr>
         ${data.transfers.map((t) => row(t, t.problems || ""))}
       </table>
       <h3>Files</h3>
