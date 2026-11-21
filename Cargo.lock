@@ -171,10 +171,7 @@ dependencies = [
 name = "browser-gds"
 version = "0.1.0"
 dependencies = [
- "advanced",
- "dictionary-tab",
  "fgds",
- "logs",
 ]
 
 [[package]]

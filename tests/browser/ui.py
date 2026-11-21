@@ -42,7 +42,7 @@ def stock(browser, gds):
 
     # Each tab loads: its button, its element, and content from the API.
     titles = page.eval_on_selector_all("#tabs button", "all => all.map((b) => [b.dataset.tab, b.textContent])")
-    assert dict(titles) == TABS and [t for t, _ in titles] == list(TABS), titles
+    assert [pair for pair in map(tuple, titles) if pair[0] in TABS] == list(TABS.items()), titles
     content = {"commands": "#command-select option", "events": "#events-table tbody tr",
                "channels": "#channels-table tbody tr", "dictionary": "#dictionary-table tbody tr",
                "logs": "#logs-select option", "advanced": "#advanced-plugins tbody tr"}

@@ -1,5 +1,4 @@
-//! The GDS the browser tests run: the default plugins, the three tab plugins that are not
-//! yet in the default list and, with `BROWSER_GDS_BROKEN_TAB` set, a tab that fails.
+//! The GDS the browser tests run: the default plugins and, with `BROWSER_GDS_BROKEN_TAB` set, a tab that fails.
 
 use fgds::core::{Manifest, Plugin, Registry, Result, StaticFiles, UiBundle};
 
@@ -18,11 +17,7 @@ impl Plugin for BrokenTabPlugin {
 }
 
 fn main() -> std::process::ExitCode {
-    let mut gds = fgds::Gds::builder()
-        .with_defaults()
-        .with(dictionary_tab::DictionaryTabPlugin)
-        .with(logs::LogsPlugin)
-        .with(advanced::AdvancedPlugin);
+    let mut gds = fgds::Gds::builder().with_defaults();
     if std::env::var_os("BROWSER_GDS_BROKEN_TAB").is_some() {
         gds = gds.with(BrokenTabPlugin);
     }

@@ -11,6 +11,3 @@ workspace = true
 
 [dependencies]
 fgds = { workspace = true }
-dictionary-tab = { path = "../../plugins/dictionary-tab" }
-logs = { path = "../../plugins/logs" }
-advanced = { path = "../../plugins/advanced" }
