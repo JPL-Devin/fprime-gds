@@ -286,6 +286,7 @@ def rust_side(args, out, store):
         gds.post("/commands", {"name": "FileHandling.fileDownlink.SendPartial", "args": ["down-source.bin", "part.bin", 100, DOWN_SIZE // 4]})
         part = scenario.wait_for("the downlink of part.bin", lambda: gds.downlink("part.bin"), 60)[-1]
         assert part["size"] == DOWN_SIZE and 0 < part["done"] < DOWN_SIZE and part["started"] <= part["ended"], part
+        assert part["state"] == "finished" and part["problems"] == 0, part
         assert read(f"{store}/downlink/part.bin")[100:] == content("down", DOWN_SIZE)[100:100 + DOWN_SIZE // 4]
         ok(f"SendPartial: part.bin finished with {part['done']} of {part['size']} bytes ({part['done'] * 100 // part['size']}%), the bytes of the source")
         gds.post("/commands", {"name": "DataProducts.dpCat.BUILD_CATALOG", "args": []})

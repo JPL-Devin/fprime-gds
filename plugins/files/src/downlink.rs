@@ -19,7 +19,8 @@ struct Active {
     /// Sequence index of the next packet.
     expected: u32,
     /// Where the next data packet starts when none is lost.
-    seek: u64,
+    /// Where the next data packet is expected; `None` before the first one (`SendPartial` starts anywhere).
+    seek: Option<u64>,
     last_packet: Instant,
 }
 
@@ -131,7 +132,7 @@ impl DownlinkHandler {
         }
         publish(ctx, transfer.record(KIND_DOWNLINK)).await;
         self.active =
-            Some(Active { transfer, file, expected: seq.wrapping_add(1), seek: 0, last_packet: Instant::now() });
+            Some(Active { transfer, file, expected: seq.wrapping_add(1), seek: None, last_packet: Instant::now() });
     }
 
     /// A sequence index that is not the next one: a lost, duplicated or reordered packet.
@@ -163,7 +164,7 @@ impl DownlinkHandler {
         } else if let Err(e) = file.seek(SeekFrom::Start(offset)).and_then(|_| file.write_all(data)) {
             Some(format!("write failed: {e}"))
         } else {
-            let seek = std::mem::replace(&mut active.seek, end);
+            let seek = active.seek.replace(end).unwrap_or(offset);
             active.transfer.done = active.transfer.done.max(end);
             (offset != seek).then(|| format!("data at offset {offset}, expected offset {seek}"))
         };
