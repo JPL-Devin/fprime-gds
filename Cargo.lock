@@ -1083,6 +1083,7 @@ name = "storage-memory"
 version = "0.1.0"
 dependencies = [
  "fgds-core",
+ "serde_json",
  "tokio",
 ]
 
