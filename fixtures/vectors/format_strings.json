@@ -1,5 +1,5 @@
 {
- "description": "Event and channel format strings: template (C printf style or FPP style) and values -> text. `values` that is not a list is a single value.",
+ "description": "Event and channel format strings: template (C printf style or FPP style) and values -> text. `values` that is not a list is a single value. Origin `asserted`: a Python test asserts the result. Origin `recorded`: the output of the Python GDS as it is; `types` gives the type of each value (int, float, string) and a float that JSON cannot hold is written \"NaN\", \"Infinity\" or \"-Infinity\".",
  "vectors": [
   {
    "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_with_no_issue",
@@ -315,6 +315,312 @@
     1.23456
    ],
    "expected": "1.23%, 1.23%"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{x} {X} {o}",
+   "types": [
+    "int",
+    "int",
+    "int"
+   ],
+   "values": [
+    -255,
+    -255,
+    -8
+   ],
+   "expected": "-ff -FF -10"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{x} {X} {o}",
+   "types": [
+    "int",
+    "int",
+    "int"
+   ],
+   "values": [
+    0,
+    18446744073709551615,
+    9223372036854775807
+   ],
+   "expected": "0 FFFFFFFFFFFFFFFF 777777777777777777777"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{08x}|{8x}|{08o}|{6X}",
+   "types": [
+    "int",
+    "int",
+    "int",
+    "int"
+   ],
+   "values": [
+    -255,
+    -255,
+    8,
+    255
+   ],
+   "expected": "-00000ff|     -ff|00000010|    FF"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{d} {5d}|{05d}|{}",
+   "types": [
+    "int",
+    "int",
+    "int",
+    "int"
+   ],
+   "values": [
+    -42,
+    -42,
+    -42,
+    -9223372036854775808
+   ],
+   "expected": "-42   -42|-0042|-9223372036854775808"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{g} {g} {g} {g}",
+   "types": [
+    "float",
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    0.0001,
+    1e-05,
+    123456.0,
+    1234567.0
+   ],
+   "expected": "0.0001 1e-05 123456 1.23457e+06"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{g} {g} {g} {g}",
+   "types": [
+    "float",
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    100000.0,
+    1e+21,
+    0.5,
+    -2.5e-07
+   ],
+   "expected": "100000 1e+21 0.5 -2.5e-07"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{.3g} {.10g} {10.4g}|{g}",
+   "types": [
+    "float",
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    3.14159,
+    3.14159,
+    31415.9,
+    0.0
+   ],
+   "expected": "3.14 3.14159  3.142e+04|0"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{e} {.2e} {E} {.0e}",
+   "types": [
+    "float",
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    12345.678,
+    12345.678,
+    0.00012,
+    5.5
+   ],
+   "expected": "1.234568e+04 1.23e+04 1.200000E-04 6e+00"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{f} {.1f} {.0f} {10.3f}|{010.3f}",
+   "types": [
+    "float",
+    "float",
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    2.5,
+    0.25,
+    2.5,
+    -3.14159,
+    -3.14159
+   ],
+   "expected": "2.500000 0.2 2     -3.142|-00003.142"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{} {} {}",
+   "types": [
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    2.0,
+    0.1,
+    1e+16
+   ],
+   "expected": "2.0 0.1 1e+16"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{} {} {}",
+   "types": [
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    1e-05,
+    123456789.125,
+    -0.0
+   ],
+   "expected": "1e-05 123456789.125 -0.0"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{} {} {}",
+   "types": [
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    "NaN",
+    "Infinity",
+    "-Infinity"
+   ],
+   "expected": "nan inf -inf"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{f} {f} {f}",
+   "types": [
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    "NaN",
+    "Infinity",
+    "-Infinity"
+   ],
+   "expected": "nan inf -inf"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{.2f} {e} {g} {8f}|{08.1f}|",
+   "types": [
+    "float",
+    "float",
+    "float",
+    "float",
+    "float"
+   ],
+   "values": [
+    "NaN",
+    "Infinity",
+    "-Infinity",
+    "NaN",
+    "-Infinity"
+   ],
+   "expected": "nan inf -inf      nan|-0000inf|"
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{c} {} {}",
+   "types": [
+    "int",
+    "string",
+    "string"
+   ],
+   "values": [
+    65,
+    "text",
+    ""
+   ],
+   "expected": "A text "
+  },
+  {
+   "source": "fprime_gds.common.utils.string_util.format_string_template",
+   "origin": "recorded",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{{}} {{{}}} 100% {}",
+   "types": [
+    "int",
+    "string"
+   ],
+   "values": [
+    1,
+    "{x}"
+   ],
+   "expected": "{} {1} 100% {x}"
   }
  ]
 }
