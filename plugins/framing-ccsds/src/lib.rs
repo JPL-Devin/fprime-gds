@@ -40,7 +40,11 @@ impl Plugin for CcsdsFramingPlugin {
             name: "framing-ccsds",
             version: env!("CARGO_PKG_VERSION"),
             options: vec![
-                option("scid", "Spacecraft identifier [default: ComCfg.SpacecraftId of the dictionary, else 0x44]", None),
+                option(
+                    "scid",
+                    "Spacecraft identifier [default: ComCfg.SpacecraftId of the dictionary, else 0x44]",
+                    None,
+                ),
                 option("vcid", "Virtual channel identifier", Some("1")),
                 option(
                     "frame-size",
@@ -54,7 +58,10 @@ impl Plugin for CcsdsFramingPlugin {
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
         reg.add_framing_layer("ccsds-tm-tc", Arc::new(SpaceDataLinkLayer::default()))?;
-        reg.add_framing_layer("ccsds-space-packet", Arc::new(SpacePacketLayer { stream: false, apids: Apids::default() }))?;
+        reg.add_framing_layer(
+            "ccsds-space-packet",
+            Arc::new(SpacePacketLayer { stream: false, apids: Apids::default() }),
+        )?;
         let stream = SpacePacketLayer { stream: true, apids: Apids::default() };
         reg.add_framing_layer("ccsds-space-packet-stream", Arc::new(stream))?;
         // Outermost first.
@@ -129,7 +136,7 @@ fn warn(warnings: Vec<String>) {
 }
 
 impl Frame for SpaceDataLink {
-    fn frame(&mut self, packet: &[u8], out: &mut BytesMut) -> Result<()> {
+    fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
         out.put_slice(&Stage::frame(self, packet).map_err(Error::Invalid)?);
         Ok(())
     }
@@ -148,7 +155,7 @@ impl Deframe for SpaceDataLink {
                     true => "checksum mismatch",
                     false => "no TM frame of this spacecraft and virtual channel",
                 };
-                out.push(Deframed::Discarded { bytes: step.discarded.into(), reason });
+                out.push(Deframed::Discarded { bytes: step.discarded.into(), reason: reason.to_string() });
             }
             let Some(packets) = step.packet else { return Ok(()) };
             let meta = PacketMeta::default()
@@ -206,7 +213,7 @@ struct SpacePacketFraming {
 }
 
 impl Frame for SpacePacketFraming {
-    fn frame(&mut self, packet: &[u8], out: &mut BytesMut) -> Result<()> {
+    fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
         out.put_slice(&self.packet.frame(packet).map_err(Error::Invalid)?);
         Ok(())
     }
@@ -217,7 +224,7 @@ impl Deframe for SpacePacketFraming {
         let mut warnings = Vec::new();
         let discard = |bytes: Vec<u8>, out: &mut Vec<Deframed>| {
             if !bytes.is_empty() {
-                out.push(Deframed::Discarded { bytes: bytes.into(), reason: "no telemetry Space Packet" });
+                out.push(Deframed::Discarded { bytes: bytes.into(), reason: "no telemetry Space Packet".into() });
             }
         };
         loop {
@@ -235,7 +242,7 @@ impl Deframe for SpacePacketFraming {
             }
         }
         if !self.stream && !input.is_empty() {
-            out.push(Deframed::Discarded { bytes: input.split().freeze(), reason: "incomplete Space Packet" });
+            out.push(Deframed::Discarded { bytes: input.split().freeze(), reason: "incomplete Space Packet".into() });
         }
         warn(warnings);
         Ok(())

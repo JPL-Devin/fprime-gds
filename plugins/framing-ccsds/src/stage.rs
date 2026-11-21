@@ -24,11 +24,7 @@ pub trait Stage: Send {
 }
 
 /// Call `deframe` until no packet is found: (packets, bytes kept, bytes discarded).
-pub fn deframe_all(
-    stage: &mut dyn Stage,
-    data: &[u8],
-    warnings: &mut Vec<String>,
-) -> (Vec<Vec<u8>>, Vec<u8>, Vec<u8>) {
+pub fn deframe_all(stage: &mut dyn Stage, data: &[u8], warnings: &mut Vec<String>) -> (Vec<Vec<u8>>, Vec<u8>, Vec<u8>) {
     let (mut packets, mut discarded, mut at) = (Vec::new(), Vec::new(), 0);
     loop {
         let step = stage.deframe(&data[at..], warnings);
@@ -229,7 +225,13 @@ impl SpaceDataLink {
     }
 
     /// The whole Space Packets available after this frame's data field.
-    fn reassemble(&mut self, field: &[u8], first_header_pointer: u16, vc_count: u8, warnings: &mut Vec<String>) -> Vec<u8> {
+    fn reassemble(
+        &mut self,
+        field: &[u8],
+        first_header_pointer: u16,
+        vc_count: u8,
+        warnings: &mut Vec<String>,
+    ) -> Vec<u8> {
         if self.last_vc_count.is_some_and(|last| vc_count != last.wrapping_add(1)) && !self.pending.is_empty() {
             warnings.push("[WARNING] TM frame loss detected. Discarding partial packet data.".into());
             self.pending.clear();
