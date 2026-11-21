@@ -186,6 +186,19 @@ enum Step {
 struct Script {
     incoming: tokio::sync::Mutex<mpsc::UnboundedReceiver<Step>>,
     sent: Mutex<Vec<Bytes>>,
+    writes: Mutex<Writes>,
+    connect_error: Mutex<Option<String>>,
+}
+
+/// What a scripted link does with a write.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum Writes {
+    #[default]
+    Accept,
+    /// The write returns an error.
+    Fail,
+    /// The write never completes, as to a peer that stopped reading.
+    Stall,
 }
 
 /// An adapter driven by the test: it connects at once, delivers the bytes the test
@@ -202,7 +215,10 @@ pub struct ScriptHandle {
 impl ScriptedAdapter {
     pub fn new() -> (ScriptedAdapter, ScriptHandle) {
         let (steps, incoming) = mpsc::unbounded_channel();
-        let script = Arc::new(Script { incoming: tokio::sync::Mutex::new(incoming), sent: Mutex::new(Vec::new()) });
+        let script = Arc::new(Script { incoming: tokio::sync::Mutex::new(incoming), sent: Mutex::new(Vec::new()),
+            writes: Mutex::default(),
+            connect_error: Mutex::default(),
+        });
         (ScriptedAdapter(script.clone()), ScriptHandle { steps, script })
     }
 }
@@ -216,6 +232,16 @@ impl ScriptHandle {
     /// Close the connection; the adapter reconnects on the next attempt.
     pub fn close(&self) {
         let _ = self.steps.send(Step::Close);
+    }
+
+    /// What happens to the writes of the GDS from now on.
+    pub fn set_writes(&self, writes: Writes) {
+        *self.script.writes.lock().unwrap_or_else(|e| e.into_inner()) = writes;
+    }
+
+    /// Make every connection attempt fail with this error, or succeed again with `None`.
+    pub fn fail_connect(&self, error: Option<&str>) {
+        *self.script.connect_error.lock().unwrap_or_else(|e| e.into_inner()) = error.map(str::to_string);
     }
 
     /// Every write of the GDS so far.
@@ -233,6 +259,9 @@ impl ScriptHandle {
 #[async_trait]
 impl Adapter for ScriptedAdapter {
     async fn connect(&mut self) -> Result<(Box<dyn LinkReader>, Box<dyn LinkWriter>, PeerInfo)> {
+        if let Some(error) = self.0.connect_error.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+            return Err(Error::other(error));
+        }
         let peer = PeerInfo { address: "scripted".into(), message_boundaries: false };
         Ok((Box::new(ScriptedAdapter(self.0.clone())), Box::new(ScriptedAdapter(self.0.clone())), peer))
     }
@@ -254,6 +283,12 @@ impl LinkReader for ScriptedAdapter {
 #[async_trait]
 impl LinkWriter for ScriptedAdapter {
     async fn write(&mut self, data: &[u8]) -> Result<()> {
+        let writes = *self.0.writes.lock().unwrap_or_else(|e| e.into_inner());
+        match writes {
+            Writes::Accept => {}
+            Writes::Fail => return Err(Error::other("broken pipe")),
+            Writes::Stall => std::future::pending().await,
+        }
         self.0.sent.lock().unwrap_or_else(|e| e.into_inner()).push(Bytes::copy_from_slice(data));
         Ok(())
     }
@@ -356,11 +391,12 @@ impl FakeGds {
         for _ in 0..2000 {
             let now = self.core.status.snapshot()["counters"]["packets_received"].as_u64().unwrap_or(0);
             if now > before {
-                break;
+                self.core.records.flush().await;
+                return;
             }
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
-        self.core.records.flush().await;
+        panic!("packet not received");
     }
 
     pub async fn wait_for_link(&self, state: &str) {

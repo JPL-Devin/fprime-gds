@@ -15,6 +15,8 @@ pub const KIND_UNKNOWN_PACKET: &str = "gds.unknown_packet";
 pub const KIND_PLUGIN_FAULT: &str = "gds.plugin_fault";
 pub const KIND_STORAGE_GAP: &str = "gds.storage_gap";
 pub const KIND_STORAGE_RECOVERED: &str = "gds.storage_recovered";
+/// A change of the link state: `link`, `peer`, `error`.
+pub const KIND_STATUS: &str = "gds.status";
 pub const KIND_RAW_SENT: &str = "raw.sent";
 
 /// Ground time: microseconds since the Unix epoch, UTC.
@@ -215,6 +217,7 @@ pub(crate) fn core_kinds() -> Vec<KindSpec> {
         text(KIND_UNKNOWN_PACKET, "A packet no decoder matches"),
         text(KIND_PLUGIN_FAULT, "A panic caught in plugin code"),
         text(KIND_STORAGE_GAP, "Records that were broadcast but could not be stored"),
+        text(KIND_STATUS, "The link changed state"),
         text(KIND_STORAGE_RECOVERED, "Storage accepts records again"),
         KindSpec {
             fields: &[

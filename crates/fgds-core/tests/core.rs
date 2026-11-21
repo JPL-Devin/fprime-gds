@@ -105,9 +105,10 @@ async fn records_are_numbered_stored_then_broadcast() {
     let mut live = records.subscribe(Filter::default(), None);
     for n in 0..5 {
         let seq = records.publish(NewRecord::new("t.packet", json!({"n": n}))).await.unwrap();
-        assert_eq!(seq, n + 1);
+        // Record 1 is the `gds.status` record of the link connecting.
+        assert_eq!(seq, n + 2);
     }
-    for n in 1..=5 {
+    for n in 2..=6 {
         let record = live.next().await.unwrap();
         assert_eq!((record.seq, record.run, record.stored), (n, 1, true));
         // Broadcast follows storage: a live record is already in the store.
@@ -147,13 +148,13 @@ async fn subscription_replays_then_continues_live_without_gap_or_repeat() {
     });
     let mut stream = records.subscribe(Filter::kinds(&["t.packet"]), Some(10));
     let mut seen = Vec::new();
-    while seen.last() != Some(&2499) {
+    while seen.last() != Some(&2500) {
         let record = stream.next_strict().await.unwrap();
         assert_eq!(record.kind, "t.packet");
         seen.push(record.seq);
     }
     publisher.await.unwrap();
-    let expected: Vec<u64> = (11..=50).chain((51..=2499).step_by(2)).collect();
+    let expected: Vec<u64> = (11..=51).chain((52..=2500).step_by(2)).collect();
     assert_eq!(seen, expected);
 }
 
@@ -164,15 +165,15 @@ async fn slow_subscriber_is_told_its_last_seq_or_resumes_from_storage() {
     let mut strict = records.subscribe(Filter::default(), None);
     let mut resuming = records.subscribe(Filter::default(), None);
     records.publish(NewRecord::new("t.packet", json!({}))).await.unwrap();
-    assert_eq!(strict.next_strict().await.unwrap().seq, 1);
-    assert_eq!(resuming.next().await.unwrap().seq, 1);
+    assert_eq!(strict.next_strict().await.unwrap().seq, 2);
+    assert_eq!(resuming.next().await.unwrap().seq, 2);
     // More than a subscriber queue holds, with nobody reading.
     for _ in 0..20_000 {
         records.publish(NewRecord::new("t.packet", json!({}))).await.unwrap();
     }
     records.flush().await;
-    assert_eq!(strict.next_strict().await, Err(StreamEnd::Lagged { last_seq: 1 }));
-    for seq in 2..=20_001 {
+    assert_eq!(strict.next_strict().await, Err(StreamEnd::Lagged { last_seq: 2 }));
+    for seq in 3..=20_002 {
         assert_eq!(resuming.next().await.unwrap().seq, seq);
     }
 }
@@ -187,7 +188,8 @@ async fn packets_are_routed_and_bad_ones_recorded_without_stopping_the_link() {
     gds.link.push(&[0, 0]); // framing error: input dropped, layer rebuilt
     gds.receive(&[0, 1]).await; // still decoded afterwards
 
-    let all = gds.records(&[]).await;
+    let mut all = gds.records(&[]).await;
+    all.retain(|r| r.kind != KIND_STATUS);
     let kinds: Vec<&str> = all.iter().map(|r| r.kind.as_str()).collect();
     assert_eq!(
         kinds,

@@ -1,18 +1,23 @@
 use crate::supervisor::panic_message;
 use crate::{
     Adapter, Deframe, Deframed, Frame, FramingLayer, NewRecord, PacketMeta, PeerInfo, PluginConfig, Records, Result,
-    Router, ShutdownToken, Status, KIND_DISCARDED,
+    Router, ShutdownToken, Status, KIND_DISCARDED, KIND_STATUS,
 };
 use bytes::{Bytes, BytesMut};
 use fgds_dictionary::Dictionary;
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tokio::sync::{watch, Mutex};
 
 /// Wait between connection attempts (LNK-6).
 const RETRY: Duration = Duration::from_secs(1);
+/// Longest wait before an adapter that failed to start is built again.
+const RETRY_MAX: Duration = Duration::from_secs(30);
+/// Room asked for before each read, so one read takes what the link has.
+const READ_BUFFER: usize = 64 * 1024;
 /// Longest a write may take before the send fails (section 4.5).
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -35,6 +40,11 @@ struct Shared {
     enabled: watch::Sender<bool>,
     status: Status,
     raw_log: Option<RawLog>,
+    /// Changed when a write fails: the read loop drops the connection and reconnects.
+    reset: watch::Sender<u64>,
+    /// Set by `start`; link state changes are published as `gds.status` records.
+    records: OnceLock<Records>,
+    write_timeout_ms: AtomicU64,
 }
 
 /// The raw log of the run (LNK-7): one line per chunk of bytes received or sent,
@@ -77,7 +87,27 @@ impl Link {
             enabled: watch::channel(true).0,
             status,
             raw_log: raw_log.map(|file| RawLog(std::sync::Mutex::new(file))),
+            reset: watch::channel(0).0,
+            records: OnceLock::new(),
+            write_timeout_ms: AtomicU64::new(WRITE_TIMEOUT.as_millis() as u64),
         }))
+    }
+
+    /// Change how long a write may take (5 s unless set).
+    pub fn set_write_timeout(&self, limit: Duration) {
+        self.0.write_timeout_ms.store(limit.as_millis() as u64, Ordering::SeqCst);
+    }
+
+    /// Set the link state in the status and, when it changed, publish it (`gds.status`).
+    fn set_state(&self, state: &str, peer: Option<String>, error: Option<String>) {
+        if !self.0.status.set_link_state(state, peer.clone(), error.clone()) {
+            return;
+        }
+        if let Some(records) = self.0.records.get() {
+            let body = json!({"link": state, "peer": peer, "error": error});
+            // Fails only when the pipeline is stopped.
+            let _ = records.publish_uplink(NewRecord::new(KIND_STATUS, body));
+        }
     }
 
     /// Disable or enable the link (LNK-22). Disabled: the adapter is closed and not retried.
@@ -87,8 +117,8 @@ impl Link {
 
     /// Frame a packet and write it. Returns the bytes written to the link.
     pub async fn write_packet(&self, packet: &[u8], meta: &PacketMeta) -> Result<Bytes, LinkError> {
-        let mut writer = self.0.writer.lock().await;
-        let Some(writer) = writer.as_mut() else {
+        let mut slot = self.0.writer.lock().await;
+        let Some(writer) = slot.as_mut() else {
             return Err(LinkError::Down);
         };
         let mut data = BytesMut::from(packet);
@@ -100,29 +130,44 @@ impl Link {
                 data = out;
             }
         }
-        match tokio::time::timeout(WRITE_TIMEOUT, writer.write(&data)).await {
+        let limit = Duration::from_millis(self.0.write_timeout_ms.load(Ordering::SeqCst));
+        let failure = match tokio::time::timeout(limit, writer.write(&data)).await {
             Ok(Ok(())) => {
                 if let Some(log) = &self.0.raw_log {
                     log.write("sent", &data);
                 }
-                Ok(data.freeze())
+                return Ok(data.freeze());
             }
-            Ok(Err(e)) => Err(LinkError::Failed(e.to_string())),
-            Err(_) => Err(LinkError::Failed("write timed out".into())),
-        }
+            Ok(Err(e)) => format!("write failed: {e}"),
+            Err(_) => "write timed out".to_string(),
+        };
+        // Part of a frame may be on the link: the connection cannot be used again.
+        *slot = None;
+        drop(slot);
+        tracing::warn!(error = %failure, "link write failed; the connection is dropped");
+        self.set_state("disconnected", None, Some(failure.clone()));
+        self.0.reset.send_modify(|n| *n += 1);
+        Err(LinkError::Failed(failure))
     }
 
-    /// Start the link task. The adapter is rebuilt and restarted if its task panics (MNT-7).
+    /// Start the link task for the adapter of `plugin`. The adapter is rebuilt and
+    /// restarted if its task panics or its factory fails (MNT-7), after 1 s, then 2 s,
+    /// up to 30 s; the fault is reported once per distinct message.
     pub fn start(
         &self,
+        plugin: &str,
         make_adapter: impl Fn() -> Result<Box<dyn Adapter>> + Send + 'static,
         router: Arc<Router>,
         records: Records,
         dict: Arc<Dictionary>,
         mut shutdown: ShutdownToken,
-    ) {
+    ) -> tokio::task::JoinHandle<()> {
         let link = self.clone();
+        let plugin = plugin.to_string();
+        let _ = self.0.records.set(records.clone());
         tokio::spawn(async move {
+            let mut wait = RETRY;
+            let mut reported: Option<String> = None;
             while !shutdown.is_cancelled() {
                 let run = make_adapter().map(|adapter| {
                     let downlink = Downlink {
@@ -142,14 +187,18 @@ impl Link {
                     Err(e) => e.to_string(),
                 };
                 *link.0.writer.lock().await = None;
-                link.0.status.set_link("disconnected", None);
-                crate::report_fault(&records, &link.0.status, "adapter", &fault).await;
+                link.set_state("disconnected", None, Some(fault.clone()));
+                if reported.as_ref() != Some(&fault) {
+                    crate::report_fault(&records, &link.0.status, &plugin, &fault).await;
+                    reported = Some(fault);
+                }
                 tokio::select! {
-                    _ = tokio::time::sleep(RETRY) => {}
+                    _ = tokio::time::sleep(wait) => {}
                     _ = shutdown.cancelled() => {}
                 }
+                wait = (wait * 2).min(RETRY_MAX);
             }
-        });
+        })
     }
 }
 
@@ -165,9 +214,10 @@ impl Downlink {
     async fn run(self, mut adapter: Box<dyn Adapter>, mut shutdown: ShutdownToken) {
         let shared = &self.link.0;
         let mut enabled = shared.enabled.subscribe();
+        let mut last_error: Option<String> = None;
         loop {
             if !*enabled.borrow_and_update() {
-                shared.status.set_link("disabled", None);
+                self.link.set_state("disabled", None, None);
                 tokio::select! {
                     _ = enabled.changed() => continue,
                     _ = shutdown.cancelled() => return,
@@ -180,14 +230,20 @@ impl Downlink {
             };
             match connected {
                 Ok((mut reader, writer, peer)) => {
+                    let mut reset = shared.reset.subscribe();
                     *shared.writer.lock().await = Some(writer);
-                    shared.status.set_link("connected", Some(peer.address.clone()));
+                    last_error = None;
+                    self.link.set_state("connected", Some(peer.address.clone()), None);
                     let mut chain = Chain::new(&shared.layers, &peer);
                     let mut buf = BytesMut::new();
                     loop {
+                        // `split` below leaves no room: without this a read gets 64 bytes.
+                        buf.reserve(READ_BUFFER);
                         let read = tokio::select! {
                             r = reader.read(&mut buf) => r,
                             _ = enabled.changed() => break,
+                            // A write failed and already set the state and its reason.
+                            _ = reset.changed() => break,
                             _ = shutdown.cancelled() => return,
                         };
                         match read {
@@ -208,9 +264,19 @@ impl Downlink {
                         }
                     }
                     *shared.writer.lock().await = None;
-                    shared.status.set_link("disconnected", None);
+                    if shared.status.link() == "connected" {
+                        self.link.set_state("disconnected", None, None);
+                    }
                 }
-                Err(e) => tracing::debug!(error = %e, "link connect failed"),
+                Err(e) => {
+                    // Said once per distinct error, not once per attempt.
+                    let error = e.to_string();
+                    if last_error.as_ref() != Some(&error) {
+                        tracing::warn!(error = %error, "link not connected; retrying every second");
+                    }
+                    self.link.set_state("disconnected", None, Some(error.clone()));
+                    last_error = Some(error);
+                }
             }
             if *enabled.borrow() {
                 tokio::select! {
