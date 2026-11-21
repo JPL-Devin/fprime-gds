@@ -47,7 +47,13 @@ pub struct Uplink(Arc<Inner>);
 
 impl Uplink {
     /// `encoders` are the built encoders (`Registry::build_encoders`).
-    pub fn new(encoders: Vec<Arc<dyn Encoder>>, dict: Arc<Dictionary>, link: Link, records: Records, run: u32) -> Uplink {
+    pub fn new(
+        encoders: Vec<Arc<dyn Encoder>>,
+        dict: Arc<Dictionary>,
+        link: Link,
+        records: Records,
+        run: u32,
+    ) -> Uplink {
         Uplink(Arc::new(Inner {
             encoders: encoders.into_iter().map(|e| (e.request_kind().to_string(), e)).collect(),
             dict,

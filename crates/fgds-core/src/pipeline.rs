@@ -170,7 +170,10 @@ impl Records {
                     // Publishers no longer wait for room.
                     self.0.space.notify_waiters();
                     if let Some((first, last)) = range {
-                        let lost = (gap.map_or(first.seq, |g| g.0.min(first.seq)), gap.map_or(last.seq, |g| g.1.max(last.seq)));
+                        let lost = (
+                            gap.map_or(first.seq, |g| g.0.min(first.seq)),
+                            gap.map_or(last.seq, |g| g.1.max(last.seq)),
+                        );
                         gap = Some(lost);
                         self.0.status.set_storage_gap(gap);
                     }
@@ -378,7 +381,9 @@ pub enum StreamEnd {
 pub enum StreamItem {
     Record(Box<Record>),
     /// The replay has ended: every later record is live. `seq` is the last record delivered.
-    Live { seq: u64 },
+    Live {
+        seq: u64,
+    },
 }
 
 /// A subscription: replay from storage, then live records.

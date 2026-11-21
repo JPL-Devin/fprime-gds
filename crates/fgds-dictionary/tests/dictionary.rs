@@ -157,9 +157,27 @@ fn format_strings_are_filled_as_the_python_gds_fills_them() {
         ("{} {}", vec![(&u32t, json!(1))], "1 {}"),
         ("{x}", vec![(&text, json!("abc"))], "{x}"),
         // As Python's `format`: sign and magnitude, a real `g`, non-finite values.
-        ("{x} {o} {04x} {5d}|", vec![(&i32t, json!(-255)), (&i32t, json!(-8)), (&i32t, json!(-1)), (&i32t, json!(-42))], "-ff -10 -001   -42|"),
-        ("{g} {g} {.3g} {g}", vec![(&f64t, json!(100.0)), (&f64t, json!(1234567.0)), (&f64t, json!(0.000012345)), (&f64t, json!(0.5))], "100 1.23457e+06 1.23e-05 0.5"),
-        ("{f} {.2f} {e} {g} {8.1f}|", vec![(&f64t, json!("NaN")), (&f64t, json!("Infinity")), (&f64t, json!("-Infinity")), (&f64t, json!("NaN")), (&f64t, json!("-Infinity"))], "nan inf -inf nan     -inf|"),
+        (
+            "{x} {o} {04x} {5d}|",
+            vec![(&i32t, json!(-255)), (&i32t, json!(-8)), (&i32t, json!(-1)), (&i32t, json!(-42))],
+            "-ff -10 -001   -42|",
+        ),
+        (
+            "{g} {g} {.3g} {g}",
+            vec![(&f64t, json!(100.0)), (&f64t, json!(1234567.0)), (&f64t, json!(0.000012345)), (&f64t, json!(0.5))],
+            "100 1.23457e+06 1.23e-05 0.5",
+        ),
+        (
+            "{f} {.2f} {e} {g} {8.1f}|",
+            vec![
+                (&f64t, json!("NaN")),
+                (&f64t, json!("Infinity")),
+                (&f64t, json!("-Infinity")),
+                (&f64t, json!("NaN")),
+                (&f64t, json!("-Infinity")),
+            ],
+            "nan inf -inf nan     -inf|",
+        ),
     ];
     for (template, values, expected) in cases {
         let values: Vec<_> = values.iter().map(|(t, v)| (*t, v)).collect();

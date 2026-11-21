@@ -36,7 +36,12 @@ impl Encoder for TestEncoder {
     }
     fn encode(&self, request: &serde_json::Value, _: &Dictionary) -> Result<Encoded, ValidationError> {
         match request["byte"].as_u64() {
-            Some(b) => Ok(Encoded { packet: vec![b as u8].into(), id: Some(7), body: json!({"byte": b}), meta: Default::default() }),
+            Some(b) => Ok(Encoded {
+                packet: vec![b as u8].into(),
+                id: Some(7),
+                body: json!({"byte": b}),
+                meta: Default::default(),
+            }),
             None => Err(ValidationError("byte is missing".into())),
         }
     }

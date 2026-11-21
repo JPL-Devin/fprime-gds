@@ -28,7 +28,10 @@ impl Plugin for EventsPlugin {
                 FieldSpec { name: "severity", pointer: "/severity", ty: FieldType::Text },
             ],
             text_fields: &["/name", "/display_text"],
-            ..KindSpec::new(KIND, "An F Prime event; id is the event identifier; raw is identifier, time tag, arguments")
+            ..KindSpec::new(
+                KIND,
+                "An F Prime event; id is the event identifier; raw is identifier, time tag, arguments",
+            )
         })?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(EventDecoder))))?;
         reg.add_routes(Routes {

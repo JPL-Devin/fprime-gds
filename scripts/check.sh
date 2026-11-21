@@ -5,6 +5,7 @@
 #   2. fgds against a running Ref: commands, events, channels, WebSocket
 #   3. comparison with the Python GDS, live and on replayed bytes (tests/compare/README.md)
 #   4. the example project binary
+#   5. every tests/*/run.sh
 #
 # Items 2 and 3 need F Prime: set FPRIME to a checkout of fprime that has its virtual
 # environment in fprime-venv (fprime-util and fprime-gds installed). Ref is built from a
@@ -48,5 +49,17 @@ PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$PWD/target/debu
 
 echo "== 4. example project binary"
 python3 examples/custom-gds/check.py target/debug tests/data/dictionary.json
+
+# Each part of the GDS adds its own checks as tests/<name>/run.sh, without editing this
+# file. A script runs from the repository root with FGDS, REF_BIN, DICTIONARY, VENV and
+# OUT (its own directory for output) set, and fails with a non-zero exit code.
+for script in tests/*/run.sh; do
+    [ -e "$script" ] || continue
+    name=$(basename "$(dirname "$script")")
+    echo "== $script"
+    mkdir -p "$out/$name"
+    FGDS="$PWD/target/debug/fgds" REF_BIN="$PWD/$ref/bin/Ref" DICTIONARY="$dictionary" VENV="$venv" \
+        OUT="$PWD/$out/$name" bash "$script"
+done
 
 echo "check: all passed"

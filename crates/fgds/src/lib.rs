@@ -20,14 +20,14 @@ pub use fgds_core as core;
 /// The plugins of the stock binary.
 pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
     // One line per plugin.
-    let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
-    plugins.push(Box::new(storage_memory::MemoryStoragePlugin));
-    plugins.push(Box::new(comm_tcp::TcpPlugin));
-    plugins.push(Box::new(framing_fprime::FprimeFramingPlugin));
-    plugins.push(Box::new(events::EventsPlugin));
-    plugins.push(Box::new(channels::ChannelsPlugin));
-    plugins.push(Box::new(commands::CommandsPlugin));
-    plugins
+    vec![
+        Box::new(storage_memory::MemoryStoragePlugin),
+        Box::new(comm_tcp::TcpPlugin),
+        Box::new(framing_fprime::FprimeFramingPlugin),
+        Box::new(events::EventsPlugin),
+        Box::new(channels::ChannelsPlugin),
+        Box::new(commands::CommandsPlugin),
+    ]
 }
 
 pub struct Gds;

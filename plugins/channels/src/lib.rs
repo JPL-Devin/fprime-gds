@@ -25,7 +25,10 @@ impl Plugin for ChannelsPlugin {
         reg.add_kind(KindSpec {
             fields: &[FieldSpec { name: "name", pointer: "/name", ty: FieldType::Text }],
             text_fields: &["/name"],
-            ..KindSpec::new(KIND, "A telemetry channel sample; id is the channel identifier; raw is identifier, time tag, value")
+            ..KindSpec::new(
+                KIND,
+                "A telemetry channel sample; id is the channel identifier; raw is identifier, time tag, value",
+            )
         })?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(ChannelDecoder))))?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(PacketDecoder))))?;

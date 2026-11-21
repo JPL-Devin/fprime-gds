@@ -2,11 +2,11 @@ use crate::{
     spawn_supervised, Config, Error, Link, PipelineOptions, PluginConfig, Records, Registry, Result, Router, RunInfo,
     Status, StatusHandle, Storage, StorageConfig, Timestamp, Uplink, VERSION,
 };
+use fgds_dictionary::Dictionary;
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
-use std::time::Duration;
-use fgds_dictionary::Dictionary;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::watch;
 
 /// Tells plugin tasks to stop. Cheap to clone.
@@ -184,7 +184,12 @@ pub async fn open_read_only(registry: &Registry, config: &Config) -> Result<(Arc
     Ok((storage, run))
 }
 
-fn storage_config(registry: &Registry, config: &Config, dictionary: &Dictionary, run_dir: Option<PathBuf>) -> StorageConfig {
+fn storage_config(
+    registry: &Registry,
+    config: &Config,
+    dictionary: &Dictionary,
+    run_dir: Option<PathBuf>,
+) -> StorageConfig {
     let plugin = registry.storages.get(&config.storage).map(|(plugin, _)| plugin.as_str()).unwrap_or_default();
     let dictionary_json = serde_json::to_vec(&dictionary.json).unwrap_or_default();
     StorageConfig {

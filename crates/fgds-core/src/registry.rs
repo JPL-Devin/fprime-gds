@@ -1,7 +1,7 @@
 use crate::record::core_kinds;
 use crate::{
-    AdapterFactory, Config, Decoder, DecoderFactory, Encoder, EncoderFactory, Error, FramingLayer, HandlerFactory, KindSpec, Manifest, PacketMatch, Plugin,
-    Result, Routes, Storage, Subcommand, UiBundle,
+    AdapterFactory, Config, Decoder, DecoderFactory, Encoder, EncoderFactory, Error, FramingLayer, HandlerFactory,
+    KindSpec, Manifest, PacketMatch, Plugin, Result, Routes, Storage, Subcommand, UiBundle,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;

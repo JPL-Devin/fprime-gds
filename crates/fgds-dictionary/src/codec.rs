@@ -300,7 +300,8 @@ impl Dictionary {
         };
         let mut bytes = Vec::new();
         let opcode_type = self.config_type("FwOpcodeType", Type::U32);
-        self.encode(&opcode_type, &json!(command.opcode), &mut bytes).map_err(|e| TypeError(format!("opcode: {}", e.0)))?;
+        self.encode(&opcode_type, &json!(command.opcode), &mut bytes)
+            .map_err(|e| TypeError(format!("opcode: {}", e.0)))?;
         let mut sent = Map::new();
         for (param, value) in params.iter().zip(values) {
             let start = bytes.len();
