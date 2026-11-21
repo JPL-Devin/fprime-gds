@@ -92,10 +92,12 @@ impl Dictionary {
         match ty {
             Type::Int { bits, .. } | Type::Float { bits } => *bits as usize / 8,
             Type::Bool => 1,
-            Type::String { max } => self.max_size(&self.size_store) + max,
+            Type::String { max } => self.max_size(&self.size_store).saturating_add(*max),
             Type::Enum { rep, .. } => self.max_size(rep),
-            Type::Array { size, element, .. } => size * self.max_size(element),
-            Type::Struct { members, .. } => members.iter().map(|m| m.count.unwrap_or(1) * self.max_size(&m.ty)).sum(),
+            Type::Array { size, element, .. } => size.saturating_mul(self.max_size(element)),
+            Type::Struct { members, .. } => members
+                .iter()
+                .fold(0usize, |sum, m| sum.saturating_add(m.count.unwrap_or(1).saturating_mul(self.max_size(&m.ty)))),
         }
     }
 
@@ -184,6 +186,10 @@ impl Dictionary {
                 };
                 match (v, bits) {
                     (None, _) => return fail(format!("{value} is not a number (F{bits})")),
+                    // A finite value beyond F32 would be sent as infinity.
+                    (Some(v), 32) if v.is_finite() && !(v as f32).is_finite() => {
+                        return fail(format!("{v} is out of range for F32"));
+                    }
                     (Some(v), 32) => put_uint(out, 32, (v as f32).to_bits() as u64),
                     (Some(v), _) => put_uint(out, 64, v.to_bits()),
                 }
