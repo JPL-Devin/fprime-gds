@@ -161,9 +161,17 @@ pub fn to_json(values: &[(&Param, Value)]) -> Value {
                 components.len() - 1
             }
         };
-        components[index].1.push((param.name.clone(), value.clone()));
+        components[index].1.push((param.name.clone(), decode::encoder_format(&shown(param, value))));
     }
     Value::Object(components.into_iter().map(|(name, params)| (name, Value::object(params))).collect())
+}
+
+/// The value as `fprime-prm-decode` holds it: an array or struct is its `to_jsonable()`.
+fn shown(param: &Param, value: &Value) -> Value {
+    match param.ty {
+        Type::Array { .. } | Type::Struct { .. } => decode::jsonable(&param.ty, value),
+        _ => value.clone(),
+    }
 }
 
 fn shown_type(param: &Param) -> String {
@@ -182,7 +190,7 @@ pub fn to_text(values: &[(&Param, Value)]) -> String {
             lines.push(format!("Component: {}", param.component));
             current = Some(&param.component);
         }
-        let shown = match value {
+        let shown = match &shown(param, value) {
             Value::Str(s) => format!("\"{s}\""),
             other => other.python_str(),
         };
@@ -195,8 +203,8 @@ pub fn to_text(values: &[(&Param, Value)]) -> String {
 pub fn to_csv(values: &[(&Param, Value)]) -> String {
     let mut lines = vec!["Component,Parameter,Value,Type,ID".to_string()];
     for (param, value) in values {
-        let mut shown = match value {
-            Value::Array(_) | Value::Object(_) => value.python_str().replace('"', "\"\""),
+        // As the Python tool, the quotes inside the JSON of an array or struct are not doubled.
+        let mut shown = match &shown(param, value) {
             Value::Str(s) => s.replace('"', "\"\""),
             other => other.python_str(),
         };

@@ -203,3 +203,106 @@ pub(crate) fn from_dat<'a>(dict: &'a ParamDictionary, dat: &[u8]) -> Result<Vec<
     }
     Ok(params)
 }
+
+/// An FPP format string as the Python GDS keeps it: `{x}` becomes `{:x}`, `{.2f}` becomes `{:.2f}`.
+fn python_format(format: Option<&str>) -> String {
+    let format = format.unwrap_or("{}");
+    let mut out = String::new();
+    let mut rest = format;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..=open]);
+        rest = &rest[open + 1..];
+        let spec: &str = rest.split('}').next().unwrap_or("");
+        let closed = rest.len() > spec.len();
+        let (flags, kind) = spec.split_at(spec.len().saturating_sub(1));
+        let mut parts = flags.splitn(2, '.');
+        let digits = |part: Option<&str>| part.is_none_or(|p| p.bytes().all(|b| b.is_ascii_digit()));
+        if closed
+            && spec.is_ascii()
+            && "cdxoefgCDXOEFG".contains(kind)
+            && !kind.is_empty()
+            && digits(parts.next())
+            && digits(parts.next())
+        {
+            out.push(':');
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// What `to_jsonable()` of the Python GDS gives for a value of this type: the description of an
+/// array, the members of a struct each with format and description, a scalar as value and type.
+pub(crate) fn jsonable(ty: &Type, value: &Value) -> Value {
+    let text = |s: String| Value::Str(s);
+    let described = |name: String, size: usize, format: Option<&str>, element: &Type, value: &Value| {
+        vec![
+            ("name".to_string(), text(name.clone())),
+            ("type".to_string(), text(name)),
+            ("size".to_string(), Value::Int((size as i128).into())),
+            ("format".to_string(), text(python_format(format))),
+            ("value_type".to_string(), text(type_name(element).replace("Type", ""))),
+            ("values".to_string(), value.clone()),
+        ]
+    };
+    match (ty, value) {
+        (Type::Array { name, size, element, format }, _) => {
+            Value::Object(described(name.clone(), *size, format.as_deref(), element, value))
+        }
+        (Type::Struct { members, .. }, Value::Object(pairs)) => Value::Object(
+            members
+                .iter()
+                .zip(pairs)
+                .map(|(member, (name, item))| {
+                    let mut fields = vec![
+                        ("format".to_string(), text(python_format(member.format.as_deref()))),
+                        ("description".to_string(), text(member.description.clone().unwrap_or_default())),
+                    ];
+                    let inner = match member.count {
+                        Some(count) => Value::Object(described(
+                            format!("Array_{}_{count}", type_name(&member.ty)),
+                            count,
+                            None,
+                            &member.ty,
+                            item,
+                        )),
+                        None => jsonable(&member.ty, item),
+                    };
+                    if let Value::Object(inner) = inner {
+                        // dict.update: a key met again keeps its place and takes the new value.
+                        for (key, new) in inner {
+                            match fields.iter_mut().find(|(k, _)| *k == key) {
+                                Some(field) => field.1 = new,
+                                None => fields.push((key, new)),
+                            }
+                        }
+                    }
+                    (name.clone(), Value::Object(fields))
+                })
+                .collect(),
+        ),
+        _ => Value::Object(vec![
+            ("value".to_string(), value.clone()),
+            ("type".to_string(), text(type_name(ty).replace("Type", ""))),
+        ]),
+    }
+}
+
+/// `to_encoder_format` of `fprime-prm-decode`: the description of a value back to the value
+/// `fprime-prm-write` reads. It keeps `format` and `description` of a struct inside a struct.
+pub(crate) fn encoder_format(value: &Value) -> Value {
+    match value {
+        Value::Array(items) => Value::Array(items.iter().map(encoder_format).collect()),
+        Value::Object(pairs) => {
+            let get = |key: &str| pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v);
+            if let Some(Value::Array(items)) = get("values") {
+                Value::Array(items.iter().map(encoder_format).collect())
+            } else if let Some(inner) = get("value") {
+                encoder_format(inner)
+            } else {
+                Value::Object(pairs.iter().map(|(k, v)| (k.clone(), encoder_format(v))).collect())
+            }
+        }
+        other => other.clone(),
+    }
+}

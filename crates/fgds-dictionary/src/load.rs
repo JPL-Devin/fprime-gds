@@ -307,7 +307,8 @@ impl<'a> Resolver<'a> {
                         .as_deref()
                         .map_or(Ok(()), crate::text::check_format)
                         .map_err(|e| format!("member {member}: {e}"))?;
-                    members.push((index, Member { name: member.clone(), ty, count, format }));
+                    let description = spec["annotation"].as_str().map(str::to_string);
+                    members.push((index, Member { name: member.clone(), ty, count, format, description }));
                 }
                 // Wire order is the "index" field, not the order of the JSON object.
                 members.sort_by_key(|(index, _)| *index);

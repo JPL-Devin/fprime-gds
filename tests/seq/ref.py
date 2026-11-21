@@ -156,15 +156,20 @@ def typed(args, dictionary):
         compiled.append((done.returncode != 0, message if done.returncode else output.read_bytes()))
     if compiled[0] != compiled[1]:
         failures.append(f"the typed parameter sequence, compiled: {compiled[0]} and {compiled[1]}")
-    # fprime-prm-decode leaves "format" and "description" keys in a struct inside a struct
-    # (docs/design/deviations.md), so the JSON of fgds is compared with the values written.
-    output = args.out / "typed.decoded.rs.json"
-    done = run(args.fgds, "prm-decode", args.out / "typed.py.dat", "--dictionary", args.dictionary, "-o", output)
-    if done.returncode or json.loads(output.read_text()) != TYPED:
-        failures.append(f"typed prm-decode: {output} is not the values of {source}\n{done.stderr}")
+    # Decoded: the files of both tools are the same bytes (an array or struct is shown by the Python
+    # tool as the description of its type in text and CSV; fgds does the same).
+    for form in ("json", "text", "csv"):
+        outputs = []
+        for tool, command in (("py", ["fprime-prm-decode"]), ("rs", [args.fgds, "prm-decode"])):
+            output = args.out / f"typed.decoded.{tool}.{form}"
+            done = run(*command, args.out / "typed.py.dat", "--dictionary", args.dictionary, "-f", form, "-o", output)
+            if done.returncode:
+                failures.append(f"typed prm-decode {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
+            outputs.append(output)
+        same(f"typed prm-decode {form}", *outputs)
     print(f"  {len(wanted)} enum, array and struct parameters: the same .dat ({(args.out / 'typed.py.dat').stat().st_size} bytes) and "
           f"sequence; the sequence {'rejected by both compilers with the same message' if compiled[0][0] else 'compiled to the same bytes'}; "
-          f"decoded by fgds to the values written")
+          f"decoded to the same JSON, text and CSV files")
 
 
 def parameters(args, dictionary):

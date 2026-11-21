@@ -41,6 +41,8 @@ pub struct Member {
     pub count: Option<usize>,
     /// The format string of the member, when the dictionary gives one.
     pub format: Option<String>,
+    /// The annotation of the member in the dictionary.
+    pub description: Option<String>,
 }
 
 impl Type {

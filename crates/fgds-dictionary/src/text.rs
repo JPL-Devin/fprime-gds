@@ -107,7 +107,13 @@ fn shortest(v: f64) -> (String, i32) {
 /// A float as Python's `repr()` shows it.
 pub(crate) fn float(v: f64) -> String {
     if !v.is_finite() {
-        return if v.is_nan() { "nan".into() } else if v > 0.0 { "inf".into() } else { "-inf".into() };
+        return if v.is_nan() {
+            "nan".into()
+        } else if v > 0.0 {
+            "inf".into()
+        } else {
+            "-inf".into()
+        };
     }
     let sign = if v.is_sign_negative() { "-" } else { "" };
     if v == 0.0 {

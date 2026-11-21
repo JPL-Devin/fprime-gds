@@ -238,6 +238,7 @@ fn element_and_member_format_strings_are_applied_to_channel_values() {
         ty,
         count,
         format: format.map(str::to_string),
+        description: None,
     };
     let members = vec![
         member("ratio", Type::Float { bits: 32 }, None, Some("{.2f} V")),
