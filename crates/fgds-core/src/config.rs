@@ -58,7 +58,7 @@ impl Default for Config {
         Config {
             dictionary: PathBuf::new(),
             comm: "tcp-server".into(),
-            framing: "fprime".into(),
+            framing: "ccsds".into(),
             framing_layers: Vec::new(),
             storage: "memory".into(),
             database: None,

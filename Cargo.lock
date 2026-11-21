@@ -370,6 +370,7 @@ dependencies = [
  "events",
  "fgds-core",
  "fgds-shell",
+ "framing-ccsds",
  "framing-fprime",
  "online",
  "storage-memory",

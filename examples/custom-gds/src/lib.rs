@@ -23,7 +23,6 @@ pub fn gds() -> fgds::GdsBuilder {
         .with_defaults()
         .without("channels")
         .with(StationFramingPlugin)
-        .with(framing_ccsds::CcsdsFramingPlugin)
         .with(CameraPlugin)
         .with(NotesPlugin)
         .with(FaultyPlugin)

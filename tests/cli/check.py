@@ -72,7 +72,7 @@ class Fgds:
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.url = f"http://127.0.0.1:{http}"
         self.process = scenario.start(
-            [args.fgds, "run", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
+            [args.fgds, "run", "--framing", "fprime", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
              "--comm-tcp-address", f"127.0.0.1:{self.link_port}"], open(f"{out}/gds.log", "w"))
         scenario.wait_for("fgds", lambda: self.get("/version"))
 

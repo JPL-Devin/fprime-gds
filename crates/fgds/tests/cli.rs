@@ -30,7 +30,7 @@ fn check_prints_what_would_start_and_command_line_wins_over_the_file() {
     for line in [
         "2 commands, 2 events, 3 channels",
         "adapter: tcp-client",
-        "framing: fprime",
+        "framing: ccsds-tm-tc > ccsds-space-packet",
         "server: http://127.0.0.1:2",
         "--comm-tcp-address = 10.0.0.1:7",
         "record kinds: raw.discarded, gds.decode_error, gds.unknown_packet, gds.plugin_fault, gds.storage_gap, gds.storage_recovered",

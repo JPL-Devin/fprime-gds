@@ -139,8 +139,8 @@ try:
 
     # The tab: listed, and its module and the page shell are served.
     tabs = get("/ui/tabs")
-    assert tabs == [{"id": "notes", "title": "Notes", "module": "/ui/plugins/notes/notes.js"}], tabs
-    assert b'customElements.define("notes-tab"' in call(tabs[0]["module"])[1]
+    assert {"id": "notes", "title": "Notes", "module": "/ui/plugins/notes/notes.js"} in tabs, tabs
+    assert b'customElements.define("notes-tab"' in call("/ui/plugins/notes/notes.js")[1]
     assert b"/ui/shell.js" in call("/")[1] and b"import(tab.module)" in call("/ui/shell.js")[1]
     step("tab listed by /ui/tabs; its module and the page shell that loads it are served")
 
