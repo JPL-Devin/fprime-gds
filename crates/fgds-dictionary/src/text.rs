@@ -78,16 +78,57 @@ fn python_text(value: &Value) -> String {
     }
 }
 
-/// A float as Python's `repr()` shows it.
-fn float(v: f64) -> String {
-    let magnitude = v.abs();
-    if v != 0.0 && !(1e-4..1e16).contains(&magnitude) {
-        return exponent(format!("{v:e}"));
+/// The shortest decimal digits that give `v` back, and the decimal exponent of the first one, as Python
+/// chooses them: where two texts of that length are equally near the value, the one ending in an even digit
+/// (Rust takes the upper one: 1.1888198852539063 for an F32 that Python shows as 1.1888198852539062).
+fn shortest(v: f64) -> (String, i32) {
+    let text = format!("{:e}", v.abs());
+    let (mantissa, exp) = text.split_once('e').unwrap_or((&text, "0"));
+    let exp: i32 = exp.parse().unwrap_or(0);
+    let digits = mantissa.replace('.', "");
+    let count = digits.len();
+    // 800 digits hold every digit of a double.
+    let exact = format!("{:.800e}", v.abs());
+    let (exact_mantissa, exact_exp) = exact.split_once('e').unwrap_or((&exact, "0"));
+    let exact_digits = exact_mantissa.replace('.', "");
+    let (head, rest) = exact_digits.split_at(count);
+    let tie = rest.starts_with('5') && rest[1..].bytes().all(|b| b == b'0');
+    let even = head.as_bytes()[count - 1] % 2 == 0;
+    match (tie, head.parse::<u128>()) {
+        (true, Ok(low)) => {
+            let chosen = (if even { low } else { low + 1 }).to_string();
+            let exp = exact_exp.parse().unwrap_or(exp) + (chosen.len() as i32 - count as i32);
+            (chosen[..count].to_string(), exp)
+        }
+        _ => (digits, exp),
     }
-    if v.fract() == 0.0 {
-        format!("{v:.1}")
+}
+
+/// A float as Python's `repr()` shows it.
+pub(crate) fn float(v: f64) -> String {
+    if !v.is_finite() {
+        return if v.is_nan() { "nan".into() } else if v > 0.0 { "inf".into() } else { "-inf".into() };
+    }
+    let sign = if v.is_sign_negative() { "-" } else { "" };
+    if v == 0.0 {
+        return format!("{sign}0.0");
+    }
+    let (digits, exp) = shortest(v);
+    let digits = digits.trim_end_matches('0');
+    let digits = if digits.is_empty() { "0" } else { digits };
+    if !(-4..16).contains(&exp) {
+        let fraction = if digits.len() > 1 { format!(".{}", &digits[1..]) } else { String::new() };
+        let (exp_sign, exp) = if exp < 0 { ('-', -exp) } else { ('+', exp) };
+        return format!("{sign}{}{fraction}e{exp_sign}{exp:02}", &digits[..1]);
+    }
+    if exp < 0 {
+        return format!("{sign}0.{}{digits}", "0".repeat((-exp - 1) as usize));
+    }
+    let whole = exp as usize + 1;
+    if digits.len() <= whole {
+        format!("{sign}{digits}{}.0", "0".repeat(whole - digits.len()))
     } else {
-        v.to_string()
+        format!("{sign}{}.{}", &digits[..whole], &digits[whole..])
     }
 }
 
@@ -269,5 +310,22 @@ impl Dictionary {
         }
         out.push_str(rest);
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// `fixtures/float-text/table.json`: the text Python `repr()` gives for each double.
+    #[test]
+    fn floats_are_written_as_python_writes_them() {
+        let table = include_str!("../../../fixtures/float-text/table.json");
+        let mut checked = 0;
+        for line in table.lines() {
+            let row: serde_json::Value = serde_json::from_str(line).unwrap();
+            let bits = u64::from_str_radix(row["bits"].as_str().unwrap(), 16).unwrap();
+            assert_eq!(super::float(f64::from_bits(bits)), row["text"].as_str().unwrap(), "{bits:016x}");
+            checked += 1;
+        }
+        assert!(checked > 5000, "{checked} rows");
     }
 }
