@@ -1,6 +1,7 @@
 //! What a project adds to the stock GDS, one plugin per feature:
 //!
 //! - `StationFramingPlugin`: a framing layer around the F Prime frame.
+//! - `CameraPlugin`: a decoder registered by application identifier (CCSDS framing).
 //! - `NotesPlugin`: a record kind, its route, a browser tab and a subcommand.
 //! - `FaultyPlugin`: a handler that panics, to show that the GDS contains it.
 //!
@@ -22,6 +23,8 @@ pub fn gds() -> fgds::GdsBuilder {
         .with_defaults()
         .without("channels")
         .with(StationFramingPlugin)
+        .with(framing_ccsds::CcsdsFramingPlugin)
+        .with(CameraPlugin)
         .with(NotesPlugin)
         .with(FaultyPlugin)
 }
@@ -105,6 +108,69 @@ impl Frame for StationFramer {
         out.put_u16(length);
         out.put_slice(packet);
         Ok(())
+    }
+}
+
+// A decoder registered by application identifier: the camera sends its own Space Packets,
+// which are not F Prime packets. Needs a CCSDS framing profile (`--framing ccsds`).
+
+pub const CAMERA: &str = "example.camera";
+
+pub struct CameraPlugin;
+
+impl Plugin for CameraPlugin {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            name: "camera",
+            version: env!("CARGO_PKG_VERSION"),
+            options: vec![OptionSpec {
+                name: "apid",
+                help: "Application identifier of the camera's Space Packets",
+                default: Some("100"),
+                secret: false,
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_kind(KindSpec::new(CAMERA, "A camera status packet; id is the exposure number; raw is the packet"))?;
+        // A factory: what the decoder matches depends on the configuration.
+        reg.add_decoder(Arc::new(|cfg| {
+            let apid = cfg.get("apid").and_then(|s| s.parse().ok());
+            let apid = apid.ok_or_else(|| Error::other("camera: apid is not a number"))?;
+            Ok(Box::new(CameraDecoder { apid }))
+        }))
+    }
+}
+
+struct CameraDecoder {
+    apid: u64,
+}
+
+impl Decoder for CameraDecoder {
+    /// Any packet of the camera's application identifier, whatever its first bytes are.
+    fn matches(&self) -> PacketMatch {
+        PacketMatch { packet_type: None, meta: vec![(framing_ccsds::META_APID.into(), MetaValue::U64(self.apid))] }
+    }
+
+    /// Packet: exposure number (32 bits), temperature in tenths of a degree (16 bits, signed).
+    fn decode(
+        &self,
+        packet: &[u8],
+        _: &PacketMeta,
+        _: &Dictionary,
+    ) -> std::result::Result<Vec<NewRecord>, DecodeError> {
+        let [a, b, c, d, high, low] = *packet else {
+            return Err(DecodeError(format!("a camera packet has 6 bytes, not {}", packet.len())));
+        };
+        let exposure = u32::from_be_bytes([a, b, c, d]);
+        let temperature = f64::from(i16::from_be_bytes([high, low])) / 10.0;
+        Ok(vec![NewRecord {
+            id: Some(exposure),
+            raw: fgds::core::bytes::Bytes::copy_from_slice(packet),
+            ..NewRecord::new(CAMERA, json!({"temperature": temperature}))
+        }])
     }
 }
 

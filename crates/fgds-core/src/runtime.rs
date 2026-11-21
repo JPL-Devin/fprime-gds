@@ -90,7 +90,8 @@ impl Core {
         let mut layers = Vec::new();
         for name in &layer_names {
             let (plugin, layer) = named(&registry.framing_layers, "framing layer", name)?;
-            layers.push((layer.clone(), config.plugin_config(&registry, plugin)?));
+            let layer = layer.with_dictionary(&dictionary).unwrap_or_else(|| layer.clone());
+            layers.push((layer, config.plugin_config(&registry, plugin)?));
         }
         let link = Link::with_raw_log(layers, status.clone(), raw_log);
         let uplink = Uplink::new(encoders, dictionary.clone(), link.clone(), records.clone(), run.run);

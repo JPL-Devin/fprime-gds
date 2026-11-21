@@ -3,6 +3,7 @@
 
 Usage: check.py <directory of the built binaries> <dictionary>
 """
+import binascii
 import json
 import socket
 import struct
@@ -34,6 +35,18 @@ def fprime_frame(packet):
 
 def station_frame(data, station):
     return b"GS" + struct.pack(">BH", station, len(data)) + data
+
+
+def tm_frame(space_packets, count=0, scid=0x44, vcid=1, size=1024):
+    """A TM frame holding whole Space Packets, the rest of it an idle packet."""
+    idle = size - 8 - len(space_packets) - 6
+    data = space_packets + struct.pack(">HHH", 0x07FF, 0xC000, idle - 1) + bytes(idle)
+    frame = struct.pack(">HBBH", scid << 4 | vcid << 1, count, count, 0) + data
+    return frame + struct.pack(">H", binascii.crc_hqx(frame, 0xFFFF))
+
+
+def space_packet(apid, count, data):
+    return struct.pack(">HHH", apid, 0xC000 | count, len(data) - 1) + data
 
 
 def step(text):
@@ -139,6 +152,31 @@ try:
     assert call("/api/v1/notes", {"text": "Still here"})[0] == 200
     assert get("/api/v1/notes")[-1] == "Still here" and gds.poll() is None
     step(f"panic contained: {faults[0]['body']['message']!r}; the GDS keeps serving")
+finally:
+    gds.terminate()
+    gds.wait(timeout=10)
+
+# A decoder registered by application identifier, on the CCSDS framing profile.
+http, link = free_port(), free_port()
+api = f"http://127.0.0.1:{http}"
+gds = subprocess.Popen(
+    [f"{BIN}/custom-gds", "run", "--dictionary", DICTIONARY, "--framing", "ccsds",
+     "--bind", f"127.0.0.1:{http}", "--comm-tcp-address", f"127.0.0.1:{link}"],
+    stderr=subprocess.DEVNULL,
+)
+try:
+    wait_for("the server", lambda: call("/api/v1/version")[0] == 200)
+    flight = wait_for("the link", lambda: socket.create_connection(("127.0.0.1", link), timeout=5))
+    camera = space_packet(100, 7, struct.pack(">Ih", 42, -215))
+    event = space_packet(2, 0, bytes([0, 2, 0, 0, 2, 0]) + TIME)
+    flight.sendall(tm_frame(camera + event))
+    found = wait_for("the camera packet", lambda: get("/api/v1/records?kind=example.camera")["records"])
+    assert found[0]["id"] == 42 and found[0]["body"] == {"temperature": -21.5}, found
+    assert found[0]["meta"] == {"ccsds.apid": "100", "ccsds.scid": "68", "ccsds.seq_count": "7", "ccsds.vcid": "1"}, found
+    events = wait_for("the event", lambda: get("/api/v1/records?kind=fprime.event")["records"])
+    assert events[0]["body"]["name"] == "T.c.NoOp" and events[0]["meta"]["ccsds.apid"] == "2", events
+    step(f"decoder registered by application identifier 100: record {found[0]['body']} with metadata {found[0]['meta']}; "
+         "the event of the same TM frame goes to the event decoder")
 finally:
     gds.terminate()
     gds.wait(timeout=10)

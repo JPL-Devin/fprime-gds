@@ -2,7 +2,9 @@
 """`fgds run` against a running Ref (item 2 of the slice): commands through the API, the
 resulting events and channel samples read back through the record API and the WebSocket.
 
-Usage: check.py <fgds binary> <Ref binary> <dictionary> <directory for logs>
+Usage: check.py <fgds binary> <Ref binary> <dictionary> <directory for logs> [framing profile]
+
+The framing profile (`ccsds` or `fprime`, the default) is the one Ref was built with.
 """
 import base64
 import json
@@ -17,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import scenario  # noqa: E402
 
 FGDS, REF, DICTIONARY, OUT = sys.argv[1:5]
+FRAMING = sys.argv[5] if len(sys.argv) > 5 else "fprime"
 os.makedirs(OUT, exist_ok=True)
 HTTP, LINK = scenario.free_port(), scenario.free_port()
 API = f"http://127.0.0.1:{HTTP}/api/v1"
@@ -83,7 +86,8 @@ class Stream:
 
 
 fgds = scenario.start(
-    [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{HTTP}", "--comm-tcp-address", f"127.0.0.1:{LINK}"],
+    [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{HTTP}", "--comm-tcp-address", f"127.0.0.1:{LINK}",
+     "--framing", FRAMING],
     open(f"{OUT}/fgds.log", "w"),
 )
 ref = None
@@ -140,6 +144,26 @@ try:
     again = [filtered.next()["seq"] for _ in range(len(replayed_events))]
     assert again == replayed_events
     step("WebSocket with kind=fprime.event: the same events, in the same order")
+
+    # What the framing layers know about each packet, on the stored records (LNK-19).
+    with open(DICTIONARY) as file:
+        constants = {c["qualifiedName"]: c["value"] for c in json.load(file).get("constants", [])}
+    decoded = records("kind=fprime.event") + records("kind=fprime.channel")
+    if FRAMING == "fprime":
+        assert all(not r["meta"] for r in decoded), [r for r in decoded if r["meta"]][:3]
+        step(f"F Prime framing: no packet metadata on {len(decoded)} event and channel records")
+    else:
+        scid = str(constants["ComCfg.SpacecraftId"])
+        assert all(r["meta"]["ccsds.scid"] == scid and r["meta"]["ccsds.vcid"] == "1" for r in decoded), decoded[:3]
+        apids = {kind: {r["meta"]["ccsds.apid"] for r in records(f"kind={kind}")}
+                 for kind in ("fprime.event", "fprime.channel")}
+        # ComCfg.Apid: FW_PACKET_LOG is 2, FW_PACKET_TELEM is 1.
+        assert apids == {"fprime.event": {"2"}, "fprime.channel": {"1"}}, apids
+        # Events are one per Space Packet: their sequence counts have no gap.
+        counts = [int(r["meta"]["ccsds.seq_count"]) for r in records("kind=fprime.event")]
+        assert counts == list(range(counts[0], counts[0] + len(counts))), counts
+        step(f"CCSDS framing: records carry ccsds.scid {scid}, ccsds.vcid 1, ccsds.apid (events 2, channels 1) "
+             f"and ccsds.seq_count ({counts[0]} to {counts[-1]} on events, no gap)")
 
     problems = records("kind=gds.decode_error") + records("kind=gds.unknown_packet") + records("kind=raw.discarded")
     assert not problems, problems[:3]

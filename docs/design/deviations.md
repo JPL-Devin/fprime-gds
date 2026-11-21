@@ -38,9 +38,8 @@ the user was away. The design document is unchanged. Nothing here changes a requ
 
 ## Decisions taken without asking
 
-1. **`Ref` is built with F Prime framing.** `Ref` on `devel` uses the `ComCcsds` subtopology and CCSDS is not in
-   this slice. `scripts/build-ref.sh` copies the fprime checkout and switches the copy to `ComFprime` (three files
-   under `Ref/Top`). The fprime repository is not modified. To drop when `framing-ccsds` exists (M5).
+1. **`Ref` was built with F Prime framing** in the first slice. Superseded: `Ref` is now also built as it is
+   (section "CCSDS framing"); the F Prime framing variant stays as the second configuration of the checks.
 2. **Kind names** are `fprime.event`, `fprime.channel`, `fprime.command`, as in the examples of 4.2 and 4.5.
    Telemetry packets (type 4) are decoded by the `channels` plugin into one `fprime.channel` record per channel,
    as the Python GDS does.
@@ -122,3 +121,31 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
 - The index record holds header fields, record count and the validation result, read once when indexed; records are decoded on demand from the file, which is read again only if it is a regular file inside the watched directory with the indexed hash (DP-8).
 - The detail route returns strict JSON (non-finite floats as strings); the export route returns the bytes `fprime-dp` writes.
 - The tab was not driven in a browser: its module, Lit and the routes it calls are checked over HTTP only.
+
+## CCSDS framing
+
+Decisions taken while building `plugins/framing-ccsds`, the stock `Ref` build and the comparison.
+
+| # | The design or the Python GDS says | The code does | Why |
+|---|---|---|---|
+| 1 | Profile `ccsds` is "TM/TC + Space Packet" (4.4) | Layers `ccsds-tm-tc` > `ccsds-space-packet`, equal to the Python chain `space-packet-space-data-link`. A second profile `ccsds-space-packet` (layer `ccsds-space-packet-stream`) equals the Python chain `raw-space-packet` | The first is what `Ref` uses; the second costs one registration |
+| 2 | Python has a third chain `raw-space-data-link` and a TM frame aggregator | The aggregator stage is written and passes its vectors; it is not registered as a layer, and the third chain is not a profile | No deployment of the repository uses them; registering is one line each |
+| 3 | The Python Space Packet object counts sequence numbers per application identifier in one table for both directions | Uplink and downlink keep separate tables | A framer and a deframer are two objects in the design (4.3). `Ref` never uses one identifier in both directions with different counts; the vectors pass |
+| 4 | Python fails at start when the dictionary has no `ComCfg.Apid` type | The packet type is used as application identifier, and `ComCfg.SpacecraftId` (0x44) and `ComCfg.TmFrameFixedSize` (1024) fall back as in Python | A dictionary without the CCSDS configuration can still be loaded |
+| 5 | Python silently drops what is left of a TM frame's data after its last whole Space Packet | Left bytes become a `raw.discarded` record | LNK-7: no byte is lost without a record |
+| 6 | Python rejects a wrong `--scid`, `--vcid`, `--frame-size` at start | Options `scid`, `vcid`, `frame-size` of the plugin `framing-ccsds`; a value that does not parse is logged and the dictionary value is used | Option validation belongs to the core (not in this part) |
+| 7 | Two vectors of `ccsds.json` call `deframe` with `None` | Replayed as an empty input | Rust has no such call |
+| 8 | Default profile "as the Python GDS defaults for current fprime `devel`": `space-packet-space-data-link` | The default list and default profile of `fgds` are unchanged (F Prime). `plugins/framing-ccsds/examples/fgds-ccsds.rs` is `fgds` plus the plugin; `--framing ccsds` selects it | The orchestrator owns the default list; the two lines to change are in the final message of this part |
+| 9 | `FramingLayer` (4.3) gets the plugin configuration only | Core change: `FramingLayer::with_dictionary(&Dictionary) -> Option<Arc<dyn FramingLayer>>`, default `None`, called once at start | The CCSDS layers need the spacecraft identifier, the frame size and the `ComCfg.Apid` type of the dictionary |
+| 10 | The JSON dictionary puts the element format string on the array type (`format`); the Python GDS reads it from `elementType.format`, which the dictionary never has, so it never applies it | Core change, one line of `fgds-dictionary/src/load.rs`: the array format is read from `elementType.format` | Found by the synthetic replay (`Ref.SG*.History`, `Ref.SG*.Info`): the Python GDS is the reference, even where it looks like a defect of it. To revisit if the Python GDS is corrected |
+
+Comparison with the Python GDS (`tests/compare/README.md`):
+
+1. The Python side of the live run is read from the REST endpoints of its GUI server. They give no event
+   arguments, so live events are compared on identifier, name, severity and text; the replay compares arguments.
+2. `fgds` records a refused command (`outcome: rejected`), the Python GDS records nothing. Only the refusal
+   itself is compared.
+3. The Python GDS sends a command given too few arguments (flight software answers `FORMAT_ERROR`); `fgds`
+   refuses it. The scenario does not use that case.
+4. `scripts/build-ref.sh` builds the F Prime framing variant by default, because `scripts/check.sh` (not owned
+   by this part) calls it with two arguments; `tests/ccsds/run.sh` builds the stock `Ref`.

@@ -64,6 +64,11 @@ pub trait LinkWriter: Send {
 }
 
 pub trait FramingLayer: Send + Sync {
+    /// Called once at startup: a layer that needs the dictionary returns the layer to
+    /// use in its place.
+    fn with_dictionary(&self, _dict: &Dictionary) -> Option<Arc<dyn FramingLayer>> {
+        None
+    }
     fn deframer(&self, cfg: &PluginConfig, peer: &PeerInfo) -> Box<dyn Deframe>;
     fn framer(&self, cfg: &PluginConfig) -> Box<dyn Frame>;
 }

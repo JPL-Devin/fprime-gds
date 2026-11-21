@@ -220,7 +220,7 @@ impl<'a> Resolver<'a> {
                 name: name.to_string(),
                 size: u64_field(def, "size")? as usize,
                 element: Box::new(self.resolve(&def["elementType"], stack)?),
-                format: def["format"].as_str().map(str::to_string),
+                format: def["elementType"]["format"].as_str().map(str::to_string),
             }),
             "struct" => {
                 let map = def["members"].as_object().ok_or("missing \"members\"")?;

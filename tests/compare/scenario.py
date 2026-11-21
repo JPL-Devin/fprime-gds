@@ -1,4 +1,5 @@
 """What both ground systems are asked to do, and the pieces both sides share."""
+import binascii
 import json
 import math
 import os
@@ -11,10 +12,33 @@ import time
 import zlib
 
 # Sent in this order, GAP seconds apart; then the run lasts SETTLE seconds more.
+# Arguments are JSON values, as fgds takes them; `text` gives the form the Python GDS takes.
 COMMANDS = [
     ("CdhCore.cmdDisp.CMD_NO_OP", []),
     ("CdhCore.cmdDisp.CMD_NO_OP_STRING", ["hello"]),
     ("CdhCore.cmdDisp.CMD_TEST_CMD_1", [1, 2.5, 3]),
+    ("Ref.typeDemo.CHOICE", ["RED"]),
+    ("Ref.typeDemo.CHOICES", [["ONE", "BLUE"]]),
+    ("Ref.typeDemo.EXTRA_CHOICES", [[["ONE", "TWO"], ["RED", "BLUE"]]]),
+    ("Ref.typeDemo.CHOICE_PAIR", [{"firstChoice": "RED", "secondChoice": "TWO"}]),
+    ("Ref.typeDemo.GLUTTON_OF_CHOICE", [{
+        "tooManyChoices": [["BLUE", "RED"], ["TWO", "ONE"]], "separateChoice": "TWO",
+        "choicePair": {"firstChoice": "ONE", "secondChoice": "BLUE"}, "choiceAsMemberArray": [0, 255]}]),
+    ("Ref.typeDemo.CHOICES_WITH_FRIENDS", [2, ["TWO", "RED"], 3]),
+    ("Ref.typeDemo.SEND_SCALARS", [{
+        "i8": -128, "i16": -32768, "i32": -2147483648, "i64": -9223372036854775808,
+        "u8": 255, "u16": 65535, "u32": 4294967295, "u64": 18446744073709551615, "f32": 1.5, "f64": -2.25}]),
+    ("Ref.typeDemo.DUMP_FLOATS", []),
+    ("Ref.SG1.Settings", [5, 2.5, 0.25, "SQUARE"]),
+    ("CdhCore.health.HLTH_ENABLE", ["ENABLED"]),
+    ("FileHandling.fileManager.RemoveFile", ["/no/such/directory/file", True]),
+    # Fails on board: the file does not exist.
+    ("FileHandling.fileManager.FileSize", ["/no/such/directory/file"]),
+]
+# Each must be refused by the GDS: nothing on the link, no command recorded.
+REJECTED = [
+    ("Ref.typeDemo.CHOICE", ["PURPLE"]),
+    ("Ref.typeDemo.NO_SUCH_COMMAND", []),
 ]
 GAP = 0.5
 START_WORD = bytes.fromhex("deadbeef")
@@ -93,6 +117,59 @@ def start_ref(ref, proxy, out):
     return start([ref, "-a", "127.0.0.1", "-p", str(proxy.port)], open(f"{out}/ref.log", "w"), cwd=out)
 
 
+def text(argument):
+    """A command argument as the Python GDS takes it: text, JSON text for arrays and structs."""
+    if isinstance(argument, bool):
+        return "true" if argument else "false"
+    return json.dumps(argument) if isinstance(argument, (list, dict)) else str(argument)
+
+
+def settle(cursor, quiet=1.0, timeout=60.0):
+    """Wait until `cursor()` has kept one value for `quiet` seconds; return that value."""
+    end, last, since = time.monotonic() + timeout, cursor(), time.monotonic()
+    while time.monotonic() < end:
+        time.sleep(0.1)
+        now = cursor()
+        if now != last:
+            last, since = now, time.monotonic()
+        elif time.monotonic() - since >= quiet:
+            return last
+    raise TimeoutError("the record cursor keeps moving")
+
+
+def whole_frames(stream, framing, frame_size=1024):
+    """The stream up to the end of its last whole frame: a capture stops anywhere."""
+    if framing == "ccsds":
+        return bytes(stream[:len(stream) // frame_size * frame_size])
+    end = at = 0
+    while (at := stream.find(START_WORD, at)) >= 0 and at + 12 <= len(stream):
+        at += 8 + struct.unpack_from(">I", stream, at + 4)[0] + 4
+        if at <= len(stream):
+            end = at
+    return bytes(stream[:end])
+
+
+def tc_frames(stream, scid):
+    """The TC frames of an uplink stream, whole: header (5 bytes), data, CRC-16.
+
+    Bytes between frames are skipped, as in `packets`.
+    """
+    found, at, start = [], 0, struct.pack(">H", 0x2000 | scid & 0x3FF)
+    while (at := stream.find(start, at)) >= 0 and at + 7 <= len(stream):
+        end = at + (struct.unpack_from(">H", stream, at + 2)[0] & 0x3FF) + 1
+        if end <= len(stream) and binascii.crc_hqx(bytes(stream[at:end - 2]), 0xFFFF) == struct.unpack_from(">H", stream, end - 2)[0]:
+            found.append(bytes(stream[at:end]))
+            at = end
+        else:
+            at += 1
+    return found
+
+
+def uplink(stream, framing, scid):
+    """What the GDS put on the link, as hex text: command packets (F Prime framing) or whole TC frames."""
+    return [item.hex() for item in (tc_frames(stream, scid) if framing == "ccsds" else packets(stream))]
+
+
 def packets(stream):
     """The packets of a stream of F Prime frames: start word, length, packet, CRC-32.
 
@@ -125,6 +202,53 @@ def plain(value):
     return [plain(item) for item in value]
 
 
-def save(path, events, channels, commands):
+def save(path, events, channels, commands, **more):
     with open(path, "w") as file:
-        json.dump({"events": events, "channels": channels, "commands": commands}, file, indent=1)
+        json.dump({"events": events, "channels": channels, "commands": commands, **more}, file, indent=1)
+
+
+class Shapes:
+    """The dictionary, for coverage: which type shapes each event, channel and command carries."""
+
+    NAMES = ("enum", "array", "struct", "string", "64-bit", "float")
+
+    def __init__(self, path):
+        with open(path) as file:
+            self.dictionary = json.load(file)
+        self.types = {t["qualifiedName"]: t for t in self.dictionary["typeDefinitions"]}
+        self.constants = {c["qualifiedName"]: c["value"] for c in self.dictionary.get("constants", [])}
+        self.events = {e["id"]: self.of(*[p["type"] for p in e["formalParams"]]) for e in self.dictionary["events"]}
+        self.channels = {c["id"]: self.of(c["type"]) for c in self.dictionary["telemetryChannels"]}
+        self.commands = {c["name"]: self.of(*[p["type"] for p in c["formalParams"]]) for c in self.dictionary["commands"]}
+
+    def of(self, *types):
+        found = set()
+        for ty in types:
+            if ty["kind"] == "qualifiedIdentifier":
+                definition = self.types[ty["name"]]
+                if definition["kind"] == "alias":
+                    found |= self.of(definition["underlyingType"])
+                elif definition["kind"] == "enum":
+                    found |= {"enum"} | self.of(definition["representationType"])
+                elif definition["kind"] == "array":
+                    found |= {"array"} | self.of(definition["elementType"])
+                else:
+                    found |= {"struct"} | self.of(*[m["type"] for m in definition["members"].values()])
+                    found |= {"array"} if any(m.get("size") for m in definition["members"].values()) else set()
+            elif ty["kind"] == "string":
+                found.add("string")
+            elif ty["kind"] == "float":
+                found.add("float")
+            elif ty["kind"] == "integer" and ty["size"] == 64:
+                found.add("64-bit")
+        return found
+
+    def coverage(self, what, table, seen, problems):
+        """Print how much of `table` the identifiers `seen` cover; a shape never seen is a problem."""
+        shapes = set().union(*[table[key] for key in seen if key in table])
+        missing = [name for name in self.NAMES if name not in shapes]
+        print(f"  coverage: {len(set(seen) & set(table))} of {len(table)} {what}; "
+              f"shapes seen: {', '.join(n for n in self.NAMES if n in shapes) or 'none'}"
+              + (f"; NOT SEEN: {', '.join(missing)}" if missing else ""))
+        if missing:
+            problems.append(f"{what}: no sample with {', '.join(missing)}")

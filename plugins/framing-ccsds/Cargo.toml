@@ -1,0 +1,20 @@
+[package]
+name = "framing-ccsds"
+description = "CCSDS framing layers: Space Packets, TM frames down, TC frames up"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+fgds-dictionary = { workspace = true }
+bytes = { workspace = true }
+crc = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+fgds = { workspace = true }
+serde_json = { workspace = true }
