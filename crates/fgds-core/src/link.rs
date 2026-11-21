@@ -330,7 +330,8 @@ impl<'a> Chain<'a> {
             layers,
             peer,
             deframers: layers.iter().map(|(l, cfg)| l.deframer(cfg, peer)).collect(),
-            inputs: vec![BytesMut::new(); layers.len()],
+            // Without a layer the one buffer holds what was read.
+            inputs: vec![BytesMut::new(); layers.len().max(1)],
         }
     }
 
