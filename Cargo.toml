@@ -42,6 +42,7 @@ fgds = { path = "crates/fgds" }
 comm-tcp = { path = "plugins/comm-tcp" }
 framing-fprime = { path = "plugins/framing-fprime" }
 storage-memory = { path = "plugins/storage-memory" }
+storage-sqlite = { path = "plugins/storage-sqlite" }
 events = { path = "plugins/events" }
 channels = { path = "plugins/channels" }
 commands = { path = "plugins/commands" }

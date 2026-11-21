@@ -21,6 +21,7 @@ pub use fgds_core as core;
 pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
     // One line per plugin.
     vec![
+        Box::new(storage_sqlite::SqliteStoragePlugin),
         Box::new(storage_memory::MemoryStoragePlugin),
         Box::new(comm_tcp::TcpPlugin),
         Box::new(framing_fprime::FprimeFramingPlugin),
