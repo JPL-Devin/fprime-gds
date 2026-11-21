@@ -117,6 +117,28 @@ fn general(v: f64, precision: usize, upper: bool) -> String {
     trim(&format!("{:.*}", (precision as i32 - 1 - exp).max(0) as usize, v))
 }
 
+/// Largest width and precision of a replacement field: more is left as written.
+const MAX_FIELD: usize = 512;
+
+/// The first replacement field of `template` that asks for more than `MAX_FIELD`
+/// characters, so the dictionary loader can name the definition that holds it.
+pub(crate) fn check_format(template: &str) -> Result<(), String> {
+    let mut rest = template;
+    while let Some(at) = rest.find('{') {
+        let tail = &rest[at + 1..];
+        let Some(end) = tail.find('}') else { break };
+        let field = &tail[..end];
+        let too_long = field
+            .split(|c: char| !c.is_ascii_digit())
+            .any(|digits| digits.len() > 3 || digits.parse::<usize>().is_ok_and(|n| n > MAX_FIELD));
+        if too_long {
+            return Err(format!("format field {{{field}}}: width or precision above {MAX_FIELD}"));
+        }
+        rest = &tail[end + 1..];
+    }
+    Ok(())
+}
+
 /// One value under a conversion such as `x`, `04X` or `.2f`, as Python's `format`
 /// fills it (the Python GDS turns `{04X}` into `{:04X}`); `None` when they do not fit.
 fn convert(spec: &str, ty: &Type, value: &Value) -> Option<String> {
@@ -130,6 +152,9 @@ fn convert(spec: &str, ty: &Type, value: &Value) -> Option<String> {
     };
     let zero = width.starts_with('0');
     let width: usize = if width.is_empty() { 0 } else { width.parse().ok()? };
+    if width > MAX_FIELD || precision.is_some_and(|p| p > MAX_FIELD) {
+        return None;
+    }
     let int = || match value {
         Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
         Value::String(s) if matches!(ty, Type::Int { .. }) => s.parse::<i128>().ok(),

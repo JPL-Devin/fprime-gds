@@ -91,6 +91,8 @@ impl Dictionary {
                 format: str_field(item, "format").map_err(at)?.to_string(),
                 params: params(item).map_err(at)?,
             };
+            let named = |e: String| err(format!("event {}: {e}", event.name));
+            crate::text::check_format(&event.format).map_err(named)?;
             if dict.event_by_id.insert(event.id, i).is_some() {
                 return Err(at(format!("duplicate event id {}", event.id)));
             }
@@ -104,6 +106,8 @@ impl Dictionary {
                 ty: resolver.resolve(&item["type"], &mut Vec::new()).map_err(at)?,
                 format: item["format"].as_str().map(str::to_string),
             };
+            let named = |e: String| err(format!("channel {}: {e}", channel.name));
+            channel.format.as_deref().map_or(Ok(()), crate::text::check_format).map_err(named)?;
             if dict.channel_by_id.insert(channel.id, i).is_some() {
                 return Err(at(format!("duplicate channel id {}", channel.id)));
             }
@@ -144,9 +148,48 @@ fn constant(json: &Value, name: &str, default: u8) -> Result<u8, String> {
     }
 }
 
-/// Expands type references into `Type` trees, refusing a type that contains itself.
+/// Deepest nesting of named types.
+const MAX_DEPTH: usize = 64;
+/// Most type nodes one type may expand to.
+const MAX_NODES: usize = 100_000;
+/// Most members of a struct.
+const MAX_MEMBERS: usize = 10_000;
+/// Largest encoded size of one type, in bytes.
+const MAX_TYPE_SIZE: usize = 1 << 20;
+
+/// The largest encoded size of a type, with 8 bytes for a string length; `None` on overflow.
+fn wire_size(ty: &Type) -> Option<usize> {
+    match ty {
+        Type::Int { bits, .. } | Type::Float { bits } => Some(*bits as usize / 8),
+        Type::Bool => Some(1),
+        Type::String { max } => max.checked_add(8),
+        Type::Enum { rep, .. } => wire_size(rep),
+        Type::Array { size, element, .. } => size.checked_mul(wire_size(element)?),
+        Type::Struct { members, .. } => members.iter().try_fold(0usize, |sum, m| {
+            sum.checked_add(m.count.unwrap_or(1).checked_mul(wire_size(&m.ty)?)?)
+        }),
+    }
+}
+
+/// A count or size of the dictionary as `usize`, refused when it cannot be one.
+fn count(v: &Value, key: &str) -> Result<usize, String> {
+    usize::try_from(u64_field(v, key)?).map_err(|_| format!("\"{key}\" is too large"))
+}
+
+/// Refuse a type too large to be a real one, before anything allocates for it.
+fn bounded(ty: Type) -> Result<Type, String> {
+    match wire_size(&ty) {
+        Some(size) if size <= MAX_TYPE_SIZE => Ok(ty),
+        _ => Err(format!("encoded size exceeds {MAX_TYPE_SIZE} bytes")),
+    }
+}
+
+/// Expands type references into `Type` trees, refusing a type that contains itself
+/// and a type that is too deep or too large (a hostile or damaged dictionary).
 struct Resolver<'a> {
     defs: HashMap<&'a str, &'a Value>,
+    /// Type nodes made since the outermost `resolve` or `named` began.
+    nodes: std::cell::Cell<usize>,
 }
 
 impl<'a> Resolver<'a> {
@@ -158,11 +201,18 @@ impl<'a> Resolver<'a> {
                 return Err(format!("typeDefinitions[{i}]: duplicate type {name}"));
             }
         }
-        Ok(Resolver { defs })
+        Ok(Resolver { defs, nodes: Default::default() })
     }
 
     /// Resolve a type reference: `{"kind": "integer", ...}` and the like.
     fn resolve(&self, r: &'a Value, stack: &mut Vec<&'a str>) -> Result<Type, String> {
+        if stack.is_empty() {
+            self.nodes.set(0);
+        }
+        self.nodes.set(self.nodes.get() + 1);
+        if self.nodes.get() > MAX_NODES {
+            return Err(format!("expands to more than {MAX_NODES} types"));
+        }
         let bits = |allowed: &[u64]| -> Result<u8, String> {
             let size = u64_field(r, "size")?;
             if allowed.contains(&size) {
@@ -178,7 +228,7 @@ impl<'a> Resolver<'a> {
             }),
             "float" => Ok(Type::Float { bits: bits(&[32, 64])? }),
             "bool" => Ok(Type::Bool),
-            "string" => Ok(Type::String { max: u64_field(r, "size")? as usize }),
+            "string" => bounded(Type::String { max: count(r, "size")? }),
             "qualifiedIdentifier" => self.named(str_field(r, "name")?, stack),
             other => Err(format!("unknown type kind \"{other}\"")),
         }
@@ -189,6 +239,12 @@ impl<'a> Resolver<'a> {
             self.defs.get_key_value(name).map(|(k, v)| (*k, *v)).ok_or_else(|| format!("undefined type {name}"))?;
         if stack.contains(&name) {
             return Err(format!("type {name} contains itself"));
+        }
+        if stack.len() >= MAX_DEPTH {
+            return Err(format!("type {name} is nested more than {MAX_DEPTH} deep"));
+        }
+        if stack.is_empty() {
+            self.nodes.set(0);
         }
         stack.push(name);
         let ty = self.definition(name, def, stack).map_err(|e| match stack.len() {
@@ -216,25 +272,38 @@ impl<'a> Resolver<'a> {
                     .collect::<Result<_, String>>()?;
                 Ok(Type::Enum { name: name.to_string(), rep: Box::new(rep), constants })
             }
-            "array" => Ok(Type::Array {
-                name: name.to_string(),
-                size: u64_field(def, "size")? as usize,
-                element: Box::new(self.resolve(&def["elementType"], stack)?),
-                format: def["format"].as_str().map(str::to_string),
-            }),
+            "array" => {
+                let element = self.resolve(&def["elementType"], stack)?;
+                if wire_size(&element) == Some(0) {
+                    return Err("array element has no size".into());
+                }
+                let format = def["format"].as_str().map(str::to_string);
+                format.as_deref().map_or(Ok(()), crate::text::check_format)?;
+                bounded(Type::Array { name: name.to_string(), size: count(def, "size")?, element: Box::new(element), format })
+            }
             "struct" => {
                 let map = def["members"].as_object().ok_or("missing \"members\"")?;
+                if map.len() > MAX_MEMBERS {
+                    return Err(format!("more than {MAX_MEMBERS} members"));
+                }
                 let mut members = Vec::new();
                 for (member, spec) in map {
                     let index = u64_field(spec, "index")?;
                     let ty = self.resolve(&spec["type"], stack).map_err(|e| format!("member {member}: {e}"))?;
-                    let count = spec["size"].as_u64().map(|n| n as usize);
+                    let count = match spec.get("size") {
+                        Some(_) => Some(count(spec, "size").map_err(|e| format!("member {member}: {e}"))?),
+                        None => None,
+                    };
+                    if count.is_some() && wire_size(&ty) == Some(0) {
+                        return Err(format!("member {member}: array element has no size"));
+                    }
                     let format = spec["format"].as_str().map(str::to_string);
+                    format.as_deref().map_or(Ok(()), crate::text::check_format).map_err(|e| format!("member {member}: {e}"))?;
                     members.push((index, Member { name: member.clone(), ty, count, format }));
                 }
                 // Wire order is the "index" field, not the order of the JSON object.
                 members.sort_by_key(|(index, _)| *index);
-                Ok(Type::Struct { name: name.to_string(), members: members.into_iter().map(|(_, m)| m).collect() })
+                bounded(Type::Struct { name: name.to_string(), members: members.into_iter().map(|(_, m)| m).collect() })
             }
             other => Err(format!("unknown type definition kind \"{other}\"")),
         }
