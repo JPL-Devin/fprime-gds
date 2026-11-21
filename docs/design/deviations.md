@@ -88,7 +88,6 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
 - `fixtures/vectors/format_strings.json` was not extended with the Python tool; the new cases (negative `x`/`o`, `g`, non-finite values, element and member format strings) are unit tests whose expected text was taken from the review and from `formatted_val` of the Python GDS.
 - Not done from the review list: nothing else was skipped; the items above are the reduced ones.
 
-
 ## Python client, pytest fixture and online command-line tools
 
 1. **The online subcommands are a plugin** (`plugins/online`, `OnlinePlugin`), not code in `crates/fgds/src/cli.rs`:
@@ -161,3 +160,28 @@ Comparison with the Python GDS (`tests/compare/README.md`):
 - Flight time is shown to the microsecond (the Python GDS page: millisecond). Channels without a sample are listed only on request.
 - Settings (row limit, filters, selected tab) are kept in the browser's local storage, not on the server.
 - Playwright is installed by `tests/browser/run.sh` into `target/browser-venv`, not into the fprime virtual environment.
+
+## Sequence compiler and parameter tools
+
+`plugins/sequences` (`fgds seqgen`) and `plugins/params` (`fgds prm-write`, `fgds prm-decode`). Decided without asking; where the Python tools are named, the behaviour was observed with `fprime-gds` of the F Prime virtual environment and is checked by `tests/seq/run.sh`.
+
+Structure
+- The grammar is not rewritten by hand. `plugins/sequences/tools/gen_tables.py` reads the LALR tables Lark builds from the grammar of the Python GDS and writes `src/tables.rs`; the Rust parser runs those tables with a lexer that, like Lark's contextual lexer, tries only the terminals the parser state accepts. Run the script again when the Python grammar changes. Error positions and the token named in a syntax error are therefore those of the Python tool.
+- Numbers of a sequence are kept as written (integers of any size) and converted by the argument type, with the messages of the Python types (`Value 256 out of range!`, `invalid literal for int() with base 0: 'x'`, ...). Messages of `json.loads` are reproduced by `src/pyjson.rs`. The messages are part of the fixtures, so they are kept word for word, including Python type names such as `I32Type`.
+- Time tags go through the same floating-point steps as `datetime.strptime` and `timedelta.total_seconds()`, so the microseconds are those of the Python tool, rounding errors included (`A2015-075T22:32:40.123` gives 122999).
+- The offline tools read the dictionary through `sequences::read_dictionary_json`, which adds the sections the fixture dictionaries leave out (`typeDefinitions`, `commands`, `events`, `telemetryChannels`) and the `kind` and size of type references written in the short form (`{"name": "I32"}`), then hands the result to `fgds_dictionary::Dictionary::parse`. The Python loaders accept both; `fgds-dictionary` requires the full form. To move into `fgds-dictionary` if other parts need it.
+- `plugins/params` asks `fgds-dictionary` for the type of each parameter by presenting the parameters as commands with one argument, because `Dictionary` has no parameter list. A `parameters` field on `Dictionary` would remove this.
+- `--dictionary` is the global option; the short form `-d` of the Python tools does not exist. `fgds seqgen --all-errors` is the `cont` argument of `generateSequence`, which `fprime-seqgen` does not expose. `prm-decode -f text` writes `<file>.text` by default, as the Python tool.
+- Neither plugin is in `default_plugins()` yet (not mine to edit). `plugins/params/examples/fgds-offline.rs` is the stock binary plus the two plugins; `tests/seq/run.sh` uses it until `fgds --help` lists `seqgen` and `prm-write`.
+
+Where the result differs from the Python tools, on purpose
+- A value out of the range of `F32` is rejected with `Value ... out of range!`; `fprime-seqgen` ends with an `OverflowError` traceback.
+- With every error reported (`--all-errors`), the statement after one with a bad time tag is checked too; the Python parser skips it. Every message of the Python tool is in the output, in the same order.
+- A quoted array or object inside an array that is not JSON (`["{x"]`) is reported at its line; the Python tool always says line 1.
+- Inputs that make the Python tools end with a traceback (a time base other than the known ones, a sequence that is not UTF-8, and the cases `tests/seq/differential.py` counts as crashes) are rejected with a message. A file larger than 256 MiB is refused.
+- `prm-decode` reads the length of a string with `FwSizeStoreType` of the dictionary. `fprime-prm-decode` does not load the type configuration and reads it as `U16`, so with the `Ref` dictionary (`U64`) it reads any string parameter as empty; `fprime-prm-write` does use the dictionary. The fixtures use `U16` and are not affected.
+- `prm-decode` text and CSV show an array or struct value as its JSON value (`["ONE", "TWO"]`); the Python tool prints the internal description of the type (`{"name": ..., "format": "{}", "values": [...]}`), and its CSV does not double the quotes inside. Scalar and string parameters are the same text. In JSON, the Python tool leaves `format` and `description` keys in a struct inside a struct; `fgds` writes the values only, which is what `prm-write` reads back.
+- A record whose size is less than the identifier (4 bytes) is rejected; the Python tool computes a negative size and reads on.
+- Parameters are written in the order of their qualified names, as the Python tool does (its loader sorts them); with the same identifier twice in a dictionary the last one is used for decoding.
+
+Not built: the Sequences tab and uplink (another part); `fpy` and other sequence languages; `fprime-prm-write` has no other output forms.

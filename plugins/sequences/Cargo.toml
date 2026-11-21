@@ -1,0 +1,13 @@
+[package]
+name = "sequences"
+description = "Compiler for classic CmdSequencer sequence files (the function of fprime-seqgen)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+crc = { workspace = true }
