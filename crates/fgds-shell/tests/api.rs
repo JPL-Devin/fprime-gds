@@ -86,10 +86,10 @@ async fn records_are_served_in_pages_with_the_api_encoding() {
         server.gds.receive(&[level]).await;
     }
     let (status, page) = server.get("/api/v1/records?kind=t.sample&limit=2").await;
-    assert_eq!((status, seqs(&page)), (200, vec!["1", "2"]));
-    assert_eq!(page["next"], "2");
-    let (_, rest) = server.get("/api/v1/records?after_seq=2&limit=10").await;
-    assert_eq!((seqs(&rest), &rest["next"]), (vec!["3", "4", "5"], &Value::Null));
+    assert_eq!((status, seqs(&page)), (200, vec!["2", "3"]));
+    assert_eq!(page["next"], "3");
+    let (_, rest) = server.get("/api/v1/records?after_seq=3&limit=10").await;
+    assert_eq!((seqs(&rest), &rest["next"]), (vec!["4", "5", "6"], &Value::Null));
 
     // API-4: 64-bit integers and non-finite floats as text, bytes as base64, UTC time.
     let record = &page["records"][0];
@@ -100,11 +100,11 @@ async fn records_are_served_in_pages_with_the_api_encoding() {
     assert!(time.len() == 27 && time.ends_with('Z') && time.as_bytes()[19] == b'.', "{time}");
 
     let (_, filtered) = server.get("/api/v1/records?filter=level:ge:4&id=4,5").await;
-    assert_eq!(seqs(&filtered), ["4", "5"]);
+    assert_eq!(seqs(&filtered), ["5", "6"]);
     server.gds.receive(&[5]).await;
     let (_, latest) = server.get("/api/v1/records/latest?kind=t.sample").await;
-    assert_eq!(seqs(&latest), ["1", "2", "3", "4", "6"]);
-    assert_eq!(server.get("/api/v1/cursor").await.1, json!({"seq": "6", "run": 1}));
+    assert_eq!(seqs(&latest), ["2", "3", "4", "5", "7"]);
+    assert_eq!(server.get("/api/v1/cursor").await.1, json!({"seq": "7", "run": 1}));
 }
 
 #[tokio::test]
@@ -153,7 +153,7 @@ async fn version_status_kinds_runs_and_dictionary_are_served() {
 #[tokio::test]
 async fn the_link_is_switched_and_raw_bytes_are_sent() {
     let server = Server::start().await;
-    assert_eq!(server.post("/api/v1/raw", json!({"data": "AQI="})).await, (200, json!({"sent": 2, "seq": "1"})));
+    assert_eq!(server.post("/api/v1/raw", json!({"data": "AQI="})).await, (200, json!({"sent": 2, "seq": "2"})));
     assert_eq!(server.gds.link.sent(), [vec![0, 2, 1, 2]]);
     assert_eq!(server.post("/api/v1/link", json!({"enabled": false})).await.0, 200);
     server.gds.wait_for_link("disabled").await;
@@ -180,19 +180,19 @@ async fn the_stream_replays_from_a_sequence_number_then_continues_live() {
     for level in 1..=3 {
         server.gds.receive(&[level]).await;
     }
-    let url = format!("ws://{}/api/v1/stream?kind=t.sample&after_seq=1", server.address);
+    let url = format!("ws://{}/api/v1/stream?kind=t.sample&after_seq=2", server.address);
     let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
     let mut seqs = Vec::new();
     while seqs.len() < 2 {
         seqs.push(next_seq(&mut socket).await);
     }
-    assert_eq!(seqs, ["2", "3"]);
+    assert_eq!(seqs, ["3", "4"]);
     // The replay has ended: told once, with the last sequence number sent.
     let Message::Text(text) = socket.next().await.unwrap().unwrap() else { panic!("not text") };
-    assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({"type": "live", "seq": "3"}));
+    assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({"type": "live", "seq": "4"}));
     server.gds.receive(&[4]).await;
     server.gds.receive(&[5]).await;
-    assert_eq!((next_seq(&mut socket).await, next_seq(&mut socket).await), ("4".into(), "5".into()));
+    assert_eq!((next_seq(&mut socket).await, next_seq(&mut socket).await), ("5".into(), "6".into()));
 }
 
 /// The sequence number of the next record on the stream.

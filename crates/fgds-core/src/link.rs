@@ -25,6 +25,9 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum LinkError {
     #[error("link down")]
     Down,
+    /// A framing layer refused the packet (too large, for example): nothing was written.
+    #[error("{0}")]
+    Invalid(String),
     #[error("{0}")]
     Failed(String),
 }
@@ -126,7 +129,7 @@ impl Link {
             let mut framers = self.0.framers.lock().unwrap_or_else(|e| e.into_inner());
             for framer in framers.iter_mut() {
                 let mut out = BytesMut::new();
-                framer.frame(&data, meta, &mut out).map_err(|e| LinkError::Failed(e.to_string()))?;
+                framer.frame(&data, meta, &mut out).map_err(|e| LinkError::Invalid(e.to_string()))?;
                 data = out;
             }
         }
@@ -249,6 +252,7 @@ impl Downlink {
                         match read {
                             Ok(n) if n > 0 => {
                                 shared.status.count("bytes_received", n as u64);
+                                shared.status.count("link_reads", 1);
                                 let chunk = buf.split();
                                 if let Some(log) = &shared.raw_log {
                                     log.write("recv", &chunk);
