@@ -274,6 +274,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "custom-gds"
+version = "0.1.0"
+dependencies = [
+ "fgds",
+ "tokio",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/fgds-dictionary", "crates/fgds-core", "crates/fgds-shell", "crates/fgds", "plugins/*"]
+members = ["crates/fgds-dictionary", "crates/fgds-core", "crates/fgds-shell", "crates/fgds", "plugins/*", "examples/*"]
 
 [workspace.package]
 version = "0.1.0"

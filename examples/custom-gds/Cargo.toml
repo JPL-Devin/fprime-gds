@@ -1,0 +1,16 @@
+[package]
+name = "custom-gds"
+description = "Example of a project GDS: the stock plugins, minus one, plus the project's own"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
