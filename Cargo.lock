@@ -3,6 +3,19 @@
 version = 4
 
 [[package]]
+name = "adler2"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
+
+[[package]]
+name = "advanced"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -167,6 +180,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "browser-gds"
+version = "0.1.0"
+dependencies = [
+ "fgds",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -301,6 +321,7 @@ name = "custom-gds"
 version = "0.1.0"
 dependencies = [
  "fgds",
+ "framing-ccsds",
  "tokio",
 ]
 
@@ -311,10 +332,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
+name = "data-products"
+version = "0.1.0"
+dependencies = [
+ "crc",
+ "fgds",
+ "fgds-core",
+ "miniz_oxide",
+ "sha2",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e9de72ce2ad1f90dc62fa25f0f430ef85eb4b0d8fa0be4f30373bc40a21d28e"
+
+[[package]]
+name = "dictionary-tab"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+]
 
 [[package]]
 name = "digest"
@@ -383,14 +424,23 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 name = "fgds"
 version = "0.1.0"
 dependencies = [
+ "advanced",
  "channels",
  "clap",
  "comm-tcp",
  "commands",
+ "data-products",
+ "dictionary-tab",
  "events",
  "fgds-core",
  "fgds-shell",
+ "files",
+ "framing-ccsds",
  "framing-fprime",
+ "logs",
+ "online",
+ "params",
+ "sequences",
  "storage-memory",
  "storage-sqlite",
  "tokio",
@@ -443,6 +493,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "files"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+ "fgds-shell",
+ "reqwest",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -461,6 +522,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "framing-ccsds"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "crc",
+ "fgds",
+ "fgds-core",
+ "fgds-dictionary",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -843,6 +917,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
+name = "logs"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+ "tokio",
+]
+
+[[package]]
 name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -859,6 +941,15 @@ name = "mime"
 version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5848f5a9e8117cf94f2f90faac24a87ff81600ff8628c1e3deaab572e76bfa1"
+
+[[package]]
+name = "miniz_oxide"
+version = "0.8.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
+dependencies = [
+ "adler2",
+]
 
 [[package]]
 name = "mio"
@@ -897,6 +988,28 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "online"
+version = "0.1.0"
+dependencies = [
+ "fgds",
+ "fgds-core",
+ "futures-util",
+ "reqwest",
+ "time",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
+name = "params"
+version = "0.1.0"
+dependencies = [
+ "fgds",
+ "fgds-core",
+ "sequences",
+]
 
 [[package]]
 name = "percent-encoding"
@@ -1064,6 +1177,14 @@ name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+
+[[package]]
+name = "sequences"
+version = "0.1.0"
+dependencies = [
+ "crc",
+ "fgds-core",
+]
 
 [[package]]
 name = "serde"
