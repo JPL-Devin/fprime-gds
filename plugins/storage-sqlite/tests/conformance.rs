@@ -97,6 +97,19 @@ async fn a_database_in_use_is_refused_and_read_only_changes_no_byte() {
 }
 
 #[tokio::test]
+async fn a_file_that_is_not_a_database_is_refused_by_name_and_left_as_it_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("gds.db");
+    std::fs::write(&path, b"not a database, but long enough to be read as a header ".repeat(40)).unwrap();
+    let before = std::fs::read(&path).unwrap();
+    for read_only in [false, true] {
+        let refused = make().open(&StorageConfig { read_only, ..config(&dir) }).await.unwrap_err().to_string();
+        assert!(refused.contains("gds.db"), "{refused}");
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+    }
+}
+
+#[tokio::test]
 async fn a_database_of_a_newer_gds_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let storage = make();

@@ -124,6 +124,29 @@ Decisions taken while fixing the review of the first slice (`rust-gds-review.md`
 - A packet with several events or channel samples keeps the items decoded before a malformed one; the rest is one `gds.decode_error` with `partial: true` and `raw` set to the bytes not decoded (`fgds_core::keep_decoded`). A telemetry packet (fixed layout) is still all or nothing. The Python GDS was not compared on these bytes.
 - Memory storage keeps at most `max-records` records (default 1,000,000), drops the oldest, and warns; it is no longer the default of the stock binary.
 
+### `storage-sqlite`
+
+- It is the default storage of the stock binary, and `logs` now defaults to `logs`: without `--database` the file is `logs/<start time>/gds.db` (STO-3). Tests of the core use `FakeGds::config()` (memory storage, no log directory).
+- One file holds every run: tables `meta` (schema version, reserved sequence number), `dictionaries` (content by SHA-256, shared by the runs that used it), `runs`, `records`. Write-ahead log with `synchronous = NORMAL`: a commit survives a killed process (STO-11); a power loss may lose the last commits and leaves the file consistent.
+- Sequence numbers: a run starts after the highest number reserved or stored, and reserves 1,000,000 ahead; the pipeline reserves further at half a block. A stop does not give the reservation back, so each run begins 1,000,000 or more after the previous one. Numbers are unique, not dense across runs.
+- `append` ignores a sequence number that is already stored, so a batch repeated after a time-out makes no duplicate.
+- SQL decides kind, run, sequence number, identifier and ground time; `Query::matches` decides field and text filters on the rows SQL returns, so both storages give the same answer and integers compare exactly. A query with a field or text filter reads every row that passes the SQL conditions until the page is full.
+- `<database>.lock` is locked while a GDS writes, so a second one is refused (STO-10). The file stays after exit.
+- Read-only (STO-12): no run begins and the last run is the current one. A database that was closed properly is opened as immutable and no file is created beside it; after a killed GDS, SQLite creates `<database>-shm` to read the write-ahead log, and the database file itself is still not written.
+- `fgds run --replay <database>` is `--database <database> --read-only` with the dictionary stored with the last run; `--dictionary` is not needed.
+- `GET /api/v1/dictionary?run=N` returns the dictionary of that run; `run=all` on the record routes selects every run.
+- `SQLITE_DBCONFIG_DEFENSIVE` is on and `TRUSTED_SCHEMA` off on every connection (STO-13); no test shows a hostile file being stopped by them.
+
+Not built for storage:
+
+| Requirement | What is missing |
+|---|---|
+| STO-6 | No migration: there is one schema version. A newer one is refused by name; nothing is copied to `<file>.bak` |
+| STO-15 | No integrity check at open. A file that is not a database is refused by name and left as it is |
+| STO-16 | Database size and free disk space are not in the status |
+| STO-7 | The UI does not offer a choice of run; the API does |
+| 4.6 | No retention or size limit; the database grows until the disk is full, which is then a storage failure (STO-9) |
+
 ### Not built in this slice
 
 | Requirement | What is missing | Milestone |

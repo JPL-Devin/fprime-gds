@@ -101,6 +101,13 @@ fn database_path(cfg: &StorageConfig) -> Result<PathBuf> {
     }
 }
 
+/// SQLite's settings for a file that may not be trusted (STO-13).
+fn defend(conn: &Connection) -> rusqlite::Result<()> {
+    conn.set_db_config(rusqlite::config::DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+    conn.set_db_config(rusqlite::config::DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)?;
+    Ok(())
+}
+
 fn meta(conn: &Connection, key: &str) -> Result<Option<i64>> {
     conn.query_row("SELECT value FROM meta WHERE key = ?1", [key], |row| row.get(0)).optional().map_err(sql)
 }
@@ -204,6 +211,7 @@ impl Open {
             return Err(at(&"the database is in use by another GDS"));
         }
         let mut conn = Connection::open(&path).map_err(|e| at(&e))?;
+        defend(&conn).map_err(|e| at(&e))?;
         conn.pragma_update(None, "journal_mode", "WAL").map_err(|e| at(&e))?;
         // With the write-ahead log, a commit survives a killed process; a power loss
         // may lose the last commits but leaves the database consistent.
@@ -254,6 +262,7 @@ impl Open {
         .map_err(sql)?;
         tx.commit().map_err(sql)?;
         let reader = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| at(&e))?;
+        defend(&reader).map_err(|e| at(&e))?;
         tracing::info!(database = %path.display(), run, first_seq, "sqlite storage open");
         let open = Open {
             writer: Some(Mutex::new(conn)),
@@ -286,6 +295,7 @@ impl Open {
             }
         }
         .map_err(|e| at(&e))?;
+        defend(&reader).map_err(|e| at(&e))?;
         reader.prepare("SELECT 1 FROM meta").map_err(|_| at(&"not a GDS database"))?;
         check_version(&reader, &path)?;
         let last = read_runs(&reader)?.pop().ok_or_else(|| at(&"the database holds no run"))?;
