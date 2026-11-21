@@ -9,7 +9,7 @@ fgds also reports the statement after one with a bad time tag, and a value out o
 of F32, which the Python compiler skips or crashes on; and the error of a quoted array or
 object inside an array names its line, where the Python compiler always says line 1.
 
-    python differential.py --fgds target/debug/examples/fgds-offline --fixtures fixtures --out DIR
+    python differential.py --fgds target/debug/fgds --fixtures fixtures --out DIR
 
 Run with the Python of the F Prime virtual environment (fprime_gds installed).
 """

@@ -27,6 +27,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--fgds", required=True, help="an fgds binary that has the online subcommands")
 parser.add_argument("--ref", required=True)
 parser.add_argument("--dictionary", required=True)
+parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds", help="the framing Ref was built with")
 parser.add_argument("--venv-bin", required=True, help="bin directory of the fprime virtual environment")
 parser.add_argument("--out", required=True)
 args = parser.parse_args()
@@ -72,7 +73,7 @@ class Fgds:
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.url = f"http://127.0.0.1:{http}"
         self.process = scenario.start(
-            [args.fgds, "run", "--framing", "fprime", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
+            [args.fgds, "run", "--framing", args.framing, "--logs", f"{out}/logs", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
              "--comm-tcp-address", f"127.0.0.1:{self.link_port}"], open(f"{out}/gds.log", "w"))
         scenario.wait_for("fgds", lambda: self.get("/version"))
 
@@ -106,7 +107,7 @@ class PythonGds:
                        "--file-storage-directory", f"{out}/files"]
         self.process = scenario.start(
             [PYTHON_GDS, "-n", "-g", "none", "--ip-address", "127.0.0.1", "--ip-port", str(self.link_port),
-             "--framing-selection", "fprime", "--logs", f"{out}/gds-logs", *self.shared],
+             "--framing-selection", "fprime" if args.framing == "fprime" else "space-packet-space-data-link", "--logs", f"{out}/gds-logs", *self.shared],
             open(f"{out}/gds.log", "w"), env=ENV)
         scenario.wait_for("the Python GDS link port",
                           lambda: socket.create_connection(("127.0.0.1", self.link_port)).close() or True)
@@ -186,7 +187,7 @@ def live(name, gds, out):
         code, sample, error = run(gds.cli("channels", "-t", "30", "--json"))
         assert json_lines(sample), f"{name}: no telemetry within 30 s: {code} {error}"
         for command, arguments in scenario.COMMANDS:
-            code, output, error = run(gds.send(command, [str(a) for a in arguments]))
+            code, output, error = run(gds.send(command, [json.dumps(a) if isinstance(a, (list, dict)) else str(a) for a in arguments]))
             assert code == 0, f"{name}: command-send {command} failed: {output}{error}"
             time.sleep(scenario.GAP)
         time.sleep(scenario.SETTLE)
@@ -216,11 +217,7 @@ def refused(fgds):
 # 3. Replay: the same bytes into both ground systems, while both command lines follow.
 
 def follow_replay(name, gds, capture, out):
-    frames, at = [], 0
-    while (start := capture.find(scenario.START_WORD, at)) >= 0:
-        end = capture.find(scenario.START_WORD, start + 4)
-        frames.append(capture[start:end if end >= 0 else len(capture)])
-        at = start + 4
+    frames = scenario.frames(capture, args.framing, scenario.tm_frame_size(args.dictionary))
     followers = {
         subcommand: subprocess.Popen(gds.follow(subcommand), stdout=open(f"{out}/{subcommand}.jsonl", "w"),
                                      stderr=open(f"{out}/{subcommand}.err", "w"), env=gds.follow_env)
@@ -234,7 +231,7 @@ def follow_replay(name, gds, capture, out):
             flight.sendall(frame)
             time.sleep(0.02)
         if hasattr(gds, "received"):
-            scenario.wait_for("the replay", lambda: gds.received() == len(scenario.packets(capture)))
+            scenario.steady(gds.received)
         time.sleep(5.0)
         for subcommand, follower in followers.items():
             assert follower.poll() is None, f"{name} {subcommand} stopped: {open(f'{out}/{subcommand}.err').read()}"
@@ -262,12 +259,8 @@ def received_channel(item):
 
 def subset(what, python, rust):
     """Every item of fprime-cli is an item of fgds (README.md: fprime-cli skips items and orders by time)."""
-    left, missing = list(rust), []
-    for item in python:
-        if item in left:
-            left.remove(item)
-        else:
-            missing.append(item)
+    # README.md, accepted difference 1: an item fprime-cli printed twice counts once.
+    missing = [item for item in python if item not in rust]
     require(f"{what}: each of the {len(python)} items fprime-cli printed is among the {len(rust)} of fgds, same values",
             python and not missing, f"not printed by fgds: {json.dumps(missing[:2])}\n    fgds has e.g.: {json.dumps(rust[:2])}")
 
@@ -287,11 +280,13 @@ def main():
         python_uplink, _ = live("fprime-cli", python, f"{args.out}/python")
         scenario.stop(python.process)
         open(f"{args.out}/downlink.bin", "wb").write(capture)
-        packets = [[p.hex() for p in scenario.packets(stream)] for stream in (python_uplink, rust_uplink)]
+        scid = scenario.spacecraft_id(args.dictionary)
+        packets = [[p.hex() for p in scenario.uplink_packets(stream, args.framing, scid)] for stream in (python_uplink, rust_uplink)]
         assert len(packets[0]) == len(scenario.COMMANDS), f"fprime-cli put {len(packets[0])} packets on the link"
         check(f"the {len(packets[0])} command packets on the link, byte for byte", *packets)
 
-        print(f"replay: {len(scenario.packets(capture))} packets of Ref into both, both command lines following")
+        frames = len(scenario.frames(capture, args.framing, scenario.tm_frame_size(args.dictionary)))
+        print(f"replay: {frames} frames of Ref into both, both command lines following")
         fgds = Fgds(f"{args.out}/rust-replay")
         rust = follow_replay("fgds", fgds, capture, f"{args.out}/rust-replay")
         history = {s: json_lines(run(fgds.cli(s, "--history", "--no-follow", "--json"))[1]) for s in ("events", "channels")}

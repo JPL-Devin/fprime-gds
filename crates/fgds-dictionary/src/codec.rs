@@ -158,6 +158,12 @@ impl Dictionary {
 
     /// Encode `value` as type `ty`, appending to `out`. The value is validated against the type.
     pub fn encode(&self, ty: &Type, value: &Value, out: &mut Vec<u8>) -> Result<(), TypeError> {
+        // An array or a struct given as text is JSON, as on the command line of the Python GDS.
+        let parsed = match (ty, value) {
+            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => serde_json::from_str::<Value>(text).ok(),
+            _ => None,
+        };
+        let value = parsed.as_ref().unwrap_or(value);
         match ty {
             Type::Int { bits, signed } => {
                 let name = format!("{}{bits}", if *signed { 'I' } else { 'U' });

@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """The browser UI against a running Ref: what a user sees and does in each tab.
 
-Usage: ui.py <browser-gds binary> <Ref binary> <dictionary> <directory for logs and screenshots>
+Usage: ui.py <fgds binary> <browser-gds binary> <Ref binary> <dictionary> <directory for logs and screenshots>
+
+The stock binary is what every check runs, except the one of a tab that fails: that tab is in browser-gds.
 """
+import json
 import os
+import shutil
 import sys
 
 from playwright.sync_api import expect, sync_playwright
@@ -11,12 +15,13 @@ from playwright.sync_api import expect, sync_playwright
 import harness
 from harness import rows, scenario, show, step
 
-BINARY, REF, DICTIONARY, OUT = sys.argv[1:5]
+BINARY, BROKEN_BINARY, REF, DICTIONARY, OUT = sys.argv[1:6]
 os.makedirs(OUT, exist_ok=True)
 TABS = {"commands": "Commanding", "events": "Events", "channels": "Channels", "dictionary": "Dictionaries",
-        "logs": "Logs", "advanced": "Advanced"}
+        "logs": "Logs", "advanced": "Advanced", "uplink": "Uplink", "downlink": "Downlink", "data-products": "Data Products"}
 ELEMENTS = {"commands": "commands-tab", "events": "events-tab", "channels": "channels-tab",
-            "dictionary": "dictionary-tab", "logs": "logs-tab", "advanced": "advanced-tab"}
+            "dictionary": "dictionary-tab", "logs": "logs-tab", "advanced": "advanced-tab",
+            "uplink": "fgds-uplink", "downlink": "fgds-downlink", "data-products": "data-products-tab"}
 HTML = '<img src=x onerror=injected=1><b>x</b>'  # within the 40 characters of the argument
 NO_OP_STRING = "CdhCore.cmdDisp.CMD_NO_OP_STRING"
 COUNTER = "CdhCore.cmdDisp.CommandsDispatched"
@@ -42,10 +47,11 @@ def stock(browser, gds):
 
     # Each tab loads: its button, its element, and content from the API.
     titles = page.eval_on_selector_all("#tabs button", "all => all.map((b) => [b.dataset.tab, b.textContent])")
-    assert [pair for pair in map(tuple, titles) if pair[0] in TABS] == list(TABS.items()), titles
+    assert dict(map(tuple, titles)) == TABS, titles
     content = {"commands": "#command-select option", "events": "#events-table tbody tr",
                "channels": "#channels-table tbody tr", "dictionary": "#dictionary-table tbody tr",
-               "logs": "#logs-select option", "advanced": "#advanced-plugins tbody tr"}
+               "logs": "#logs-select option", "advanced": "#advanced-plugins tbody tr",
+               "uplink": "#files", "downlink": "table", "data-products": "table.products"}
     for tab in TABS:
         show(page, tab)
         page.wait_for_selector(f"{ELEMENTS[tab]} {content[tab]}", state="attached")
@@ -164,12 +170,94 @@ def stock(browser, gds):
     late.close()
     step(f"every request of the page goes to the GDS itself; policy: {policy}")
 
+    files_and_products(page, gds)
+    stream_that_ends(browser, gds)
+
     for tab, title in TABS.items():
         show(page, tab)
         page.wait_for_timeout(300)
-        page.screenshot(path=f"{OUT}/{title.lower()}.png")
+        page.screenshot(path=f"{OUT}/{title.lower().replace(' ', '-')}.png")
     assert not problems, problems
     step(f"no script error in the page; screenshots in {OUT}")
+    page.close()
+
+
+def files_and_products(page, gds):
+    """The Uplink, Downlink and Data Products tabs, with Ref on the other side."""
+    content = bytes(range(256)) * 9 + b"the end"
+    with open(f"{gds.out}/up.bin", "wb") as file:
+        file.write(content)
+    show(page, "uplink")
+    uplink = page.locator("fgds-uplink")
+    expect(uplink).to_contain_text("link: connected")
+    uplink.locator("#files").set_input_files(f"{gds.out}/up.bin")
+    uplink.get_by_role("button", name="Add to queue").click()
+    expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("queued")
+    uplink.get_by_role("button", name="Resume").click()
+    expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("finished", timeout=30000)
+    expect(uplink.locator("tr", has_text="up.bin")).to_contain_text(f"{len(content)} / {len(content)} bytes")
+    received = scenario.wait_for("the file on the Ref side", lambda: os.path.getsize(f"{gds.out}/ref/up.bin") == len(content))
+    assert received and open(f"{gds.out}/ref/up.bin", "rb").read() == content
+    step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, queued, resumed and finished; Ref wrote the same bytes")
+
+    # A file and a data product come down: the Downlink tab lists both, the directory of
+    # downlinked files is the watched directory of the data products.
+    show(page, "downlink")
+    downlink = page.locator("fgds-downlink")
+    gds.post("/commands", {"name": "FileHandling.fileDownlink.SendFile", "args": ["down-source.bin", "down.bin"]})
+    expect(downlink.locator("tr", has_text="down.bin").first).to_contain_text("finished", timeout=30000)
+    expect(downlink.locator("a[download='down.bin']")).to_have_count(1)
+    with page.expect_download() as download:
+        downlink.locator("a[download='down.bin']").click()
+    assert open(download.value.path(), "rb").read() == open(f"{gds.out}/ref/down-source.bin", "rb").read()
+    step("Downlink tab: down.bin sent by Ref is listed as finished, and the file downloaded from the page is the one Ref sent")
+
+    gds.post("/commands", {"name": "DataProducts.dpCat.BUILD_CATALOG", "args": []})
+    page.wait_for_timeout(1000)
+    gds.post("/commands", {"name": "Ref.dpDemo.Dp", "args": ["IMMEDIATE", 10, "PROC_TYPE_NONE"]})
+    product = scenario.wait_for("a data product on the Ref side",
+                                lambda: sorted(f for f in os.listdir(f"{gds.out}/ref/DpCat") if f.endswith(".fdp")))[0]
+    page.wait_for_timeout(1000)
+    gds.post("/commands", {"name": "DataProducts.dpCat.START_XMIT_CATALOG", "args": ["NO_WAIT", False]})
+    expect(downlink.locator("tr", has_text=product).first).to_contain_text("finished", timeout=30000)
+    show(page, "data-products")
+    products = page.locator("data-products-tab")
+    row = products.locator("table.products tbody tr")
+    expect(row).to_have_count(1, timeout=30000)
+    row.click()
+    expect(products.locator(".panel table.tree tr").first).to_be_visible(timeout=30000)
+    assert products.locator(".bad").count() == 0, products.locator(".bad").all_text_contents()
+    shown = products.locator(".panel").inner_text()
+    step(f"Data Products tab: {product} downlinked by Ref appears in the watched directory; its detail opens, "
+         f"decoded ({products.locator('.panel table.tree tr').count()} lines, {len(shown)} characters)")
+
+
+def stream_that_ends(browser, gds):
+    """A subscription whose server ends it continues after the last record delivered (UI-3)."""
+    page = browser.new_page()
+    opened = []
+
+    def serve(socket):
+        opened.append(socket.url.split("?")[1])
+        if len(opened) == 1:  # one record, then the server says records were dropped and closes
+            socket.send(json.dumps({"type": "record", "record": {"seq": "5"}}))
+            socket.send(json.dumps({"type": "lagged", "last_seq": "5"}))
+            socket.close()
+        elif len(opened) == 2:
+            socket.send(json.dumps({"type": "record", "record": {"seq": "6"}}))
+
+    page.route_web_socket(lambda url: "kind=test.stream" in url, serve)
+    page.goto(gds.url)
+    page.wait_for_selector("body[data-ready=true]")
+    page.evaluate("""() => { window.seen = [];
+        window.end = gds.records.subscribe({ kinds: ["test.stream"], afterSeq: "3" }, (r) => window.seen.push(r.seq)); }""")
+    page.wait_for_function("() => window.seen.length === 2", timeout=10000)
+    assert page.evaluate("window.seen") == ["5", "6"] and opened == ["kind=test.stream&after_seq=3", "kind=test.stream&after_seq=5"], opened
+    page.evaluate("() => window.end()")
+    page.wait_for_timeout(1500)
+    assert len(opened) == 2, opened  # ended by the tab: no reconnection
+    step("a stream the server ends is opened again after the last record delivered, "
+         "not when the tab ended it")
     page.close()
 
 
@@ -189,17 +277,22 @@ def broken(browser, gds):
     count = page.locator("#events-table tbody tr").count()
     gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
     page.wait_for_function(f"() => document.querySelectorAll('#events-table tbody tr').length >= {count + 2}")
-    step("a tab that fails shows an error panel naming its plugin; the six other tabs load and the Events tab stays live")
+    step("a tab that fails shows an error panel naming its plugin; the other tabs load and the Events tab stays live")
     page.close()
 
 
-def run(env, check):
+def run(binary, check):
     out = f"{OUT}/{check.__name__}"
-    os.makedirs(out, exist_ok=True)
-    gds = harness.Gds(BINARY, DICTIONARY, out, env)
+    shutil.rmtree(out, ignore_errors=True)
+    os.makedirs(f"{out}/ref/DpCat")  # where Ref runs: its files and its data products
+    with open(f"{out}/ref/down-source.bin", "wb") as file:
+        file.write(bytes(range(256)) * 20)
+    gds = harness.Gds(binary, DICTIONARY, out, extra=[
+        "--files-directory", f"{out}/files", "--data-products-dir", f"{out}/files/downlink"])
+    gds.out = out
     ref = None
     try:
-        ref = scenario.start([REF, "-a", "127.0.0.1", "-p", str(gds.link_port)], open(f"{out}/ref.log", "w"), cwd=out)
+        ref = scenario.start([REF, "-a", "127.0.0.1", "-p", str(gds.link_port)], open(f"{out}/ref.log", "w"), cwd=f"{out}/ref")
         scenario.wait_for("telemetry from Ref", lambda: gds.get("/records?kind=fprime.channel&limit=1")["records"])
         check(browser, gds)
     finally:
@@ -210,7 +303,7 @@ def run(env, check):
 
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
-    run({}, stock)
-    run({"BROWSER_GDS_BROKEN_TAB": "1"}, broken)
+    run(BINARY, stock)
+    run(BROKEN_BINARY, broken)
     browser.close()
 print("browser ui: all checks passed")

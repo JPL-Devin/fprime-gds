@@ -10,4 +10,5 @@ workspace = true
 
 [dependencies]
 fgds-core = { workspace = true }
+fgds-offline = { workspace = true }
 crc = { workspace = true }

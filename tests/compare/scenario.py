@@ -208,6 +208,32 @@ def whole_frames(stream, framing, frame_size=1024):
     return bytes(stream[:end])
 
 
+def frames(stream, framing, frame_size=1024):
+    """The whole frames of a downlink stream, one by one."""
+    stream = whole_frames(stream, framing, frame_size)
+    if framing == "ccsds":
+        return [stream[at:at + frame_size] for at in range(0, len(stream), frame_size)]
+    found, at = [], 0
+    while (at := stream.find(START_WORD, at)) >= 0:
+        end = at + 8 + struct.unpack_from(">I", stream, at + 4)[0] + 4
+        found.append(stream[at:end])
+        at = end
+    return found
+
+
+def steady(read, quiet=1.0, timeout=60.0):
+    """Wait until the number `read` returns is above zero and has stopped changing; return it."""
+    end, last, since = time.monotonic() + timeout, None, time.monotonic()
+    while time.monotonic() < end:
+        value = read()
+        if value != last:
+            last, since = value, time.monotonic()
+        elif value and time.monotonic() - since >= quiet:
+            return value
+        time.sleep(0.1)
+    raise TimeoutError(f"the count keeps moving or stays at zero: {last}")
+
+
 def tc_frames(stream, scid):
     """The TC frames of an uplink stream, whole: header (5 bytes), data, CRC-16.
 
@@ -227,6 +253,39 @@ def tc_frames(stream, scid):
 def uplink(stream, framing, scid):
     """What the GDS put on the link, as hex text: command packets (F Prime framing) or whole TC frames."""
     return [item.hex() for item in (tc_frames(stream, scid) if framing == "ccsds" else packets(stream))]
+
+
+def space_packets(stream, scid):
+    """The F Prime packets of an uplink stream of TC frames: the data of each space packet."""
+    found = []
+    for frame in tc_frames(stream, scid):
+        data, at = frame[5:-2], 0
+        while at + 6 <= len(data):
+            end = at + 6 + struct.unpack_from(">H", data, at + 4)[0] + 1
+            found.append(data[at + 6:end])
+            at = end
+    return found
+
+
+def uplink_packets(stream, framing, scid):
+    """The F Prime packets the GDS put on the link, whatever the framing."""
+    return space_packets(stream, scid) if framing == "ccsds" else packets(stream)
+
+
+def constant(dictionary, name, default):
+    with open(dictionary) as file:
+        constants = {c["qualifiedName"]: c["value"] for c in json.load(file).get("constants", [])}
+    return constants.get(name, default)
+
+
+def spacecraft_id(dictionary):
+    """`ComCfg.SpacecraftId` of a dictionary file, which the TC frames carry."""
+    return constant(dictionary, "ComCfg.SpacecraftId", 0x44)
+
+
+def tm_frame_size(dictionary):
+    """`ComCfg.TmFrameFixedSize` of a dictionary file: the size of every TM frame."""
+    return constant(dictionary, "ComCfg.TmFrameFixedSize", 1024)
 
 
 def packets(stream):

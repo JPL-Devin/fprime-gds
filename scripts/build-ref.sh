@@ -6,14 +6,14 @@
 # success; the result is <work directory>/TestDeploymentsProject/build-artifacts/Linux/Ref.
 #
 # The checkout is copied and the copy is built; the checkout itself is not touched.
-#   ccsds: Ref as it is, with the ComCcsds subtopology.
-#   fprime (default, what scripts/check.sh builds): the copy is switched to the ComFprime subtopology, the second framing
+#   ccsds (default): Ref as it is, with the ComCcsds subtopology; what users run.
+#   fprime: the copy is switched to the ComFprime subtopology, the second framing
 #           configuration the checks run against.
 set -euo pipefail
 fprime=$(cd "$1" && pwd)
 mkdir -p "$2"
 work=$(cd "$2" && pwd)
-framing=${3:-fprime}
+framing=${3:-ccsds}
 top="$work/TestDeploymentsProject/Ref/Top"
 artifacts="$work/TestDeploymentsProject/build-artifacts/Linux/Ref"
 

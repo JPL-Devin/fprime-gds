@@ -17,10 +17,6 @@ tracing = { workspace = true }
 sha2 = "0.10"
 miniz_oxide = "0.8"
 
-[dev-dependencies]
-# Only for examples/fgds-dp.rs, the binary the checks of tests/dp run.
-fgds = { workspace = true }
-
 [[test]]
 name = "fixtures"
 path = "../../tests/dp/fixtures.rs"

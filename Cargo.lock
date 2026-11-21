@@ -336,7 +336,6 @@ name = "data-products"
 version = "0.1.0"
 dependencies = [
  "crc",
- "fgds",
  "fgds-core",
  "miniz_oxide",
  "sha2",
@@ -478,6 +477,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fgds-offline"
+version = "0.1.0"
+dependencies = [
+ "crc",
+ "fgds-core",
+]
+
+[[package]]
 name = "fgds-shell"
 version = "0.1.0"
 dependencies = [
@@ -530,7 +537,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "crc",
- "fgds",
  "fgds-core",
  "fgds-dictionary",
  "serde_json",
@@ -993,7 +999,6 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 name = "online"
 version = "0.1.0"
 dependencies = [
- "fgds",
  "fgds-core",
  "futures-util",
  "reqwest",
@@ -1006,9 +1011,8 @@ dependencies = [
 name = "params"
 version = "0.1.0"
 dependencies = [
- "fgds",
  "fgds-core",
- "sequences",
+ "fgds-offline",
 ]
 
 [[package]]
@@ -1184,6 +1188,7 @@ version = "0.1.0"
 dependencies = [
  "crc",
  "fgds-core",
+ "fgds-offline",
 ]
 
 [[package]]

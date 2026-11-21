@@ -42,8 +42,8 @@ def read(path):
         return file.read()
 
 
-def file_packets(stream):
-    return [p for p in scenario.packets(stream) if int.from_bytes(p[:2], "big") == FILE_PACKET]
+def file_packets(stream, framing="fprime", scid=0):
+    return [p for p in scenario.uplink_packets(stream, framing, scid) if int.from_bytes(p[:2], "big") == FILE_PACKET]
 
 
 def ok(text):
@@ -68,10 +68,10 @@ def prepare(out):
         file.write(content("down", DOWN_SIZE))
 
 
-def results(out, proxy, down_dir, product):
+def results(args, out, proxy, down_dir, product):
     """What is compared: the file packets sent, the files on the Ref side, the files downlinked."""
     return {
-        "uplink_packets": [p.hex() for p in file_packets(proxy.uplink)],
+        "uplink_packets": [p.hex() for p in file_packets(proxy.uplink, args.framing, scenario.spacecraft_id(args.dictionary))],
         "ref_files": {name: digest(read(f"{out}/{name}")) for name, _ in UPLINKS},
         "downlinked": {name: [len(data), digest(data)] for name in sorted(os.listdir(down_dir))
                        for data in [read(f"{down_dir}/{name}")]},
@@ -92,7 +92,7 @@ def python_side(args, out, staging):
               "--file-storage-directory", f"{out}/files"]
     gds = scenario.start(
         [shutil.which("fprime-gds"), "-n", "-g", "none", "--ip-address", "127.0.0.1", "--ip-port", str(gds_port),
-         "--framing-selection", "fprime", "--logs", f"{out}/gds-logs", *shared],
+         "--framing-selection", "fprime" if args.framing == "fprime" else "space-packet-space-data-link", "--logs", f"{out}/gds-logs", *shared],
         open(f"{out}/gds.log", "w"),
     )
     ref = pipeline = None
@@ -129,7 +129,7 @@ def python_side(args, out, staging):
         pipeline.send_command("DataProducts.dpCat.START_XMIT_CATALOG", ["NO_WAIT", "false"])
         scenario.wait_for("the downlink of the data product", lambda: downlinked(ground_name(product)), 60)
         time.sleep(0.5)
-        return results(out, proxy, f"{out}/files/fprime-downlink", product)
+        return results(args, out, proxy, f"{out}/files/fprime-downlink", product)
     finally:
         try:
             if pipeline:
@@ -147,14 +147,14 @@ def python_side(args, out, staging):
 # ---------------------------------------------------------------- fgds
 
 class Fgds:
-    def __init__(self, args, out, store, extra=()):
+    def __init__(self, args, out, store, extra=(), framing=None):
         os.makedirs(out, exist_ok=True)
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.root = f"http://127.0.0.1:{http}"
         self.api = f"{self.root}/api/v1"
         self.binary, self.out = args.fgds, out
         self.process = scenario.start(
-            [args.fgds, "run", "--framing", "fprime", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
+            [args.fgds, "run", "--framing", framing or args.framing, "--logs", f"{out}/logs", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
              "--comm-tcp-address", f"127.0.0.1:{self.link_port}", "--files-directory", store, *extra],
             open(f"{out}/fgds.log", "w"),
         )
@@ -246,7 +246,7 @@ def rust_side(args, out, store):
         time.sleep(1)
         gds.post("/commands", {"name": "DataProducts.dpCat.START_XMIT_CATALOG", "args": ["NO_WAIT", False]})
         scenario.wait_for("the downlink of the data product", lambda: gds.downlink(ground_name(product)), 60)
-        found = results(out, proxy, f"{store}/downlink", product)
+        found = results(args, out, proxy, f"{store}/downlink", product)
 
         # The routes and `fgds files` give the same files.
         listing = gds.get("/files/downlink")
@@ -340,7 +340,7 @@ def cancel(seq):
 def bad_packets(args, out):
     shutil.rmtree(out, ignore_errors=True)
     store = f"{out}/store"
-    gds = Fgds(args, out, store, ["--files-timeout", "1.5"])
+    gds = Fgds(args, out, store, ["--files-timeout", "1.5"], framing="fprime")
     try:
         flight = scenario.wait_for("the link", lambda: socket.create_connection(("127.0.0.1", gds.link_port)))
         a, b, c = b"A" * 300, b"B" * 300, b"C" * 77
@@ -435,7 +435,7 @@ def bad_packets(args, out):
 def cancel_and_pause(args, out):
     """FIL-1 against a flight side that reads: cancel one file, pause during another; the cancel packets are on the link."""
     shutil.rmtree(out, ignore_errors=True)
-    gds = Fgds(args, out, f"{out}/store", ["--files-cooldown", "0.02"])
+    gds = Fgds(args, out, f"{out}/store", ["--files-cooldown", "0.02"], framing="fprime")
     try:
         flight = scenario.wait_for("the link", lambda: socket.create_connection(("127.0.0.1", gds.link_port)))
         received = bytearray()
@@ -483,6 +483,7 @@ def main():
     parser = argparse.ArgumentParser()
     for name in ("fgds", "ref", "dictionary", "out"):
         parser.add_argument(f"--{name}", required=True)
+    parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds", help="the framing Ref was built with")
     args = parser.parse_args()
     # The source path is in the start packet: both ground systems read the file from the same path.
     store = f"{args.out}/store"

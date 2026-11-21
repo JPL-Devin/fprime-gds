@@ -16,5 +16,3 @@ time = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 
-[dev-dependencies]
-fgds = { workspace = true }

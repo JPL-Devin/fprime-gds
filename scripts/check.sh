@@ -7,9 +7,11 @@
 #   4. the example project binary
 #   5. every tests/*/run.sh
 #
-# Items 2 and 3 need F Prime: set FPRIME to a checkout of fprime that has its virtual
-# environment in fprime-venv (fprime-util and fprime-gds installed). Ref is built from a
-# copy of it under target/ref, on the first run only.
+# Items 2, 3 and 5 need F Prime: set FPRIME to a checkout of fprime that has its virtual
+# environment in fprime-venv (fprime-util and fprime-gds installed). Ref is built from
+# copies of it, on the first run only: as it is (CCSDS framing, the main build, under
+# target/ref-ccsds) and with F Prime framing (the second profile of items 2 and 3, under
+# target/ref).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${FPRIME:?set FPRIME to an fprime checkout with its fprime-venv}"
@@ -45,32 +47,60 @@ cargo test --workspace --quiet 2>&1 | tee "$out/test.log" | grep -E "^test resul
     | awk '/^test result: ok/ {n += $4; next} {print; bad = 1} END {if (bad) exit 1; print "  ok: cargo test, " n " tests passed"}'
 cargo build --workspace --quiet
 
-echo "== Ref with F Prime framing"
-ref=target/ref/TestDeploymentsProject/build-artifacts/Linux/Ref
-PATH="$venv/bin:$PATH" scripts/build-ref.sh "$FPRIME" target/ref
-dictionary=$PWD/$ref/dict/RefTopologyDictionary.json
-echo "  ok: $ref/bin/Ref"
+# Each Ref is built once, on the first run, and every check below uses these two builds.
+echo "== Ref as it is (CCSDS framing), and Ref with F Prime framing"
+ref=$PWD/target/ref-ccsds/TestDeploymentsProject/build-artifacts/Linux/Ref
+ref_fprime=$PWD/target/ref/TestDeploymentsProject/build-artifacts/Linux/Ref
+PATH="$venv/bin:$PATH" scripts/build-ref.sh "$FPRIME" target/ref-ccsds ccsds
+PATH="$venv/bin:$PATH" scripts/build-ref.sh "$FPRIME" target/ref fprime
+dictionary=$ref/dict/RefTopologyDictionary.json
+dictionary_fprime=$ref_fprime/dict/RefTopologyDictionary.json
+fgds=$PWD/target/debug/fgds
+echo "  ok: ${ref#"$PWD"/}/bin/Ref, ${ref_fprime#"$PWD"/}/bin/Ref"
 
 echo "== 2. fgds against Ref"
-python3 tests/ref/check.py "$PWD/target/debug/fgds" "$PWD/$ref/bin/Ref" "$dictionary" "$PWD/$out/ref"
+python3 tests/ref/check.py "$fgds" "$ref/bin/Ref" "$dictionary" "$PWD/$out/ref" ccsds
+echo "== 2. fgds against Ref with F Prime framing"
+python3 tests/ref/check.py "$fgds" "$ref_fprime/bin/Ref" "$dictionary_fprime" "$PWD/$out/ref-fprime" fprime
 
 echo "== 3. comparison with the Python GDS"
-PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$PWD/target/debug/fgds" --ref "$PWD/$ref/bin/Ref" \
+PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" --ref "$ref/bin/Ref" --framing ccsds \
     --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/compare"
+echo "== 3. comparison with the Python GDS, Ref with F Prime framing"
+PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" --ref "$ref_fprime/bin/Ref" --framing fprime \
+    --dictionary "$dictionary_fprime" --python "$venv/bin/python" --out "$PWD/$out/compare-fprime"
+echo "== 3. comparison with the Python GDS on every event and channel of the dictionary"
+PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" \
+    --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/synthetic"
 
 echo "== 4. example project binary"
-python3 examples/custom-gds/check.py target/debug tests/data/dictionary.json
+python3 examples/custom-gds/check.py target/debug tests/data/dictionary.json "$PWD/$out/example"
 
 # Each part of the GDS adds its own checks as tests/<name>/run.sh, without editing this
 # file. A script runs from the repository root with FGDS, REF_BIN, DICTIONARY, VENV and
-# OUT (its own directory for output) set, and fails with a non-zero exit code.
+# OUT (its own directory for output) set, and fails with a non-zero exit code. REF_BIN and
+# DICTIONARY are the stock Ref (CCSDS framing, the default of fgds).
 for script in tests/*/run.sh; do
     [ -e "$script" ] || continue
     name=$(basename "$(dirname "$script")")
     echo "== $script"
     mkdir -p "$out/$name"
-    FGDS="$PWD/target/debug/fgds" REF_BIN="$PWD/$ref/bin/Ref" DICTIONARY="$dictionary" VENV="$venv" \
+    FGDS="$fgds" REF_BIN="$ref/bin/Ref" DICTIONARY="$dictionary" VENV="$venv" \
         OUT="$PWD/$out/$name" bash "$script"
 done
+
+echo "== nothing left behind"
+# Databases and logs go to the output directory of each check, never into the tree.
+left=$(git status --porcelain --ignored | grep -v -e '^!! target/$' -e '__pycache__/$' || true)
+if [ -n "$left" ]; then
+    echo "files left in the repository tree:"; echo "$left"; exit 1
+fi
+echo "  ok: no file left in the repository tree"
+# A process started by a check and still running would disturb the next run.
+left=$(pgrep -af "$PWD/target/|fprime_gds|fprime-gds" | grep -v -e "scripts/check.sh" -e pgrep || true)
+if [ -n "$left" ]; then
+    echo "processes left running:"; echo "$left"; exit 1
+fi
+echo "  ok: no process left running"
 
 echo "check: all passed"

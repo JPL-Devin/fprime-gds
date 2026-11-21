@@ -10,7 +10,5 @@ workspace = true
 
 [dependencies]
 fgds-core = { workspace = true }
-sequences = { path = "../sequences" }
+fgds-offline = { workspace = true }
 
-[dev-dependencies]
-fgds = { workspace = true }

@@ -6,12 +6,6 @@ set -euo pipefail
 : "${FGDS:?}" "${DICTIONARY:?}" "${VENV:?}" "${OUT:?}"
 mkdir -p "$OUT"
 
-# The stock binary when it has the two plugins; until then the example binary that adds them.
-if ! "$FGDS" --help | grep -q '^  seqgen' || ! "$FGDS" --help | grep -q '^  prm-write'; then
-    cargo build --quiet -p params --example fgds-offline
-    FGDS="$PWD/target/debug/examples/fgds-offline"
-fi
-echo "  binary: $FGDS"
 
 echo "  -- generated sequences, fixture dictionary"
 "$VENV/bin/python" tests/seq/differential.py --fgds "$FGDS" --fixtures fixtures --out "$OUT/differential" \

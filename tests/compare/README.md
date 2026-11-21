@@ -12,7 +12,7 @@ Section 6.1 of the design: the current `fprime-gds` is the reference for what `f
 
 Three comparisons, on two builds of `Ref`:
 
-| Comparison | `Ref` with F Prime framing (`scripts/check.sh`) | `Ref` as it is, CCSDS framing (`tests/ccsds/run.sh`) |
+| Comparison | `Ref` with F Prime framing (second profile of `scripts/check.sh`) | `Ref` as it is, CCSDS framing (main profile of `scripts/check.sh`) |
 |---|---|---|
 | Live | yes | yes |
 | Replay of the bytes of the live run | yes | yes |

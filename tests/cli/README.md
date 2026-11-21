@@ -7,8 +7,7 @@
    `python/tests/ref_int`, changed in their imports only) through the `fprime_test_api` fixture of `fgds_client`.
 3. `check.py`: the subcommands of `plugins/online` against `fprime-cli` of the Python GDS.
 
-The `fgds` binary used is `$FGDS` when it has the `events` subcommand, otherwise
-`target/debug/examples/fgds-online` (the stock GDS plus `OnlinePlugin`).
+The `fgds` binary used is `$FGDS`, the stock binary, against the stock `Ref` (CCSDS framing).
 
 ## Ref integration tests
 
@@ -36,7 +35,9 @@ refused, `--dry-run` prints the packet and records nothing, and following printe
 
 1. **`fprime-cli` prints fewer items when following.** It polls, and after each item only takes an item with a
    later time, so items that share a time tag or arrive out of time order are skipped (about 10 of 125 channel
-   samples in a run). `fgds` prints every record. The check requires `fprime-cli` ⊆ `fgds`, not equality.
+   samples in a run). For the same reason it sometimes prints an item twice (seen with CCSDS framing, where
+   a frame carries packets of two seconds: three samples were printed twice in one run). `fgds` prints
+   every record once. The check requires each item of `fprime-cli` to be among those of `fgds`, not equality.
 2. **Order when following.** `fprime-cli` orders by time, `fgds` by arrival. The order is not compared.
 3. **`fprime-cli events --json` stops on an event with an enumeration argument** (`not JSON serializable`).
    `patch/sitecustomize.py` is put on its path so that argument values are written by their value; without it

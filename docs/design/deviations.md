@@ -263,3 +263,17 @@ Not built for storage:
 | LNK-22 | The `tcp-server` listener stays open while the link is disabled | M2 |
 | LNK-14 | A second interrupt does not shorten the stop | M2 |
 | MNT-6 | No fuzz target for the dictionary loader and the deframer (hostile-input unit tests only) | M2 |
+
+## Integration
+
+Decisions taken while making `scripts/check.sh` pass on the merged tree.
+
+1. **Stock CCSDS `Ref` is the main build.** `check.sh` builds each `Ref` once (`target/ref-ccsds` as it is, `target/ref` with F Prime framing), runs sections 2 and 3 on both, and gives the CCSDS one to every `tests/*/run.sh`. `tests/ccsds/run.sh` is gone: its work is sections 2 and 3. The synthetic comparison stays on F Prime framing: the Python side writes that capture with its F Prime framer.
+2. **Example binaries deleted**: `fgds-online`, `fgds-dp`, `fgds-ccsds`, `fgds-offline` and the `fgds` dev-dependency of their plugins. Every run script uses `$FGDS`. `examples/browser-gds` remains, as the stock GDS plus a tab that fails.
+3. **New crate `crates/fgds-offline`** (a library, not a plugin). `params` depended on `sequences`, which MNT-1 forbids and `check.sh` refuses. What both use (values as the Python tools read them, conversion to a dictionary type, the dictionary file as those tools accept it, the checksum) moved there unchanged; `sequences` re-exports it.
+4. **An array or struct command argument given as text is read as JSON** (`fgds-dictionary`, `Codec::encode`), as `fprime-cli command-send` does (`json.loads`). `fgds command-send` sends its arguments as text.
+5. **Non-finite floats in the browser.** The Python page shows a scalar channel value with JavaScript (`Infinity`, `-Infinity`, `NaN`: the number its JSON carries) and the members of an array or struct as the text Python formatted (`inf`, `-inf`, `nan`). The channel record carries both forms and the Channels tab applies the same rule; event texts are formatted by the backend in both and already agreed.
+6. **Processes.** Everything started through `scenario.start` is in its own process group and is stopped, with its descendants, when the script ends in any way (exit, exception, SIGTERM, SIGHUP). `check.sh` ends with a check that no process and no file is left (databases and logs go to `OUT`).
+7. **`fprime-cli` following may print an item twice** (accepted difference 1 of `tests/cli/README.md`): the check requires each item it printed to be among those of `fgds`.
+8. **Replay checks wait for the packet count to stop changing** instead of a count computed from the capture: with CCSDS framing the number of packets is not the number of frames.
+9. **`tests/ui` removed.** It ran the page shell of the storage branch in node with a hand-made page; the merged shell is the Lit one and needs a browser. Its two subjects are in `tests/browser/ui.py`: failing tabs (already there) and a stream that ends (new, with a mocked WebSocket).

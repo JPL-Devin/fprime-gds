@@ -145,7 +145,7 @@ fn damaged_files_never_panic() {
     let (dict, file) = every_type();
     let dat = dict.to_dat(&dict.select(&file, true).unwrap()).unwrap();
     let with_checksum = |data: &[u8]| {
-        let mut out = (!sequences::crc32(data)).to_be_bytes().to_vec();
+        let mut out = (!fgds_offline::crc32(data)).to_be_bytes().to_vec();
         out.extend_from_slice(data);
         out
     };

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/fgds-dictionary", "crates/fgds-core", "crates/fgds-shell", "crates/fgds", "plugins/*", "examples/*"]
+members = ["crates/fgds-dictionary", "crates/fgds-core", "crates/fgds-offline", "crates/fgds-shell", "crates/fgds", "plugins/*", "examples/*"]
 # The Ref built by scripts/build-ref.sh under target/ holds a Cargo package of its own.
 exclude = ["target"]
 
@@ -39,6 +39,7 @@ tracing-subscriber = "0.3"
 fgds-dictionary = { path = "crates/fgds-dictionary" }
 fgds-core = { path = "crates/fgds-core" }
 fgds-shell = { path = "crates/fgds-shell" }
+fgds-offline = { path = "crates/fgds-offline" }
 fgds = { path = "crates/fgds" }
 comm-tcp = { path = "plugins/comm-tcp" }
 framing-ccsds = { path = "plugins/framing-ccsds" }

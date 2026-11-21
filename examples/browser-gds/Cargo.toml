@@ -1,6 +1,6 @@
 [package]
 name = "browser-gds"
-description = "The stock GDS with the Dictionaries, Logs and Advanced tabs, as the browser tests run it"
+description = "The stock GDS plus a tab that fails, for the browser tests"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

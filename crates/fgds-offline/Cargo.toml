@@ -1,0 +1,13 @@
+[package]
+name = "fgds-offline"
+description = "What the offline tools share: values as the Python tools read them, conversion to dictionary types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+crc = { workspace = true }

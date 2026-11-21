@@ -212,7 +212,7 @@ def synthetic(args):
 parser = argparse.ArgumentParser()
 parser.add_argument("mode", choices=["live", "replay", "synthetic"])
 parser.add_argument("--dictionary", required=True)
-parser.add_argument("--framing", choices=["ccsds", "fprime"], default="fprime")
+parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds")
 parser.add_argument("--ref")
 parser.add_argument("--capture")
 parser.add_argument("--out", required=True)

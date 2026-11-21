@@ -8,8 +8,8 @@ use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::dictionary::Type;
 use fgds_core::serde_json::{self, json};
 use fgds_core::{CliEnv, Dictionary, Manifest, Plugin, Registry, Result, Subcommand};
-use sequences::convert::{convert, type_name, Source};
-use sequences::value::Value;
+use fgds_offline::convert::{convert, type_name, Source};
+use fgds_offline::value::Value;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -42,7 +42,7 @@ pub struct ParamDictionary {
 
 impl ParamDictionary {
     pub fn load(path: &Path) -> std::result::Result<Self, String> {
-        Self::from_json(&path.display().to_string(), sequences::read_dictionary_json(path)?)
+        Self::from_json(&path.display().to_string(), fgds_offline::read_dictionary_json(path)?)
     }
 
     pub fn from_json(file: &str, mut json: serde_json::Value) -> std::result::Result<Self, String> {
@@ -134,7 +134,7 @@ impl ParamDictionary {
 
 /// The checksum at the start of a `.dat` file, over the bytes after it.
 fn checksum(data: &[u8]) -> u32 {
-    !sequences::crc32(data)
+    !fgds_offline::crc32(data)
 }
 
 /// The text of a command sequence that sets these values; with `save`, also saves each.
@@ -278,9 +278,9 @@ impl Subcommand for WriteCommand {
         let (format, args) = args.subcommand().expect("a format is required");
         let input = PathBuf::from(args.get_one::<String>("json_file").expect("required"));
         let output = args.get_one::<String>("output").map_or_else(|| input.with_extension(format), PathBuf::from);
-        let dictionary = sequences::dictionary_path(env)?;
+        let dictionary = fgds_offline::dictionary_path(env)?;
         finish((|| {
-            let bytes = sequences::read_file(&input)?;
+            let bytes = fgds_offline::read_file(&input)?;
             let file = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", input.display()))?;
             let dict = ParamDictionary::load(&dictionary)?;
             let values = dict.select(&file, args.get_flag("defaults"))?;
@@ -315,9 +315,9 @@ impl Subcommand for DecodeCommand {
         let input = PathBuf::from(args.get_one::<String>("dat_file").expect("required"));
         let format = args.get_one::<String>("format").expect("has a default").as_str();
         let output = args.get_one::<String>("output").map_or_else(|| input.with_extension(format), PathBuf::from);
-        let dictionary = sequences::dictionary_path(env)?;
+        let dictionary = fgds_offline::dictionary_path(env)?;
         finish((|| {
-            let bytes = sequences::read_file(&input)?;
+            let bytes = fgds_offline::read_file(&input)?;
             let dict = ParamDictionary::load(&dictionary)?;
             let values = dict.from_dat(&bytes)?;
             let text = match format {

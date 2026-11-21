@@ -184,7 +184,7 @@ def check_server():
     os.makedirs(os.path.join(watched, "copy"))
     http, link = free_port(), free_port()
     api = f"http://127.0.0.1:{http}"
-    command = [FGDS, "run", "--framing", "fprime", "--dictionary", "test_dp_data/dictionary_ref.json", "--bind", f"127.0.0.1:{http}",
+    command = [FGDS, "run", "--logs", os.path.join(cwd, "logs"), "--dictionary", "test_dp_data/dictionary_ref.json", "--bind", f"127.0.0.1:{http}",
                "--comm-tcp-address", f"127.0.0.1:{link}", "--data-products-dir", watched, "--data-products-settle-ms", "300"]
     log = open(os.path.join(cwd, "fgds.log"), "w")
     server = subprocess.Popen(command, cwd=cwd, stdout=log, stderr=subprocess.STDOUT)
@@ -278,7 +278,10 @@ def check_server():
         step("a removed product and a changed file are listed as missing and are not read")
     finally:
         server.terminate()
-        server.wait(timeout=20)
+        try:
+            server.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            server.kill()
         log.close()
 
 

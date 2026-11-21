@@ -2,8 +2,8 @@
 
 use crate::{checksum, Param, ParamDictionary, DELIMITER, ID_SIZE};
 use fgds_core::dictionary::Type;
-use sequences::convert::type_name;
-use sequences::value::Value;
+use fgds_offline::convert::type_name;
+use fgds_offline::value::Value;
 
 /// `len` bytes at `offset`, or the message of Python's `struct.unpack_from`.
 fn take(data: &[u8], offset: usize, len: usize) -> Result<&[u8], String> {

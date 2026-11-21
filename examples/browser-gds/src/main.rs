@@ -1,4 +1,4 @@
-//! The GDS the browser tests run: the default plugins and, with `BROWSER_GDS_BROKEN_TAB` set, a tab that fails.
+//! The stock GDS with one more tab, which fails: the browser tests check that the page contains it.
 
 use fgds::core::{Manifest, Plugin, Registry, Result, StaticFiles, UiBundle};
 
@@ -17,9 +17,5 @@ impl Plugin for BrokenTabPlugin {
 }
 
 fn main() -> std::process::ExitCode {
-    let mut gds = fgds::Gds::builder().with_defaults();
-    if std::env::var_os("BROWSER_GDS_BROKEN_TAB").is_some() {
-        gds = gds.with(BrokenTabPlugin);
-    }
-    gds.run()
+    fgds::Gds::builder().with_defaults().with(BrokenTabPlugin).run()
 }

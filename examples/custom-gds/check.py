@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Show what the example binary proves (item 4 of the slice), with this script as the flight side.
 
-Usage: check.py <directory of the built binaries> <dictionary>
+Usage: check.py <directory of the built binaries> <dictionary> <directory for the database and logs>
 """
 import json
 import socket
@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 import zlib
 
-BIN, DICTIONARY = sys.argv[1], sys.argv[2]
+BIN, DICTIONARY, OUT = sys.argv[1:4]
 TIME = bytes([0, 2, 0, 0, 0, 0, 100, 0, 0, 0, 7])
 
 
@@ -59,7 +59,7 @@ step("`check` shows framing station > fprime and no channels plugin")
 http, link = free_port(), free_port()
 api = f"http://127.0.0.1:{http}"
 gds = subprocess.Popen(
-    [f"{BIN}/custom-gds", "run", "--dictionary", DICTIONARY, "--framing", "station-fprime",
+    [f"{BIN}/custom-gds", "run", "--dictionary", DICTIONARY, "--framing", "station-fprime", "--logs", f"{OUT}/logs",
      "--bind", f"127.0.0.1:{http}", "--comm-tcp-address", f"127.0.0.1:{link}"],
     stderr=subprocess.DEVNULL,
 )
@@ -143,5 +143,8 @@ try:
     step(f"panic contained: {faults[0]['body']['message']!r}; the GDS keeps serving")
 finally:
     gds.terminate()
-    gds.wait(timeout=10)
+    try:
+        gds.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        gds.kill()
 print("example: all shown")

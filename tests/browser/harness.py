@@ -11,12 +11,12 @@ import scenario  # noqa: E402
 class Gds:
     """A running GDS binary, with the HTTP port of its page and the TCP port Ref connects to."""
 
-    def __init__(self, binary, dictionary, out, env=None):
+    def __init__(self, binary, dictionary, out, env=None, framing="ccsds", extra=()):
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.url = f"http://127.0.0.1:{http}"
         self.process = scenario.start(
-            [binary, "run", "--framing", "fprime", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}",
-             "--comm-tcp-address", f"127.0.0.1:{self.link_port}"],
+            [binary, "run", "--framing", framing, "--logs", f"{out}/logs", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}",
+             "--comm-tcp-address", f"127.0.0.1:{self.link_port}", *extra],
             open(f"{out}/gds.log", "w"), env={**os.environ, **(env or {})},
         )
         scenario.wait_for("the GDS", lambda: self.get("/version"))
@@ -43,6 +43,7 @@ def open_page(browser, url, problems):
     """A page of the new UI, ready: every tab module loaded. Page errors are collected."""
     page = browser.new_page(viewport={"width": 1400, "height": 850})
     page.on("pageerror", lambda error: problems.append(str(error)))
+    page.on("console", lambda message: problems.append(message.text) if message.type == "error" else None)
     page.goto(url)
     page.wait_for_selector("body[data-ready=true]")
     return page

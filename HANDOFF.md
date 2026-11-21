@@ -9,7 +9,7 @@
 
 ## How to run
 - `FPRIME=<fprime checkout with fprime-venv> scripts/check.sh`. The first run builds `Ref` under `target/ref` (several minutes).
-- `Ref` is built twice: as it is (CCSDS framing, `tests/ccsds/run.sh`, plugin `framing-ccsds`) and with F Prime framing (`scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`; `scripts/check.sh`). Both are compared with the Python GDS.
+- `Ref` is built twice: as it is (CCSDS framing, the main build of `scripts/check.sh` and of every `tests/*/run.sh`, under `target/ref-ccsds`) and with F Prime framing (the second profile: `scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`, under `target/ref`). Both are compared with the Python GDS.
 - `cargo run -p fgds -- run --dictionary <RefTopologyDictionary.json>`, then `Ref -a 127.0.0.1 -p 50000`; the API is on `http://127.0.0.1:5000/api/v1`. Records go to `logs/<start time>/gds.db`; `--database <file>` keeps one file across runs, `--storage memory` keeps nothing.
 - `cargo run -p fgds -- run --replay <file>` serves an old database without a link.
 

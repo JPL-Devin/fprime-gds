@@ -2,7 +2,7 @@
 """The Events and Channels tables of the Python GDS page and of the new page, for the same
 bytes: a Ref session is captured once, then replayed into each GDS while its page is open.
 
-Usage: parity.py <browser-gds binary> <Ref binary> <dictionary> <fprime-gds executable> <directory for logs>
+Usage: parity.py <fgds binary> <Ref binary> <dictionary> <fprime-gds executable> <directory for logs> [ccsds|fprime]
 
 The accepted differences are listed in README.md.
 """
@@ -19,6 +19,7 @@ import harness
 from harness import rows, scenario, show, step
 
 BINARY, REF, DICTIONARY, PYTHON_GDS, OUT = sys.argv[1:6]
+FRAMING = sys.argv[6] if len(sys.argv) > 6 else "ccsds"  # the framing Ref was built with
 os.makedirs(OUT, exist_ok=True)
 HTML = "<b>bold</b><img src=x onerror=x=1>"
 
@@ -57,12 +58,14 @@ def one_line(value):
         return "true" if value else "false"
     return str(value)
 
+FRAME_SIZE = scenario.tm_frame_size(DICTIONARY)
+
 
 def capture():
     """A Ref session with the commands of the comparison and a string that contains HTML."""
     out = f"{OUT}/capture"
     os.makedirs(out, exist_ok=True)
-    gds = harness.Gds(BINARY, DICTIONARY, out)
+    gds = harness.Gds(BINARY, DICTIONARY, out, framing=FRAMING)
     ref = None
     try:
         proxy = scenario.Proxy(gds.link_port)
@@ -77,19 +80,15 @@ def capture():
             if process:
                 scenario.stop(process)
     # Whole frames only: the capture ends wherever Ref was stopped.
-    data, end, at = bytes(proxy.downlink), 0, 0
-    while (at := data.find(scenario.START_WORD, at)) >= 0 and at + 8 <= len(data):
-        at += 12 + int.from_bytes(data[at + 4:at + 8], "big")
-        if at <= len(data):
-            end = at
-    open(f"{OUT}/downlink.bin", "wb").write(data[:end])
-    return data[:end]
+    data = scenario.whole_frames(bytes(proxy.downlink), FRAMING, FRAME_SIZE)
+    open(f"{OUT}/downlink.bin", "wb").write(data)
+    return data
 
 
 def new_page_tables(browser, data):
     out = f"{OUT}/rust"
     os.makedirs(out, exist_ok=True)
-    gds = harness.Gds(BINARY, DICTIONARY, out)
+    gds = harness.Gds(BINARY, DICTIONARY, out, framing=FRAMING)
     try:
         problems = []
         page = harness.open_page(browser, gds.url, problems)
@@ -98,7 +97,7 @@ def new_page_tables(browser, data):
         flight = scenario.wait_for("the link", lambda: socket.create_connection(("127.0.0.1", gds.link_port)))
         # One half arrives while the page is open; the page is then reloaded, so that half
         # comes from the history and the other half from the stream.
-        half = len(data) // 2
+        half = len(data) // 2 // FRAME_SIZE * FRAME_SIZE if FRAMING == "ccsds" else len(data) // 2
         flight.sendall(data[:half])
         page.wait_for_selector("#events-table tbody tr")
         page.reload()
@@ -106,8 +105,7 @@ def new_page_tables(browser, data):
         show(page, "channels")
         show(page, "events")
         flight.sendall(data[half:])
-        expected = len(scenario.packets(data))
-        scenario.wait_for("the replay", lambda: gds.get("/status")["counters"].get("packets_received") == expected)
+        scenario.steady(lambda: gds.get("/status")["counters"].get("packets_received", 0))
         count = len(gds.get("/records?kind=fprime.event&limit=10000")["records"])
         page.wait_for_function(f"() => document.querySelectorAll('#events-table tbody tr').length === {count}")
         newest = max(int(r["seq"]) for r in gds.get("/records/latest?kind=fprime.channel")["records"])
@@ -148,7 +146,7 @@ def python_page_tables(browser, data, events_wanted):
     gds = scenario.start(
         [PYTHON_GDS, "-n", "--dictionary", DICTIONARY, "-g", "html", "--gui-addr", "127.0.0.1", "--gui-port", str(http),
          "--ip-address", "127.0.0.1", "--ip-port", str(link), "--tts-addr", "127.0.0.1", "--tts-port", str(tts),
-         "--no-zmq", "--framing-selection", "fprime", "--logs", f"{out}/logs", "--file-storage-directory", f"{out}/files"],
+         "--no-zmq", "--framing-selection", "fprime" if FRAMING == "fprime" else "space-packet-space-data-link", "--logs", f"{out}/logs", "--file-storage-directory", f"{out}/files"],
         open(f"{out}/gds.log", "w"), env={**os.environ, "BROWSER": "true"}, cwd=out,
     )
     try:
@@ -183,7 +181,7 @@ def milliseconds(row):
 
 
 data = capture()
-step(f"captured {len(data)} bytes from Ref: {len(scenario.packets(data))} packets")
+step(f"captured {len(data)} bytes from Ref: {len(scenario.frames(data, FRAMING, FRAME_SIZE))} frames ({FRAMING} framing)")
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
     new_events, new_channels = new_page_tables(browser, data)

@@ -9,7 +9,7 @@
 | 3 | A running GDS with a watched directory: tab and assets, list, duplicate content, symbolic link, invalid product, export, missing and changed files | `fixtures/dp/expected` for the exported JSON |
 | 4 | `fgds dp` and a live `fprime-dp` on 648 damaged products (seeded), only when `FPRIME_DP` is set | `fprime-dp` of the commit in `fixtures/README.md` |
 
-Until the plugin is in `default_plugins()`, steps 2 to 4 run `plugins/data-products/examples/fgds-dp.rs`, which is the stock GDS with the plugin added. `run.sh` uses `$FGDS` as soon as it has the `dp` subcommand.
+Steps 2 to 4 run `$FGDS`, the stock binary.
 
 ## Comparison rules
 

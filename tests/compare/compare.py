@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser()
 for option in ("fgds", "dictionary", "python", "out"):
     parser.add_argument(f"--{option}", required=True)
 parser.add_argument("--ref")
-parser.add_argument("--framing", choices=["ccsds", "fprime"], default="fprime")
+parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds")
 args = parser.parse_args()
 shapes = scenario.Shapes(args.dictionary)
 failures = []
