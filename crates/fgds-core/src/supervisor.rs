@@ -20,7 +20,7 @@ pub async fn report_fault(records: &Records, status: &Status, plugin: &str, mess
 }
 
 /// Run plugin code in its own task. A panic is caught and reported; the task is not restarted.
-pub fn spawn_supervised<F>(plugin: &str, records: Records, status: Status, task: F)
+pub fn spawn_supervised<F>(plugin: &str, records: Records, status: Status, task: F) -> tokio::task::JoinHandle<()>
 where
     F: Future<Output = Result<()>> + Send + 'static,
 {
@@ -37,5 +37,5 @@ where
             }
             Err(_) => status.handle(&plugin).set_state("cancelled"),
         }
-    });
+    })
 }

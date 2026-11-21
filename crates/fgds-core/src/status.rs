@@ -13,6 +13,7 @@ struct PluginStatus {
 struct Data {
     link: String,
     peer: Option<String>,
+    link_error: Option<String>,
     storage: String,
     gap: Option<(u64, u64)>,
     warnings: Vec<String>,
@@ -31,10 +32,18 @@ impl Status {
     }
 
     pub fn set_link(&self, state: &str, peer: Option<String>) {
+        self.set_link_state(state, peer, None);
+    }
+
+    /// The link state with the reason of the last failure. True when anything changed.
+    pub fn set_link_state(&self, state: &str, peer: Option<String>, error: Option<String>) -> bool {
         self.with(|d| {
+            let changed = d.link != state || d.peer != peer || d.link_error != error;
             d.link = state.to_string();
             d.peer = peer;
-        });
+            d.link_error = error;
+            changed
+        })
     }
 
     pub fn link(&self) -> String {
@@ -79,7 +88,7 @@ impl Status {
                 })
                 .collect();
             json!({
-                "link": {"state": d.link, "peer": d.peer},
+                "link": {"state": d.link, "peer": d.peer, "error": d.link_error},
                 "storage": {
                     "state": d.storage,
                     "gap": d.gap.map(|(first, last)| json!({"first_seq": first.to_string(), "last_seq": last.to_string()})),

@@ -8,6 +8,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
+
+/// How long `Core::stop` waits for the link and the handlers.
+const STOP_TASKS: Duration = Duration::from_secs(2);
+/// How long `Core::stop` waits for storage to flush and close.
+const STOP_STORAGE: Duration = Duration::from_secs(3);
 
 /// Tells plugin tasks to stop. Cheap to clone.
 #[derive(Clone)]
@@ -50,6 +56,8 @@ pub struct Core {
     pub run_dir: Option<PathBuf>,
     router: Arc<Router>,
     stop: watch::Sender<bool>,
+    /// The link task and the handler tasks, joined by `stop`.
+    tasks: std::sync::Mutex<Vec<JoinHandle<()>>>,
 }
 
 impl Core {
@@ -108,6 +116,7 @@ impl Core {
             run,
             run_dir,
             stop: watch::channel(false).0,
+            tasks: Default::default(),
         };
         if core.config.read_only {
             core.link.set_enabled(false);
@@ -121,7 +130,8 @@ impl Core {
             let ctx = core.context(plugin);
             let handler = factory(&ctx.config)?;
             let stream = core.records.subscribe(handler.subscription(), None);
-            spawn_supervised(plugin, core.records.clone(), core.status.clone(), handler.run(ctx, stream));
+            let task = spawn_supervised(plugin, core.records.clone(), core.status.clone(), handler.run(ctx, stream));
+            core.keep(task);
         }
         Ok(core)
     }
@@ -146,20 +156,50 @@ impl Core {
         }
         let (plugin, factory) = self.registry.adapters[&self.config.comm].clone();
         let options = self.config.plugin_config(&self.registry, &plugin).unwrap_or_default();
-        self.link.start(
+        let task = self.link.start(
+            &plugin,
             move || factory(&options),
             self.router.clone(),
             self.records.clone(),
             self.dictionary.clone(),
             ShutdownToken(self.stop.subscribe()),
         );
+        self.keep(task);
     }
 
-    /// Stop plugin tasks and the link, then flush and close storage (LNK-14).
+    fn keep(&self, task: JoinHandle<()>) {
+        self.tasks.lock().unwrap_or_else(|e| e.into_inner()).push(task);
+    }
+
+    /// Stop the link and the plugin tasks and wait for them, so what they publish on
+    /// the way out is kept; then flush and close storage. All within 5 s (LNK-14):
+    /// tasks still running after 2 s are aborted, and an error says when storage did
+    /// not finish.
     pub async fn stop(&self) -> Result<()> {
         self.stop.send_replace(true);
-        self.records.stop().await;
-        self.registry.storages[&self.config.storage].1.close().await
+        let tasks: Vec<JoinHandle<()>> = std::mem::take(&mut *self.tasks.lock().unwrap_or_else(|e| e.into_inner()));
+        let aborts: Vec<_> = tasks.iter().map(JoinHandle::abort_handle).collect();
+        let joined = async {
+            for task in tasks {
+                let _ = task.await;
+            }
+        };
+        if tokio::time::timeout(STOP_TASKS, joined).await.is_err() {
+            tracing::warn!("plugin tasks still running after {} s are aborted", STOP_TASKS.as_secs());
+            aborts.iter().for_each(|task| task.abort());
+        }
+        let storage = self.registry.storages[&self.config.storage].1.clone();
+        let close = async {
+            self.records.stop().await;
+            storage.close().await
+        };
+        match tokio::time::timeout(STOP_STORAGE, close).await {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::error!("storage did not close in time: records not yet written are lost");
+                Err(Error::other("storage did not close in time: records not yet written are lost"))
+            }
+        }
     }
 }
 
