@@ -103,6 +103,7 @@ Decisions taken while building `plugins/framing-ccsds`, the stock `Ref` build an
 | 7 | Two vectors of `ccsds.json` call `deframe` with `None` | Replayed as an empty input | Rust has no such call |
 | 8 | Default profile "as the Python GDS defaults for current fprime `devel`": `space-packet-space-data-link` | The default list and default profile of `fgds` are unchanged (F Prime). `plugins/framing-ccsds/examples/fgds-ccsds.rs` is `fgds` plus the plugin; `--framing ccsds` selects it | The orchestrator owns the default list; the two lines to change are in the final message of this part |
 | 9 | `FramingLayer` (4.3) gets the plugin configuration only | Core change: `FramingLayer::with_dictionary(&Dictionary) -> Option<Arc<dyn FramingLayer>>`, default `None`, called once at start | The CCSDS layers need the spacecraft identifier, the frame size and the `ComCfg.Apid` type of the dictionary |
+| 10 | The JSON dictionary puts the element format string on the array type (`format`); the Python GDS reads it from `elementType.format`, which the dictionary never has, so it never applies it | Core change, one line of `fgds-dictionary/src/load.rs`: the array format is read from `elementType.format` | Found by the synthetic replay (`Ref.SG*.History`, `Ref.SG*.Info`): the Python GDS is the reference, even where it looks like a defect of it. To revisit if the Python GDS is corrected |
 
 Comparison with the Python GDS (`tests/compare/README.md`):
 
