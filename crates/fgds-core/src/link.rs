@@ -159,7 +159,7 @@ impl Link {
     pub fn start(
         &self,
         plugin: &str,
-        make_adapter: impl Fn() -> Result<Box<dyn Adapter>> + Send + 'static,
+        mut make_adapter: impl FnMut() -> Result<Box<dyn Adapter>> + Send + 'static,
         router: Arc<Router>,
         records: Records,
         dict: Arc<Dictionary>,

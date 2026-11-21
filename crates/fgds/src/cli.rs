@@ -204,7 +204,7 @@ fn serve(registry: Registry, config: Config) -> Result<ExitCode> {
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
         let listener = fgds_shell::bind(&core).await?;
         eprintln!("listening on http://{}", listener.local_addr().map_err(Error::Io)?);
-        core.start_link();
+        core.start_link()?;
         let served = fgds_shell::serve(core.clone(), listener, interrupted()).await;
         core.stop().await?;
         served.map(|()| ExitCode::SUCCESS)

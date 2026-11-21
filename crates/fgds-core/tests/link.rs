@@ -73,9 +73,10 @@ impl Plugin for TestPlugin {
         let built = self.built.clone();
         reg.add_adapter(
             "broken",
-            Arc::new(move |_| {
-                built.fetch_add(1, Ordering::SeqCst);
-                Err(Error::other("no such device"))
+            // Built at startup, panics, and cannot be built again.
+            Arc::new(move |_| match built.fetch_add(1, Ordering::SeqCst) {
+                0 => Ok(Box::new(PanickingAdapter)),
+                _ => Err(Error::other("no such device")),
             }),
         )?;
         reg.add_adapter("panics", Arc::new(|_| Ok(Box::new(PanickingAdapter))))
@@ -172,12 +173,14 @@ async fn an_adapter_factory_that_fails_is_reported_once_under_its_plugin_and_ret
     let plugin = TestPlugin::new(false);
     let config = Config { comm: "broken".into(), framing: "length".into(), ..Default::default() };
     let gds = FakeGds::start_with(&[&plugin], empty_dictionary(), config).await.unwrap();
-    // Built again after 1 s: two attempts, one report.
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-    assert_eq!(plugin.built.load(Ordering::SeqCst), 2);
-    let faults = gds.records(&[KIND_PLUGIN_FAULT]).await;
-    assert_eq!(faults.len(), 1);
-    assert_eq!(faults[0].body, json!({"plugin": "test", "message": "no such device"}));
+    // Built again after 1 s and after 2 s more: two failed attempts, one report.
+    tokio::time::sleep(Duration::from_millis(3500)).await;
+    assert_eq!(plugin.built.load(Ordering::SeqCst), 3);
+    let faults: Vec<_> = gds.records(&[KIND_PLUGIN_FAULT]).await.into_iter().map(|r| r.body).collect();
+    assert_eq!(faults, [
+        json!({"plugin": "test", "message": "adapter bug"}),
+        json!({"plugin": "test", "message": "no such device"}),
+    ]);
     assert_eq!(gds.core.status.snapshot()["link"]["error"], "no such device");
 }
 

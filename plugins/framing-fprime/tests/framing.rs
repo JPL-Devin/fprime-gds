@@ -95,3 +95,30 @@ fn plugin_registers_layer_and_profile() {
     assert_eq!(registry.framing_profiles["fprime"], ["fprime"]);
     registry.check().unwrap();
 }
+
+#[test]
+fn the_largest_packet_is_4095_bytes_in_both_directions() {
+    let largest = vec![7u8; 4095];
+    let framed = frame(&largest);
+    assert_eq!(deframe(&framed, 1000).0, [largest]);
+    // One byte more would be taken for noise by the receiver: refused when sending.
+    let mut out = BytesMut::new();
+    let refused = FprimeFraming.framer(&PluginConfig::default()).frame(&[7u8; 4096], &Default::default(), &mut out);
+    assert!(matches!(refused, Err(fgds_core::Error::Invalid(_))), "{refused:?}");
+    assert!(out.is_empty());
+    // A received length of 4,096 is not a frame.
+    let mut input = vec![0xDE, 0xAD, 0xBE, 0xEF, 0, 0, 0x10, 0];
+    input.extend(frame(b"ok"));
+    let (packets, discarded, _) = deframe(&input, 3);
+    assert_eq!((packets, discarded.len()), (vec![b"ok".to_vec()], 8));
+}
+
+#[test]
+fn a_start_word_split_across_reads_and_a_false_start_are_handled() {
+    let mut input = vec![0xDE, 0xAD, 0xDE, 0xAD, 0xBE];
+    input.extend(frame(b"one"));
+    for step in 1..=7 {
+        let (packets, discarded, _) = deframe(&input, step);
+        assert_eq!((packets, discarded), (vec![b"one".to_vec()], vec![0xDE, 0xAD, 0xDE, 0xAD, 0xBE]), "step {step}");
+    }
+}
