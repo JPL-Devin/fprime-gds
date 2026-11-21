@@ -217,6 +217,10 @@ pub(crate) fn core_kinds() -> Vec<KindSpec> {
         text(KIND_STORAGE_GAP, "Records that were broadcast but could not be stored"),
         text(KIND_STORAGE_RECOVERED, "Storage accepts records again"),
         KindSpec {
+            fields: &[
+                FieldSpec { name: "client", pointer: "/client", ty: FieldType::Text },
+                FieldSpec { name: "outcome", pointer: "/outcome", ty: FieldType::Text },
+            ],
             text_fields: &["/client", "/reason"],
             ..KindSpec::new(KIND_RAW_SENT, "A packet sent as given; raw holds it when the sender asked to keep it")
         },

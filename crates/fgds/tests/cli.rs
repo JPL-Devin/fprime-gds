@@ -21,7 +21,7 @@ fn check_prints_what_would_start_and_command_line_wins_over_the_file() {
     let dir = scratch("check");
     let config = format!(
         "dictionary = \"{DICTIONARY}\"\ncomm = \"tcp-client\"\nbind = \"127.0.0.1:1\"\n\
-         [plugins.comm-tcp]\ntcp-address = \"10.0.0.1:7\"\n"
+         [plugins.comm-tcp]\naddress = \"10.0.0.1:7\"\n"
     );
     std::fs::write(dir.join("fgds.toml"), config).unwrap();
     let (output, stdout, stderr) = fgds(&["check", "--bind", "127.0.0.1:2"], &dir);
@@ -32,7 +32,7 @@ fn check_prints_what_would_start_and_command_line_wins_over_the_file() {
         "adapter: tcp-client",
         "framing: fprime",
         "server: http://127.0.0.1:2",
-        "--tcp-address = 10.0.0.1:7",
+        "--comm-tcp-address = 10.0.0.1:7",
         "record kinds: raw.discarded, gds.decode_error, gds.unknown_packet, gds.plugin_fault, gds.storage_gap, gds.storage_recovered",
     ] {
         assert!(stdout.contains(line), "missing \"{line}\" in:\n{stdout}");

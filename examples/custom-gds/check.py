@@ -60,7 +60,7 @@ http, link = free_port(), free_port()
 api = f"http://127.0.0.1:{http}"
 gds = subprocess.Popen(
     [f"{BIN}/custom-gds", "run", "--dictionary", DICTIONARY, "--framing", "station-fprime",
-     "--bind", f"127.0.0.1:{http}", "--tcp-address", f"127.0.0.1:{link}"],
+     "--bind", f"127.0.0.1:{http}", "--comm-tcp-address", f"127.0.0.1:{link}"],
     stderr=subprocess.DEVNULL,
 )
 

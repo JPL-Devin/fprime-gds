@@ -28,7 +28,8 @@ async fn events_are_decoded_with_their_arguments_and_text() {
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].id, Some(512));
     assert_eq!(events[0].flight_time, Some(FlightTime { base: 2, context: 0, seconds: 100, microseconds: 7 }));
-    assert_eq!(events[0].raw.as_ref(), event(512, &[]));
+    // The event without the packet type: identifier, time tag, arguments.
+    assert_eq!(events[0].raw.as_ref(), &event(512, &[])[2..]);
     assert_eq!(
         events[0].body,
         json!({"name": "T.c.NoOp", "severity": "ACTIVITY_HI", "args": {}, "display_text": "Received a NO-OP command"})

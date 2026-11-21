@@ -41,6 +41,7 @@ async fn channel_packets_become_samples() {
     assert_eq!(samples[0].id, Some(768));
     assert_eq!(samples[0].flight_time.unwrap().seconds, 100);
     assert_eq!(samples[4].raw.as_ref(), second);
+    assert_eq!(samples[0].raw.as_ref(), &channel(768, &[0, 0, 1, 0])[2..]);
     assert_eq!(gds.records(&["gds.decode_error"]).await.len(), 2);
 }
 
@@ -58,7 +59,9 @@ async fn a_telemetry_packet_becomes_one_sample_per_channel() {
     let samples = gds.records(&["fprime.channel"]).await;
     let got: Vec<_> = samples.iter().map(|r| (r.id.unwrap(), r.body["value"].clone())).collect();
     assert_eq!(got, [(770, json!("hi")), (768, json!(9)), (769, json!(1.25))]);
-    assert_eq!(samples[1].raw.as_ref(), [0, 0, 0, 9]);
+    // The layout of a sample of a channel packet: identifier, time tag, value.
+    assert_eq!(samples[1].raw.as_ref(), [&[0, 0, 3, 0][..], &TIME, &[0, 0, 0, 9]].concat());
+    assert_eq!(samples[0].raw.as_ref(), [&[0, 0, 3, 2][..], &TIME, &[0, 2, b'h', b'i']].concat());
     assert!(samples.iter().all(|r| r.flight_time.unwrap().microseconds == 7));
 
     // Current state: the latest sample of each channel.

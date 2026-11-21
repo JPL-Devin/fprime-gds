@@ -18,7 +18,8 @@ impl Decoder for Decode {
     }
     fn decode(&self, packet: &[u8], _: &PacketMeta, _: &Dictionary) -> Result<Vec<NewRecord>, DecodeError> {
         let body = json!({"level": packet[0], "big": u64::MAX.to_string(), "nan": "NaN"});
-        Ok(vec![NewRecord { id: Some(packet[0] as u32), ..NewRecord::new("t.sample", body) }])
+        let raw = fgds_core::bytes::Bytes::copy_from_slice(packet);
+        Ok(vec![NewRecord { id: Some(packet[0] as u32), raw, ..NewRecord::new("t.sample", body) }])
     }
 }
 
@@ -152,12 +153,23 @@ async fn version_status_kinds_runs_and_dictionary_are_served() {
 #[tokio::test]
 async fn the_link_is_switched_and_raw_bytes_are_sent() {
     let server = Server::start().await;
-    assert_eq!(server.post("/api/v1/raw", json!({"data": "AQI="})).await, (200, json!({"sent": 2})));
+    assert_eq!(server.post("/api/v1/raw", json!({"data": "AQI="})).await, (200, json!({"sent": 2, "seq": "1"})));
     assert_eq!(server.gds.link.sent(), [vec![0, 2, 1, 2]]);
     assert_eq!(server.post("/api/v1/link", json!({"enabled": false})).await.0, 200);
     server.gds.wait_for_link("disabled").await;
     let (status, body) = server.post("/api/v1/raw", json!({"data": "AQI="})).await;
     assert_eq!((status, body["error"]["code"].as_str()), (503, Some("link_down")));
+    // Both sends are recorded, the accepted one with the packet (SEC-5).
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent").await;
+    let sent = &page["records"];
+    assert_eq!(sent[0]["body"], json!({"length": 2, "client": "api", "outcome": "sent"}));
+    assert_eq!(sent[0]["raw"], "AQI=");
+    assert_eq!(sent[1]["body"]["outcome"], "rejected");
+    // `in` and `prefix` filter operators.
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent&filter=outcome:in:failed,rejected").await;
+    assert_eq!(page["records"].as_array().unwrap().len(), 1);
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent&filter=outcome:prefix:se").await;
+    assert_eq!(page["records"].as_array().unwrap().len(), 1);
     server.post("/api/v1/link", json!({"enabled": true})).await;
     server.gds.wait_for_link("connected").await;
 }
@@ -175,6 +187,9 @@ async fn the_stream_replays_from_a_sequence_number_then_continues_live() {
         seqs.push(next_seq(&mut socket).await);
     }
     assert_eq!(seqs, ["2", "3"]);
+    // The replay has ended: told once, with the last sequence number sent.
+    let Message::Text(text) = socket.next().await.unwrap().unwrap() else { panic!("not text") };
+    assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({"type": "live", "seq": "3"}));
     server.gds.receive(&[4]).await;
     server.gds.receive(&[5]).await;
     assert_eq!((next_seq(&mut socket).await, next_seq(&mut socket).await), ("4".into(), "5".into()));

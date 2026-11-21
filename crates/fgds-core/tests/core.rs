@@ -17,7 +17,10 @@ impl Decoder for TestDecoder {
         match packet[1] {
             9 => Err(DecodeError("bad packet".into())),
             8 => panic!("decoder bug"),
-            _ => Ok(vec![NewRecord::new("t.packet", json!({"len": packet.len()}))]),
+            _ => Ok(vec![NewRecord {
+                raw: bytes::Bytes::copy_from_slice(packet),
+                ..NewRecord::new("t.packet", json!({"len": packet.len()}))
+            }]),
         }
     }
 }
@@ -115,7 +118,8 @@ async fn transient_records_are_live_only() {
     let gds = gds().await;
     let mut live = gds.core.records.subscribe(Filter::kinds(&["t.transient"]), None);
     gds.core.records.publish(NewRecord::new("t.transient", json!({}))).await.unwrap();
-    assert!(!live.next().await.unwrap().stored);
+    // `stored` is false only for a record that storage lost, not for a transient one.
+    assert!(live.next().await.unwrap().stored);
     assert!(gds.records(&["t.transient"]).await.is_empty());
 }
 
@@ -188,7 +192,7 @@ async fn packets_are_routed_and_bad_ones_recorded_without_stopping_the_link() {
     assert_eq!(all[1].body["reason"], "bad packet");
     assert_eq!(all[2].body["reason"], "decoder panicked: decoder bug");
     assert_eq!(all[3].body["packet_type"], 5);
-    assert_eq!(all[4].body["reason"], "framing layer failed");
+    assert_eq!(all[4].body["reason"], "framing layer failed: zero-length frame");
     assert_eq!(gds.core.status.snapshot()["counters"]["packets_received"], 5);
 }
 

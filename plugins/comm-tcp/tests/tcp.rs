@@ -7,7 +7,7 @@ fn adapter(name: &str, address: &str) -> Box<dyn Adapter> {
     let mut registry = Registry::new();
     registry.register(&comm_tcp::TcpPlugin).unwrap();
     let mut cfg = PluginConfig::default();
-    cfg.set("tcp-address", address);
+    cfg.set("address", address);
     (registry.adapters[name].1)(&cfg).unwrap()
 }
 

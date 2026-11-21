@@ -80,7 +80,7 @@ class Stream:
 
 
 fgds = scenario.start(
-    [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{HTTP}", "--tcp-address", f"127.0.0.1:{LINK}"],
+    [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{HTTP}", "--comm-tcp-address", f"127.0.0.1:{LINK}"],
     open(f"{OUT}/fgds.log", "w"),
 )
 ref = None

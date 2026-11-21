@@ -35,8 +35,12 @@ struct P(&'static str, Register);
 
 impl Plugin for P {
     fn manifest(&self) -> Manifest {
-        let option = OptionSpec { name: "shared-option", help: "", default: None, secret: false };
-        let options = if self.0.starts_with("opt") { vec![option] } else { vec![] };
+        let option = |name| OptionSpec { name, help: "", default: None, secret: false };
+        let options = match self.0 {
+            "read" => vec![option("only")],
+            name if name.starts_with("opt") => vec![option("shared-option")],
+            _ => vec![],
+        };
         Manifest { name: self.0, version: "1", options, ..Default::default() }
     }
     fn register(&self, reg: &mut Registry) -> Result<()> {

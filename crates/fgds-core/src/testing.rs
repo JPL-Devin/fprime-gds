@@ -72,6 +72,10 @@ impl Storage for MemoryStorage {
             dictionary_hash: cfg.dictionary_hash.clone(),
         };
         let mut memory = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if cfg.read_only {
+            // No run begins: the last run, when this process has one.
+            return memory.run.clone().ok_or_else(|| Error::other("memory storage holds no run to open read-only"));
+        }
         *memory = Memory {
             run: Some(run.clone()),
             kinds: cfg.kinds.iter().map(|k| (k.id.clone(), k.clone())).collect(),
@@ -111,6 +115,65 @@ impl Storage for MemoryStorage {
 
     async fn close(&self) -> Result<()> {
         Ok(())
+    }
+}
+
+/// What a `FaultyStorage` does with the next `append` calls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Fault {
+    None,
+    /// `append` returns an error.
+    Fail,
+    /// `append` does not return.
+    Hang,
+}
+
+/// A memory storage whose `append` fails or hangs when the test says so: the double
+/// for the storage failure path of the pipeline (STO-9).
+pub struct FaultyStorage {
+    inner: MemoryStorage,
+    fault: Mutex<Fault>,
+}
+
+impl Default for FaultyStorage {
+    fn default() -> Self {
+        FaultyStorage { inner: MemoryStorage::default(), fault: Mutex::new(Fault::None) }
+    }
+}
+
+impl FaultyStorage {
+    pub fn set(&self, fault: Fault) {
+        *self.fault.lock().unwrap_or_else(|e| e.into_inner()) = fault;
+    }
+}
+
+#[async_trait]
+impl Storage for FaultyStorage {
+    async fn open(&self, cfg: &StorageConfig) -> Result<RunInfo> {
+        self.inner.open(cfg).await
+    }
+    async fn append(&self, batch: &[Record]) -> Result<()> {
+        let fault = *self.fault.lock().unwrap_or_else(|e| e.into_inner());
+        match fault {
+            Fault::None => self.inner.append(batch).await,
+            Fault::Fail => Err(Error::other("disk full")),
+            Fault::Hang => std::future::pending().await,
+        }
+    }
+    async fn dictionary(&self, run: u32) -> Result<Option<Vec<u8>>> {
+        self.inner.dictionary(run).await
+    }
+    async fn query(&self, q: &Query) -> Result<Page> {
+        self.inner.query(q).await
+    }
+    async fn latest(&self, q: &Query) -> Result<Page> {
+        self.inner.latest(q).await
+    }
+    async fn runs(&self) -> Result<Vec<RunInfo>> {
+        self.inner.runs().await
+    }
+    async fn close(&self) -> Result<()> {
+        self.inner.close().await
     }
 }
 
