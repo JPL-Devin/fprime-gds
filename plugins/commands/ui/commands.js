@@ -36,16 +36,17 @@ function fromRecord(type, value) {
 // The mistake in a scalar input, or null.
 function mistake(type, text) {
   switch (type.kind) {
+    // Integers and floats: the rules and the messages of the Python GDS page (validate.js).
     case "integer": {
-      if (!/^\s*(-?\d+|0[xX][0-9a-fA-F]+)\s*$/.test(text)) return `not an integer (${type.name})`;
-      const v = BigInt(text.trim());
+      const pattern = type.signed ? /^(-?[1-9]\d*|0)$/
+        : /^(0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[1-9]\d*|0)$/;
       const min = type.signed ? -(1n << BigInt(type.bits - 1)) : 0n;
       const max = type.signed ? (1n << BigInt(type.bits - 1)) - 1n : (1n << BigInt(type.bits)) - 1n;
-      return v < min || v > max ? `out of range for ${type.name} (${min} to ${max})` : null;
+      const kind = type.signed ? "signed decimal integer" : "binary, octal, decimal, or hexadecimal unsigned integer";
+      const valid = pattern.test(text) && BigInt(text) >= min && BigInt(text) <= max;
+      return valid ? null : `Supply ${kind}  between ${min} and ${max}`;
     }
-    case "float":
-      if (["NaN", "Infinity", "-Infinity"].includes(text.trim())) return null;
-      return text.trim() === "" || Number.isNaN(Number(text)) ? `not a number (${type.name})` : null;
+    case "float": return Number.isNaN(parseFloat(text)) ? "Supply floating point number" : null;
     case "bool": return text === "true" || text === "false" ? null : "choose true or false";
     case "string": {
       const bytes = new TextEncoder().encode(text).length;
@@ -70,9 +71,8 @@ function convert(type, state, path, mistakes) {
       const problem = mistake(type, state);
       if (problem) mistakes.set(path, problem);
       if (type.kind === "bool") return state === "true";
-      if (type.kind === "float") return ["NaN", "Infinity", "-Infinity"].includes(state.trim()) ? state.trim() : Number(state);
-      // Integers go as text: a 64-bit value does not fit a JSON number in the browser.
-      return type.kind === "integer" ? state.trim() : state;
+      // Numbers go as typed: the GDS reads the text by the rule of the Python GDS.
+      return state;
     }
   }
 }
@@ -195,8 +195,9 @@ class CommandsTab extends LitElement {
           </div>`)}
         </div>`;
       default:
-        return html`<input type="text" data-arg=${key} class=${problem ? "invalid" : ""} .value=${state}
-          placeholder=${type.name} @input=${set}>${note}`;
+        // A float is a number input, as in the Python GDS page: text that is not a number leaves it empty.
+        return html`<input type=${type.kind === "float" ? "number" : "text"} step="any" data-arg=${key}
+          class=${problem ? "invalid" : ""} .value=${state} placeholder=${type.name} @input=${set}>${note}`;
     }
   }
 

@@ -371,3 +371,29 @@ fn a_command_float_beyond_f32_is_rejected() {
     assert!(encode(json!("Infinity")).is_ok() && encode(json!("NaN")).is_ok());
     assert!(d.encode(&Type::Float { bits: 64 }, &json!(1e39), &mut Vec::new()).is_ok());
 }
+
+/// Every text of `fixtures/command-args/table.json` gives the bytes the Python GDS sends, or is refused as it refuses it.
+#[test]
+fn argument_text_is_read_as_the_python_gds_reads_it() {
+    let d = dict();
+    let table = include_str!("../../../fixtures/command-args/table.json");
+    let mut checked = 0;
+    for line in table.lines() {
+        let row: Value = serde_json::from_str(line).unwrap();
+        let name = row["type"].as_str().unwrap();
+        let ty = match name {
+            "bool" => Type::Bool,
+            "F32" => Type::Float { bits: 32 },
+            "F64" => Type::Float { bits: 64 },
+            _ => Type::Int { bits: name[1..].parse().unwrap(), signed: name.starts_with('I') },
+        };
+        let mut out = Vec::new();
+        let ours = d
+            .encode(&ty, &row["text"], &mut out)
+            .ok()
+            .map(|_| out.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        assert_eq!(ours.as_deref(), row["bytes"].as_str(), "{name} given {}", row["text"]);
+        checked += 1;
+    }
+    assert!(checked > 800, "{checked} rows");
+}

@@ -194,8 +194,9 @@ Not built: the Sequences tab and uplink (another part); `fpy` and other sequence
    downlink directory. Names that are empty, `.` or `..` fail the transfer and are reported.
 2. **Upload is the raw request body**: `POST <prefix>/uplink?name=<file>&destination=<flight path>`, not a multipart
    form. The staged copy lives under the files directory; `--files-max-upload-bytes` bounds it.
-3. **The queue starts paused** and stays paused while the link is not connected; resume is refused then (FIL-4).
-   A link drop fails the active uplink, pauses the queue and keeps the files behind it.
+3. **The queue starts running**, as the Python GDS queue does (ruling on verifier finding 35; FIL-4 said paused at
+   start). A file given before the first connection waits and is sent once the link connects. A link drop fails the
+   active uplink, pauses the queue and keeps the files behind it; resume is refused while the link is not connected.
 4. **Pause ends the active uplink** with a cancel packet, as cancel does; the file is not continued after resume,
    the next one is sent.
 5. **`fprime.file.packet` is a transient kind**: file packets are decoded for the handler but not stored, so file
@@ -286,3 +287,13 @@ Decisions taken while making `scripts/check.sh` pass on the merged tree.
 - **Ground time column (finding 3).** Intended extra: the record API has the time of reception and operators asked for it. A box in each toolbar hides it; the choice is kept in the browser.
 - **Paging (finding 3).** The Python page shows 40 events per page; fgds shows one table with a row limit. Layout only.
 - **CSS class names and text colours (finding 4).** Intended: the page is not Bootstrap. Row background colours are equal and compared.
+
+### Command argument text (web finding 20, command line findings on argument parsing)
+
+- Integer, float and boolean arguments given as text are read by one rule in `fgds-dictionary` (`input.rs`, used by
+  `Dictionary::encode_command`): Python `int(text, 0)`, `float(text)` and the boolean words of
+  `CmdData.convert_arg_value`. `fixtures/command-args/table.json` (835 texts, made by `generate.py` from the Python
+  GDS) is the test table: each text gives the same bytes or is refused.
+- The Commanding tab applies the stricter rules of the Python GDS page before sending (signed integers decimal only;
+  unsigned binary, octal, decimal, hexadecimal; no surrounding spaces) and shows its messages; a float is a number
+  input.

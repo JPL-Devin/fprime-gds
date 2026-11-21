@@ -47,17 +47,11 @@ fn put_uint(out: &mut Vec<u8>, bits: u8, value: u64) {
     out.extend_from_slice(&bytes[8 - bits as usize / 8..]);
 }
 
-/// An integer given as a JSON number or as a decimal or `0x` string.
+/// An integer given as a JSON number, or as text read as the Python GDS reads it.
 fn int_from_json(value: &Value) -> Option<i128> {
     match value {
         Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
-        Value::String(s) => {
-            let s = s.trim();
-            match s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
-                Some(hex) => i128::from_str_radix(hex, 16).ok(),
-                None => s.parse().ok(),
-            }
-        }
+        Value::String(s) => crate::input::python_int(s),
         _ => None,
     }
 }
@@ -182,12 +176,7 @@ impl Dictionary {
             Type::Float { bits } => {
                 let v = match value {
                     Value::Number(n) => n.as_f64(),
-                    Value::String(s) => match s.trim() {
-                        "NaN" => Some(f64::NAN),
-                        "Infinity" => Some(f64::INFINITY),
-                        "-Infinity" => Some(f64::NEG_INFINITY),
-                        other => other.parse().ok(),
-                    },
+                    Value::String(s) => crate::input::python_float(s),
                     _ => None,
                 };
                 match (v, bits) {
@@ -203,11 +192,7 @@ impl Dictionary {
             Type::Bool => {
                 let v = match value {
                     Value::Bool(b) => Some(*b),
-                    Value::String(s) => match s.to_ascii_lowercase().as_str() {
-                        "true" => Some(true),
-                        "false" => Some(false),
-                        _ => None,
-                    },
+                    Value::String(s) => crate::input::python_bool(s),
                     _ => None,
                 };
                 match v {

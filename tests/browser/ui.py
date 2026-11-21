@@ -92,6 +92,26 @@ def stock(browser, gds):
     expect(page.locator("[data-error-for=arg1]")).to_be_visible()
     expect(page.locator("[data-error-for=arg3]")).to_be_visible()
     assert len(rows(page, "#command-history")) == sent, "an invalid command was sent"
+    # The inputs take and refuse what the Python GDS page takes and refuses, with its messages.
+    signed = "Supply signed decimal integer  between -2147483648 and 2147483647"
+    unsigned = "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+    cases = [("arg1", "-5", None), ("arg1", "0", None), ("arg1", "0x10", signed), ("arg1", "007", signed),
+             ("arg1", " 4 ", signed), ("arg1", "", signed), ("arg1", "2147483648", signed),
+             ("arg3", "0b101", None), ("arg3", "0o17", None), ("arg3", "0x10", None), ("arg3", "255", None),
+             ("arg3", "007", unsigned), ("arg3", "256", unsigned), ("arg3", "-1", unsigned), ("arg3", " 4 ", unsigned)]
+    assert page.get_attribute("[data-arg=arg2]", "type") == "number", "a float is a number input"
+    for name, text, message in cases:
+        for key, good in (("arg1", "1"), ("arg2", "-2.5"), ("arg3", "1")):
+            page.fill(f"[data-arg={key}]", text if key == name else good)
+        sent = len(rows(page, "#command-history"))
+        page.click("#command-send")
+        if message is None:
+            scenario.wait_for(f"{name}={text!r} sent", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
+        else:
+            assert page.text_content(f"[data-error-for={name}]") == message, (name, text)
+            assert len(rows(page, "#command-history")) == sent, f"{name}={text!r} was sent"
+    step(f"command inputs: {len(cases)} integer texts taken or refused as in the Python GDS page, with its messages; "
+         "a negative float is sent")
     choose(page, "CdhCore.events.SET_EVENT_FILTER")
     options = page.eval_on_selector("select[data-arg=filterLevel]", "(s) => [...s.options].map((o) => o.value)")
     assert "WARNING_HI" in options and "ACTIVITY_LO" in options, options
@@ -192,13 +212,11 @@ def files_and_products(page, gds):
     expect(uplink).to_contain_text("link: connected")
     uplink.locator("#files").set_input_files(f"{gds.out}/up.bin")
     uplink.get_by_role("button", name="Add to queue").click()
-    expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("queued")
-    uplink.get_by_role("button", name="Resume").click()
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("finished", timeout=30000)
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text(f"{len(content)} / {len(content)} bytes")
     received = scenario.wait_for("the file on the Ref side", lambda: os.path.getsize(f"{gds.out}/ref/up.bin") == len(content))
     assert received and open(f"{gds.out}/ref/up.bin", "rb").read() == content
-    step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, queued, resumed and finished; Ref wrote the same bytes")
+    step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes")
 
     # A file and a data product come down: the Downlink tab lists both, the directory of
     # downlinked files is the watched directory of the data products.

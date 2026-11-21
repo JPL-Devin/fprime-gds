@@ -5,6 +5,7 @@
 //! `NaN`, `Infinity` and `-Infinity`, enumerations are their constant name.
 
 mod codec;
+mod input;
 mod load;
 mod text;
 mod types;
