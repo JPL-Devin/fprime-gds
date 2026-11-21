@@ -192,7 +192,7 @@ class Fgds:
 
     def cli(self, *arguments, check=True):
         """`fgds files ...` against this GDS."""
-        done = subprocess.run([self.binary, "files", "--bind", self.root.removeprefix("http://"), *arguments],
+        done = subprocess.run([self.binary, "files", "--url", self.root, *arguments],
                               capture_output=True, text=True, cwd=self.out, timeout=60)
         if check:
             assert done.returncode == 0, f"fgds files {arguments}: {done.stdout}{done.stderr}"
@@ -238,6 +238,9 @@ def rust_side(args, out, store):
            "resume is refused while the link is not connected")
         # Queued with `fgds files upload` while paused, then resumed: the queue order is the order sent.
         gds.cli("pause")
+        # A file that is not there: the line and exit code of `fprime-cli file-uplink`.
+        missing = gds.cli("upload", "local/none.bin", check=False)
+        assert (missing.returncode, missing.stdout, missing.stderr) == (1, "Error: File not found at local/none.bin\n", ""), missing
         for name, size in UPLINKS:
             with open(f"{out}/local/{name}", "wb") as file:
                 file.write(content(name, size))

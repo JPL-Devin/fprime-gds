@@ -12,6 +12,13 @@ impl Subcommand for Files {
         Command::new("files")
             .about("File uplink and downlink of a running GDS")
             .subcommand_required(true)
+            .arg(
+                Arg::new("url")
+                    .long("url")
+                    .global(true)
+                    .value_name("URL")
+                    .help("Address of the running GDS [default: the configured --bind]"),
+            )
             .subcommand(
                 Command::new("upload")
                     .about("Queue a file for uplink")
@@ -36,7 +43,19 @@ impl Subcommand for Files {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        let base = format!("{}/files", (env.client)()?.base_url);
+        let base = match args.get_one::<String>("url") {
+            Some(url) => {
+                let url = url.trim_end_matches('/');
+                let url = if url.contains("://") { url.to_string() } else { format!("http://{url}") };
+                if url.ends_with("/api/v1") {
+                    url
+                } else {
+                    format!("{url}/api/v1")
+                }
+            }
+            None => (env.client)()?.base_url,
+        };
+        let base = format!("{base}/files");
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
         runtime.block_on(run(args, &base))
     }
@@ -66,6 +85,11 @@ async fn run(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let request = match name {
         "upload" => {
             let file = std::path::Path::new(text(sub, "file"));
+            if !file.is_file() {
+                // The line and exit code of `fprime-cli file-uplink`.
+                println!("Error: File not found at {}", file.display());
+                return Ok(ExitCode::FAILURE);
+            }
             let content = std::fs::read(file).map_err(|e| Error::other(format!("{}: {e}", file.display())))?;
             let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
             let mut url = format!("{base}/uplink?name={}", encode(&name));
