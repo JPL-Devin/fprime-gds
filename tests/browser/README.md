@@ -35,20 +35,24 @@ contains HTML) is captured once through the proxy of `tests/compare`. The bytes 
 replayed into the new GDS and into the Python GDS (`fprime-gds -g html`), each with its
 page open. For the new page, half arrives before a reload and half after, so the table is
 built from the history and from the stream. The script reads the Events table (time,
-identifier, name, severity, text) and the Channels table (last sample time, identifier,
-name, value) of both pages and requires the same rows. Both tables are in
+identifier, name, severity, text, colour) and the Channels table (last sample time, identifier,
+name, value, colour) of both pages and requires the same rows in the same order. Both tables are in
 `$OUT/parity/tables.json`.
 
 ### Accepted differences
 
-1. Time: the Python GDS page shows the flight time to the millisecond
-   (`2026-11-21T15:52:41.748Z`), the new page to the microsecond, which is what the
-   packet carries. The comparison cuts the new page's time to milliseconds, after checking
-   that it shows microseconds.
-2. Struct channel values: the Python GDS page shows a nested table,
-   the new page one line (`[a, b]`, `{name: value}`). The comparison writes the Python
-   value in the one-line form; the members and their values must be equal.
+None in the cells compared. Rows are compared in the order shown (events oldest first,
+channels by identifier), cell text as rendered (`innerText` of a visible tab) and the
+background colour of each row, the four green in-limit channel rows included.
 
-Column order, row order, colours and paging are not compared.
+Presentation differences that stay:
+
+1. The new page has a Ground time column. Its box hides it (kept across a reload); the
+   remaining headers must be those of the Python GDS page.
+2. The Python page shows 40 events per page; the new page shows them in one table
+   (row limit setting). The script walks the Python pages.
+3. An array or struct value is one cell of text in the new page (the heading text of the
+   Python nested table, same quotes and spacing); the Python page can also expand it.
+4. CSS class names and text colours differ; background colours are equal.
 
 Event arguments are compared as part of the text: neither page has a column for them.

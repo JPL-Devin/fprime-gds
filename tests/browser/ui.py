@@ -74,7 +74,7 @@ def stock(browser, gds):
     show(page, "events")
     page.wait_for_function("""() => ['NoOpReceived', 'OpCodeCompleted'].every((name) =>
         [...document.querySelectorAll('#events-table td[data-col=name]')].some((cell) => cell.textContent.endsWith(name)))""")
-    received = events_named(page, "NoOpReceived")[0]
+    received = events_named(page, "NoOpReceived")[-1]
     assert received["text"] == "Received a NO-OP command" and received["severity"] == "ACTIVITY_HI", received
     colour = page.eval_on_selector("#events-table tr.sev-ACTIVITY_HI", "(row) => getComputedStyle(row).backgroundColor")
     assert colour == "rgb(128, 177, 211)", colour
@@ -112,7 +112,7 @@ def stock(browser, gds):
     show(page, "events")
     page.wait_for_function("""() => [...document.querySelectorAll('#events-table td[data-col=name]')]
         .some((cell) => cell.textContent.endsWith('NoOpStringReceived'))""")
-    text = events_named(page, "NoOpStringReceived")[0]["text"]
+    text = events_named(page, "NoOpStringReceived")[-1]["text"]
     assert text == f"Received a NO-OP string={HTML}", text
     show(page, "logs")
     page.select_option("#logs-select", "fprime.event")

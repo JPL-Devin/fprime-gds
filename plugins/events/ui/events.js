@@ -1,4 +1,4 @@
-// The Events tab: every event of the run, newest first, coloured by severity as in the
+// The Events tab: every event of the run, oldest first, coloured by severity as in the
 // Python GDS. Data comes from the record API (history) and the stream (live).
 import { LitElement, html } from "/ui/lit.js";
 
@@ -10,7 +10,7 @@ const KEEP = 200000; // events kept in the page; older ones stay in the record A
 class EventsTab extends LitElement {
   static properties = {
     text: { state: true }, severities: { state: true }, component: { state: true },
-    paused: { state: true }, limit: { state: true }, version: { state: true },
+    paused: { state: true }, ground: { state: true }, limit: { state: true }, version: { state: true },
   };
 
   constructor() {
@@ -30,6 +30,7 @@ class EventsTab extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.limit = this.gds.settings.get("events.rows", 500);
+    this.ground = this.gds.settings.get("events.ground", true);
     this.commands = new Map((this.gds.dictionary.commands || []).map((c) => [c.opcode, c.name]));
     this.stop = this.gds.records.follow({ kinds: [KIND] }, (records) => {
       this.events.push(...records);
@@ -57,7 +58,7 @@ class EventsTab extends LitElement {
   // The message, with the opcode of a command event followed by its mnemonic as the
   // Python GDS shows it. Everything is text: nothing from the link is parsed as HTML.
   message(record) {
-    const text = record.body.display_text;
+    const text = this.gds.format.flightText(record.body.display_text);
     const found = record.body.severity === "COMMAND" ? text.match(OPCODE) : null;
     if (!found) return text;
     const name = this.commands.get(parseInt(found[1], 16)) || "UNKNOWN";
@@ -81,7 +82,7 @@ class EventsTab extends LitElement {
     const source = this.frozen || this.events;
     const components = [...new Set((this.gds.dictionary.events || []).map((e) => format.component(e.name)))].sort();
     const matching = source.filter((r) => this.accepts(r));
-    const shown = (this.limit ? matching.slice(-this.limit) : matching).reverse();
+    const shown = this.limit ? matching.slice(-this.limit) : matching;
     return html`
       <div class="toolbar">
         <label>Filter <input type="search" id="events-filter" placeholder="name, text, id" .value=${this.text}
@@ -102,12 +103,16 @@ class EventsTab extends LitElement {
             ${[100, 500, 5000, 0].map((n) => html`<option value=${n} ?selected=${n === this.limit}>${n || "all"}</option>`)}
           </select>
         </label>
+        <label><input type="checkbox" id="events-ground" .checked=${this.ground} @change=${(e) => {
+          this.ground = e.target.checked;
+          this.gds.settings.set("events.ground", this.ground);
+        }}>Ground time</label>
         <button class="action secondary" id="events-pause" @click=${() => this.togglePause()}>
           ${this.paused ? `Resume (${this.events.length - this.frozen.length} new)` : "Pause"}</button>
         <span class="muted" id="events-count">${shown.length} of ${matching.length} shown, ${source.length} received</span>
       </div>
-      <table class="gds" id="events-table">
-        <thead><tr><th>Event time</th><th>Ground time</th><th>Event Id</th><th>Event Name</th><th>Event Severity</th>
+      <table class="gds ${this.ground ? "" : "no-ground"}" id="events-table">
+        <thead><tr><th>Event Time</th><th class="ground">Ground time</th><th>Event Id</th><th>Event Name</th><th>Event Severity</th>
           <th>Event Description</th></tr></thead>
         <tbody>
           ${shown.map((r) => html`<tr class="sev-${r.body.severity}" data-seq=${r.seq}>

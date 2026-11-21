@@ -29,12 +29,16 @@ PYTHON_PAGE = """(header) => {
         [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim() === header));
     const view = table.closest(".fp-flex-repeater");
     const button = (text) => [...view.querySelectorAll("button")].find((b) => b.textContent.trim() === text);
+    // What the cell shows: an array or a structure is a nested table whose heading is the value.
     const cell = (td) => {
         const nested = td.querySelector("table.embedded_table");
-        return nested ? {json: nested.querySelector("thead th:nth-child(2)").textContent} : td.textContent.trim();
+        return (nested ? nested.querySelector("thead th:nth-child(2)") : td).innerText.trim();
     };
+    const colour = (row) => [row.querySelector(":scope > td"), row].map((e) => getComputedStyle(e).backgroundColor)
+        .find((c) => c !== "rgba(0, 0, 0, 0)") || "";
     return {
-        rows: [...table.querySelectorAll(":scope > tbody > tr")].map((row) => [...row.querySelectorAll(":scope > td")].map(cell)),
+        rows: [...table.querySelectorAll(":scope > tbody > tr")].map((row) => [...[...row.querySelectorAll(":scope > td")].map(cell), colour(row)]),
+        header: [...table.querySelectorAll(":scope > thead th")].map((th) => th.innerText.trim()).filter((text) => text),
         last: button(">").classList.contains("disabled"),
         // "a - b": the positions of the rows shown; ">" moves by less than a page.
         range: [...view.querySelectorAll("*")].map((e) => e.children.length ? "" : e.textContent.trim())
@@ -48,15 +52,19 @@ PYTHON_CLICK = """([header, text]) => {
 }"""
 
 
-def one_line(value):
-    """A decoded value as the new page writes it: [a, b] and {name: value}."""
-    if isinstance(value, list):
-        return "[" + ", ".join(one_line(v) for v in value) + "]"
-    if isinstance(value, dict):
-        return "{" + ", ".join(f"{k}: {one_line(v)}" for k, v in value.items()) + "}"
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
+# The rows of a table of the new page as it shows them, top to bottom, with the row colour.
+NEW_PAGE = """(table) => {
+    const seen = (e) => getComputedStyle(e).display !== "none";
+    const colour = (row) => [row.querySelector("td"), row].map((e) => getComputedStyle(e).backgroundColor)
+        .find((c) => c !== "rgba(0, 0, 0, 0)") || "";
+    return {
+        header: [...table.querySelectorAll("thead th")].filter(seen).map((th) => th.innerText.trim()),
+        rows: [...table.querySelectorAll("tbody tr")].map((row) =>
+            [...[...row.querySelectorAll("td")].filter(seen).map((td) => td.innerText.trim()), colour(row)]),
+    };
+}"""
+# Texts the two pages could show differently: an entity, two spaces, quotes, markup.
+TEXTS = [HTML, 'two  spaces &amp; &lt;i&gt; "q" \'s\'', '<span title="t">in a span</span><h7>']
 
 FRAME_SIZE = scenario.tm_frame_size(DICTIONARY)
 
@@ -71,7 +79,7 @@ def capture():
         proxy = scenario.Proxy(gds.link_port)
         ref = scenario.start_ref(REF, proxy, out)
         scenario.wait_for("telemetry", lambda: gds.get("/records?kind=fprime.channel&limit=1")["records"])
-        for name, arguments in [*scenario.COMMANDS, ("CdhCore.cmdDisp.CMD_NO_OP_STRING", [HTML])]:
+        for name, arguments in [*scenario.COMMANDS, *(("CdhCore.cmdDisp.CMD_NO_OP_STRING", [text]) for text in TEXTS)]:
             gds.post("/commands", {"name": name, "args": arguments})
             time.sleep(scenario.GAP)
         time.sleep(scenario.SETTLE)
@@ -112,11 +120,21 @@ def new_page_tables(browser, data):
         show(page, "channels")
         page.wait_for_function(f"""() => Math.max(...[...document.querySelectorAll('#channels-table tbody tr')]
             .map((row) => Number(row.dataset.seq))) === {newest}""")
-        events = [(r["time"], r["id"], r["name"], r["severity"], r["text"]) for r in rows(page, "#events-table")]
-        channels = {r["name"]: (r["time"], r["id"], r["value"]) for r in rows(page, "#channels-table")}
+        # The ground time is a column of the new page only: shown at first, and it can be hidden.
+        tables = {}
+        for tab in ("events", "channels"):
+            show(page, tab)
+            assert "Ground time" in page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["header"], f"{tab}: no ground time"
+            page.uncheck(f"#{tab}-ground")
+            tables[tab] = page.eval_on_selector(f"#{tab}-table", NEW_PAGE)
+        page.reload()
+        page.wait_for_selector("body[data-ready=true]")
+        show(page, "events")
+        assert "Ground time" not in page.eval_on_selector("#events-table", NEW_PAGE)["header"], "the hidden column is back after a reload"
+        show(page, "channels")
         page.screenshot(path=f"{OUT}/new-channels.png")
         assert not problems, problems
-        return events, channels
+        return tables
     finally:
         gds.stop()
 
@@ -165,47 +183,52 @@ def python_page_tables(browser, data, events_wanted):
             page.wait_for_timeout(1000)
             events = python_rows(page, "Event Severity")
         page.wait_for_timeout(2000)  # the page polls: let the last channel samples arrive
-        events = [tuple(cells) for cells in python_rows(page, "Event Severity")]
-        channels = {}
-        for sample_time, identifier, name, value in python_rows(page, "Channel Value"):
-            channels[name] = (sample_time, identifier, one_line(json.loads(value["json"])) if isinstance(value, dict) else value)
+        tables = {}
+        for tab, header in (("events", "Event Severity"), ("channels", "Channel Value")):
+            # The tab is shown first: the text of a cell is read as it is rendered.
+            page.click(f"li.nav-link:has(#{tab.capitalize()})")
+            page.wait_for_timeout(500)
+            tables[tab] = {"rows": python_rows(page, header), "header": page.evaluate(PYTHON_PAGE, header)["header"]}
         page.screenshot(path=f"{OUT}/python.png")
-        return events, channels
+        return tables
     finally:
         scenario.stop(gds)
-
-
-def milliseconds(row):
-    """Accepted difference 1 of README.md: the Python GDS page shows times to the millisecond."""
-    return (row[0][:23] + "Z", *row[1:])
 
 
 data = capture()
 step(f"captured {len(data)} bytes from Ref: {len(scenario.frames(data, FRAMING, FRAME_SIZE))} frames ({FRAMING} framing)")
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch()
-    new_events, new_channels = new_page_tables(browser, data)
-    step(f"new page: {len(new_events)} events and {len(new_channels)} channels shown after the replay")
-    old_events, old_channels = python_page_tables(browser, data, len(new_events))
-    step(f"Python GDS page: {len(old_events)} events and {len(old_channels)} channels shown after the replay")
+    new = new_page_tables(browser, data)
+    step(f"new page: {len(new['events']['rows'])} events and {len(new['channels']['rows'])} channels shown after the replay")
+    old = python_page_tables(browser, data, len(new["events"]["rows"]))
+    step(f"Python GDS page: {len(old['events']['rows'])} events and {len(old['channels']['rows'])} channels shown after the replay")
     browser.close()
-json.dump({"new": {"events": new_events, "channels": new_channels}, "python": {"events": old_events, "channels": old_channels}},
-          open(f"{OUT}/tables.json", "w"), indent=1)
-assert all(len(e[0]) == 27 for e in new_events), "the new page does not show microseconds"
-new_events = [milliseconds(e) for e in new_events]
-new_channels = {name: milliseconds(row) for name, row in new_channels.items()}
+json.dump({"new": new, "python": old}, open(f"{OUT}/tables.json", "w"), indent=1)
 
-different = [f"event only in the Python GDS page: {e}" for e in old_events if e not in new_events]
-different += [f"event only in the new page: {e}" for e in new_events if e not in old_events]
-if sorted(old_events) != sorted(new_events) and not different:
-    different.append("the same events, a different number of times")
-for name in sorted(set(old_channels) | set(new_channels)):
-    if old_channels.get(name) != new_channels.get(name):
-        different.append(f"channel {name}: Python GDS page {old_channels.get(name)}, new page {new_channels.get(name)}")
+# The same cells, in the same order, with the same row colour: nothing is set aside.
+different = []
+for tab in ("events", "channels"):
+    if [h.lower() for h in new[tab]["header"]] != [h.lower() for h in old[tab]["header"]]:
+        different.append(f"{tab} columns: Python GDS page {old[tab]['header']}, new page {new[tab]['header']}")
+    ours, theirs = new[tab]["rows"], old[tab]["rows"]
+    if len(ours) != len(theirs):
+        different.append(f"{tab}: {len(theirs)} rows in the Python GDS page, {len(ours)} in the new page")
+    different += [f"{tab} row {n}: Python GDS page {b}, new page {a}" for n, (a, b) in enumerate(zip(ours, theirs)) if a != b]
 for line in different[:40]:
     print(f"  DIFFERENT: {line}")
 assert not different, f"{len(different)} differences"
-assert any(HTML in e[4] for e in new_events), "the HTML string is not in the events"
-step(f"events: the same {len(new_events)} rows (time, identifier, name, severity, text) in both pages")
-step(f"channels: the same {len(new_channels)} rows (name, identifier, last sample time, value) in both pages")
+events, channels = new["events"]["rows"], new["channels"]["rows"]
+texts = [e[4] for e in events]
+assert any(HTML in text for text in texts), "the HTML string is not in the events"
+assert any('two spaces & <i> "q" \'s\'' in text for text in texts) and any("=in a span<h7>" in text for text in texts), texts[-4:]
+assert all(len(e[0]) == 24 for e in events), "an event time is not to the millisecond"
+composite = [c for c in channels if c[3].startswith(("[ ", "{ "))]
+assert any(c[3] == '[ "inf", "-inf", "nan" ]' for c in composite), [c[3] for c in composite]
+green = [c[2] for c in channels if c[4] == "rgb(195, 230, 203)"]
+assert green, "no channel inside its limits is shown green"
+step(f"events: the same {len(events)} rows in the same order (time, identifier, name, severity, text, colour) in both pages")
+step(f"channels: the same {len(channels)} rows in the same order (last sample time, identifier, name, value, colour) in both pages; "
+     f"{len(composite)} arrays and structures, {len(green)} green rows ({', '.join(green)})")
+step("the ground time column is hidden by its box and stays hidden after a reload; the other columns are those of the Python GDS page")
 print("browser parity: all checks passed")

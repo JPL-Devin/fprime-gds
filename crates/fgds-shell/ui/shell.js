@@ -124,13 +124,30 @@ const pad = (n, width) => String(n).padStart(width, "0");
 const format = {
   // Flight time as the Python GDS shows it: a calendar time when the time base is the
   // workstation clock (2), `seconds.microseconds` otherwise. Microseconds are kept.
+  // The text the Python GDS page writes: calendar time to the millisecond for the workstation
+  // time base, otherwise seconds, a point and the microseconds as a number.
   flightTime(time) {
     if (!time) return "";
     if (time.base === 2) {
-      const date = new Date(time.seconds * 1000).toISOString();
-      return `${date.slice(0, 19)}.${pad(time.microseconds, 6)}Z`;
+      return new Date(time.seconds * 1000 + time.microseconds / 1000).toISOString();
     }
-    return `${time.seconds}.${pad(time.microseconds, 6)}`;
+    return `${time.seconds}.${time.microseconds}`;
+  },
+  // An array or a structure as the Python GDS page writes it: the members as JSON over several
+  // lines, which a table cell shows on one line (`[ "0", "2" ]`).
+  composite(value) {
+    return typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : format.value(value);
+  },
+  // A text of the flight software as the Python GDS page shows it. That page escapes `<` and
+  // `>`, puts headings and spans back and sets the result as HTML, so `&amp;` is shown as `&`.
+  // Here the same result is read from an inert template and shown as text: nothing runs.
+  flightText(text) {
+    if (typeof text !== "string" || !/[&<]/.test(text)) return text;
+    const inert = document.createElement("template");
+    inert.innerHTML = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll(/&lt;h([1-6])&gt;([^&]*)&lt;\/h[1-6]&gt;/g, "<h$1>$2</h$1>")
+      .replaceAll(/&lt;span( title="[^"]*")?&gt;([^&]*)&lt;\/span&gt;/g, "<span $1>$2</span>");
+    return inert.content.textContent;
   },
   groundTime(iso) { return iso || ""; },
   hexId(id) { return id === null || id === undefined ? "" : "0x" + BigInt(id).toString(16); },

@@ -157,7 +157,7 @@ Comparison with the Python GDS (`tests/compare/README.md`):
 - `logs` adds `GET /api/v1/logs` and `GET /api/v1/logs/{name}`: one text line per record, built from the record API (one log per record kind, and `gds`). It does not read log files from disk.
 - History then stream: a tab pages `GET /records` after its last sequence number, then opens the stream with `afterSeq`; records at or below the last sequence number shown are dropped in the page. The `live` message of the stream is not needed for this and is ignored by `records.follow`.
 - A tab whose module fails to load, or whose element throws when created or connected, is replaced by an error panel naming the plugin; errors thrown later by a tab are reported in the console only.
-- Flight time is shown to the microsecond (the Python GDS page: millisecond). Channels without a sample are listed only on request.
+- Flight time is shown as the Python GDS page shows it (ISO text to the millisecond for time base 2, `seconds.microseconds` otherwise). Channels without a sample are listed only on request.
 - Settings (row limit, filters, selected tab) are kept in the browser's local storage, not on the server.
 - Playwright is installed by `tests/browser/run.sh` into `target/browser-venv`, not into the fprime virtual environment.
 
@@ -282,3 +282,7 @@ Decisions taken while making `scripts/check.sh` pass on the merged tree.
 
 - **File uplink pace (finding 18).** `Ref` has no flow control for file packets: `Svc.FileUplink` has a queue of 10 and ends with an assert when a packet does not fit. The Python GDS does not wait for the flight side either (its "handshake" is made by its own `comm` process once the frame is written); its pace, about 11 ms per packet, is what its process hops take. fgds sent a packet every 1.2 ms, and a relay or a loaded machine handing `Ref` more than 10 at once ended it. `--files-cooldown` is now 0.01 s by default (was 0), which is the Python pace. `tests/files/repeat.py` uploads 30000 bytes 20 times, half through a relay that holds bytes for 30 ms.
 - **When an uplink is finished (finding 18).** After the end packet fgds watches for up to 2 s: `finished` on the `FileReceived` event of `Svc.FileUplink` naming the destination, or when the time passes with the link connected; `failed` when the link goes away or a FATAL event arrives (also during the transfer). The Python GDS says FINISHED once its own handshake for the end packet is back, whatever the flight side did.
+- **Events and Channels text (findings 1, 2, 5 to 9).** Fixed, not deviations: millisecond time, events oldest first, channels by identifier, event text through the Python page's rule (markup escaped, entities decoded, runs of spaces rendered as one), composite values with the Python quotes and spacing, green rows for a value inside its limits. `tests/browser/parity.py` compares order, text and row colour.
+- **Ground time column (finding 3).** Intended extra: the record API has the time of reception and operators asked for it. A box in each toolbar hides it; the choice is kept in the browser.
+- **Paging (finding 3).** The Python page shows 40 events per page; fgds shows one table with a row limit. Layout only.
+- **CSS class names and text colours (finding 4).** Intended: the page is not Bootstrap. Row background colours are equal and compared.

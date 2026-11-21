@@ -60,7 +60,8 @@ table.gds { border-collapse: collapse; width: 100%; }
 table.gds th, table.gds td { border: 1px solid var(--border); padding: 2px 8px; text-align: left; vertical-align: top; }
 table.gds th { background: #e9ecef; position: sticky; top: -12px; font-weight: 600; white-space: nowrap; }
 table.gds td.nowrap { white-space: nowrap; }
-table.gds td.text { white-space: pre-wrap; overflow-wrap: anywhere; }
+table.gds td.text { overflow-wrap: anywhere; }
+table.gds td.text.exact { white-space: pre-wrap; }
 tr.sev-FATAL { background: var(--fatal-bkg); }
 tr.sev-WARNING_HI { background: var(--warn-hi-bkg); }
 tr.sev-WARNING_LO { background: var(--warn-lo-bkg); }
@@ -71,6 +72,8 @@ tr.outcome-rejected, tr.outcome-failed, tr.outcome-error { background: var(--fat
 tr.limit-red { background: var(--fatal-bkg); }
 tr.limit-orange { background: var(--warn-hi-bkg); }
 tr.limit-yellow { background: var(--warn-lo-bkg); }
+tr.limit-ok { background: #c3e6cb; }
+table.gds.no-ground [data-col=ground], table.gds.no-ground th.ground { display: none; }
 
 gds-value { display: inline-block; }
 gds-value .members { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; }
