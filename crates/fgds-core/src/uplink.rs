@@ -83,6 +83,7 @@ impl Uplink {
             Ok(encoded) => {
                 let result = self.0.link.write_packet(&encoded.packet, &encoded.meta).await.map_err(|e| match e {
                     LinkError::Down => SendError::LinkDown,
+                    LinkError::Invalid(reason) => SendError::Invalid(reason),
                     LinkError::Failed(reason) => SendError::Failed(reason),
                 });
                 (Some(encoded), result)
@@ -127,13 +128,14 @@ impl Uplink {
     ) -> Result<u64, SendError> {
         let result = self.0.link.write_packet(packet, meta).await.map_err(|e| match e {
             LinkError::Down => SendError::LinkDown,
+            LinkError::Invalid(reason) => SendError::Invalid(reason),
             LinkError::Failed(reason) => SendError::Failed(reason),
         });
         let mut body = json!({"length": packet.len(), "client": client});
         match &result {
             Ok(_) => body["outcome"] = json!("sent"),
             Err(e) => {
-                body["outcome"] = json!(if *e == SendError::LinkDown { "rejected" } else { "failed" });
+                body["outcome"] = json!(if matches!(e, SendError::Failed(_)) { "failed" } else { "rejected" });
                 body["reason"] = json!(e.to_string());
             }
         }

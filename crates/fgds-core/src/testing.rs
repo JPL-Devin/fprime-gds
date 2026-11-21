@@ -184,7 +184,8 @@ enum Step {
 }
 
 struct Script {
-    incoming: tokio::sync::Mutex<mpsc::UnboundedReceiver<Step>>,
+    /// The steps to come and what is left of a chunk larger than the reader's buffer.
+    incoming: tokio::sync::Mutex<(mpsc::UnboundedReceiver<Step>, Bytes)>,
     sent: Mutex<Vec<Bytes>>,
     writes: Mutex<Writes>,
     connect_error: Mutex<Option<String>>,
@@ -215,7 +216,9 @@ pub struct ScriptHandle {
 impl ScriptedAdapter {
     pub fn new() -> (ScriptedAdapter, ScriptHandle) {
         let (steps, incoming) = mpsc::unbounded_channel();
-        let script = Arc::new(Script { incoming: tokio::sync::Mutex::new(incoming), sent: Mutex::new(Vec::new()),
+        let script = Arc::new(Script {
+            incoming: tokio::sync::Mutex::new((incoming, Bytes::new())),
+            sent: Mutex::new(Vec::new()),
             writes: Mutex::default(),
             connect_error: Mutex::default(),
         });
@@ -270,13 +273,22 @@ impl Adapter for ScriptedAdapter {
 #[async_trait]
 impl LinkReader for ScriptedAdapter {
     async fn read(&mut self, buf: &mut BytesMut) -> Result<usize> {
-        match self.0.incoming.lock().await.recv().await {
-            Some(Step::Data(data)) => {
-                buf.extend_from_slice(&data);
-                Ok(data.len())
+        let mut incoming = self.0.incoming.lock().await;
+        if incoming.1.is_empty() {
+            match incoming.0.recv().await {
+                Some(Step::Data(data)) => incoming.1 = data,
+                Some(Step::Close) | None => return Ok(0),
             }
-            Some(Step::Close) | None => Ok(0),
         }
+        // As a socket read: no more than the room the caller reserved, 64 bytes when none.
+        let room = match buf.capacity() - buf.len() {
+            0 => 64,
+            room => room,
+        };
+        let take = room.min(incoming.1.len());
+        let data = incoming.1.split_to(take);
+        buf.extend_from_slice(&data);
+        Ok(data.len())
     }
 }
 
@@ -365,18 +377,23 @@ pub struct FakeGds {
 impl FakeGds {
     /// Register `plugins` beside the test doubles and start the core with the link up.
     pub async fn start(plugins: &[&dyn Plugin], dictionary: Dictionary) -> Result<FakeGds> {
+        let config = Config { comm: "scripted".into(), framing: "length".into(), ..Default::default() };
+        let gds = Self::start_with(plugins, dictionary, config).await?;
+        gds.wait_for_link("connected").await;
+        Ok(gds)
+    }
+
+    /// As `start` with a given configuration, without waiting for the link to connect.
+    pub async fn start_with(plugins: &[&dyn Plugin], dictionary: Dictionary, config: Config) -> Result<FakeGds> {
         let (_, link) = ScriptedAdapter::new();
         let mut registry = Registry::new();
         registry.register(&Doubles(link.clone()))?;
         for plugin in plugins {
             registry.register(*plugin)?;
         }
-        let config = Config { comm: "scripted".into(), framing: "length".into(), ..Default::default() };
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
         core.start_link();
-        let gds = FakeGds { core, link };
-        gds.wait_for_link("connected").await;
-        Ok(gds)
+        Ok(FakeGds { core, link })
     }
 
     /// The context plugin `name` would receive.
