@@ -1,0 +1,34 @@
+[package]
+name = "data-products"
+description = "F Prime data products: decoder and validator, `dp` subcommand, index of a watched directory, routes and tab"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+crc = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+# Not in the workspace list yet: content hash (section 5) and zlib inflation (deviations.md).
+sha2 = "0.10"
+miniz_oxide = "0.8"
+
+[dev-dependencies]
+# Only for examples/fgds-dp.rs, the binary the checks of tests/dp run.
+fgds = { workspace = true }
+
+[[test]]
+name = "fixtures"
+path = "../../tests/dp/fixtures.rs"
+
+[[test]]
+name = "robustness"
+path = "../../tests/dp/robustness.rs"
+
+[[test]]
+name = "index"
+path = "../../tests/dp/index.rs"

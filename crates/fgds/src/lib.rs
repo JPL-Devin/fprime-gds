@@ -28,6 +28,7 @@ pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
         Box::new(channels::ChannelsPlugin),
         Box::new(commands::CommandsPlugin),
         Box::new(online::OnlinePlugin),
+        Box::new(data_products::DataProductsPlugin),
     ]
 }
 
