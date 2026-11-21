@@ -25,16 +25,32 @@ function params(query) {
 
 const records = {
   // Replay from `afterSeq`, then live. Returns a function that ends the subscription.
+  // When the server says `lagged` or the connection closes, the subscription is opened
+  // again after the last record delivered, so nothing is missed or repeated.
   subscribe(query, callback) {
     const scheme = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${scheme}://${location.host}/api/v1/stream?${params(query)}`);
-    socket.onmessage = (message) => {
-      const data = JSON.parse(message.data);
-      if (data.type === "record") callback(data.record);
-      // The stored records have all arrived; `onLive` is optional.
-      if (data.type === "live" && query.onLive) query.onLive(data.seq);
+    let last = query.afterSeq;
+    let ended = false;
+    let socket;
+    const open = () => {
+      socket = new WebSocket(`${scheme}://${location.host}/api/v1/stream?${params({ ...query, afterSeq: last })}`);
+      socket.onmessage = (message) => {
+        const data = JSON.parse(message.data);
+        if (data.type === "record") {
+          last = data.record.seq;
+          callback(data.record);
+        }
+        // The stored records have all arrived; `onLive` is optional.
+        if (data.type === "live") {
+          if (last === undefined) last = data.seq;
+          if (query.onLive) query.onLive(data.seq);
+        }
+        if (data.type === "lagged") last = data.last_seq;
+      };
+      socket.onclose = () => { if (!ended) setTimeout(open, 1000); };
     };
-    return () => socket.close();
+    open();
+    return () => { ended = true; socket.close(); };
   },
   query(query) { return api.get("/records?" + params(query)); },
   latest(kind) { return api.get("/records/latest?kind=" + encodeURIComponent(kind)); },
@@ -46,16 +62,33 @@ async function start() {
   const main = document.getElementById("tab");
   const tabs = await (await fetch("/ui/tabs")).json();
   for (const tab of tabs) {
-    const module = (await import(tab.module)).default;
-    if (module.setup) module.setup(gds);
+    // A tab whose module fails to load or to set up shows the error; the others load.
+    let module;
+    let failure;
+    try {
+      module = (await import(tab.module)).default;
+      if (module.setup) module.setup(gds);
+    } catch (error) {
+      failure = error;
+      module = {};
+    }
     // No title: a module without a tab (a renderer, an argument input).
-    if (!(module.title || tab.title)) continue;
+    const title = module.title || tab.title || (failure && tab.id);
+    if (!title) continue;
     const button = document.createElement("button");
-    button.textContent = module.title || tab.title;
+    button.textContent = title;
     button.onclick = () => {
       for (const other of nav.children) other.setAttribute("aria-selected", other === button);
-      const element = document.createElement(module.element);
-      element.gds = gds;
+      let element;
+      try {
+        if (failure) throw failure;
+        element = document.createElement(module.element);
+        element.gds = gds;
+      } catch (error) {
+        element = document.createElement("pre");
+        element.className = "tab-error";
+        element.textContent = `Tab "${title}" could not be loaded: ${error.message || error}`;
+      }
       main.replaceChildren(element);
     };
     nav.append(button);

@@ -28,7 +28,9 @@ impl Router {
     /// Turn one packet into records. Never fails: a packet no rule matches becomes
     /// `gds.unknown_packet`, and a decoder error or panic becomes `gds.decode_error` (LNK-8).
     pub fn route(&self, packet: &Bytes, meta: &PacketMeta, dict: &Dictionary) -> Vec<NewRecord> {
-        let packet_type = Reader::new(packet).uint(self.descriptor_bits).ok().map(|t| PacketType(t as u32));
+        // A descriptor that does not fit 32 bits is no known type, not a truncated one.
+        let descriptor = Reader::new(packet).uint(self.descriptor_bits).ok();
+        let packet_type = descriptor.and_then(|t| u32::try_from(t).ok()).map(PacketType);
         let problem = |kind: &str, reason: String| NewRecord {
             raw: packet.clone(),
             meta: meta.clone(),
