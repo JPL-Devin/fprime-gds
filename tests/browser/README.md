@@ -45,3 +45,5 @@ name, value) of both pages and requires the same rows. Both tables are in
    value in the one-line form; the members and their values must be equal.
 
 Column order, row order, colours and paging are not compared.
+
+Event arguments are compared as part of the text: neither page has a column for them.
