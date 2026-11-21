@@ -106,6 +106,12 @@ pub async fn storage_conformance(make: impl Fn() -> Arc<dyn Storage>) {
     assert_eq!(seqs(&query(filter("level", Op::Gt, json!(5))).await), [4]);
     assert_eq!(seqs(&query(filter("level", Op::Ge, json!(5))).await), [2, 4]);
     assert_eq!(seqs(&query(filter("name", Op::Eq, json!("beta"))).await), [2]);
+    // Integers compare exactly, beyond what a float holds.
+    assert_eq!(seqs(&query(filter("level", Op::Eq, json!("18446744073709551615"))).await), [4]);
+    assert_eq!(seqs(&query(filter("level", Op::Eq, json!("18446744073709551614"))).await), [] as [u64; 0]);
+    assert_eq!(seqs(&query(filter("level", Op::Gt, json!("18446744073709551614"))).await), [4]);
+    assert_eq!(seqs(&query(filter("level", Op::In, json!("1, 5"))).await), [1, 2]);
+    assert_eq!(seqs(&query(filter("name", Op::Prefix, json!("ga"))).await), [4]);
     // Contains is a case-sensitive substring.
     assert_eq!(seqs(&query(filter("name", Op::Contains, json!("a"))).await), [1, 2, 4]);
     assert_eq!(seqs(&query(filter("name", Op::Contains, json!("A"))).await), [1]);

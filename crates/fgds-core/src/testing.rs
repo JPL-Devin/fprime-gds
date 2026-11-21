@@ -19,6 +19,9 @@ struct Memory {
     /// In `seq` order.
     records: Vec<Record>,
     dictionary: Vec<u8>,
+    /// Oldest records are dropped beyond this many; 0 keeps all.
+    max_records: usize,
+    dropped: u64,
 }
 
 /// Storage that keeps one run in memory. The `storage-memory` plugin registers it.
@@ -26,11 +29,19 @@ struct Memory {
 pub struct MemoryStorage(Mutex<Memory>);
 
 impl MemoryStorage {
+    /// How many records were dropped to stay within `max-records`.
+    pub fn dropped(&self) -> u64 {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).dropped
+    }
+
     /// Matching records in `seq` order, cut to the query's page size.
     fn page(&self, q: &Query, latest_only: bool) -> Result<Page> {
         let memory = self.0.lock().unwrap_or_else(|e| e.into_inner());
         let run = memory.run.as_ref().ok_or_else(|| Error::other("storage is not open"))?.run;
-        let matching = memory.records.iter().filter(|r| q.matches(r, memory.kinds.get(&r.kind), run));
+        // Records are in `seq` order: start at the first one the query can match.
+        let start = memory.records.partition_point(|r| q.after_seq.is_some_and(|after| r.seq <= after));
+        let limit = q.limit as usize;
+        let matching = memory.records[start..].iter().filter(|r| q.matches(r, memory.kinds.get(&r.kind), run));
         let mut records: Vec<&Record> = if latest_only {
             // Later records replace earlier ones with the same key.
             let mut latest = BTreeMap::new();
@@ -46,9 +57,9 @@ impl MemoryStorage {
             records.sort_by_key(|r| r.seq);
             records
         } else {
-            matching.collect()
+            // One more than the page, to know whether there is a next page.
+            matching.take(limit + 1).collect()
         };
-        let limit = q.limit as usize;
         let more = records.len() > limit;
         records.truncate(limit);
         Ok(Page {
@@ -76,7 +87,14 @@ impl Storage for MemoryStorage {
             // No run begins: the last run, when this process has one.
             return memory.run.clone().ok_or_else(|| Error::other("memory storage holds no run to open read-only"));
         }
+        let max_records = match cfg.options.get("max-records") {
+            Some(text) => text.parse().map_err(|_| Error::Config(format!("max-records: \"{text}\" is not a number")))?,
+            None => 0,
+        };
+        tracing::warn!("memory storage: records are lost when the GDS stops");
         *memory = Memory {
+            max_records,
+            dropped: 0,
             run: Some(run.clone()),
             kinds: cfg.kinds.iter().map(|k| (k.id.clone(), k.clone())).collect(),
             records: Vec::new(),
@@ -92,6 +110,14 @@ impl Storage for MemoryStorage {
             if let Err(at) = memory.records.binary_search_by_key(&record.seq, |r| r.seq) {
                 memory.records.insert(at, record.clone());
             }
+        }
+        let excess = memory.records.len().saturating_sub(memory.max_records);
+        if memory.max_records > 0 && excess > 0 {
+            if memory.dropped == 0 {
+                tracing::warn!(max = memory.max_records, "memory storage is full: the oldest records are dropped");
+            }
+            memory.records.drain(..excess);
+            memory.dropped += excess as u64;
         }
         Ok(())
     }
