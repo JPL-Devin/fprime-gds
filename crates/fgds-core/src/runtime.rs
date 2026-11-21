@@ -149,22 +149,25 @@ impl Core {
         }
     }
 
-    /// Start the adapter: the last step of startup.
-    pub fn start_link(&self) {
+    /// Start the adapter: the last step of startup. An adapter that cannot be built (a
+    /// port in use, a bad address) is an error here; later failures are retried.
+    pub fn start_link(&self) -> Result<()> {
         if self.config.read_only {
-            return;
+            return Ok(());
         }
         let (plugin, factory) = self.registry.adapters[&self.config.comm].clone();
         let options = self.config.plugin_config(&self.registry, &plugin).unwrap_or_default();
+        let mut first = Some(factory(&options)?);
         let task = self.link.start(
             &plugin,
-            move || factory(&options),
+            move || first.take().map_or_else(|| factory(&options), Ok),
             self.router.clone(),
             self.records.clone(),
             self.dictionary.clone(),
             ShutdownToken(self.stop.subscribe()),
         );
         self.keep(task);
+        Ok(())
     }
 
     fn keep(&self, task: JoinHandle<()>) {

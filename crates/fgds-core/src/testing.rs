@@ -418,7 +418,7 @@ impl FakeGds {
             registry.register(*plugin)?;
         }
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
-        core.start_link();
+        core.start_link()?;
         Ok(FakeGds { core, link })
     }
 

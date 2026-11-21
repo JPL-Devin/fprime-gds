@@ -227,6 +227,7 @@ dependencies = [
  "bytes",
  "fgds-core",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
