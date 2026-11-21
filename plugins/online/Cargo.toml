@@ -1,0 +1,20 @@
+[package]
+name = "online"
+description = "Subcommands that talk to a running GDS: events, channels, commands, command-send"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+futures-util = { workspace = true }
+reqwest = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+
+[dev-dependencies]
+fgds = { workspace = true }

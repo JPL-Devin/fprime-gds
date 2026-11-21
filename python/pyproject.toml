@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fgds-client"
+version = "0.1.0"
+description = "Python client and pytest fixture for the fgds ground data system"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.entry-points.pytest11]
+fgds = "fgds_client.pytest_plugin"
+
+[tool.setuptools]
+packages = ["fgds_client"]

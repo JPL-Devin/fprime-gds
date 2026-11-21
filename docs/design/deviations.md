@@ -88,3 +88,22 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
 - Plugin options are global arguments like the core options, so a plugin subcommand accepts them.
 - `fixtures/vectors/format_strings.json` was not extended with the Python tool; the new cases (negative `x`/`o`, `g`, non-finite values, element and member format strings) are unit tests whose expected text was taken from the review and from `formatted_val` of the Python GDS.
 - Not done from the review list: nothing else was skipped; the items above are the reduced ones.
+||||||| parent of 58bcd2f1 (Python client, pytest fixture, online subcommands and their checks)
+
+
+## Python client, pytest fixture and online command-line tools
+
+1. **The online subcommands are a plugin** (`plugins/online`, `OnlinePlugin`), not code in `crates/fgds/src/cli.rs`:
+   `crates/fgds` was closed to edits while the core was amended. They use the HTTP API and the stream only.
+   Until the plugin is among the defaults, `plugins/online/examples/fgds-online.rs` is the binary the checks use.
+2. **`fgds --version` (CLI-6)** is left to `crates/fgds`.
+3. **Raw send and file uplink from the command line (CLI-3)** are not built.
+4. **Definition lists** are built from `GET /api/v1/dictionary`; the `definitions` routes do not carry
+   descriptions and argument types. Type names follow `fprime-cli` (alias by underlying type, `String_<size>`).
+5. **`fgds_client` uses the standard library only**, with its own small WebSocket reader, so a test machine needs
+   no extra package.
+6. **Class and method names follow the F Prime integration test API** (`send_and_assert_command`, `assert_event`,
+   `await_telemetry`, `predicates`, `EventSeverity`), so existing tests change in their imports only. File and
+   sequence uplink methods raise `NotImplementedError`.
+7. **Histories are client side** (SCR-5): `clear_histories` forgets items in the client; the server keeps its records.
+8. **Checks** are in `tests/cli/run.sh`; accepted differences from `fprime-cli` are in `tests/cli/README.md`.
