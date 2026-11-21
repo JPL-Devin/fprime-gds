@@ -281,7 +281,7 @@ impl Plugin for FilesPlugin {
 
         let started = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
         let shared = Arc::new(Shared {
-            state: Mutex::new(State { paused: true, ..Default::default() }),
+            state: Mutex::new(State::default()),
             wake: Notify::new(),
             default_directory: self.directory.clone(),
             started,

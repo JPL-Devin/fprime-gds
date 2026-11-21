@@ -23,7 +23,7 @@ class FgdsUplink extends FilesTab {
   }
 
   render() {
-    const data = this.data || { files: [], paused: true, link: "" };
+    const data = this.data || { files: [], paused: false, link: "" };
     const post = (path) => () => this.act(() => this.gds.api.post("/files/uplink" + path, {}));
     const active = (t) => t.state === "queued" || t.state === "transferring";
     return html`

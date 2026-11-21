@@ -51,10 +51,10 @@ def relay_to(gds_port):
     return server.getsockname()[1]
 
 
-def once(args, out, relay, extra=()):
+def once(args, out, relay, extra=(), size=SIZE):
     shutil.rmtree(out, ignore_errors=True)
     os.makedirs(f"{out}/local")
-    data = content("repeat", SIZE)
+    data = content("repeat", size)
     with open(f"{out}/local/repeat.bin", "wb") as file:
         file.write(data)
     gds = Fgds(args, out, f"{out}/store", extra)
@@ -65,7 +65,6 @@ def once(args, out, relay, extra=()):
         ref = scenario.start([args.ref, "-a", "127.0.0.1", "-p", str(port)], open(f"{out}/ref.log", "w"), cwd=out)
         scenario.wait_for("the link", lambda: gds.get("/files/uplink")["link"] == "connected")
         gds.cli("upload", "local/repeat.bin", "--destination", "repeat.bin")
-        gds.cli("resume")
         started = time.monotonic()
         ended = scenario.wait_for("the uplink to end", lambda: gds.uplink("repeat.bin")["state"] not in ("queued", "transferring")
                                   and gds.uplink("repeat.bin"), 60)
@@ -95,6 +94,11 @@ def main():
     took = sorted(run["took"] for run in runs)
     print(f"  ok: {SIZE} bytes uplinked {len(runs)} times to a fresh Ref, half of them through a relay that holds "
           f"bytes for {HOLD} s: no crash, every file identical, every transfer finished ({took[0]:.2f} to {took[-1]:.2f} s each)")
+    big = [once(args, f"{args.out}/repeat/big{n}", n % 2 == 0, size=100_003) for n in range(3)]
+    bad = [run for run in big if run["crashed"] or not run["equal"] or run["state"] != "finished"]
+    assert not bad, f"100003-byte uploads went wrong: {bad}"
+    print(f"  ok: 100003 bytes uplinked 3 times, sent at once without a resume: no crash, every file identical "
+          f"({min(r['took'] for r in big):.2f} to {max(r['took'] for r in big):.2f} s each)")
     # Without the pause between packets the relay hands Ref more packets than its queue holds and Ref
     # ends: the transfer must then not be reported as finished.
     lost = [once(args, f"{args.out}/repeat/lost{n}", True, ["--files-cooldown", "0"]) for n in range(3)]

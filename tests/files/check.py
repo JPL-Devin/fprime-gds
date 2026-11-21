@@ -68,10 +68,10 @@ def prepare(out):
         file.write(content("down", DOWN_SIZE))
 
 
-def results(args, out, proxy, down_dir, product):
+def results(args, out, proxy, down_dir, product, skip=0):
     """What is compared: the file packets sent, the files on the Ref side, the files downlinked."""
     return {
-        "uplink_packets": [p.hex() for p in file_packets(proxy.uplink, args.framing, scenario.spacecraft_id(args.dictionary))],
+        "uplink_packets": [p.hex() for p in file_packets(proxy.uplink, args.framing, scenario.spacecraft_id(args.dictionary))][skip:],
         "ref_files": {name: digest(read(f"{out}/{name}")) for name, _ in UPLINKS},
         "downlinked": {name: [len(data), digest(data)] for name in sorted(os.listdir(down_dir))
                        for data in [read(f"{down_dir}/{name}")]},
@@ -217,20 +217,32 @@ def rust_side(args, out, store):
     ref = None
     try:
         queue = gds.get("/files/uplink")
-        assert queue["paused"] and queue["link"] != "connected", queue
+        assert not queue["paused"] and queue["link"] != "connected", queue
         assert gds.status_of("/files/uplink/resume", b"{}") == 503, "resume must be refused without a link"
-        ok("FIL-4: the queue is paused at start and resume is refused while the link is not connected")
+        # A file given before the first connection waits and goes once Ref connects, with no resume.
+        os.makedirs(f"{out}/local")
+        with open(f"{out}/local/early.bin", "wb") as file:
+            file.write(content("early.bin", 700))
+        gds.cli("upload", "local/early.bin", "--destination", "early.bin")
+        time.sleep(0.5)
+        assert gds.uplink("early.bin")["state"] == "queued"
         proxy = scenario.Proxy(gds.link_port)
         ref = scenario.start_ref(args.ref, proxy, out)
         scenario.wait_for("telemetry", lambda: gds.get("/records?kind=fprime.channel&limit=1")["records"])
 
+        scenario.wait_for("the file given before the link", lambda: gds.uplink("early.bin")["state"] == "finished", 30)
+        assert read(f"{out}/early.bin") == content("early.bin", 700)
+        early = len(file_packets(proxy.uplink, args.framing, scenario.spacecraft_id(args.dictionary)))
+        assert not gds.get("/files/uplink")["paused"]
+        ok("the queue runs from the start: a file given before Ref connected was sent once it did, with no resume; "
+           "resume is refused while the link is not connected")
         # Queued with `fgds files upload` while paused, then resumed: the queue order is the order sent.
-        os.makedirs(f"{out}/local")
+        gds.cli("pause")
         for name, size in UPLINKS:
             with open(f"{out}/local/{name}", "wb") as file:
                 file.write(content(name, size))
             gds.cli("upload", f"local/{name}", "--destination", name)
-        assert [f["state"] for f in gds.get("/files/uplink")["files"]] == ["queued"] * len(UPLINKS)
+        assert [f["state"] for f in gds.get("/files/uplink")["files"] if f["name"] != "early.bin"] == ["queued"] * len(UPLINKS)
         assert "paused" in gds.cli("queue").stdout
         gds.cli("resume")
         for name, size in UPLINKS:
@@ -246,7 +258,7 @@ def rust_side(args, out, store):
         time.sleep(1)
         gds.post("/commands", {"name": "DataProducts.dpCat.START_XMIT_CATALOG", "args": ["NO_WAIT", False]})
         scenario.wait_for("the downlink of the data product", lambda: gds.downlink(ground_name(product)), 60)
-        found = results(args, out, proxy, f"{store}/downlink", product)
+        found = results(args, out, proxy, f"{store}/downlink", product, skip=early)
 
         # The routes and `fgds files` give the same files.
         listing = gds.get("/files/downlink")

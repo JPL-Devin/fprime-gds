@@ -56,13 +56,19 @@ impl Handler for UplinkHandler {
 
     async fn run(self: Box<Self>, ctx: Context, mut records: RecordStream) -> Result<()> {
         let mut shutdown = ctx.shutdown.clone();
+        // The queue runs from the start, as the Python GDS queue does. It pauses when a link that
+        // was connected is lost (FIL-4) or when the operator asks; before the first connection
+        // files wait in the queue.
+        let mut was_connected = false;
         loop {
-            if ctx.status.link() != "connected" {
+            let connected = ctx.status.link() == "connected";
+            if was_connected && !connected {
                 self.shared.state().paused = true;
             }
+            was_connected = connected;
             let next = {
                 let mut state = self.shared.state();
-                let paused = state.paused;
+                let paused = state.paused || !connected;
                 state.uplinks.iter_mut().find(|t| t.state == "queued" && !paused).map(|t| {
                     t.state = "transferring";
                     t.clone()
@@ -84,6 +90,7 @@ impl Handler for UplinkHandler {
             if matches!(outcome, Err(Stop::LinkLost)) {
                 self.shared.state().paused = true;
             }
+            was_connected = ctx.status.link() == "connected";
             let ended = self.update(&transfer.id, |t| match outcome {
                 Ok(()) => t.state = "finished",
                 Err(Stop::Canceled) => t.state = "canceled",
