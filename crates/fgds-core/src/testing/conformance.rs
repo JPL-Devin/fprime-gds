@@ -41,8 +41,13 @@ fn seqs(page: &crate::Page) -> Vec<u64> {
 }
 
 pub async fn storage_conformance(make: impl Fn() -> Arc<dyn Storage>) {
+    storage_conformance_with(make, StorageConfig::default()).await
+}
+
+/// The suite for a storage that needs more than the defaults to open (a database file).
+pub async fn storage_conformance_with(make: impl Fn() -> Arc<dyn Storage>, base: StorageConfig) {
     let storage = make();
-    let cfg = StorageConfig { kinds: kinds(), gds_version: "1".into(), ..Default::default() };
+    let cfg = StorageConfig { kinds: kinds(), gds_version: "1".into(), ..base };
     let run = storage.open(&cfg).await.expect("open");
     assert!(run.first_seq >= 1, "sequence numbers start at 1 or above");
     assert_eq!(storage.runs().await.expect("runs"), vec![run.clone()]);
@@ -140,5 +145,79 @@ pub async fn storage_conformance(make: impl Fn() -> Arc<dyn Storage>) {
     let q = Query { before_seq: Some(6), kinds: vec!["t.state".into()], ..all.clone() };
     assert_eq!(seqs(&storage.latest(&q).await.expect("latest")), [3, 5]);
 
+    storage.close().await.expect("close");
+}
+
+/// What a storage that outlives the process must do (STO-4, STO-5, STO-12, STO-14).
+/// `make` returns a fresh storage object each time; `base` names the same database.
+pub async fn persistence_conformance(make: impl Fn() -> Arc<dyn Storage>, base: StorageConfig) {
+    let config = |dictionary: &str, hash: &str| StorageConfig {
+        kinds: kinds(),
+        gds_version: "1".into(),
+        dictionary_version: dictionary.into(),
+        dictionary_json: format!("{{\"v\": \"{dictionary}\"}}").into_bytes(),
+        dictionary_hash: hash.into(),
+        plugins: vec!["a".into(), "b".into()],
+        ..base.clone()
+    };
+    let in_run = |seq: u64, run: u32| Record { run, ..record(seq, "t.sample", Some(1), None, json!({"level": seq})) };
+
+    // First run: stopped properly, the reservation given back.
+    let storage = make();
+    let first = storage.open(&config("d1", "h1")).await.expect("open");
+    assert!(first.reserved_seq > first.first_seq, "numbers are reserved ahead");
+    let start = first.first_seq;
+    storage.append(&[in_run(start, first.run), in_run(start + 1, first.run)]).await.expect("append");
+    storage.reserve(start + 1).await.expect("reserve");
+    storage.close().await.expect("close");
+
+    // Second run, another dictionary: continues at the next number; killed, so neither
+    // the reservation is given back nor the storage closed.
+    let storage = make();
+    let second = storage.open(&config("d2", "h2")).await.expect("reopen");
+    assert_eq!(second.run, first.run + 1);
+    assert_eq!(second.first_seq, start + 2, "the next run continues at the next number");
+    storage.append(&[in_run(second.first_seq, second.run)]).await.expect("append");
+    // The same batch again (the pipeline could not tell whether it was stored): no duplicate.
+    storage.append(&[in_run(second.first_seq, second.run)]).await.expect("append again");
+    storage.reserve(second.first_seq + 500).await.expect("reserve");
+    let runs = storage.runs().await.expect("runs");
+    assert_eq!(runs.iter().map(|r| r.run).collect::<Vec<_>>(), [first.run, second.run]);
+    assert_eq!(
+        (runs[0].first_seq, &runs[0].dictionary_version, &runs[0].dictionary_hash),
+        (start, &"d1".into(), &"h1".into())
+    );
+    assert_eq!(runs[1].plugins, ["a", "b"]);
+    // Each run keeps its own dictionary.
+    assert_eq!(storage.dictionary(first.run).await.expect("dictionary"), Some(b"{\"v\": \"d1\"}".to_vec()));
+    assert_eq!(storage.dictionary(second.run).await.expect("dictionary"), Some(b"{\"v\": \"d2\"}".to_vec()));
+    assert_eq!(storage.dictionary(second.run + 7).await.expect("dictionary"), None);
+    // The current run by default, one run by number, every run when asked.
+    let all = Query { limit: 100, ..Default::default() };
+    let seqs_of = |q: Query| {
+        let storage = storage.clone();
+        async move { seqs(&storage.query(&q).await.expect("query")) }
+    };
+    assert_eq!(seqs_of(all.clone()).await, [start + 2]);
+    assert_eq!(seqs_of(Query { run: Some(first.run), ..all.clone() }).await, [start, start + 1]);
+    assert_eq!(seqs_of(Query { all_runs: true, ..all.clone() }).await, [start, start + 1, start + 2]);
+    assert_eq!(seqs_of(Query { all_runs: true, after_seq: Some(start), ..all.clone() }).await, [start + 1, start + 2]);
+    drop(storage);
+
+    // Read-only: no run begins, the last run is returned, nothing can be written.
+    let read_only = make();
+    let last = read_only.open(&StorageConfig { read_only: true, ..config("d3", "h3") }).await.expect("read-only");
+    assert_eq!((last.run, last.first_seq, last.dictionary_hash.as_str()), (second.run, second.first_seq, "h2"));
+    assert_eq!(read_only.runs().await.expect("runs").len(), 2);
+    assert!(read_only.append(&[in_run(start + 900, last.run)]).await.is_err(), "read-only refuses to store");
+    assert_eq!(seqs(&read_only.query(&all).await.expect("query")), [start + 2]);
+    assert_eq!(read_only.dictionary(first.run).await.expect("dictionary"), Some(b"{\"v\": \"d1\"}".to_vec()));
+    read_only.close().await.expect("close");
+
+    // Third run after the kill: starts after everything the second run had reserved.
+    let storage = make();
+    let third = storage.open(&config("d2", "h2")).await.expect("reopen after a kill");
+    assert_eq!(third.run, second.run + 1);
+    assert_eq!(third.first_seq, second.first_seq + 501, "no number of the killed run is used again");
     storage.close().await.expect("close");
 }
