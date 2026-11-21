@@ -178,7 +178,7 @@ async fn one_read_takes_what_the_link_has() {
 #[tokio::test]
 async fn an_adapter_factory_that_fails_is_reported_once_under_its_plugin_and_retried() {
     let plugin = TestPlugin::new(false);
-    let config = Config { comm: "broken".into(), framing: "length".into(), ..Default::default() };
+    let config = Config { comm: "broken".into(), framing: "length".into(), ..FakeGds::config() };
     let gds = FakeGds::start_with(&[&plugin], empty_dictionary(), config).await.unwrap();
     // Built again after 1 s and after 2 s more: two failed attempts, one report.
     tokio::time::sleep(Duration::from_millis(3500)).await;
@@ -193,7 +193,7 @@ async fn an_adapter_factory_that_fails_is_reported_once_under_its_plugin_and_ret
 
 #[tokio::test]
 async fn a_panicking_adapter_is_reported_under_its_plugin() {
-    let config = Config { comm: "panics".into(), framing: "length".into(), ..Default::default() };
+    let config = Config { comm: "panics".into(), framing: "length".into(), ..FakeGds::config() };
     let gds = FakeGds::start_with(&[&TestPlugin::new(false)], empty_dictionary(), config).await.unwrap();
     tokio::time::sleep(Duration::from_millis(200)).await;
     let faults = gds.records(&[KIND_PLUGIN_FAULT]).await;
@@ -241,7 +241,7 @@ async fn lengths(gds: &FakeGds, count: usize) -> Vec<serde_json::Value> {
 
 #[tokio::test]
 async fn without_a_framing_layer_each_read_is_a_packet_and_each_packet_a_write() {
-    let gds = gds_with(Config { framing: "none".into(), ..Default::default() }).await;
+    let gds = gds_with(Config { framing: "none".into(), ..FakeGds::config() }).await;
     gds.wait_for_link("connected").await;
     gds.link.push(&[1, 2, 3]);
     assert_eq!(lengths(&gds, 1).await, [json!(3)]);
@@ -252,7 +252,7 @@ async fn without_a_framing_layer_each_read_is_a_packet_and_each_packet_a_write()
 #[tokio::test]
 async fn two_framing_layers_are_applied_outermost_first_in_both_directions() {
     let layers = vec!["length".to_string(), "length".to_string()];
-    let gds = gds_with(Config { framing: "length".into(), framing_layers: layers, ..Default::default() }).await;
+    let gds = gds_with(Config { framing: "length".into(), framing_layers: layers, ..FakeGds::config() }).await;
     gds.wait_for_link("connected").await;
     // One outer frame holding two inner frames, delivered in two reads.
     let inner = [LengthFraming::frame(&[1, 2, 3]), LengthFraming::frame(&[4])].concat();
