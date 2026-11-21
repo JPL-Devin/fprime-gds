@@ -183,7 +183,7 @@ impl Plugin for FaultyPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_handler(Arc::new(|_| Box::new(FaultyHandler)));
+        reg.add_handler(Arc::new(|_| Box::new(FaultyHandler)))?;
         Ok(())
     }
 }

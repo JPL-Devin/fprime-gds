@@ -16,7 +16,9 @@ use tokio::sync::mpsc;
 struct Memory {
     run: Option<RunInfo>,
     kinds: HashMap<String, KindSpec>,
+    /// In `seq` order.
     records: Vec<Record>,
+    dictionary: Vec<u8>,
 }
 
 /// Storage that keeps one run in memory. The `storage-memory` plugin registers it.
@@ -66,20 +68,33 @@ impl Storage for MemoryStorage {
             dictionary_version: cfg.dictionary_version.clone(),
             plugins: cfg.plugins.clone(),
             first_seq: 1,
+            reserved_seq: u64::MAX,
+            dictionary_hash: cfg.dictionary_hash.clone(),
         };
         let mut memory = self.0.lock().unwrap_or_else(|e| e.into_inner());
         *memory = Memory {
             run: Some(run.clone()),
             kinds: cfg.kinds.iter().map(|k| (k.id.clone(), k.clone())).collect(),
             records: Vec::new(),
+            dictionary: cfg.dictionary_json.clone(),
         };
         Ok(run)
     }
 
     async fn append(&self, batch: &[Record]) -> Result<()> {
         let mut memory = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        memory.records.extend_from_slice(batch);
+        for record in batch {
+            // A record already stored is left as it is.
+            if let Err(at) = memory.records.binary_search_by_key(&record.seq, |r| r.seq) {
+                memory.records.insert(at, record.clone());
+            }
+        }
         Ok(())
+    }
+
+    async fn dictionary(&self, run: u32) -> Result<Option<Vec<u8>>> {
+        let memory = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        Ok(memory.run.as_ref().filter(|r| r.run == run).map(|_| memory.dictionary.clone()))
     }
 
     async fn query(&self, q: &Query) -> Result<Page> {
@@ -221,7 +236,7 @@ impl Deframe for LengthFraming {
 }
 
 impl Frame for LengthFraming {
-    fn frame(&mut self, packet: &[u8], out: &mut BytesMut) -> Result<()> {
+    fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
         out.put_slice(&LengthFraming::frame(packet));
         Ok(())
     }

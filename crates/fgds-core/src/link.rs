@@ -34,6 +34,26 @@ struct Shared {
     writer: Mutex<Option<Box<dyn crate::LinkWriter>>>,
     enabled: watch::Sender<bool>,
     status: Status,
+    raw_log: Option<RawLog>,
+}
+
+/// The raw log of the run (LNK-7): one line per chunk of bytes received or sent,
+/// `<ground time> <recv|sent> <bytes in hexadecimal>`.
+struct RawLog(std::sync::Mutex<std::fs::File>);
+
+impl RawLog {
+    fn write(&self, direction: &str, data: &[u8]) {
+        use std::io::Write;
+        let mut line = format!("{} {direction} ", crate::Timestamp::now().to_iso());
+        for byte in data {
+            line.push_str(&format!("{byte:02x}"));
+        }
+        line.push('\n');
+        let mut file = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if let Err(e) = file.write_all(line.as_bytes()) {
+            tracing::warn!(error = %e, "raw log not written");
+        }
+    }
 }
 
 /// The flight link: one adapter and the framing profile. Cheap to clone.
@@ -43,6 +63,11 @@ pub struct Link(Arc<Shared>);
 impl Link {
     /// A link that is down until `start`. `layers` are outermost (nearest the link) first.
     pub fn new(layers: Vec<Layer>, status: Status) -> Link {
+        Self::with_raw_log(layers, status, None)
+    }
+
+    /// A link that also writes every chunk received and sent to `raw_log` (LNK-7).
+    pub fn with_raw_log(layers: Vec<Layer>, status: Status, raw_log: Option<std::fs::File>) -> Link {
         let framers = layers.iter().rev().map(|(l, cfg)| l.framer(cfg)).collect();
         status.set_link("disconnected", None);
         Link(Arc::new(Shared {
@@ -51,6 +76,7 @@ impl Link {
             writer: Mutex::new(None),
             enabled: watch::channel(true).0,
             status,
+            raw_log: raw_log.map(|file| RawLog(std::sync::Mutex::new(file))),
         }))
     }
 
@@ -60,7 +86,7 @@ impl Link {
     }
 
     /// Frame a packet and write it. Returns the bytes written to the link.
-    pub async fn write_packet(&self, packet: &[u8]) -> Result<Bytes, LinkError> {
+    pub async fn write_packet(&self, packet: &[u8], meta: &PacketMeta) -> Result<Bytes, LinkError> {
         let mut writer = self.0.writer.lock().await;
         let Some(writer) = writer.as_mut() else {
             return Err(LinkError::Down);
@@ -70,12 +96,17 @@ impl Link {
             let mut framers = self.0.framers.lock().unwrap_or_else(|e| e.into_inner());
             for framer in framers.iter_mut() {
                 let mut out = BytesMut::new();
-                framer.frame(&data, &mut out).map_err(|e| LinkError::Failed(e.to_string()))?;
+                framer.frame(&data, meta, &mut out).map_err(|e| LinkError::Failed(e.to_string()))?;
                 data = out;
             }
         }
         match tokio::time::timeout(WRITE_TIMEOUT, writer.write(&data)).await {
-            Ok(Ok(())) => Ok(data.freeze()),
+            Ok(Ok(())) => {
+                if let Some(log) = &self.0.raw_log {
+                    log.write("sent", &data);
+                }
+                Ok(data.freeze())
+            }
             Ok(Err(e)) => Err(LinkError::Failed(e.to_string())),
             Err(_) => Err(LinkError::Failed("write timed out".into())),
         }
@@ -162,7 +193,11 @@ impl Downlink {
                         match read {
                             Ok(n) if n > 0 => {
                                 shared.status.count("bytes_received", n as u64);
-                                chain.input(0).extend_from_slice(&buf.split());
+                                let chunk = buf.split();
+                                if let Some(log) = &shared.raw_log {
+                                    log.write("recv", &chunk);
+                                }
+                                chain.input(0).extend_from_slice(&chunk);
                                 self.publish(chain.run(peer.message_boundaries)).await;
                             }
                             Ok(_) => break,
@@ -245,7 +280,7 @@ impl<'a> Chain<'a> {
         self.level(0, &PacketMeta::default(), &mut out);
         if message_boundaries && !self.inputs[0].is_empty() {
             let bytes = self.inputs[0].split().freeze();
-            out.push(Deframed::Discarded { bytes, reason: "incomplete frame in message" });
+            out.push(Deframed::Discarded { bytes, reason: "incomplete frame in message".into() });
         }
         out
     }
@@ -255,10 +290,15 @@ impl<'a> Chain<'a> {
         let deframer = &mut self.deframers[level];
         let input = &mut self.inputs[level];
         let result = catch_unwind(AssertUnwindSafe(|| deframer.deframe(input, &mut produced)));
-        if !matches!(result, Ok(Ok(()))) {
+        let failure = match result {
+            Ok(Ok(())) => None,
+            Ok(Err(e)) => Some(format!("framing layer failed: {e}")),
+            Err(panic) => Some(format!("framing layer panicked: {}", panic_message(&panic))),
+        };
+        if let Some(reason) = failure {
             // An error or a panic: drop the input and rebuild the layer (LNK-8).
             let bytes = input.split().freeze();
-            out.push(Deframed::Discarded { bytes, reason: "framing layer failed" });
+            out.push(Deframed::Discarded { bytes, reason });
             let (layer, cfg) = &self.layers[level];
             self.deframers[level] = layer.deframer(cfg, self.peer);
         }

@@ -14,6 +14,7 @@ pub struct Router {
 }
 
 impl Router {
+    /// `decoders` are the built decoders with their owning plugin (`Registry::build_decoders`).
     pub fn new(decoders: &[(String, Arc<dyn Decoder>)], dict: &Dictionary) -> Router {
         let mut rules: Vec<_> = decoders.iter().map(|(_, d)| (d.matches(), d.clone())).collect();
         rules.sort_by_key(|(rule, _)| std::cmp::Reverse((rule.meta.len(), rule.packet_type.is_some())));
@@ -43,9 +44,6 @@ impl Router {
         match catch_unwind(AssertUnwindSafe(|| decoder.decode(packet, meta, dict))) {
             Ok(Ok(mut records)) => {
                 for record in &mut records {
-                    if record.raw.is_empty() {
-                        record.raw = packet.clone();
-                    }
                     if record.meta.0.is_empty() {
                         record.meta = meta.clone();
                     }

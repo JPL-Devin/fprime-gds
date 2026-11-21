@@ -176,8 +176,8 @@ async fn raw(State(core): Shared, Json(body): Json<Value>) -> Answer {
     let packet = base64::engine::general_purpose::STANDARD
         .decode(data)
         .map_err(|e| ApiError::bad_request(format!("\"data\" is not base64: {e}")))?;
-    core.uplink.send_packet(&packet).await?;
-    Ok(Json(json!({"sent": packet.len()})))
+    let seq = core.uplink.send_packet(&packet, body["client"].as_str().unwrap_or("api")).await?;
+    Ok(Json(json!({"sent": packet.len(), "seq": seq.to_string()})))
 }
 
 /// `POST /api/v1/link {"enabled": bool}` (LNK-22).

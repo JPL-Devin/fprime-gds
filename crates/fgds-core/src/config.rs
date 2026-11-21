@@ -1,4 +1,4 @@
-use crate::{Error, KindSpec, Result};
+use crate::{Error, KindSpec, Registry, Result};
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -35,6 +35,16 @@ pub struct Config {
     pub framing_layers: Vec<String>,
     /// Storage name.
     pub storage: String,
+    /// Database file (STO-3); without it the storage creates `<run log directory>/gds.db`.
+    pub database: Option<PathBuf>,
+    /// Directory holding one log directory per run (LNK-18). `None`: no log directory,
+    /// so no raw log, and the storage needs `database`.
+    pub logs: Option<PathBuf>,
+    /// Serve an existing database without a link and without changing the file (STO-12).
+    pub read_only: bool,
+    /// A storage commit that takes longer puts storage in state `failed` (STO-9).
+    pub commit_timeout_ms: u64,
+
     /// Address of the HTTP server; local by default (SEC-1).
     pub bind: String,
     pub disabled_plugins: Vec<String>,
@@ -51,6 +61,10 @@ impl Default for Config {
             framing: "fprime".into(),
             framing_layers: Vec::new(),
             storage: "memory".into(),
+            database: None,
+            logs: None,
+            read_only: false,
+            commit_timeout_ms: 2_000,
             bind: "127.0.0.1:5000".into(),
             disabled_plugins: Vec::new(),
             max_body_bytes: 1024 * 1024,
@@ -66,9 +80,41 @@ impl Config {
         toml::from_str(&text).map_err(|e| at(&e))
     }
 
-    /// The options of `plugin`; empty when it has none.
+    /// The options given for `plugin`, as given; empty when there are none.
     pub fn plugin(&self, plugin: &str) -> PluginConfig {
         self.plugins.get(plugin).cloned().unwrap_or_default()
+    }
+
+    /// The options of `plugin` as the plugin receives them: every option of its manifest
+    /// that has a value or a default. Fails on a key the manifest does not declare.
+    pub fn plugin_config(&self, registry: &Registry, plugin: &str) -> Result<PluginConfig> {
+        let mut options = self.plugin(plugin);
+        let specs = registry.manifests.iter().find(|m| m.name == plugin).map(|m| m.options.as_slice());
+        let specs = specs.unwrap_or_default();
+        if let Some(unknown) = options.0.keys().find(|key| !specs.iter().any(|s| s.name == key.as_str())) {
+            let known: Vec<_> = specs.iter().map(|s| s.name).collect();
+            return Err(Error::Config(format!(
+                "[plugins.{plugin}] {unknown}: plugin \"{plugin}\" has no such option; it has: {}",
+                known.join(", ")
+            )));
+        }
+        for spec in specs {
+            if let (None, Some(default)) = (options.0.get(spec.name), spec.default) {
+                options.set(spec.name, default);
+            }
+        }
+        Ok(options)
+    }
+
+    /// Check the options of every plugin (`plugin_config`) and that each `[plugins.x]` names a plugin.
+    pub fn check_plugins(&self, registry: &Registry) -> Result<()> {
+        for name in self.plugins.keys() {
+            if !registry.manifests.iter().any(|m| m.name == name) {
+                return Err(Error::Config(format!("[plugins.{name}]: no plugin has this name")));
+            }
+            self.plugin_config(registry, name)?;
+        }
+        Ok(())
     }
 }
 
@@ -80,5 +126,14 @@ pub struct StorageConfig {
     pub kinds: Vec<KindSpec>,
     pub gds_version: String,
     pub dictionary_version: String,
+    /// The dictionary as loaded, kept with the run (STO-4), and its SHA-256 in hexadecimal.
+    pub dictionary_json: Vec<u8>,
+    pub dictionary_hash: String,
     pub plugins: Vec<String>,
+    /// The database file to open; `None`: `gds.db` in `run_dir` (STO-3).
+    pub database: Option<PathBuf>,
+    /// The log directory of this run. `None`: nothing may be written outside `database`.
+    pub run_dir: Option<PathBuf>,
+    /// Open without changing the store and without beginning a run (STO-12).
+    pub read_only: bool,
 }

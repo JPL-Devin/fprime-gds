@@ -81,7 +81,7 @@ impl Plugin for FaultyPlugin {
         Manifest { name: "faulty", version: "1", requires_kinds: vec!["t.packet"], ..Default::default() }
     }
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_handler(Arc::new(|_| Box::new(PanicHandler)));
+        reg.add_handler(Arc::new(|_| Box::new(PanicHandler)))?;
         Ok(())
     }
 }

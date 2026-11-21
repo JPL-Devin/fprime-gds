@@ -14,6 +14,8 @@ struct Data {
     link: String,
     peer: Option<String>,
     storage: String,
+    gap: Option<(u64, u64)>,
+    warnings: Vec<String>,
     counters: BTreeMap<String, u64>,
     plugins: BTreeMap<String, PluginStatus>,
 }
@@ -43,6 +45,20 @@ impl Status {
         self.with(|d| d.storage = state.to_string());
     }
 
+    /// The sequence numbers lost while storage is failed (STO-9).
+    pub fn set_storage_gap(&self, gap: Option<(u64, u64)>) {
+        self.with(|d| d.gap = gap);
+    }
+
+    /// A condition the operator should know about, shown until the GDS stops.
+    pub fn warn(&self, message: &str) {
+        self.with(|d| {
+            if !d.warnings.iter().any(|w| w == message) {
+                d.warnings.push(message.to_string());
+            }
+        });
+    }
+
     /// Add to a core counter.
     pub fn count(&self, counter: &str, n: u64) {
         self.with(|d| *d.counters.entry(counter.to_string()).or_default() += n);
@@ -64,7 +80,11 @@ impl Status {
                 .collect();
             json!({
                 "link": {"state": d.link, "peer": d.peer},
-                "storage": {"state": d.storage},
+                "storage": {
+                    "state": d.storage,
+                    "gap": d.gap.map(|(first, last)| json!({"first_seq": first.to_string(), "last_seq": last.to_string()})),
+                },
+                "warnings": d.warnings,
                 "counters": d.counters,
                 "plugins": plugins,
             })

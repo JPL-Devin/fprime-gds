@@ -1,7 +1,10 @@
 use crate::{
-    spawn_supervised, Config, Error, Link, PluginConfig, Records, Registry, Result, Router, RunInfo, Status,
-    StatusHandle, StorageConfig, Uplink, VERSION,
+    spawn_supervised, Config, Error, Link, PipelineOptions, PluginConfig, Records, Registry, Result, Router, RunInfo,
+    Status, StatusHandle, Storage, StorageConfig, Timestamp, Uplink, VERSION,
 };
+use sha2::{Digest, Sha256};
+use std::path::PathBuf;
+use std::time::Duration;
 use fgds_dictionary::Dictionary;
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -43,6 +46,8 @@ pub struct Core {
     pub link: Link,
     pub status: Status,
     pub run: RunInfo,
+    /// The log directory of this run (LNK-18); `None` without `logs` or when read-only.
+    pub run_dir: Option<PathBuf>,
     router: Arc<Router>,
     stop: watch::Sender<bool>,
 }
@@ -50,36 +55,49 @@ pub struct Core {
 impl Core {
     /// Open storage and begin a run, start the pipeline and the handlers. The link stays
     /// down until `start_link`, which the caller runs last, after the server shell is up.
+    ///
+    /// With `config.read_only` no run begins, nothing is written and the link and the
+    /// handlers are never started: the core only serves what the storage holds (STO-12).
     pub async fn start(registry: Registry, config: Config, dictionary: Dictionary) -> Result<Core> {
         registry.check()?;
+        config.check_plugins(&registry)?;
+        let decoders = registry.build_decoders(&config)?;
+        let encoders = registry.build_encoders(&config)?;
         let status = Status::default();
         let dictionary = Arc::new(dictionary);
         let plugins: Vec<String> = registry.manifests.iter().map(|m| m.name.to_string()).collect();
+        let run_dir = match (&config.logs, config.read_only) {
+            (Some(logs), false) => Some(create_run_dir(logs)?),
+            _ => None,
+        };
 
-        let (plugin, storage) = named(&registry.storages, "storage", &config.storage)?.clone();
-        let run = storage
-            .open(&StorageConfig {
-                options: config.plugin(&plugin),
-                kinds: registry.kinds.clone(),
-                gds_version: VERSION.to_string(),
-                dictionary_version: dictionary.version().to_string(),
-                plugins: plugins.clone(),
-            })
-            .await?;
-        let records = Records::start(storage, &run, &registry.kinds, status.clone());
+        let storage = named(&registry.storages, "storage", &config.storage)?.1.clone();
+        let run = storage.open(&storage_config(&registry, &config, &dictionary, run_dir.clone())).await?;
+        if !config.read_only {
+            warn_if_dictionary_changed(storage.as_ref(), &run, &status).await;
+        }
+        let options = PipelineOptions {
+            commit_timeout: Duration::from_millis(config.commit_timeout_ms),
+            read_only: config.read_only,
+        };
+        let records = Records::start_with(storage, &run, &registry.kinds, status.clone(), options);
+        let raw_log = match &run_dir {
+            Some(dir) => Some(std::fs::File::create(dir.join("raw.log")).map_err(Error::Io)?),
+            None => None,
+        };
 
         let layer_names = framing_layers(&registry, &config)?;
         let mut layers = Vec::new();
         for name in &layer_names {
             let (plugin, layer) = named(&registry.framing_layers, "framing layer", name)?;
-            layers.push((layer.clone(), config.plugin(plugin)));
+            layers.push((layer.clone(), config.plugin_config(&registry, plugin)?));
         }
-        let link = Link::new(layers, status.clone());
-        let uplink = Uplink::new(&registry.encoders, dictionary.clone(), link.clone(), records.clone(), run.run);
+        let link = Link::with_raw_log(layers, status.clone(), raw_log);
+        let uplink = Uplink::new(encoders, dictionary.clone(), link.clone(), records.clone(), run.run);
         named(&registry.adapters, "adapter", &config.comm)?;
 
         let core = Core {
-            router: Arc::new(Router::new(&registry.decoders, &dictionary)),
+            router: Arc::new(Router::new(&decoders, &dictionary)),
             registry: Arc::new(registry),
             config: Arc::new(config),
             dictionary,
@@ -88,14 +106,20 @@ impl Core {
             link,
             status,
             run,
+            run_dir,
             stop: watch::channel(false).0,
         };
+        if core.config.read_only {
+            core.link.set_enabled(false);
+            core.status.set_link("disabled", None);
+            return Ok(core);
+        }
         for name in &plugins {
             core.status.handle(name).set_state("registered");
         }
         for (plugin, factory) in &core.registry.handlers {
             let ctx = core.context(plugin);
-            let handler = factory(&ctx.config);
+            let handler = factory(&ctx.config)?;
             let stream = core.records.subscribe(handler.subscription(), None);
             spawn_supervised(plugin, core.records.clone(), core.status.clone(), handler.run(ctx, stream));
         }
@@ -109,15 +133,19 @@ impl Core {
             records: self.records.clone(),
             uplink: self.uplink.clone(),
             status: self.status.handle(plugin),
-            config: self.config.plugin(plugin),
+            // Checked at start, so this cannot fail for a registered plugin.
+            config: self.config.plugin_config(&self.registry, plugin).unwrap_or_default(),
             shutdown: ShutdownToken(self.stop.subscribe()),
         }
     }
 
     /// Start the adapter: the last step of startup.
     pub fn start_link(&self) {
+        if self.config.read_only {
+            return;
+        }
         let (plugin, factory) = self.registry.adapters[&self.config.comm].clone();
-        let options = self.config.plugin(&plugin);
+        let options = self.config.plugin_config(&self.registry, &plugin).unwrap_or_default();
         self.link.start(
             move || factory(&options),
             self.router.clone(),
@@ -130,8 +158,69 @@ impl Core {
     /// Stop plugin tasks and the link, then flush and close storage (LNK-14).
     pub async fn stop(&self) -> Result<()> {
         self.stop.send_replace(true);
-        self.records.flush().await;
+        self.records.stop().await;
         self.registry.storages[&self.config.storage].1.close().await
+    }
+}
+
+/// The dictionary kept with the last run of the configured database: what a read-only
+/// GDS displays that run with when no dictionary is given (STO-5).
+pub async fn stored_dictionary(registry: &Registry, config: &Config) -> Result<Dictionary> {
+    let storage = named(&registry.storages, "storage", &config.storage)?.1.clone();
+    let config = Config { read_only: true, ..config.clone() };
+    let run = storage.open(&storage_config(registry, &config, &crate::testing::empty_dictionary(), None)).await?;
+    let json = storage.dictionary(run.run).await;
+    storage.close().await?;
+    let json = json?.ok_or_else(|| Error::Config(format!("run {} has no dictionary in the database", run.run)))?;
+    let text = String::from_utf8(json).map_err(|e| Error::Config(format!("dictionary of run {}: {e}", run.run)))?;
+    Dictionary::parse(&format!("run {}", run.run), &text).map_err(|e| Error::Config(e.to_string()))
+}
+
+fn storage_config(registry: &Registry, config: &Config, dictionary: &Dictionary, run_dir: Option<PathBuf>) -> StorageConfig {
+    let plugin = registry.storages.get(&config.storage).map(|(plugin, _)| plugin.as_str()).unwrap_or_default();
+    let dictionary_json = serde_json::to_vec(&dictionary.json).unwrap_or_default();
+    StorageConfig {
+        options: config.plugin_config(registry, plugin).unwrap_or_default(),
+        kinds: registry.kinds.clone(),
+        gds_version: VERSION.to_string(),
+        dictionary_version: dictionary.version().to_string(),
+        dictionary_hash: Sha256::digest(&dictionary_json).iter().map(|b| format!("{b:02x}")).collect(),
+        dictionary_json,
+        plugins: registry.manifests.iter().map(|m| m.name.to_string()).collect(),
+        database: config.database.clone(),
+        run_dir,
+        read_only: config.read_only,
+    }
+}
+
+/// `<logs>/<start time>`, made unique when two runs start in the same second.
+fn create_run_dir(logs: &std::path::Path) -> Result<PathBuf> {
+    std::fs::create_dir_all(logs).map_err(Error::Io)?;
+    let started = Timestamp::now().to_iso().replace(':', "-");
+    let name = started.split('.').next().unwrap_or_default().to_string();
+    for attempt in 1.. {
+        let dir = logs.join(if attempt == 1 { name.clone() } else { format!("{name}-{attempt}") });
+        match std::fs::create_dir(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(Error::Io(e)),
+        }
+    }
+    unreachable!()
+}
+
+/// A dictionary that differs from the previous run's is a warning, not a refusal (STO-5).
+async fn warn_if_dictionary_changed(storage: &dyn Storage, run: &RunInfo, status: &Status) {
+    let runs = storage.runs().await.unwrap_or_default();
+    let previous = runs.iter().filter(|r| r.run < run.run).max_by_key(|r| r.run);
+    if let Some(previous) = previous.filter(|p| p.dictionary_hash != run.dictionary_hash) {
+        let message = format!(
+            "the dictionary (version {}) differs from the dictionary of run {} (version {}): \
+             records of earlier runs are shown as decoded at the time",
+            run.dictionary_version, previous.run, previous.dictionary_version
+        );
+        tracing::warn!("{message}");
+        status.warn(&message);
     }
 }
 

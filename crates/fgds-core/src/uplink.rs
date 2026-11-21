@@ -1,4 +1,4 @@
-use crate::{Encoded, Encoder, Link, LinkError, NewRecord, Records};
+use crate::{Encoded, Encoder, Link, LinkError, NewRecord, PacketMeta, Records, KIND_RAW_SENT};
 use base64::Engine;
 use fgds_dictionary::Dictionary;
 use serde_json::{json, Value};
@@ -33,7 +33,7 @@ pub struct Sent {
 }
 
 struct Inner {
-    encoders: HashMap<&'static str, Arc<dyn Encoder>>,
+    encoders: HashMap<String, Arc<dyn Encoder>>,
     dict: Arc<Dictionary>,
     link: Link,
     records: Records,
@@ -46,9 +46,10 @@ struct Inner {
 pub struct Uplink(Arc<Inner>);
 
 impl Uplink {
-    pub fn new(encoders: &[Arc<dyn Encoder>], dict: Arc<Dictionary>, link: Link, records: Records, run: u32) -> Uplink {
+    /// `encoders` are the built encoders (`Registry::build_encoders`).
+    pub fn new(encoders: Vec<Arc<dyn Encoder>>, dict: Arc<Dictionary>, link: Link, records: Records, run: u32) -> Uplink {
         Uplink(Arc::new(Inner {
-            encoders: encoders.iter().map(|e| (e.request_kind(), e.clone())).collect(),
+            encoders: encoders.into_iter().map(|e| (e.request_kind().to_string(), e)).collect(),
             dict,
             link,
             records,
@@ -74,7 +75,7 @@ impl Uplink {
         let (encoded, result) = match self.dry_run(request_kind, request) {
             Err(e) => (None, Err(e)),
             Ok(encoded) => {
-                let result = self.0.link.write_packet(&encoded.packet).await.map_err(|e| match e {
+                let result = self.0.link.write_packet(&encoded.packet, &encoded.meta).await.map_err(|e| match e {
                     LinkError::Down => SendError::LinkDown,
                     LinkError::Failed(reason) => SendError::Failed(reason),
                 });
@@ -103,16 +104,36 @@ impl Uplink {
             raw: encoded.map(|e| e.packet).unwrap_or_default(),
             ..NewRecord::new(kind, body)
         };
-        let seq = self.0.records.publish(record).await.map_err(|e| SendError::Failed(e.to_string()));
+        let seq = self.0.records.publish_uplink(record).map_err(|e| SendError::Failed(e.to_string()));
         result.and(seq).map(|seq| Sent { seq, entity })
     }
 
-    /// Send an already encoded packet (file uplink); not recorded here.
-    pub async fn send_packet(&self, packet: &[u8]) -> Result<(), SendError> {
-        match self.0.link.write_packet(packet).await {
-            Ok(_) => Ok(()),
-            Err(LinkError::Down) => Err(SendError::LinkDown),
-            Err(LinkError::Failed(reason)) => Err(SendError::Failed(reason)),
+    /// Send an already encoded packet (raw send, file uplink). Every outcome is recorded
+    /// as `raw.sent` with `length`, `client` and `outcome`; `raw` holds the packet only
+    /// with `keep_raw`, so file content is not copied into the database. `meta` goes to
+    /// the framing layers. Returns the sequence number of the record.
+    pub async fn send_packet(
+        &self,
+        packet: &[u8],
+        meta: &PacketMeta,
+        client: &str,
+        keep_raw: bool,
+    ) -> Result<u64, SendError> {
+        let result = self.0.link.write_packet(packet, meta).await.map_err(|e| match e {
+            LinkError::Down => SendError::LinkDown,
+            LinkError::Failed(reason) => SendError::Failed(reason),
+        });
+        let mut body = json!({"length": packet.len(), "client": client});
+        match &result {
+            Ok(_) => body["outcome"] = json!("sent"),
+            Err(e) => {
+                body["outcome"] = json!(if *e == SendError::LinkDown { "rejected" } else { "failed" });
+                body["reason"] = json!(e.to_string());
+            }
         }
+        let raw = if keep_raw { bytes::Bytes::copy_from_slice(packet) } else { Default::default() };
+        let record = NewRecord { raw, meta: meta.clone(), ..NewRecord::new(KIND_RAW_SENT, body) };
+        let seq = self.0.records.publish_uplink(record).map_err(|e| SendError::Failed(e.to_string()));
+        result.and(seq)
     }
 }

@@ -10,10 +10,11 @@ use fgds_dictionary::Dictionary;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-/// One option of a plugin, settable in `[plugins.<name>]` and as `--<name>` on the command line.
+/// One option of a plugin. Option `name` of plugin `p` is `--p-name` on the command line,
+/// `[plugins.p] name` in the configuration file and `name` in `PluginConfig` (section 4.11).
 #[derive(Debug, Clone)]
 pub struct OptionSpec {
-    /// Unique across all plugins.
+    /// Unique within the plugin.
     pub name: &'static str,
     pub help: &'static str,
     pub default: Option<&'static str>,
@@ -67,18 +68,23 @@ pub trait FramingLayer: Send + Sync {
     fn framer(&self, cfg: &PluginConfig) -> Box<dyn Frame>;
 }
 
+/// The packets a layer emits are the input stream of the next layer. A layer that
+/// demultiplexes (virtual channels, application identifiers) owns the reassembly: it
+/// emits whole inner packets, each with the metadata of its own channel.
 pub trait Deframe: Send {
     /// Consume whole frames from the front of `input`; leave an incomplete frame in place.
     fn deframe(&mut self, input: &mut BytesMut, out: &mut Vec<Deframed>) -> Result<()>;
 }
 
 pub trait Frame: Send {
-    fn frame(&mut self, packet: &[u8], out: &mut BytesMut) -> Result<()>;
+    /// `meta` is what the sender says about the packet (an application identifier, a
+    /// virtual channel); empty when it says nothing.
+    fn frame(&mut self, packet: &[u8], meta: &PacketMeta, out: &mut BytesMut) -> Result<()>;
 }
 
 pub enum Deframed {
     Packet { bytes: Bytes, meta: PacketMeta },
-    Discarded { bytes: Bytes, reason: &'static str },
+    Discarded { bytes: Bytes, reason: String },
 }
 
 // Data
@@ -99,7 +105,7 @@ impl PacketType {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PacketMatch {
     pub packet_type: Option<PacketType>,
-    pub meta: Vec<(&'static str, MetaValue)>,
+    pub meta: Vec<(String, MetaValue)>,
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -108,8 +114,9 @@ pub struct DecodeError(pub String);
 
 pub trait Decoder: Send + Sync {
     fn matches(&self) -> PacketMatch;
-    /// `packet` starts with the packet type field. The router fills in `raw` and `meta`
-    /// of the returned records when the decoder leaves them empty.
+    /// `packet` starts with the packet type field. The decoder sets `raw` of each record
+    /// to that item's own bytes, in the layout its kind describes. The router fills in
+    /// `meta` when the decoder leaves it empty.
     fn decode(&self, packet: &[u8], meta: &PacketMeta, dict: &Dictionary) -> Result<Vec<NewRecord>, DecodeError>;
 }
 
@@ -123,6 +130,8 @@ pub struct Encoded {
     pub packet: Bytes,
     pub id: Option<u32>,
     pub body: serde_json::Value,
+    /// Given to the framing layers with the packet; empty when there is nothing to say.
+    pub meta: PacketMeta,
 }
 
 pub trait Encoder: Send + Sync {
@@ -141,9 +150,21 @@ pub trait Handler: Send {
 
 #[async_trait]
 pub trait Storage: Send + Sync {
-    /// Open the store and begin a new run.
+    /// Open the store and begin a new run. With `cfg.read_only`, begin none and return
+    /// the last run of the store.
     async fn open(&self, cfg: &StorageConfig) -> Result<RunInfo>;
+    /// Store records in `seq` order. A record whose `seq` is already stored is left as
+    /// it is: the pipeline writes a batch again when it cannot tell whether it was stored.
     async fn append(&self, batch: &[Record]) -> Result<()>;
+    /// Make `through` the highest sequence number that may have been handed out: the next
+    /// run starts after it (STO-14). A storage that does not outlive the process ignores it.
+    async fn reserve(&self, _through: u64) -> Result<()> {
+        Ok(())
+    }
+    /// The dictionary JSON of a run (STO-4, STO-5); `None` when the run is not known.
+    async fn dictionary(&self, _run: u32) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
     async fn query(&self, q: &Query) -> Result<Page>;
     /// The latest matching record per entity (kinds with entities) or per identifier.
     async fn latest(&self, q: &Query) -> Result<Page>;
@@ -192,7 +213,8 @@ impl EmbeddedFiles for StaticFiles {
 #[derive(Clone, Copy)]
 pub struct UiBundle {
     pub tab_id: &'static str,
-    pub title: &'static str,
+    /// `None`: no tab; the module is loaded for its `setup` only (a renderer, an input).
+    pub title: Option<&'static str>,
     pub order: u32,
     pub module: &'static str,
     pub files: &'static dyn EmbeddedFiles,
@@ -213,8 +235,12 @@ pub struct CliEnv<'a> {
     pub config: &'a Config,
     pub registry: &'a Registry,
     pub dictionary: &'a dyn Fn() -> Result<Arc<Dictionary>>,
+    /// Open the configured database read-only, for offline tools: the storage and its last run.
+    pub storage: &'a dyn Fn() -> Result<(Arc<dyn Storage>, RunInfo)>,
     pub client: &'a dyn Fn() -> Result<ApiClient>,
 }
 
 pub type AdapterFactory = Arc<dyn Fn(&PluginConfig) -> Result<Box<dyn Adapter>> + Send + Sync>;
-pub type HandlerFactory = Arc<dyn Fn(&PluginConfig) -> Box<dyn Handler> + Send + Sync>;
+pub type HandlerFactory = Arc<dyn Fn(&PluginConfig) -> Result<Box<dyn Handler>> + Send + Sync>;
+pub type DecoderFactory = Arc<dyn Fn(&PluginConfig) -> Result<Box<dyn Decoder>> + Send + Sync>;
+pub type EncoderFactory = Arc<dyn Fn(&PluginConfig) -> Result<Box<dyn Encoder>> + Send + Sync>;

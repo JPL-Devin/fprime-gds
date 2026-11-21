@@ -15,6 +15,7 @@ pub const KIND_UNKNOWN_PACKET: &str = "gds.unknown_packet";
 pub const KIND_PLUGIN_FAULT: &str = "gds.plugin_fault";
 pub const KIND_STORAGE_GAP: &str = "gds.storage_gap";
 pub const KIND_STORAGE_RECOVERED: &str = "gds.storage_recovered";
+pub const KIND_RAW_SENT: &str = "raw.sent";
 
 /// Ground time: microseconds since the Unix epoch, UTC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -53,11 +54,11 @@ pub enum MetaValue {
 
 /// Optional facts about a packet, set by framing layers (LNK-19). The core knows no key.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct PacketMeta(pub BTreeMap<&'static str, MetaValue>);
+pub struct PacketMeta(pub BTreeMap<String, MetaValue>);
 
 impl PacketMeta {
-    pub fn with(mut self, key: &'static str, value: MetaValue) -> Self {
-        self.0.insert(key, value);
+    pub fn with(mut self, key: &str, value: MetaValue) -> Self {
+        self.0.insert(key.to_string(), value);
         self
     }
 
@@ -215,6 +216,10 @@ pub(crate) fn core_kinds() -> Vec<KindSpec> {
         text(KIND_PLUGIN_FAULT, "A panic caught in plugin code"),
         text(KIND_STORAGE_GAP, "Records that were broadcast but could not be stored"),
         text(KIND_STORAGE_RECOVERED, "Storage accepts records again"),
+        KindSpec {
+            text_fields: &["/client", "/reason"],
+            ..KindSpec::new(KIND_RAW_SENT, "A packet sent as given; raw holds it when the sender asked to keep it")
+        },
     ]
 }
 
@@ -250,12 +255,18 @@ pub enum Op {
     Gt,
     Ge,
     Contains,
+    /// Equal to one of the values of a comma-separated list.
+    In,
+    /// Text that starts with the value (a component name, for example).
+    Prefix,
 }
 
 impl std::str::FromStr for Op {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self> {
         Ok(match s {
+            "in" => Op::In,
+            "prefix" => Op::Prefix,
             "eq" => Op::Eq,
             "ne" => Op::Ne,
             "lt" => Op::Lt,
@@ -283,6 +294,8 @@ pub struct Query {
     pub kinds: Vec<KindId>,
     /// `None` means the current run.
     pub run: Option<u32>,
+    /// Records of every run; `run` is ignored.
+    pub all_runs: bool,
     /// Exclusive lower bound.
     pub after_seq: Option<u64>,
     /// Exclusive upper bound.
@@ -314,6 +327,11 @@ pub struct RunInfo {
     pub plugins: Vec<String>,
     /// First sequence number the pipeline may assign in this run (STO-14).
     pub first_seq: u64,
+    /// Highest sequence number reserved in storage: the pipeline reserves more before
+    /// it passes it (STO-14). `u64::MAX` for a storage that does not outlive the process.
+    pub reserved_seq: u64,
+    /// SHA-256 of the dictionary JSON of the run, in hexadecimal.
+    pub dictionary_hash: String,
 }
 
 impl RunInfo {
@@ -323,7 +341,9 @@ impl RunInfo {
             "started": self.started.to_iso(),
             "gds_version": self.gds_version,
             "dictionary_version": self.dictionary_version,
+            "dictionary_hash": self.dictionary_hash,
             "plugins": self.plugins,
+            "first_seq": self.first_seq.to_string(),
         })
     }
 }
@@ -348,8 +368,14 @@ impl FieldFilter {
     /// Compare a field value with the filter value: as numbers when both are numeric, else as text.
     fn accepts(&self, field: &Value) -> bool {
         use std::cmp::Ordering::*;
-        if self.op == Op::Contains {
-            return as_text(field).contains(&as_text(&self.value));
+        match self.op {
+            Op::Contains => return as_text(field).contains(&as_text(&self.value)),
+            Op::Prefix => return as_text(field).starts_with(&as_text(&self.value)),
+            Op::In => {
+                let one = |value: &str| FieldFilter { op: Op::Eq, value: json!(value), field: String::new() };
+                return as_text(&self.value).split(',').any(|value| one(value.trim()).accepts(field));
+            }
+            _ => {}
         }
         let order = match (as_number(field), as_number(&self.value)) {
             (Some(a), Some(b)) => a.partial_cmp(&b),
@@ -362,7 +388,7 @@ impl FieldFilter {
             Op::Le => matches!(order, Some(Less | Equal)),
             Op::Gt => order == Some(Greater),
             Op::Ge => matches!(order, Some(Greater | Equal)),
-            Op::Contains => unreachable!(),
+            Op::Contains | Op::In | Op::Prefix => unreachable!(),
         }
     }
 }
@@ -406,7 +432,7 @@ impl Query {
             })
         };
         (self.kinds.is_empty() || self.kinds.contains(&record.kind))
-            && record.run == self.run.unwrap_or(current_run)
+            && (self.all_runs || record.run == self.run.unwrap_or(current_run))
             && self.after_seq.is_none_or(|s| record.seq > s)
             && self.before_seq.is_none_or(|s| record.seq < s)
             && (self.ids.is_empty() || record.id.is_some_and(|id| self.ids.contains(&id)))

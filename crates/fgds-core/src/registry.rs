@@ -1,10 +1,14 @@
 use crate::record::core_kinds;
 use crate::{
-    AdapterFactory, Decoder, Encoder, Error, FramingLayer, HandlerFactory, KindSpec, Manifest, PacketMatch, Plugin,
+    AdapterFactory, Config, Decoder, DecoderFactory, Encoder, EncoderFactory, Error, FramingLayer, HandlerFactory, KindSpec, Manifest, PacketMatch, Plugin,
     Result, Routes, Storage, Subcommand, UiBundle,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
+/// The options of the core: global arguments of the command line, `--<name>`.
+pub const CORE_OPTIONS: &[&str] =
+    &["config", "dictionary", "comm", "framing", "storage", "database", "logs", "read-only", "bind"];
 
 /// Everything the compiled-in plugins declare, with the plugin that declared it.
 /// Each `add_` call fails when the name is already taken, naming both plugins (CUS-10).
@@ -19,9 +23,12 @@ pub struct Registry {
     pub adapters: BTreeMap<String, (String, AdapterFactory)>,
     pub framing_layers: BTreeMap<String, (String, Arc<dyn FramingLayer>)>,
     pub framing_profiles: BTreeMap<String, Vec<String>>,
-    /// (owning plugin, decoder)
-    pub decoders: Vec<(String, Arc<dyn Decoder>)>,
-    pub encoders: Vec<Arc<dyn Encoder>>,
+    /// (owning plugin, factory): decoders are built from their plugin's options at start.
+    pub decoders: Vec<(String, DecoderFactory)>,
+    /// Decoders that replace the built decoder with the same match rule.
+    overrides: Vec<Arc<dyn Decoder>>,
+    /// (owning plugin, request kind, factory)
+    pub encoders: Vec<(String, String, EncoderFactory)>,
     /// (owning plugin, factory)
     pub handlers: Vec<(String, HandlerFactory)>,
     /// name -> (owning plugin, storage)
@@ -39,6 +46,13 @@ impl Registry {
         for kind in core_kinds() {
             reg.add_kind(kind).expect("core kinds are distinct");
         }
+        // What the core itself puts on the command line (CLI-1).
+        for option in CORE_OPTIONS {
+            reg.claim("argument", option).expect("core options are distinct");
+        }
+        for subcommand in ["run", "check"] {
+            reg.claim("subcommand", subcommand).expect("core subcommands are distinct");
+        }
         reg
     }
 
@@ -48,7 +62,8 @@ impl Registry {
         self.current = manifest.name.to_string();
         self.claim("plugin", manifest.name)?;
         for option in &manifest.options {
-            self.claim("argument", option.name)?;
+            // The command-line name of the option (section 4.11).
+            self.claim("argument", &format!("{}-{}", manifest.name, option.name))?;
         }
         self.manifests.push(manifest);
         plugin.register(self)
@@ -93,39 +108,75 @@ impl Registry {
         Ok(())
     }
 
-    /// Fails when another decoder can match the same packet with equal precedence.
-    pub fn add_decoder(&mut self, decoder: Arc<dyn Decoder>) -> Result<()> {
-        let rule = decoder.matches();
-        if let Some((owner, _)) = self.decoders.iter().find(|(_, other)| ambiguous(&rule, &other.matches())) {
-            return Err(Error::Conflict(format!(
-                "decoder match rule {rule:?} is registered by both plugin \"{owner}\" and plugin \"{}\"",
-                self.current
-            )));
-        }
-        self.decoders.push((self.current.clone(), decoder));
+    /// A decoder, built at start from the options of its plugin (a decoder bound to an
+    /// application identifier, for example). Its match rule is known only then, so the
+    /// ambiguity check runs in `build_decoders`.
+    pub fn add_decoder(&mut self, factory: DecoderFactory) -> Result<()> {
+        self.decoders.push((self.current.clone(), factory));
         Ok(())
     }
 
-    /// Replace the registered decoder that has the same match rule (`Gds::override_decoder`).
-    pub fn override_decoder(&mut self, decoder: Arc<dyn Decoder>) -> Result<()> {
-        let rule = decoder.matches();
-        match self.decoders.iter_mut().find(|(_, d)| d.matches() == rule) {
-            Some(slot) => {
-                slot.1 = decoder;
-                Ok(())
+    /// Build every decoder from `config` and apply the overrides. Fails when two decoders
+    /// can match the same packet with equal precedence, naming both plugins, or when an
+    /// override replaces nothing. `Core::start` and `fgds check` call it.
+    pub fn build_decoders(&self, config: &Config) -> Result<Vec<(String, Arc<dyn Decoder>)>> {
+        let mut decoders: Vec<(String, Arc<dyn Decoder>)> = Vec::new();
+        for (plugin, factory) in &self.decoders {
+            let decoder: Arc<dyn Decoder> = Arc::from(factory(&config.plugin_config(self, plugin)?)?);
+            let rule = decoder.matches();
+            if let Some((owner, _)) = decoders.iter().find(|(_, other)| ambiguous(&rule, &other.matches())) {
+                return Err(Error::Conflict(format!(
+                    "decoder match rule {rule:?} is registered by both plugin \"{owner}\" and plugin \"{plugin}\""
+                )));
             }
-            None => Err(Error::Config(format!("override_decoder: no decoder is registered with match rule {rule:?}"))),
+            decoders.push((plugin.clone(), decoder));
         }
+        for decoder in &self.overrides {
+            let rule = decoder.matches();
+            match decoders.iter_mut().find(|(_, d)| d.matches() == rule) {
+                Some(slot) => slot.1 = decoder.clone(),
+                None => {
+                    let message = format!("override_decoder: no decoder is registered with match rule {rule:?}");
+                    return Err(Error::Config(message));
+                }
+            }
+        }
+        Ok(decoders)
     }
 
-    pub fn add_encoder(&mut self, encoder: Arc<dyn Encoder>) -> Result<()> {
-        self.claim("request kind", encoder.request_kind())?;
-        self.encoders.push(encoder);
+    /// Replace the built decoder that has the same match rule (`Gds::override_decoder`);
+    /// checked in `build_decoders`.
+    pub fn override_decoder(&mut self, decoder: Arc<dyn Decoder>) {
+        self.overrides.push(decoder);
+    }
+
+    /// The encoder of one request kind, built at start from the options of its plugin.
+    pub fn add_encoder(&mut self, request_kind: &str, factory: EncoderFactory) -> Result<()> {
+        self.claim("request kind", request_kind)?;
+        self.encoders.push((self.current.clone(), request_kind.to_string(), factory));
         Ok(())
     }
 
-    pub fn add_handler(&mut self, factory: HandlerFactory) {
+    /// Build every encoder from `config`. Fails when an encoder serves another request
+    /// kind than it was registered for.
+    pub fn build_encoders(&self, config: &Config) -> Result<Vec<Arc<dyn Encoder>>> {
+        let mut encoders = Vec::new();
+        for (plugin, request_kind, factory) in &self.encoders {
+            let encoder: Arc<dyn Encoder> = Arc::from(factory(&config.plugin_config(self, plugin)?)?);
+            if encoder.request_kind() != request_kind {
+                return Err(Error::Config(format!(
+                    "plugin \"{plugin}\" registered an encoder for \"{request_kind}\" that serves \"{}\"",
+                    encoder.request_kind()
+                )));
+            }
+            encoders.push(encoder);
+        }
+        Ok(encoders)
+    }
+
+    pub fn add_handler(&mut self, factory: HandlerFactory) -> Result<()> {
         self.handlers.push((self.current.clone(), factory));
+        Ok(())
     }
 
     pub fn add_storage(&mut self, name: &str, storage: Arc<dyn Storage>) -> Result<()> {
