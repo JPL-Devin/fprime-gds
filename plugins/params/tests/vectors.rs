@@ -111,9 +111,15 @@ fn every_type_round_trips() {
     assert_eq!(json, expected);
     // Encoding the decoded JSON gives the same file.
     assert_eq!(dict.to_dat(&dict.select(&json, false).unwrap()).unwrap(), dat);
-    assert!(to_text(&decoded).contains("\n\nComponent: c\n  E = \"ON\" (type: M.Mode, id: 4)"));
+    assert!(to_text(&decoded).contains(
+        "\n\nComponent: c\n  A = [1.0, 0.5, -2.0] (type: M.Three, id: 5)\n  E = \"ON\" (type: M.Mode, id: 4)"
+    ));
     assert!(to_csv(&decoded).contains("c,T,\"a \"\"b\"\", c\",String_16,7"));
-    assert_eq!(to_seq(&values[..2], true), "; Autocoded sequence file from JSON\nR00:00:00 a.b.I_PRM_SET -7\na.b.I_PRM_SAVE\nR00:00:00 a.b.F_PRM_SET 2.5\na.b.F_PRM_SAVE");
+    assert_eq!(
+        to_seq(&values[..2], true),
+        "; Autocoded sequence file from JSON\nR00:00:00 a.b.B_PRM_SET true\na.b.B_PRM_SAVE\nR00:00:00 a.b.F_PRM_SET 2.5\na.b.F_PRM_SAVE"
+    );
+    assert!(to_csv(&decoded).contains("c,S,\"{\"\"x\"\": 18446744073709551615, "), "{}", to_csv(&decoded));
 }
 
 #[test]
