@@ -55,12 +55,7 @@ fn composite_round_trips() {
     round_trip(&d, &d.types["T.Color"], json!("GREEN"), &[1]);
     round_trip(&d, &d.types["T.Pair"], json!([1, 2]), &[0, 1, 0, 2]);
     // Members are encoded by "index": `b` (index 0) before `a` (index 1).
-    round_trip(
-        &d,
-        &d.types["T.Mixed"],
-        json!({"a": "RED", "b": [7, 8], "c": [1, 2, 3]}),
-        &[0, 7, 0, 8, 0, 1, 2, 3],
-    );
+    round_trip(&d, &d.types["T.Mixed"], json!({"a": "RED", "b": [7, 8], "c": [1, 2, 3]}), &[0, 7, 0, 8, 0, 1, 2, 3]);
 }
 
 #[test]
@@ -145,7 +140,8 @@ fn format_strings_are_filled_as_the_python_gds_fills_them() {
     let (u32t, f64t) = (Type::U32, Type::Float { bits: 64 });
     let u64t = Type::Int { bits: 64, signed: false };
     let text = Type::String { max: 10 };
-    let cases: Vec<(&str, Vec<(&Type, Value)>, &str)> = vec![
+    type Case<'a> = (&'a str, Vec<(&'a Type, Value)>, &'a str);
+    let cases: Vec<Case> = vec![
         ("no fields", vec![], "no fields"),
         ("{} and {}", vec![(&u32t, json!(7)), (&text, json!("abc"))], "7 and abc"),
         ("0x{x} {X} {o} {d}", vec![(&u32t, json!(255)); 4], "0xff FF 377 255"),

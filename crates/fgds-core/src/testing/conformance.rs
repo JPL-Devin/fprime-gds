@@ -3,8 +3,7 @@
 //! `storage_conformance` with a function that makes a fresh, unopened storage.
 
 use crate::{
-    FieldFilter, FieldSpec, FieldType, KindSpec, Op, Query, Record, Storage, StorageConfig,
-    TimeRange, Timestamp,
+    FieldFilter, FieldSpec, FieldType, KindSpec, Op, Query, Record, Storage, StorageConfig, TimeRange, Timestamp,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;

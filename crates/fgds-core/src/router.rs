@@ -1,7 +1,4 @@
-use crate::{
-    Decoder, NewRecord, PacketMatch, PacketMeta, PacketType, KIND_DECODE_ERROR,
-    KIND_UNKNOWN_PACKET,
-};
+use crate::{Decoder, NewRecord, PacketMatch, PacketMeta, PacketType, KIND_DECODE_ERROR, KIND_UNKNOWN_PACKET};
 use bytes::Bytes;
 use fgds_dictionary::{Dictionary, Reader, Type};
 use serde_json::json;
@@ -18,30 +15,19 @@ pub struct Router {
 
 impl Router {
     pub fn new(decoders: &[(String, Arc<dyn Decoder>)], dict: &Dictionary) -> Router {
-        let mut rules: Vec<_> = decoders
-            .iter()
-            .map(|(_, d)| (d.matches(), d.clone()))
-            .collect();
-        rules.sort_by_key(|(rule, _)| {
-            std::cmp::Reverse((rule.meta.len(), rule.packet_type.is_some()))
-        });
+        let mut rules: Vec<_> = decoders.iter().map(|(_, d)| (d.matches(), d.clone())).collect();
+        rules.sort_by_key(|(rule, _)| std::cmp::Reverse((rule.meta.len(), rule.packet_type.is_some())));
         let descriptor_bits = match dict.config_type("FwPacketDescriptorType", Type::U16) {
             Type::Int { bits, .. } => bits,
             _ => 16,
         };
-        Router {
-            rules,
-            descriptor_bits,
-        }
+        Router { rules, descriptor_bits }
     }
 
     /// Turn one packet into records. Never fails: a packet no rule matches becomes
     /// `gds.unknown_packet`, and a decoder error or panic becomes `gds.decode_error` (LNK-8).
     pub fn route(&self, packet: &Bytes, meta: &PacketMeta, dict: &Dictionary) -> Vec<NewRecord> {
-        let packet_type = Reader::new(packet)
-            .uint(self.descriptor_bits)
-            .ok()
-            .map(|t| PacketType(t as u32));
+        let packet_type = Reader::new(packet).uint(self.descriptor_bits).ok().map(|t| PacketType(t as u32));
         let problem = |kind: &str, reason: String| NewRecord {
             raw: packet.clone(),
             meta: meta.clone(),

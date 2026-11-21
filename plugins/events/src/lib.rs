@@ -7,9 +7,8 @@ use fgds_core::axum::{Json, Router};
 use fgds_core::dictionary::Reader;
 use fgds_core::serde_json::{json, Map, Value};
 use fgds_core::{
-    Access, Context, DecodeError, Decoder, Dictionary, FieldSpec, FieldType, FlightTime, KindSpec,
-    Manifest, NewRecord, PacketMatch, PacketMeta, PacketType, Plugin, Registry, Result,
-    RouteAccess, Routes,
+    Access, Context, DecodeError, Decoder, Dictionary, FieldSpec, FieldType, FlightTime, KindSpec, Manifest, NewRecord,
+    PacketMatch, PacketMeta, PacketType, Plugin, Registry, Result, RouteAccess, Routes,
 };
 use std::sync::Arc;
 
@@ -56,7 +55,7 @@ impl Decoder for EventDecoder {
         PacketMatch { packet_type: Some(PacketType::EVENT), meta: vec![] }
     }
 
-    /// Packet: packet type, event identifier, time tag, arguments in declaration order.
+    /// Packet: packet type, then per event: identifier, time tag, arguments in declaration order.
     fn decode(&self, packet: &[u8], _: &PacketMeta, dict: &Dictionary) -> Result<Vec<NewRecord>, DecodeError> {
         let error = |e: fgds_core::dictionary::TypeError| DecodeError(e.0);
         let bits = |name: &str, default| match dict.types.get(name) {
@@ -65,33 +64,35 @@ impl Decoder for EventDecoder {
         };
         let mut r = Reader::new(packet);
         r.uint(bits("FwPacketDescriptorType", 16)).map_err(error)?;
-        let id = r.uint(bits("FwEventIdType", 32)).map_err(error)? as u32;
-        let time = dict.decode_time(&mut r).map_err(error)?;
-        let event = dict.event(id).ok_or_else(|| DecodeError(format!("event {id} is not in the dictionary")))?;
-        let mut args = Map::new();
-        for param in &event.params {
-            let value = dict
-                .decode(&param.ty, &mut r)
-                .map_err(|e| DecodeError(format!("event {} argument {}: {}", event.name, param.name, e.0)))?;
-            args.insert(param.name.clone(), value);
+        // A packet may hold several events one after the other, as the Python GDS accepts.
+        let mut records = Vec::new();
+        while records.is_empty() || r.remaining() > 0 {
+            let id = r.uint(bits("FwEventIdType", 32)).map_err(error)? as u32;
+            let time = dict.decode_time(&mut r).map_err(error)?;
+            let event = dict.event(id).ok_or_else(|| DecodeError(format!("event {id} is not in the dictionary")))?;
+            let mut args = Map::new();
+            for param in &event.params {
+                let value = dict
+                    .decode(&param.ty, &mut r)
+                    .map_err(|e| DecodeError(format!("event {} argument {}: {}", event.name, param.name, e.0)))?;
+                args.insert(param.name.clone(), value);
+            }
+            let values: Vec<_> = event.params.iter().map(|p| (&p.ty, &args[&p.name])).collect();
+            let display_text = dict.format(&event.format, &values);
+            records.push(NewRecord {
+                id: Some(id),
+                flight_time: Some(FlightTime {
+                    base: time.base,
+                    context: time.context,
+                    seconds: time.seconds,
+                    microseconds: time.microseconds,
+                }),
+                ..NewRecord::new(
+                    KIND,
+                    json!({"name": event.name, "severity": event.severity, "args": args, "display_text": display_text}),
+                )
+            });
         }
-        if r.remaining() > 0 {
-            return Err(DecodeError(format!("event {}: {} bytes left over", event.name, r.remaining())));
-        }
-        let values: Vec<_> = event.params.iter().map(|p| (&p.ty, &args[&p.name])).collect();
-        let display_text = dict.format(&event.format, &values);
-        Ok(vec![NewRecord {
-            id: Some(id),
-            flight_time: Some(FlightTime {
-                base: time.base,
-                context: time.context,
-                seconds: time.seconds,
-                microseconds: time.microseconds,
-            }),
-            ..NewRecord::new(
-                KIND,
-                json!({"name": event.name, "severity": event.severity, "args": args, "display_text": display_text}),
-            )
-        }])
+        Ok(records)
     }
 }

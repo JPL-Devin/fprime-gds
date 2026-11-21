@@ -46,9 +46,7 @@ impl Dictionary {
     }
 
     pub fn command_by_opcode(&self, opcode: u32) -> Option<&Command> {
-        self.command_by_opcode
-            .get(&opcode)
-            .map(|i| &self.commands[*i])
+        self.command_by_opcode.get(&opcode).map(|i| &self.commands[*i])
     }
 
     pub fn event(&self, id: u32) -> Option<&Event> {
@@ -73,8 +71,6 @@ impl Dictionary {
 
     /// The `projectVersion` of the dictionary metadata, empty when absent.
     pub fn version(&self) -> &str {
-        self.json["metadata"]["projectVersion"]
-            .as_str()
-            .unwrap_or("")
+        self.json["metadata"]["projectVersion"].as_str().unwrap_or("")
     }
 }

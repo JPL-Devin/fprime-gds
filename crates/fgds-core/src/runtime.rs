@@ -1,6 +1,6 @@
 use crate::{
-    spawn_supervised, Config, Error, Link, PluginConfig, Records, Registry, Result, Router,
-    RunInfo, Status, StatusHandle, StorageConfig, Uplink, VERSION,
+    spawn_supervised, Config, Error, Link, PluginConfig, Records, Registry, Result, Router, RunInfo, Status,
+    StatusHandle, StorageConfig, Uplink, VERSION,
 };
 use fgds_dictionary::Dictionary;
 use std::sync::Arc;

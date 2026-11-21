@@ -57,7 +57,10 @@ fn mistakes_stop_startup_with_a_message() {
         (&["check"][..], "no dictionary"),
         (&["check", "--dictionary", "nope.json"], "nope.json"),
         (&["check", "--dictionary", "bad.json"], "bad.json"),
-        (&["check", "--dictionary", DICTIONARY, "--comm", "pigeon"], "unknown adapter \"pigeon\"; available: tcp-client, tcp-server"),
+        (
+            &["check", "--dictionary", DICTIONARY, "--comm", "pigeon"],
+            "unknown adapter \"pigeon\"; available: tcp-client, tcp-server",
+        ),
         (&["check", "--dictionary", DICTIONARY, "--framing", "x"], "unknown framing profile \"x\""),
         (&["check", "--config", "bad.toml"], "colour"),
         (&["check", "--config", "missing.toml"], "missing.toml"),

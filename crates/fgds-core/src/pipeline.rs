@@ -1,7 +1,4 @@
-use crate::{
-    Error, Filter, KindSpec, NewRecord, Page, Query, Record, Result, RunInfo, Status, Storage,
-    Timestamp,
-};
+use crate::{Error, Filter, KindSpec, NewRecord, Page, Query, Record, Result, RunInfo, Status, Storage, Timestamp};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -18,7 +15,7 @@ pub(crate) const DEFAULT_LIMIT: u32 = 1_000;
 pub(crate) const MAX_LIMIT: u32 = 10_000;
 
 enum Message {
-    Record(Record),
+    Record(Box<Record>),
     Flush(oneshot::Sender<()>),
 }
 
@@ -63,7 +60,7 @@ impl Records {
             let mut flushes = Vec::new();
             for message in batch.drain(..) {
                 match message {
-                    Message::Record(r) => records.push(r),
+                    Message::Record(r) => records.push(*r),
                     Message::Flush(done) => flushes.push(done),
                 }
             }
@@ -109,7 +106,7 @@ impl Records {
             meta: new.meta,
             body: new.body,
         };
-        queue.1.send(Message::Record(record)).await.map_err(|_| Error::other("pipeline stopped"))?;
+        queue.1.send(Message::Record(Box::new(record))).await.map_err(|_| Error::other("pipeline stopped"))?;
         queue.0 += 1;
         Ok(seq)
     }
@@ -177,7 +174,9 @@ impl Records {
 pub enum StreamEnd {
     Closed,
     /// The subscriber was too slow; `last_seq` is the last record it received.
-    Lagged { last_seq: u64 },
+    Lagged {
+        last_seq: u64,
+    },
 }
 
 /// A subscription: replay from storage, then live records.
@@ -202,11 +201,8 @@ impl RecordStream {
             if self.replaying {
                 // The live receiver exists already, so a record committed while this
                 // query runs is seen there and dropped below if the query returned it too.
-                let query = Query {
-                    kinds: self.filter.kinds.clone(),
-                    after_seq: Some(self.last),
-                    ..Default::default()
-                };
+                let query =
+                    Query { kinds: self.filter.kinds.clone(), after_seq: Some(self.last), ..Default::default() };
                 match self.records.query(query).await {
                     Ok(page) if !page.records.is_empty() => self.replay.extend(page.records),
                     Ok(_) => self.replaying = false,
@@ -220,9 +216,7 @@ impl RecordStream {
                     return Ok((*record).clone());
                 }
                 Ok(_) => {}
-                Err(broadcast::error::RecvError::Lagged(_)) => {
-                    return Err(StreamEnd::Lagged { last_seq: self.last })
-                }
+                Err(broadcast::error::RecvError::Lagged(_)) => return Err(StreamEnd::Lagged { last_seq: self.last }),
                 Err(broadcast::error::RecvError::Closed) => return Err(StreamEnd::Closed),
             }
         }

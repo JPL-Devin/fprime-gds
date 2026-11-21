@@ -40,18 +40,9 @@ pub struct Member {
 }
 
 impl Type {
-    pub const U8: Type = Type::Int {
-        bits: 8,
-        signed: false,
-    };
-    pub const U16: Type = Type::Int {
-        bits: 16,
-        signed: false,
-    };
-    pub const U32: Type = Type::Int {
-        bits: 32,
-        signed: false,
-    };
+    pub const U8: Type = Type::Int { bits: 8, signed: false };
+    pub const U16: Type = Type::Int { bits: 16, signed: false };
+    pub const U32: Type = Type::Int { bits: 32, signed: false };
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,13 +85,9 @@ pub struct Time {
 }
 
 pub(crate) fn str_field<'a>(v: &'a Value, key: &str) -> Result<&'a str, String> {
-    v[key]
-        .as_str()
-        .ok_or_else(|| format!("missing string field \"{key}\""))
+    v[key].as_str().ok_or_else(|| format!("missing string field \"{key}\""))
 }
 
 pub(crate) fn u64_field(v: &Value, key: &str) -> Result<u64, String> {
-    v[key]
-        .as_u64()
-        .ok_or_else(|| format!("missing unsigned integer field \"{key}\""))
+    v[key].as_u64().ok_or_else(|| format!("missing unsigned integer field \"{key}\""))
 }

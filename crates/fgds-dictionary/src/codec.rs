@@ -28,11 +28,7 @@ impl<'a> Reader<'a> {
 
     pub fn take(&mut self, n: usize) -> Result<&'a [u8], TypeError> {
         if self.remaining() < n {
-            return fail(format!(
-                "needed {n} bytes at offset {}, {} left",
-                self.pos,
-                self.remaining()
-            ));
+            return fail(format!("needed {n} bytes at offset {}, {} left", self.pos, self.remaining()));
         }
         let out = &self.data[self.pos..self.pos + n];
         self.pos += n;
@@ -54,10 +50,7 @@ fn put_uint(out: &mut Vec<u8>, bits: u8, value: u64) {
 /// An integer given as a JSON number or as a decimal or `0x` string.
 fn int_from_json(value: &Value) -> Option<i128> {
     match value {
-        Value::Number(n) => n
-            .as_i64()
-            .map(i128::from)
-            .or_else(|| n.as_u64().map(i128::from)),
+        Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
         Value::String(s) => {
             let s = s.trim();
             match s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
@@ -102,10 +95,7 @@ impl Dictionary {
             Type::String { max } => self.max_size(&self.size_store) + max,
             Type::Enum { rep, .. } => self.max_size(rep),
             Type::Array { size, element, .. } => size * self.max_size(element),
-            Type::Struct { members, .. } => members
-                .iter()
-                .map(|m| m.count.unwrap_or(1) * self.max_size(&m.ty))
-                .sum(),
+            Type::Struct { members, .. } => members.iter().map(|m| m.count.unwrap_or(1) * self.max_size(&m.ty)).sum(),
         }
     }
 
@@ -122,9 +112,7 @@ impl Dictionary {
                     (bits, true) => json!(((raw << (64 - bits)) as i64) >> (64 - bits)),
                 })
             }
-            Type::Float { bits: 32 } => {
-                Ok(float_to_json(f32::from_bits(r.uint(32)? as u32) as f64))
-            }
+            Type::Float { bits: 32 } => Ok(float_to_json(f32::from_bits(r.uint(32)? as u32) as f64)),
             Type::Float { .. } => Ok(float_to_json(f64::from_bits(r.uint(64)?))),
             Type::Bool => match r.uint(8)? as u8 {
                 b if b == self.bool_true => Ok(json!(true)),
@@ -132,9 +120,7 @@ impl Dictionary {
                 b => fail(format!("invalid boolean byte 0x{b:02X}")),
             },
             Type::String { max } => {
-                let Type::Int { bits, .. } = self.size_store else {
-                    unreachable!("checked at load")
-                };
+                let Type::Int { bits, .. } = self.size_store else { unreachable!("checked at load") };
                 let len = r.uint(bits)? as usize;
                 if len > *max {
                     return fail(format!("string length {len} exceeds maximum {max}"));
@@ -144,31 +130,22 @@ impl Dictionary {
                     Err(_) => fail("string is not valid UTF-8"),
                 }
             }
-            Type::Enum {
-                name,
-                rep,
-                constants,
-            } => {
+            Type::Enum { name, rep, constants } => {
                 let raw = int_from_json(&self.decode(rep, r)?).unwrap_or_default();
                 match constants.iter().find(|(_, v)| *v as i128 == raw) {
                     Some((constant, _)) => Ok(json!(constant)),
                     None => fail(format!("{raw} is not a constant of enum {name}")),
                 }
             }
-            Type::Array { size, element, .. } => (0..*size)
-                .map(|_| self.decode(element, r))
-                .collect::<Result<Vec<_>, _>>()
-                .map(Value::Array),
+            Type::Array { size, element, .. } => {
+                (0..*size).map(|_| self.decode(element, r)).collect::<Result<Vec<_>, _>>().map(Value::Array)
+            }
             Type::Struct { members, .. } => {
                 let mut out = Map::new();
                 for m in members {
                     let value = match m.count {
                         None => self.decode(&m.ty, r)?,
-                        Some(n) => Value::Array(
-                            (0..n)
-                                .map(|_| self.decode(&m.ty, r))
-                                .collect::<Result<_, _>>()?,
-                        ),
+                        Some(n) => Value::Array((0..n).map(|_| self.decode(&m.ty, r)).collect::<Result<_, _>>()?),
                     };
                     out.insert(m.name.clone(), value);
                 }
@@ -234,30 +211,18 @@ impl Dictionary {
                 if s.len() > *max {
                     return fail(format!("string of {} bytes exceeds maximum {max}", s.len()));
                 }
-                let Type::Int { bits, .. } = self.size_store else {
-                    unreachable!("checked at load")
-                };
+                let Type::Int { bits, .. } = self.size_store else { unreachable!("checked at load") };
                 put_uint(out, bits, s.len() as u64);
                 out.extend_from_slice(s.as_bytes());
             }
-            Type::Enum {
-                name,
-                rep,
-                constants,
-            } => {
-                let found = value
-                    .as_str()
-                    .and_then(|s| constants.iter().find(|(c, _)| c == s));
+            Type::Enum { name, rep, constants } => {
+                let found = value.as_str().and_then(|s| constants.iter().find(|(c, _)| c == s));
                 match found {
                     Some((_, v)) => self.encode(rep, &json!(v), out)?,
                     None => return fail(format!("{value} is not a constant of enum {name}")),
                 }
             }
-            Type::Array {
-                name,
-                size,
-                element,
-            } => self.encode_list(name, element, *size, value, out)?,
+            Type::Array { name, size, element } => self.encode_list(name, element, *size, value, out)?,
             Type::Struct { name, members } => {
                 let Some(map) = value.as_object() else {
                     return fail(format!("{value} is not an object (struct {name})"));
@@ -289,13 +254,9 @@ impl Dictionary {
         out: &mut Vec<u8>,
     ) -> Result<(), TypeError> {
         match value.as_array() {
-            Some(items) if items.len() == size => items
-                .iter()
-                .enumerate()
-                .try_for_each(|(i, v)| {
-                    self.encode(element, v, out)
-                        .map_err(|e| TypeError(format!("{name}[{i}]: {}", e.0)))
-                }),
+            Some(items) if items.len() == size => items.iter().enumerate().try_for_each(|(i, v)| {
+                self.encode(element, v, out).map_err(|e| TypeError(format!("{name}[{i}]: {}", e.0)))
+            }),
             _ => fail(format!("{value} is not an array of {size} elements ({name})")),
         }
     }

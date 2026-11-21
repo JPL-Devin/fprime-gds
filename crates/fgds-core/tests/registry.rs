@@ -1,6 +1,6 @@
 //! Conflict checks at registration (CUS-10): the error names both plugins.
 
-use fgds_core::testing::{FakeGds, empty_dictionary};
+use fgds_core::testing::{empty_dictionary, FakeGds};
 use fgds_core::*;
 use std::sync::Arc;
 

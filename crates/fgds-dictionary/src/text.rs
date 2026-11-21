@@ -53,7 +53,9 @@ fn leaves_as_text(ty: &Type, value: &Value) -> String {
                 .iter()
                 .filter_map(|m| Some((m, fields.get(&m.name)?)))
                 .map(|(m, v)| match (m.count, v) {
-                    (Some(_), Value::Array(items)) => format!("'{}': {}", m.name, list(&m.ty, items)),
+                    (Some(_), Value::Array(items)) => {
+                        format!("'{}': {}", m.name, list(&m.ty, items))
+                    }
                     _ => format!("'{}': {}", m.name, leaves_as_text(&m.ty, v)),
                 })
                 .collect();

@@ -1,7 +1,7 @@
 use crate::record::core_kinds;
 use crate::{
-    AdapterFactory, Decoder, Encoder, Error, FramingLayer, HandlerFactory, KindSpec, Manifest,
-    PacketMatch, Plugin, Result, Routes, Storage, Subcommand, UiBundle,
+    AdapterFactory, Decoder, Encoder, Error, FramingLayer, HandlerFactory, KindSpec, Manifest, PacketMatch, Plugin,
+    Result, Routes, Storage, Subcommand, UiBundle,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -35,10 +35,7 @@ pub struct Registry {
 impl Registry {
     /// A registry holding only the core's own kinds.
     pub fn new() -> Self {
-        let mut reg = Registry {
-            current: "core".into(),
-            ..Default::default()
-        };
+        let mut reg = Registry { current: "core".into(), ..Default::default() };
         for kind in core_kinds() {
             reg.add_kind(kind).expect("core kinds are distinct");
         }
@@ -99,11 +96,7 @@ impl Registry {
     /// Fails when another decoder can match the same packet with equal precedence.
     pub fn add_decoder(&mut self, decoder: Arc<dyn Decoder>) -> Result<()> {
         let rule = decoder.matches();
-        if let Some((owner, _)) = self
-            .decoders
-            .iter()
-            .find(|(_, other)| ambiguous(&rule, &other.matches()))
-        {
+        if let Some((owner, _)) = self.decoders.iter().find(|(_, other)| ambiguous(&rule, &other.matches())) {
             return Err(Error::Conflict(format!(
                 "decoder match rule {rule:?} is registered by both plugin \"{owner}\" and plugin \"{}\"",
                 self.current
@@ -121,9 +114,7 @@ impl Registry {
                 slot.1 = decoder;
                 Ok(())
             }
-            None => Err(Error::Config(format!(
-                "override_decoder: no decoder is registered with match rule {rule:?}"
-            ))),
+            None => Err(Error::Config(format!("override_decoder: no decoder is registered with match rule {rule:?}"))),
         }
     }
 
@@ -194,9 +185,6 @@ fn ambiguous(a: &PacketMatch, b: &PacketMatch) -> bool {
         // One with a type and one without differ in precedence.
         _ => return false,
     };
-    let meta_overlap = a
-        .meta
-        .iter()
-        .all(|(key, value)| b.meta.iter().all(|(k, v)| k != key || v == value));
+    let meta_overlap = a.meta.iter().all(|(key, value)| b.meta.iter().all(|(k, v)| k != key || v == value));
     a.meta.len() == b.meta.len() && types_overlap && meta_overlap
 }

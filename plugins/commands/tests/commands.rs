@@ -51,7 +51,10 @@ async fn invalid_commands_are_rejected_and_recorded_but_not_sent() {
         (json!({"name": "T.c.NO_OP", "args": [1]}), "T.c.NO_OP takes 0 arguments, 1 given"),
         (json!({"name": "T.c.SET", "args": ["ON", 1]}), "T.c.SET takes 3 arguments, 2 given"),
         (json!({"name": "T.c.SET", "args": {"mode": "ON", "level": 1}}), "argument label is missing"),
-        (json!({"name": "T.c.SET", "args": {"mode": "ON", "level": 1, "label": "", "x": 1}}), "T.c.SET has no argument x"),
+        (
+            json!({"name": "T.c.SET", "args": {"mode": "ON", "level": 1, "label": "", "x": 1}}),
+            "T.c.SET has no argument x",
+        ),
         (json!({"name": "T.c.SET", "args": "ON"}), "\"args\" is neither a list nor an object"),
     ];
     for (request, reason) in &cases {

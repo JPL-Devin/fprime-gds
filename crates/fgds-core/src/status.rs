@@ -49,10 +49,7 @@ impl Status {
     }
 
     pub fn handle(&self, plugin: &str) -> StatusHandle {
-        StatusHandle {
-            status: self.clone(),
-            plugin: plugin.to_string(),
-        }
+        StatusHandle { status: self.clone(), plugin: plugin.to_string() }
     }
 
     pub fn snapshot(&self) -> Value {
@@ -84,8 +81,7 @@ pub struct StatusHandle {
 
 impl StatusHandle {
     fn with(&self, f: impl FnOnce(&mut PluginStatus)) {
-        self.status
-            .with(|d| f(d.plugins.entry(self.plugin.clone()).or_default()));
+        self.status.with(|d| f(d.plugins.entry(self.plugin.clone()).or_default()));
     }
 
     pub fn set_state(&self, state: &str) {

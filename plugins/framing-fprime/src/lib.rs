@@ -4,8 +4,7 @@
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use fgds_core::{
-    Deframe, Deframed, Frame, FramingLayer, Manifest, PacketMeta, PeerInfo, Plugin, PluginConfig,
-    Registry, Result,
+    Deframe, Deframed, Frame, FramingLayer, Manifest, PacketMeta, PeerInfo, Plugin, PluginConfig, Registry, Result,
 };
 use std::sync::Arc;
 
@@ -55,9 +54,7 @@ impl Frame for FprimeFraming {
 /// Where the next frame may begin: the first position whose bytes are, as far as the
 /// input goes, a prefix of the start word.
 fn find_start(input: &[u8]) -> usize {
-    (0..input.len())
-        .find(|&i| input[i..].iter().zip(START).all(|(a, b)| *a == b))
-        .unwrap_or(input.len())
+    (0..input.len()).find(|&i| input[i..].iter().zip(START).all(|(a, b)| *a == b)).unwrap_or(input.len())
 }
 
 impl Deframe for FprimeFraming {

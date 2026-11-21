@@ -1,7 +1,7 @@
 use crate::supervisor::panic_message;
 use crate::{
-    Adapter, Deframe, Deframed, Frame, FramingLayer, NewRecord, PacketMeta, PeerInfo,
-    PluginConfig, Records, Result, Router, ShutdownToken, Status, KIND_DISCARDED,
+    Adapter, Deframe, Deframed, Frame, FramingLayer, NewRecord, PacketMeta, PeerInfo, PluginConfig, Records, Result,
+    Router, ShutdownToken, Status, KIND_DISCARDED,
 };
 use bytes::{Bytes, BytesMut};
 use fgds_dictionary::Dictionary;
@@ -197,10 +197,7 @@ impl Downlink {
                 }
                 Deframed::Discarded { bytes, reason } => {
                     status.count("bytes_discarded", bytes.len() as u64);
-                    vec![NewRecord {
-                        raw: bytes,
-                        ..NewRecord::new(KIND_DISCARDED, json!({"reason": reason}))
-                    }]
+                    vec![NewRecord { raw: bytes, ..NewRecord::new(KIND_DISCARDED, json!({"reason": reason})) }]
                 }
             };
             for record in records {

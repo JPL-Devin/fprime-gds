@@ -44,5 +44,18 @@ async fn events_are_decoded_with_their_arguments_and_text() {
     assert_eq!(reasons.len(), 3);
     assert_eq!(reasons[0], "event 999 is not in the dictionary");
     assert!(reasons[1].starts_with("event T.c.ModeSet argument level:"), "{}", reasons[1]);
-    assert_eq!(reasons[2], "event T.c.NoOp: 1 bytes left over");
+    assert_eq!(reasons[2], "needed 4 bytes at offset 17, 1 left");
+}
+
+#[tokio::test]
+async fn several_events_in_one_packet_are_each_a_record() {
+    let dictionary = Dictionary::parse("dictionary.json", DICTIONARY).unwrap();
+    let gds = FakeGds::start(&[&events::EventsPlugin], dictionary).await.unwrap();
+    let mut packet = event(512, &[]);
+    packet.extend(&event(513, &[1, 0x01, 0xFF])[2..]);
+    gds.receive(&packet).await;
+
+    let events = gds.records(&["event"]).await;
+    let ids: Vec<_> = events.iter().map(|r| r.id).collect();
+    assert_eq!(ids, [Some(512), Some(513)]);
 }

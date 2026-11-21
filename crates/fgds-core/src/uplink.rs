@@ -46,13 +46,7 @@ struct Inner {
 pub struct Uplink(Arc<Inner>);
 
 impl Uplink {
-    pub fn new(
-        encoders: &[Arc<dyn Encoder>],
-        dict: Arc<Dictionary>,
-        link: Link,
-        records: Records,
-        run: u32,
-    ) -> Uplink {
+    pub fn new(encoders: &[Arc<dyn Encoder>], dict: Arc<Dictionary>, link: Link, records: Records, run: u32) -> Uplink {
         Uplink(Arc::new(Inner {
             encoders: encoders.iter().map(|e| (e.request_kind(), e.clone())).collect(),
             dict,
@@ -64,27 +58,17 @@ impl Uplink {
     }
 
     fn encoder(&self, request_kind: &str) -> Result<&Arc<dyn Encoder>, SendError> {
-        self.0
-            .encoders
-            .get(request_kind)
-            .ok_or_else(|| SendError::UnknownKind(request_kind.to_string()))
+        self.0.encoders.get(request_kind).ok_or_else(|| SendError::UnknownKind(request_kind.to_string()))
     }
 
     /// Validate and encode only: nothing is sent or recorded (LNK-21).
     pub fn dry_run(&self, request_kind: &str, request: &Value) -> Result<Encoded, SendError> {
-        self.encoder(request_kind)?
-            .encode(request, &self.0.dict)
-            .map_err(|e| SendError::Invalid(e.0))
+        self.encoder(request_kind)?.encode(request, &self.0.dict).map_err(|e| SendError::Invalid(e.0))
     }
 
     /// Validate, send and record one request. Every outcome but an unknown request
     /// kind is recorded, with `outcome` `sent`, `rejected` or `failed`.
-    pub async fn send(
-        &self,
-        request_kind: &str,
-        request: &Value,
-        client: &str,
-    ) -> Result<Sent, SendError> {
+    pub async fn send(&self, request_kind: &str, request: &Value, client: &str) -> Result<Sent, SendError> {
         let kind = self.encoder(request_kind)?.record_kind();
         let entity = format!("{}-{}", self.0.run, self.0.sends.fetch_add(1, Ordering::SeqCst) + 1);
         let (encoded, result) = match self.dry_run(request_kind, request) {

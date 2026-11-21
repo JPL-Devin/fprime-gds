@@ -26,8 +26,7 @@ impl Timestamp {
 
     /// ISO 8601 UTC with microseconds (API-4).
     pub fn to_iso(self) -> String {
-        const FORMAT: &str =
-            "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6]Z";
+        const FORMAT: &str = "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:6]Z";
         time::OffsetDateTime::from_unix_timestamp_nanos(self.0 as i128 * 1000)
             .ok()
             .zip(time::format_description::parse_borrowed::<2>(FORMAT).ok())
@@ -138,11 +137,7 @@ pub struct NewRecord {
 
 impl NewRecord {
     pub fn new(kind: &str, body: Value) -> Self {
-        NewRecord {
-            kind: kind.to_string(),
-            body,
-            ..Default::default()
-        }
+        NewRecord { kind: kind.to_string(), body, ..Default::default() }
     }
 }
 
@@ -209,10 +204,8 @@ impl KindSpec {
 
 /// The kinds the core itself publishes.
 pub(crate) fn core_kinds() -> Vec<KindSpec> {
-    let text = |id: &str, description| KindSpec {
-        text_fields: &["/reason", "/message"],
-        ..KindSpec::new(id, description)
-    };
+    let text =
+        |id: &str, description| KindSpec { text_fields: &["/reason", "/message"], ..KindSpec::new(id, description) };
     vec![
         text(KIND_DISCARDED, "Link bytes a framing layer could not use"),
         text(KIND_DECODE_ERROR, "A packet its decoder could not decode"),
@@ -229,9 +222,7 @@ pub struct Filter {
 
 impl Filter {
     pub fn kinds(kinds: &[&str]) -> Self {
-        Filter {
-            kinds: kinds.iter().map(|k| k.to_string()).collect(),
-        }
+        Filter { kinds: kinds.iter().map(|k| k.to_string()).collect() }
     }
 
     pub fn matches(&self, record: &Record) -> bool {
@@ -406,10 +397,7 @@ impl Query {
             let needle = text.to_lowercase();
             spec.is_some_and(|s| {
                 s.text_fields.iter().any(|pointer| {
-                    record
-                        .body
-                        .pointer(pointer)
-                        .is_some_and(|v| as_text(v).to_lowercase().contains(&needle))
+                    record.body.pointer(pointer).is_some_and(|v| as_text(v).to_lowercase().contains(&needle))
                 })
             })
         };
@@ -419,8 +407,7 @@ impl Query {
             && self.before_seq.is_none_or(|s| record.seq < s)
             && (self.ids.is_empty() || record.id.is_some_and(|id| self.ids.contains(&id)))
             && self.time.is_none_or(|t| {
-                t.from.is_none_or(|from| record.ground_time >= from)
-                    && t.to.is_none_or(|to| record.ground_time < to)
+                t.from.is_none_or(|from| record.ground_time >= from) && t.to.is_none_or(|to| record.ground_time < to)
             })
             && self.filters.iter().all(field_ok)
             && self.text.as_ref().is_none_or(text_ok)

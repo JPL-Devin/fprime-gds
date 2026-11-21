@@ -174,7 +174,12 @@ pub struct FaultyPlugin;
 
 impl Plugin for FaultyPlugin {
     fn manifest(&self) -> Manifest {
-        Manifest { name: "faulty", version: env!("CARGO_PKG_VERSION"), requires_kinds: vec![NOTE], ..Default::default() }
+        Manifest {
+            name: "faulty",
+            version: env!("CARGO_PKG_VERSION"),
+            requires_kinds: vec![NOTE],
+            ..Default::default()
+        }
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {

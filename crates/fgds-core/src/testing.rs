@@ -2,9 +2,9 @@
 //! trivial framing layer, a core started on them, and the storage conformance suite.
 
 use crate::{
-    async_trait, Adapter, Config, Core, Deframe, Deframed, Error, Frame, FramingLayer, KindSpec,
-    LinkReader, LinkWriter, Manifest, PacketMeta, Page, PeerInfo, Plugin, PluginConfig, Query,
-    Record, Registry, Result, RunInfo, Storage, StorageConfig, Timestamp,
+    async_trait, Adapter, Config, Core, Deframe, Deframed, Error, Frame, FramingLayer, KindSpec, LinkReader,
+    LinkWriter, Manifest, PacketMeta, Page, PeerInfo, Plugin, PluginConfig, Query, Record, Registry, Result, RunInfo,
+    Storage, StorageConfig, Timestamp,
 };
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use fgds_dictionary::Dictionary;
@@ -124,10 +124,7 @@ pub struct ScriptHandle {
 impl ScriptedAdapter {
     pub fn new() -> (ScriptedAdapter, ScriptHandle) {
         let (steps, incoming) = mpsc::unbounded_channel();
-        let script = Arc::new(Script {
-            incoming: tokio::sync::Mutex::new(incoming),
-            sent: Mutex::new(Vec::new()),
-        });
+        let script = Arc::new(Script { incoming: tokio::sync::Mutex::new(incoming), sent: Mutex::new(Vec::new()) });
         (ScriptedAdapter(script.clone()), ScriptHandle { steps, script })
     }
 }
@@ -261,11 +258,7 @@ impl FakeGds {
         for plugin in plugins {
             registry.register(*plugin)?;
         }
-        let config = Config {
-            comm: "scripted".into(),
-            framing: "length".into(),
-            ..Default::default()
-        };
+        let config = Config { comm: "scripted".into(), framing: "length".into(), ..Default::default() };
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
         core.start_link();
         let gds = FakeGds { core, link };

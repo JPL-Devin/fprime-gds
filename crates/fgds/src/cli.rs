@@ -59,7 +59,8 @@ fn command(registry: &Registry) -> Command {
         };
         options.push(Arg::new(spec.name).long(spec.name).help(help));
     }
-    let config = Arg::new("config").long("config").global(true).help("Configuration file [default: fgds.toml when present]");
+    let config =
+        Arg::new("config").long("config").global(true).help("Configuration file [default: fgds.toml when present]");
     let mut command = Command::new("fgds")
         .about("F Prime Ground Data System")
         .version(fgds_core::VERSION)
@@ -68,7 +69,9 @@ fn command(registry: &Registry) -> Command {
         .arg(config)
         .subcommand(Command::new("run").about("Start the GDS").args(options.clone()))
         .subcommand(
-            Command::new("check").about("Load configuration, dictionary and plugins; print what would start").args(options),
+            Command::new("check")
+                .about("Load configuration, dictionary and plugins; print what would start")
+                .args(options),
         );
     for subcommand in &registry.subcommands {
         command = command.subcommand(subcommand.command());

@@ -7,9 +7,8 @@ use fgds_core::axum::{Json, Router};
 use fgds_core::dictionary::{Channel, Reader, Type, TypeError};
 use fgds_core::serde_json::{json, Value};
 use fgds_core::{
-    Access, Context, DecodeError, Decoder, Dictionary, FieldSpec, FieldType, FlightTime, KindSpec,
-    Manifest, NewRecord, PacketMatch, PacketMeta, PacketType, Plugin, Registry, Result,
-    RouteAccess, Routes,
+    Access, Context, DecodeError, Decoder, Dictionary, FieldSpec, FieldType, FlightTime, KindSpec, Manifest, NewRecord,
+    PacketMatch, PacketMeta, PacketType, Plugin, Registry, Result, RouteAccess, Routes,
 };
 use std::sync::Arc;
 
@@ -64,9 +63,7 @@ fn time(r: &mut Reader, dict: &Dictionary) -> Result<FlightTime, DecodeError> {
 
 /// One sample: the value and its display text, as the Python GDS shows it.
 fn sample(channel: &Channel, time: FlightTime, r: &mut Reader, dict: &Dictionary) -> Result<NewRecord, DecodeError> {
-    let value = dict
-        .decode(&channel.ty, r)
-        .map_err(|e| DecodeError(format!("channel {}: {}", channel.name, e.0)))?;
+    let value = dict.decode(&channel.ty, r).map_err(|e| DecodeError(format!("channel {}: {}", channel.name, e.0)))?;
     let display_text = match &channel.format {
         Some(format) => dict.format(format, &[(&channel.ty, &value)]),
         None => dict.display_channel(&channel.ty, &value),
@@ -125,7 +122,8 @@ impl Decoder for PacketDecoder {
         uint(&mut r, dict, "FwPacketDescriptorType", 16)?;
         let id = uint(&mut r, dict, "FwTlmPacketizeIdType", 16)?;
         let time = time(&mut r, dict)?;
-        let channels = dict.packet(id).ok_or_else(|| DecodeError(format!("telemetry packet {id} is not in the dictionary")))?;
+        let channels =
+            dict.packet(id).ok_or_else(|| DecodeError(format!("telemetry packet {id} is not in the dictionary")))?;
         let mut records = Vec::new();
         for channel in channels {
             let slot = r.take(dict.max_size(&channel.ty)).map_err(error)?;

@@ -1,8 +1,8 @@
 //! The extension points (section 4.3 of the design).
 
 use crate::{
-    Config, Context, Filter, NewRecord, PacketMeta, MetaValue, Page, PluginConfig, Query, Record,
-    RecordStream, Registry, Result, RunInfo, StorageConfig,
+    Config, Context, Filter, MetaValue, NewRecord, PacketMeta, Page, PluginConfig, Query, Record, RecordStream,
+    Registry, Result, RunInfo, StorageConfig,
 };
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
@@ -110,12 +110,7 @@ pub trait Decoder: Send + Sync {
     fn matches(&self) -> PacketMatch;
     /// `packet` starts with the packet type field. The router fills in `raw` and `meta`
     /// of the returned records when the decoder leaves them empty.
-    fn decode(
-        &self,
-        packet: &[u8],
-        meta: &PacketMeta,
-        dict: &Dictionary,
-    ) -> Result<Vec<NewRecord>, DecodeError>;
+    fn decode(&self, packet: &[u8], meta: &PacketMeta, dict: &Dictionary) -> Result<Vec<NewRecord>, DecodeError>;
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -135,11 +130,7 @@ pub trait Encoder: Send + Sync {
     fn request_kind(&self) -> &'static str;
     /// The kind of the record published for every send, accepted or not.
     fn record_kind(&self) -> &'static str;
-    fn encode(
-        &self,
-        request: &serde_json::Value,
-        dict: &Dictionary,
-    ) -> Result<Encoded, ValidationError>;
+    fn encode(&self, request: &serde_json::Value, dict: &Dictionary) -> Result<Encoded, ValidationError>;
 }
 
 #[async_trait]
