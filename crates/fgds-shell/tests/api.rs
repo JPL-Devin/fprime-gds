@@ -243,3 +243,107 @@ async fn a_panicking_route_answers_500_and_the_server_keeps_running() {
     assert_eq!(status["plugins"]["test"]["fault"], "route bug");
     assert_eq!(server.get("/api/v1/cursor").await.0, 200);
 }
+
+#[tokio::test]
+async fn errors_answered_by_the_framework_are_json_too() {
+    let server = Server::start().await;
+    let url = |path: &str| format!("http://{}{path}", server.address);
+    let check = |response: reqwest::Response, status: u16, code: &'static str| async move {
+        assert_eq!(response.status().as_u16(), status);
+        let body: Value = response.json().await.expect("a JSON body");
+        assert_eq!(body["error"]["code"], code);
+        assert!(!body["error"]["message"].as_str().unwrap().is_empty());
+    };
+    let post = || server.http.post(url("/api/v1/link"));
+    // A body that is not JSON, a body of the wrong type, a wrong method, a body too large.
+    let invalid = post().header("content-type", "application/json").body("{not json");
+    check(invalid.send().await.unwrap(), 400, "bad_request").await;
+    check(post().body("enabled=false").send().await.unwrap(), 415, "unsupported_media_type").await;
+    check(server.http.get(url("/api/v1/link")).send().await.unwrap(), 405, "method_not_allowed").await;
+    check(server.http.delete(url("/api/v1/records")).send().await.unwrap(), 405, "method_not_allowed").await;
+    let big = post().json(&json!({"enabled": "x".repeat(2 * 1024 * 1024)}));
+    check(big.send().await.unwrap(), 413, "payload_too_large").await;
+    check(server.http.get(url("/api/v1/records?after_seq=-1")).send().await.unwrap(), 400, "bad_request").await;
+}
+
+#[tokio::test]
+async fn a_failed_write_is_502_and_a_packet_too_large_for_the_frame_is_422() {
+    let server = Server::start().await;
+    server.gds.link.set_writes(fgds_core::testing::Writes::Fail);
+    let (status, body) = server.post("/api/v1/raw", json!({"data": "AQI="})).await;
+    assert_eq!((status, &body["error"]["code"]), (502, &json!("send_failed")));
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent").await;
+    assert_eq!(page["records"][0]["body"]["outcome"], "failed");
+}
+
+#[tokio::test]
+async fn records_are_selected_by_sequence_time_run_and_repeated_kind() {
+    let server = Server::start().await;
+    for level in 1..=4 {
+        server.gds.receive(&[level]).await;
+    }
+    let get = |query: &str| {
+        let path = format!("/api/v1/records?{query}");
+        let server = &server;
+        async move {
+            let (status, page) = server.get(&path).await;
+            assert_eq!(status, 200, "{path}");
+            page["records"].as_array().unwrap().iter().map(|r| r["seq"].as_str().unwrap().to_string()).collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(get("kind=t.sample&before_seq=4").await, ["2", "3"]);
+    assert_eq!(get("kind=t.sample&kind=gds.status&limit=2").await, ["1", "2"]);
+    assert_eq!(get("kind=t.sample&run=1&after_seq=4").await, ["5"]);
+    assert_eq!(get("kind=t.sample&run=2").await, [] as [&str; 0]);
+    // Ground time in microseconds: from inclusive, to exclusive.
+    let now = fgds_core::Timestamp::now().0;
+    assert_eq!(get(&format!("kind=t.sample&from={}&to={}", now - 60_000_000, now + 1)).await.len(), 4);
+    assert_eq!(get(&format!("kind=t.sample&from={}", now + 1)).await.len(), 0);
+    assert_eq!(get(&format!("kind=t.sample&to={}", now - 60_000_000)).await.len(), 0);
+    assert_eq!(get("kind=t.sample&text=zzz").await, [] as [&str; 0]);
+}
+
+#[tokio::test]
+async fn the_stream_refuses_another_origin() {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let server = Server::start().await;
+    let connect = |origin: String| {
+        let mut request = format!("ws://{}/api/v1/stream", server.address).into_client_request().unwrap();
+        request.headers_mut().insert("origin", origin.parse().unwrap());
+        tokio_tungstenite::connect_async(request)
+    };
+    let refused = connect("http://evil.example".into()).await.unwrap_err();
+    let tokio_tungstenite::tungstenite::Error::Http(response) = refused else { panic!("{refused:?}") };
+    assert_eq!(response.status().as_u16(), 403);
+    assert!(connect(format!("http://{}", server.address)).await.is_ok());
+}
+
+#[tokio::test]
+async fn a_stream_client_that_does_not_read_is_dropped() {
+    fgds_shell::STREAM_SEND_TIMEOUT_MS.store(200, std::sync::atomic::Ordering::Relaxed);
+    let server = Server::start().await;
+    let url = format!("ws://{}/api/v1/stream?kind=t.sample", server.address);
+    let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    // Far more than the socket buffers hold, and nobody reads.
+    let pad = "x".repeat(4000);
+    let total = 8000;
+    for _ in 0..total {
+        server.gds.core.records.publish(NewRecord::new("t.sample", json!({"pad": pad}))).await.unwrap();
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    // The server gave up: what was buffered arrives, then the connection ends without
+    // the rest and without a `lagged` message, which only a reading client is sent.
+    let mut received = 0;
+    let mut last = String::new();
+    let drain = async {
+        while let Some(Ok(message)) = socket.next().await {
+            if let Message::Text(text) = message {
+                received += 1;
+                last = text.chars().take(40).collect();
+            }
+        }
+    };
+    tokio::time::timeout(std::time::Duration::from_secs(20), drain).await.expect("the connection ends");
+    assert!(received < total, "{received} messages");
+    assert!(!last.contains("lagged"), "{last}");
+}
