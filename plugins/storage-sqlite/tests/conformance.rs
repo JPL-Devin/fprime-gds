@@ -75,6 +75,12 @@ async fn a_database_in_use_is_refused_and_read_only_changes_no_byte() {
     drop(storage);
 
     let path = dir.path().join("gds.db");
+    let files = || {
+        let mut names: Vec<_> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        names.sort();
+        names
+    };
+    assert_eq!(files(), ["gds.db", "gds.db.lock"], "a closed database is one file and its lock");
     let before = std::fs::read(&path).unwrap();
     let read_only = make();
     read_only.open(&StorageConfig { read_only: true, ..config(&dir) }).await.unwrap();
@@ -82,6 +88,7 @@ async fn a_database_in_use_is_refused_and_read_only_changes_no_byte() {
     assert!(read_only.reserve(5_000_000).await.is_ok(), "ignored, not written");
     read_only.close().await.unwrap();
     assert_eq!(std::fs::read(&path).unwrap(), before);
+    assert_eq!(files(), ["gds.db", "gds.db.lock"], "read-only creates no file");
 
     // Read-only needs a database that exists and holds a run.
     let missing = StorageConfig { read_only: true, database: Some(dir.path().join("none.db")), ..Default::default() };
