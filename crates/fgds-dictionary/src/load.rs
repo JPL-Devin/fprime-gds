@@ -165,9 +165,9 @@ fn wire_size(ty: &Type) -> Option<usize> {
         Type::String { max } => max.checked_add(8),
         Type::Enum { rep, .. } => wire_size(rep),
         Type::Array { size, element, .. } => size.checked_mul(wire_size(element)?),
-        Type::Struct { members, .. } => members.iter().try_fold(0usize, |sum, m| {
-            sum.checked_add(m.count.unwrap_or(1).checked_mul(wire_size(&m.ty)?)?)
-        }),
+        Type::Struct { members, .. } => members
+            .iter()
+            .try_fold(0usize, |sum, m| sum.checked_add(m.count.unwrap_or(1).checked_mul(wire_size(&m.ty)?)?)),
     }
 }
 
@@ -279,7 +279,12 @@ impl<'a> Resolver<'a> {
                 }
                 let format = def["format"].as_str().map(str::to_string);
                 format.as_deref().map_or(Ok(()), crate::text::check_format)?;
-                bounded(Type::Array { name: name.to_string(), size: count(def, "size")?, element: Box::new(element), format })
+                bounded(Type::Array {
+                    name: name.to_string(),
+                    size: count(def, "size")?,
+                    element: Box::new(element),
+                    format,
+                })
             }
             "struct" => {
                 let map = def["members"].as_object().ok_or("missing \"members\"")?;
@@ -298,7 +303,10 @@ impl<'a> Resolver<'a> {
                         return Err(format!("member {member}: array element has no size"));
                     }
                     let format = spec["format"].as_str().map(str::to_string);
-                    format.as_deref().map_or(Ok(()), crate::text::check_format).map_err(|e| format!("member {member}: {e}"))?;
+                    format
+                        .as_deref()
+                        .map_or(Ok(()), crate::text::check_format)
+                        .map_err(|e| format!("member {member}: {e}"))?;
                     members.push((index, Member { name: member.clone(), ty, count, format }));
                 }
                 // Wire order is the "index" field, not the order of the JSON object.

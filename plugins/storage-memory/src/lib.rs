@@ -9,7 +9,9 @@ pub struct MemoryStoragePlugin;
 
 impl Plugin for MemoryStoragePlugin {
     fn manifest(&self) -> Manifest {
-        Manifest { name: "storage-memory", version: env!("CARGO_PKG_VERSION"),
+        Manifest {
+            name: "storage-memory",
+            version: env!("CARGO_PKG_VERSION"),
             options: vec![OptionSpec {
                 name: "max-records",
                 help: "Keep at most this many records, dropping the oldest (0: keep all)",

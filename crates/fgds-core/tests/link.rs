@@ -117,7 +117,10 @@ async fn a_write_that_never_finishes_fails_the_send_and_drops_the_connection() {
     assert_eq!(gds.link.sent(), [LengthFraming::frame(&[3])]);
 
     let records = gds.records(&[KIND_RAW_SENT]).await;
-    assert_eq!(records[0].body, json!({"length": 2, "client": "tester", "outcome": "failed", "reason": "write timed out"}));
+    assert_eq!(
+        records[0].body,
+        json!({"length": 2, "client": "tester", "outcome": "failed", "reason": "write timed out"})
+    );
     assert_eq!(records[1].body["outcome"], "sent");
 }
 
@@ -147,7 +150,10 @@ async fn a_connection_error_is_in_the_status_and_recorded_once() {
         }
         tokio::time::sleep(Duration::from_millis(1)).await;
     }
-    assert_eq!(gds.core.status.snapshot()["link"], json!({"state": "disconnected", "peer": null, "error": "address in use"}));
+    assert_eq!(
+        gds.core.status.snapshot()["link"],
+        json!({"state": "disconnected", "peer": null, "error": "address in use"})
+    );
     // A second failed attempt with the same error adds no record.
     tokio::time::sleep(Duration::from_millis(1200)).await;
     let errors: Vec<_> = status_records(&gds).await.into_iter().filter(|s| s["error"] == "address in use").collect();
@@ -178,10 +184,10 @@ async fn an_adapter_factory_that_fails_is_reported_once_under_its_plugin_and_ret
     tokio::time::sleep(Duration::from_millis(3500)).await;
     assert_eq!(plugin.built.load(Ordering::SeqCst), 3);
     let faults: Vec<_> = gds.records(&[KIND_PLUGIN_FAULT]).await.into_iter().map(|r| r.body).collect();
-    assert_eq!(faults, [
-        json!({"plugin": "test", "message": "adapter bug"}),
-        json!({"plugin": "test", "message": "no such device"}),
-    ]);
+    assert_eq!(
+        faults,
+        [json!({"plugin": "test", "message": "adapter bug"}), json!({"plugin": "test", "message": "no such device"}),]
+    );
     assert_eq!(gds.core.status.snapshot()["link"]["error"], "no such device");
 }
 

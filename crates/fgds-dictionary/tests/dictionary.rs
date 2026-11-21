@@ -258,7 +258,8 @@ fn time_tags_are_base_context_seconds_microseconds() {
 
 /// A dictionary with the given type definitions, one event format and nothing else.
 fn hostile(types: Value, event_format: &str) -> Result<Dictionary, String> {
-    let event = json!({"name": "T.c.Ev", "id": 1, "severity": "ACTIVITY_HI", "format": event_format, "formalParams": []});
+    let event =
+        json!({"name": "T.c.Ev", "id": 1, "severity": "ACTIVITY_HI", "format": event_format, "formalParams": []});
     let text = json!({"typeDefinitions": types, "commands": [], "events": [event], "telemetryChannels": []});
     Dictionary::parse("hostile.json", &text.to_string()).map_err(|e| e.problem)
 }
@@ -272,7 +273,7 @@ fn named(name: &str) -> Value {
 }
 
 fn problem(types: Value) -> String {
-    hostile(types, "").err().expect("the dictionary is refused")
+    hostile(types, "").err().unwrap()
 }
 
 #[test]
@@ -294,7 +295,10 @@ fn a_type_that_expands_without_bound_is_refused() {
         types.push(json!({"kind": "struct", "qualifiedName": format!("S{n}"), "members": members}));
     }
     let problem = problem(json!(types));
-    assert!(problem.contains("expands to more than 100000 types") || problem.contains("encoded size exceeds"), "{problem}");
+    assert!(
+        problem.contains("expands to more than 100000 types") || problem.contains("encoded size exceeds"),
+        "{problem}"
+    );
 }
 
 #[test]

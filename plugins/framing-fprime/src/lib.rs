@@ -4,7 +4,8 @@
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use fgds_core::{
-    Deframe, Deframed, Error, Frame, FramingLayer, Manifest, PacketMeta, PeerInfo, Plugin, PluginConfig, Registry, Result,
+    Deframe, Deframed, Error, Frame, FramingLayer, Manifest, PacketMeta, PeerInfo, Plugin, PluginConfig, Registry,
+    Result,
 };
 use std::sync::Arc;
 
@@ -43,7 +44,8 @@ impl Frame for FprimeFraming {
     fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
         // The receiver takes a length of 4,096 or more for noise.
         if packet.len() >= MAX_PACKET {
-            let message = format!("packet of {} bytes exceeds the {} of an F Prime frame", packet.len(), MAX_PACKET - 1);
+            let message =
+                format!("packet of {} bytes exceeds the {} of an F Prime frame", packet.len(), MAX_PACKET - 1);
             return Err(Error::Invalid(message));
         }
         let start = out.len();

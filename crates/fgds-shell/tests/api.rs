@@ -274,6 +274,18 @@ async fn a_failed_write_is_502_and_a_packet_too_large_for_the_frame_is_422() {
     assert_eq!((status, &body["error"]["code"]), (502, &json!("send_failed")));
     let (_, page) = server.get("/api/v1/records?kind=raw.sent").await;
     assert_eq!(page["records"][0]["body"]["outcome"], "failed");
+
+    // Refused by the framing layer: nothing is written, the link stays up.
+    server.gds.link.set_writes(fgds_core::testing::Writes::Accept);
+    server.gds.wait_for_link("connected").await;
+    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, vec![0u8; 70_000]);
+    let (status, body) = server.post("/api/v1/raw", json!({"data": data})).await;
+    assert_eq!((status, &body["error"]["code"]), (422, &json!("invalid")));
+    assert_eq!(body["error"]["message"], "packet of 70000 bytes does not fit the frame");
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent").await;
+    assert_eq!(page["records"][1]["body"]["outcome"], "rejected");
+    assert!(server.gds.link.sent().is_empty());
+    assert_eq!(server.get("/api/v1/status").await.1["link"]["state"], "connected");
 }
 
 #[tokio::test]
@@ -288,7 +300,12 @@ async fn records_are_selected_by_sequence_time_run_and_repeated_kind() {
         async move {
             let (status, page) = server.get(&path).await;
             assert_eq!(status, 200, "{path}");
-            page["records"].as_array().unwrap().iter().map(|r| r["seq"].as_str().unwrap().to_string()).collect::<Vec<_>>()
+            page["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|r| r["seq"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
         }
     };
     assert_eq!(get("kind=t.sample&before_seq=4").await, ["2", "3"]);
