@@ -125,7 +125,7 @@ Types are described as `{"kind": "U32"}` (`U8`..`U64`, `I8`..`I64`, `F32`, `F64`
 | `fprime_framing.json` | 31 | F Prime frame (`deadbeef`), CRC-32 and fixed checksum; partial frames, garbage, bad checksum; TCP server framing |
 | `ccsds.json` | 75 cases, 324 steps | Space Packet, Space Packet splitter, TM/TC Space Data Link, TM frame aggregator, and the three plugin chains |
 | `params.json` | 10 | parameter database encoding, decoding (JSON, text, CSV) and the 5 decode errors |
-| `format_strings.json` | 25 | C style and FPP style format strings |
+| `format_strings.json` | 41 | C style and FPP style format strings: 25 asserted by Python tests, 16 recorded from the Python formatter |
 
 `ccsds.json` has one case per Python test: `instances` (class and configuration of each framer the
 test created) and `steps` (`instance`, `operation`, `input`, `expected`, `warnings`), in call order.

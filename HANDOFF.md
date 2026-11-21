@@ -10,13 +10,21 @@
 ## How to run
 - `FPRIME=<fprime checkout with fprime-venv> scripts/check.sh`. The first run builds `Ref` under `target/ref` (several minutes).
 - `Ref` is built with F Prime framing (`scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`), because CCSDS is not built yet.
-- `cargo run -p fgds -- run --dictionary <RefTopologyDictionary.json>`, then `Ref -a 127.0.0.1 -p 50000`; the API is on `http://127.0.0.1:5000/api/v1`.
+- `cargo run -p fgds -- run --dictionary <RefTopologyDictionary.json>`, then `Ref -a 127.0.0.1 -p 50000`; the API is on `http://127.0.0.1:5000/api/v1`. Records go to `logs/<start time>/gds.db`; `--database <file>` keeps one file across runs, `--storage memory` keeps nothing.
+- `cargo run -p fgds -- run --replay <file>` serves an old database without a link.
 
-## Known gaps in the slice
-- Storage failure: records are broadcast unstored and a gap record is written on recovery; no buffer, retry or commit time-out (deviation 8). To finish with `storage-sqlite`.
-- A raw send (`POST /api/v1/raw`) is not recorded (deviations 4 and 5).
-- Format strings of array elements and struct members are not applied to display text.
-- No browser test; the page shell only lists and loads tab modules.
+## Since the first slice
+- Core amendments (section 4.11 of the design, rewritten to match): decoder and encoder factories, options named `--<plugin>-<name>`, `raw.sent` records, the simple storage failure path (STO-9 and section 7 edited), a reserved queue for uplink records, sequence number reservation, read-only open. The list of changed signatures is in the "Core amendments" section of `docs/design/deviations.md`.
+- Review of the slice (`rust-gds-review.md`): must-fix 1 to 5 and should-fix 6 to 22 are fixed, each with a test; decisions and what is still not built are in the "Review fixes, SQLite storage" section of `docs/design/deviations.md`.
+- `plugins/storage-sqlite` is the default storage: every run in one file with its own dictionary, reopening, sequence numbers never reused, read-only and `fgds run --replay <database>`, raw link bytes in `logs/<start time>/`. `storage-memory` stays for tests and as the example of a replaced storage.
+- `tests/storage/run.sh` (run by `scripts/check.sh`) kills the GDS during a `Ref` run and reopens, restarts with a changed dictionary, and replays the file read-only.
+- `fgds_core::testing::conformance` has `storage_conformance_with` and `persistence_conformance` for a storage that outlives the process.
+- `fixtures/vectors/format_strings.json` holds 16 formatter vectors recorded from the Python GDS (`origin: recorded`) beside the 25 asserted ones.
+
+## Known gaps
+- Storage: no schema migration, no integrity check at open, no database size or free space in the status, no retention (table "Not built for storage" in `docs/design/deviations.md`).
+- Table "Not built in this slice" of `docs/design/deviations.md`: `cargo deny`, macOS job, text logs, `--disable-plugin` and `--framing-layers` on the command line, fuzz targets, and others.
+- The UI is the page shell and the tabs of the first slice; it does not offer a choice of run.
 
 ## Rules for every session working here
 - The design document is the reference. A change to a core interface (section 4.2 to 4.5) or to a requirement goes through the orchestrating session, not into a feature branch on its own.
@@ -32,4 +40,4 @@ Access control, the stall watchdog, the load test, project rules checked before 
 
 ## Next steps
 1. Review `docs/design/deviations.md` and update the design ("To change in the design").
-2. Then one branch per plugin crate, per the milestones of section 6.3; `storage-sqlite` first, since it completes the pipeline.
+2. Then one branch per plugin crate, per the milestones of section 6.3.
