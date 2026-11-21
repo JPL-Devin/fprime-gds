@@ -46,18 +46,23 @@ pub fn read_file(path: &Path) -> std::result::Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
-/// Load a dictionary for the offline tools. The sections a full dictionary has and these
-/// tools do not use (events, channels, commands) may be absent, as the Python tools allow.
-pub fn load_dictionary(path: &Path) -> std::result::Result<Dictionary, String> {
+/// The JSON of a dictionary file for the offline tools. The sections a full dictionary has
+/// and these tools do not use may be absent, as the Python tools allow.
+pub fn read_dictionary_json(path: &Path) -> std::result::Result<serde_json::Value, String> {
     let bytes = read_file(path)?;
-    let at = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
-    let mut json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| at(&e))?;
+    let mut json: serde_json::Value = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     if let Some(top) = json.as_object_mut() {
         for section in ["typeDefinitions", "commands", "events", "telemetryChannels"] {
             top.entry(section).or_insert_with(|| json!([]));
         }
     }
     complete_types(&mut json, false);
+    Ok(json)
+}
+
+/// Load a dictionary for the offline tools (see `read_dictionary_json`).
+pub fn load_dictionary(path: &Path) -> std::result::Result<Dictionary, String> {
+    let json = read_dictionary_json(path)?;
     Dictionary::parse(&path.display().to_string(), &json.to_string()).map_err(|e| e.to_string())
 }
 

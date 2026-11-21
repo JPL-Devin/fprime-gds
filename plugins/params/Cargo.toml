@@ -1,0 +1,16 @@
+[package]
+name = "params"
+description = "Parameter database tools (the functions of fprime-prm-write and fprime-prm-decode)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+sequences = { path = "../sequences" }
+
+[dev-dependencies]
+fgds = { workspace = true }
