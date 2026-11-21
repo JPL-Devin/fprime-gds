@@ -14,6 +14,8 @@ pub fn routes(core: Arc<Core>) -> Router {
         .route("/", get(|| async { file("index.html", include_bytes!("../ui/index.html")) }))
         .route("/ui/shell.js", get(|| async { file("shell.js", include_bytes!("../ui/shell.js")) }))
         .route("/ui/shell.css", get(|| async { file("shell.css", include_bytes!("../ui/shell.css")) }))
+        // Lit 4.1.1 (lit-core bundle, BSD-3-Clause), vendored: nothing is fetched from elsewhere.
+        .route("/ui/lit.js", get(|| async { file("lit.js", include_bytes!("../ui/lit.js")) }))
         .route("/ui/tabs", get(tabs))
         .route("/ui/plugins/:tab/*path", get(plugin_file))
         .with_state(core)

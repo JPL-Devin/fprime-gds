@@ -1,5 +1,98 @@
-body { font-family: sans-serif; margin: 0; }
-header { display: flex; gap: 1em; align-items: baseline; padding: 0 1em; background: #223; color: #fff; }
-nav { display: flex; gap: 0.5em; padding: 0.5em 1em; border-bottom: 1px solid #ccc; }
-nav button[aria-selected="true"] { font-weight: bold; }
-main { padding: 1em; }
+/* The common look of the page shell and of the built-in tabs. Severity colours are those of the Python GDS. */
+:root {
+  --fatal-bkg: rgb(251, 128, 114);
+  --warn-hi-bkg: rgb(242, 142, 44);
+  --warn-lo-bkg: rgb(237, 201, 73);
+  --act-hi-bkg: rgb(128, 177, 211);
+  --act-lo-bkg: rgb(186, 176, 171);
+  --command-bkg: rgb(127, 201, 127);
+  --border: #c8ccd0;
+  --navbar: #343a40;
+  --accent: #0d6efd;
+  --muted: #6c757d;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; display: flex; flex-direction: column; color: #212529; background: #fff;
+  font: 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+#navbar { display: flex; align-items: stretch; background: var(--navbar); color: #fff; flex: none; }
+#navbar .brand { padding: 9px 16px; font-weight: 700; font-size: 16px; }
+#tabs { display: flex; flex-wrap: wrap; }
+#tabs button {
+  border: 0; border-radius: 0; background: none; color: #ced4da; padding: 0 14px; font: inherit; cursor: pointer;
+}
+#tabs button:hover { color: #fff; }
+#tabs button[aria-selected="true"] { background: var(--accent); color: #fff; font-weight: 700; }
+#tabs button.failed::after { content: " !"; color: var(--warn-lo-bkg); font-weight: 700; }
+#tab { flex: 1; overflow: auto; padding: 12px 16px; min-height: 0; }
+#tab > [hidden] { display: none; }
+#status {
+  flex: none; display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 4px 16px; font-size: 12px;
+  border-top: 1px solid var(--border); background: #f1f3f5;
+}
+#status .label { color: var(--muted); }
+#status .badge { padding: 0 6px; border-radius: 2px; color: #fff; background: var(--muted); }
+#status .badge.good { background: #2f9e44; }
+#status .badge.bad { background: #c92a2a; }
+
+h2 { font-size: 18px; margin: 0 0 10px; }
+h3 { font-size: 15px; margin: 14px 0 6px; }
+button, input, select, textarea { font: inherit; }
+input[type="text"], input[type="search"], input[type="number"], select, textarea {
+  border: 1px solid var(--border); border-radius: 2px; padding: 3px 6px; background: #fff; color: inherit;
+}
+input.invalid, select.invalid { border-color: #c92a2a; background: #fff5f5; }
+button.action {
+  border: 1px solid var(--accent); border-radius: 2px; background: var(--accent); color: #fff; padding: 3px 12px;
+  cursor: pointer;
+}
+button.action.secondary { background: #fff; color: var(--accent); }
+button.action:disabled { opacity: 0.5; cursor: default; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
+.toolbar label { display: inline-flex; align-items: center; gap: 4px; }
+.muted { color: var(--muted); }
+.error-text { color: #c92a2a; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+
+table.gds { border-collapse: collapse; width: 100%; }
+table.gds th, table.gds td { border: 1px solid var(--border); padding: 2px 8px; text-align: left; vertical-align: top; }
+table.gds th { background: #e9ecef; position: sticky; top: -12px; font-weight: 600; white-space: nowrap; }
+table.gds td.nowrap { white-space: nowrap; }
+table.gds td.text { white-space: pre-wrap; overflow-wrap: anywhere; }
+tr.sev-FATAL { background: var(--fatal-bkg); }
+tr.sev-WARNING_HI { background: var(--warn-hi-bkg); }
+tr.sev-WARNING_LO { background: var(--warn-lo-bkg); }
+tr.sev-ACTIVITY_HI { background: var(--act-hi-bkg); }
+tr.sev-ACTIVITY_LO { background: var(--act-lo-bkg); }
+tr.sev-COMMAND { background: var(--command-bkg); }
+tr.outcome-rejected, tr.outcome-failed, tr.outcome-error { background: var(--fatal-bkg); }
+tr.limit-red { background: var(--fatal-bkg); }
+tr.limit-orange { background: var(--warn-hi-bkg); }
+tr.limit-yellow { background: var(--warn-lo-bkg); }
+
+gds-value { display: inline-block; }
+gds-value .members { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; }
+gds-value .key { color: var(--muted); font-size: 12px; }
+
+.error-panel { border: 1px solid #c92a2a; border-left-width: 6px; background: #fff5f5; padding: 10px 14px; border-radius: 2px; }
+.error-panel h2 { color: #c92a2a; }
+.error-panel pre { white-space: pre-wrap; margin: 6px 0 0; }
+pre.log { margin: 0; padding: 8px; border: 1px solid var(--border); background: #f8f9fa; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.commanding { display: grid; grid-template-columns: minmax(260px, 30%) 1fr; gap: 16px; align-items: start; }
+.command-list { display: flex; flex-direction: column; gap: 6px; }
+.command-list select { width: 100%; padding: 0; }
+.command-form h3 { margin-top: 0; }
+.arg-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.arg-row.top { align-items: flex-start; }
+.arg-name { min-width: 130px; }
+.arg-group { border-left: 2px solid var(--border); padding-left: 8px; }
+.arg-group .arg-name { min-width: 60px; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0 0 10px; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; }
+.subtabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.subtabs button { border: 1px solid var(--border); border-bottom: 0; background: #f1f3f5; padding: 3px 12px; cursor: pointer; border-radius: 2px 2px 0 0; }
+.subtabs button[aria-selected="true"] { background: #fff; font-weight: 600; border-bottom: 1px solid #fff; margin-bottom: -1px; }

@@ -10,9 +10,13 @@ use fgds_core::{
     Access, Context, DecodeError, Decoder, Dictionary, FieldSpec, FieldType, FlightTime, KindSpec, Manifest, NewRecord,
     PacketMatch, PacketMeta, PacketType, Plugin, Registry, Result, RouteAccess, Routes,
 };
+use fgds_core::{StaticFiles, UiBundle};
 use std::sync::Arc;
 
 pub const KIND: &str = "fprime.channel";
+
+/// The tab module, embedded in the binary.
+static UI_FILES: StaticFiles = StaticFiles(&[("channels.js", include_bytes!("../ui/channels.js"))]);
 
 pub struct ChannelsPlugin;
 
@@ -32,6 +36,13 @@ impl Plugin for ChannelsPlugin {
         })?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(ChannelDecoder))))?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(PacketDecoder))))?;
+        reg.add_tab(UiBundle {
+            tab_id: "channels",
+            title: Some("Channels"),
+            order: 30,
+            module: "channels.js",
+            files: &UI_FILES,
+        })?;
         reg.add_routes(Routes {
             prefix: "channels",
             router: Router::new().route("/definitions", get(definitions)),

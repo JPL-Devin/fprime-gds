@@ -1,0 +1,16 @@
+[package]
+name = "browser-gds"
+description = "The stock GDS with the Dictionaries, Logs and Advanced tabs, as the browser tests run it"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds = { workspace = true }
+dictionary-tab = { path = "../../plugins/dictionary-tab" }
+logs = { path = "../../plugins/logs" }
+advanced = { path = "../../plugins/advanced" }

@@ -149,3 +149,15 @@ Comparison with the Python GDS (`tests/compare/README.md`):
    refuses it. The scenario does not use that case.
 4. `scripts/build-ref.sh` builds the F Prime framing variant by default, because `scripts/check.sh` (not owned
    by this part) calls it with two arguments; `tests/ccsds/run.sh` builds the stock `Ref`.
+
+## Browser UI
+
+- Lit 4.1.1 (the `lit-core` bundle) is vendored as `crates/fgds-shell/ui/lit.js` and served at `/ui/lit.js`; tabs import it from there. Nothing is fetched from elsewhere.
+- `crates/fgds-shell/src`: the content security policy gains `frame-ancestors 'none'` and the response `X-Frame-Options: DENY`; `/ui/lit.js` is a new route. Nothing else changed in the shell's Rust code.
+- The tabs Dictionaries, Logs and Advanced are plugins (`dictionary-tab`, `logs`, `advanced`) that are not in `default_plugins()`: the list belongs to `crates/fgds`. `examples/browser-gds` composes them for the browser checks until they are added.
+- `logs` adds `GET /api/v1/logs` and `GET /api/v1/logs/{name}`: one text line per record, built from the record API (one log per record kind, and `gds`). It does not read log files from disk.
+- History then stream: a tab pages `GET /records` after its last sequence number, then opens the stream with `afterSeq`; records at or below the last sequence number shown are dropped in the page. The `live` message of the stream is not needed for this and is ignored by `records.follow`.
+- A tab whose module fails to load, or whose element throws when created or connected, is replaced by an error panel naming the plugin; errors thrown later by a tab are reported in the console only.
+- Flight time is shown to the microsecond (the Python GDS page: millisecond). Channels without a sample are listed only on request.
+- Settings (row limit, filters, selected tab) are kept in the browser's local storage, not on the server.
+- Playwright is installed by `tests/browser/run.sh` into `target/browser-venv`, not into the fprime virtual environment.

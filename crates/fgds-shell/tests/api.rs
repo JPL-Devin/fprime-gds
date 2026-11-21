@@ -228,7 +228,7 @@ async fn plugin_routes_tabs_and_the_page_shell_are_served() {
     assert_eq!(text("/ui/plugins/test/nope.js").await.0, 404);
     let (status, headers, page) = text("/").await;
     assert!(status == 200 && page.contains("/ui/shell.js"));
-    assert_eq!(headers["content-security-policy"], "default-src 'self'; connect-src 'self'");
+    assert_eq!(headers["content-security-policy"], "default-src 'self'; connect-src 'self'; frame-ancestors 'none'");
     assert!(text("/ui/shell.js").await.2.contains("/ui/tabs"));
 }
 
