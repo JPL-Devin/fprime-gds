@@ -19,14 +19,15 @@ pub use fgds_core as core;
 
 /// The plugins of the stock binary.
 pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
-    vec![
-        Box::new(storage_memory::MemoryStoragePlugin),
-        Box::new(comm_tcp::TcpPlugin),
-        Box::new(framing_fprime::FprimeFramingPlugin),
-        Box::new(events::EventsPlugin),
-        Box::new(channels::ChannelsPlugin),
-        Box::new(commands::CommandsPlugin),
-    ]
+    // One line per plugin.
+    let mut plugins: Vec<Box<dyn Plugin>> = Vec::new();
+    plugins.push(Box::new(storage_memory::MemoryStoragePlugin));
+    plugins.push(Box::new(comm_tcp::TcpPlugin));
+    plugins.push(Box::new(framing_fprime::FprimeFramingPlugin));
+    plugins.push(Box::new(events::EventsPlugin));
+    plugins.push(Box::new(channels::ChannelsPlugin));
+    plugins.push(Box::new(commands::CommandsPlugin));
+    plugins
 }
 
 pub struct Gds;
@@ -105,8 +106,9 @@ impl GdsBuilder {
         self.plugins.iter().position(|p| p.manifest().name == name)
     }
 
-    /// Register every plugin not in `disabled`, apply the overrides and check for
-    /// conflicts (CUS-10). No I/O happens here.
+    /// Register every plugin not in `disabled`, note the overrides and check for
+    /// conflicts (CUS-10). Decoders are built, and their match rules checked, when the
+    /// configuration is known (`Registry::build_decoders`). No I/O happens here.
     fn registry(&self, disabled: &[String]) -> Result<Registry> {
         if let Some(problem) = self.problems.first() {
             return Err(Error::Config(problem.clone()));
@@ -121,7 +123,7 @@ impl GdsBuilder {
             }
         }
         for decoder in &self.overrides {
-            registry.override_decoder(decoder.clone())?;
+            registry.override_decoder(decoder.clone());
         }
         registry.check()?;
         Ok(registry)

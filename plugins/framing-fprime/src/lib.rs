@@ -40,7 +40,7 @@ impl FramingLayer for FprimeFraming {
 }
 
 impl Frame for FprimeFraming {
-    fn frame(&mut self, packet: &[u8], out: &mut BytesMut) -> Result<()> {
+    fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
         let start = out.len();
         out.put_slice(&START);
         out.put_u32(packet.len() as u32);
@@ -61,9 +61,9 @@ impl Deframe for FprimeFraming {
     fn deframe(&mut self, input: &mut BytesMut, out: &mut Vec<Deframed>) -> Result<()> {
         // Bytes that belong to no frame, reported as one piece.
         let mut junk = BytesMut::new();
-        let flush = |junk: &mut BytesMut, out: &mut Vec<Deframed>, reason| {
+        let flush = |junk: &mut BytesMut, out: &mut Vec<Deframed>, reason: &str| {
             if !junk.is_empty() {
-                out.push(Deframed::Discarded { bytes: junk.split().freeze(), reason });
+                out.push(Deframed::Discarded { bytes: junk.split().freeze(), reason: reason.into() });
             }
         };
         loop {

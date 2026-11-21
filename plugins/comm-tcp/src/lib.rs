@@ -19,7 +19,7 @@ impl Plugin for TcpPlugin {
             name: "comm-tcp",
             version: env!("CARGO_PKG_VERSION"),
             options: vec![OptionSpec {
-                name: "tcp-address",
+                name: "address",
                 help: "Address to listen on (tcp-server) or to connect to (tcp-client)",
                 default: Some("0.0.0.0:50000"),
                 secret: false,
@@ -35,7 +35,7 @@ impl Plugin for TcpPlugin {
 }
 
 fn address(cfg: &PluginConfig) -> String {
-    cfg.get("tcp-address").unwrap_or_else(|| "0.0.0.0:50000".into())
+    cfg.get("address").unwrap_or_default()
 }
 
 type Halves = (Box<dyn LinkReader>, Box<dyn LinkWriter>, PeerInfo);

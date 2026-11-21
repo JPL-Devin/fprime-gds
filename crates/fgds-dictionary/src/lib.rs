@@ -9,7 +9,7 @@ mod load;
 mod text;
 mod types;
 
-pub use codec::{Reader, TypeError};
+pub use codec::{EncodedCommand, Reader, TypeError};
 pub use load::DictError;
 pub use types::{Channel, Command, Event, Member, Param, Time, Type};
 

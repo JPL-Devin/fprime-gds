@@ -166,14 +166,22 @@ impl Core {
 /// The dictionary kept with the last run of the configured database: what a read-only
 /// GDS displays that run with when no dictionary is given (STO-5).
 pub async fn stored_dictionary(registry: &Registry, config: &Config) -> Result<Dictionary> {
-    let storage = named(&registry.storages, "storage", &config.storage)?.1.clone();
-    let config = Config { read_only: true, ..config.clone() };
-    let run = storage.open(&storage_config(registry, &config, &crate::testing::empty_dictionary(), None)).await?;
+    let (storage, run) = open_read_only(registry, config).await?;
     let json = storage.dictionary(run.run).await;
     storage.close().await?;
     let json = json?.ok_or_else(|| Error::Config(format!("run {} has no dictionary in the database", run.run)))?;
     let text = String::from_utf8(json).map_err(|e| Error::Config(format!("dictionary of run {}: {e}", run.run)))?;
     Dictionary::parse(&format!("run {}", run.run), &text).map_err(|e| Error::Config(e.to_string()))
+}
+
+/// Open the configured storage read-only, starting no run: the storage and its last
+/// run. For offline subcommands (`CliEnv::storage`) and a read-only GDS (STO-12). The
+/// caller closes the storage.
+pub async fn open_read_only(registry: &Registry, config: &Config) -> Result<(Arc<dyn Storage>, RunInfo)> {
+    let storage = named(&registry.storages, "storage", &config.storage)?.1.clone();
+    let config = Config { read_only: true, ..config.clone() };
+    let run = storage.open(&storage_config(registry, &config, &crate::testing::empty_dictionary(), None)).await?;
+    Ok((storage, run))
 }
 
 fn storage_config(registry: &Registry, config: &Config, dictionary: &Dictionary, run_dir: Option<PathBuf>) -> StorageConfig {

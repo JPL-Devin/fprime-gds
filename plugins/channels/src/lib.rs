@@ -25,10 +25,10 @@ impl Plugin for ChannelsPlugin {
         reg.add_kind(KindSpec {
             fields: &[FieldSpec { name: "name", pointer: "/name", ty: FieldType::Text }],
             text_fields: &["/name"],
-            ..KindSpec::new(KIND, "A telemetry channel sample; id is the channel identifier")
+            ..KindSpec::new(KIND, "A telemetry channel sample; id is the channel identifier; raw is identifier, time tag, value")
         })?;
-        reg.add_decoder(Arc::new(ChannelDecoder))?;
-        reg.add_decoder(Arc::new(PacketDecoder))?;
+        reg.add_decoder(Arc::new(|_| Ok(Box::new(ChannelDecoder))))?;
+        reg.add_decoder(Arc::new(|_| Ok(Box::new(PacketDecoder))))?;
         reg.add_routes(Routes {
             prefix: "channels",
             router: Router::new().route("/definitions", get(definitions)),
@@ -83,6 +83,7 @@ impl Decoder for ChannelDecoder {
     }
 
     /// Packet: packet type, then one or more of: channel identifier, time tag, value.
+    /// `raw` of each record is that sample: channel identifier, time tag, value.
     /// The flight software packs several samples into one packet when they fit.
     fn decode(&self, packet: &[u8], _: &PacketMeta, dict: &Dictionary) -> Result<Vec<NewRecord>, DecodeError> {
         let mut r = Reader::new(packet);
@@ -96,10 +97,8 @@ impl Decoder for ChannelDecoder {
                 dict.channel(id).ok_or_else(|| DecodeError(format!("channel {id} is not in the dictionary")))?;
             let mut record = sample(channel, time, &mut r, dict)?;
             let end = packet.len() - r.remaining();
-            if start > 0 && (end < packet.len() || !records.is_empty()) {
-                // One of several samples: keep its own bytes, not the whole packet.
-                record.raw = fgds_core::bytes::Bytes::copy_from_slice(&packet[start..end]);
-            }
+            // The sample's own bytes: channel identifier, time tag, value.
+            record.raw = fgds_core::bytes::Bytes::copy_from_slice(&packet[start..end]);
             records.push(record);
             if r.remaining() == 0 {
                 return Ok(records);
@@ -121,14 +120,23 @@ impl Decoder for PacketDecoder {
         let mut r = Reader::new(packet);
         uint(&mut r, dict, "FwPacketDescriptorType", 16)?;
         let id = uint(&mut r, dict, "FwTlmPacketizeIdType", 16)?;
+        let before = r.remaining();
         let time = time(&mut r, dict)?;
+        let time_bytes = &packet[packet.len() - before..packet.len() - r.remaining()];
         let channels =
             dict.packet(id).ok_or_else(|| DecodeError(format!("telemetry packet {id} is not in the dictionary")))?;
         let mut records = Vec::new();
         for channel in channels {
             let slot = r.take(dict.max_size(&channel.ty)).map_err(error)?;
-            let mut record = sample(channel, time, &mut Reader::new(slot), dict)?;
-            record.raw = fgds_core::bytes::Bytes::copy_from_slice(slot);
+            let mut value = Reader::new(slot);
+            let mut record = sample(channel, time, &mut value, dict)?;
+            // The same layout as a sample of a channel packet, built from this packet.
+            let mut raw = Vec::new();
+            let id_type = dict.config_type("FwChanIdType", Type::U32);
+            dict.encode(&id_type, &json!(channel.id), &mut raw).map_err(error)?;
+            raw.extend_from_slice(time_bytes);
+            raw.extend_from_slice(&slot[..slot.len() - value.remaining()]);
+            record.raw = raw.into();
             records.push(record);
         }
         Ok(records)

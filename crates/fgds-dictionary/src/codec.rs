@@ -261,3 +261,55 @@ impl Dictionary {
         }
     }
 }
+
+/// A command turned into bytes by `Dictionary::encode_command`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EncodedCommand {
+    pub opcode: u32,
+    /// The opcode then the arguments, as they go in a command packet after the packet type.
+    pub bytes: Vec<u8>,
+    /// The arguments by name in declaration order, as sent: decoded back from `bytes`.
+    pub args: Map<String, Value>,
+}
+
+impl Dictionary {
+    /// Encode the command `name`: the opcode, then the arguments in declaration order.
+    /// `args` is a list in declaration order, an object by argument name, or null for none.
+    /// Used by the command encoder and by the sequence compiler.
+    pub fn encode_command(&self, name: &str, args: &Value) -> Result<EncodedCommand, TypeError> {
+        let command = self.command(name).ok_or_else(|| TypeError(format!("unknown command {name}")))?;
+        let params = &command.params;
+        let count = |n: usize| match n == params.len() {
+            true => Ok(()),
+            false => Err(TypeError(format!("{name} takes {} arguments, {n} given", params.len()))),
+        };
+        // Arguments in declaration order, whichever way they were given.
+        let values: Vec<&Value> = match args {
+            Value::Null => count(0).map(|_| Vec::new())?,
+            Value::Array(values) => count(values.len()).map(|_| values.iter().collect())?,
+            Value::Object(by_name) => {
+                if let Some(extra) = by_name.keys().find(|k| !params.iter().any(|p| p.name == **k)) {
+                    return Err(TypeError(format!("{name} has no argument {extra}")));
+                }
+                let find = |p: &crate::Param| {
+                    by_name.get(&p.name).ok_or_else(|| TypeError(format!("argument {} is missing", p.name)))
+                };
+                params.iter().map(find).collect::<Result<_, _>>()?
+            }
+            _ => return Err(TypeError("\"args\" is neither a list nor an object".into())),
+        };
+        let mut bytes = Vec::new();
+        let opcode_type = self.config_type("FwOpcodeType", Type::U32);
+        self.encode(&opcode_type, &json!(command.opcode), &mut bytes).map_err(|e| TypeError(format!("opcode: {}", e.0)))?;
+        let mut sent = Map::new();
+        for (param, value) in params.iter().zip(values) {
+            let start = bytes.len();
+            self.encode(&param.ty, value, &mut bytes)
+                .map_err(|e| TypeError(format!("argument {}: {}", param.name, e.0)))?;
+            // What was sent, not what was asked: decode the bytes just written.
+            let decoded = self.decode(&param.ty, &mut Reader::new(&bytes[start..]));
+            sent.insert(param.name.clone(), decoded.unwrap_or_else(|_| value.clone()));
+        }
+        Ok(EncodedCommand { opcode: command.opcode, bytes, args: sent })
+    }
+}

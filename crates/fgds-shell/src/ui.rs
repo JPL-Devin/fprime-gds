@@ -34,6 +34,7 @@ fn file(name: &str, content: &'static [u8]) -> Response {
 /// The tabs in display order, each with the address of its module.
 async fn tabs(State(core): State<Arc<Core>>) -> Json<Value> {
     let mut tabs: Vec<_> = core.registry.tabs.iter().collect();
+    // A bundle without a title is no tab: its module is loaded for `setup` only.
     tabs.sort_by_key(|t| (t.order, t.tab_id));
     let module = |t: &fgds_core::UiBundle| format!("/ui/plugins/{}/{}", t.tab_id, t.module);
     Json(tabs.iter().map(|t| json!({"id": t.tab_id, "title": t.title, "module": module(t)})).collect())

@@ -47,8 +47,12 @@ impl Plugin for P {
 fn rule(packet_type: Option<u32>, meta: &[(&'static str, u64)]) -> PacketMatch {
     PacketMatch {
         packet_type: packet_type.map(PacketType),
-        meta: meta.iter().map(|(k, v)| (*k, MetaValue::U64(*v))).collect(),
+        meta: meta.iter().map(|(k, v)| (k.to_string(), MetaValue::U64(*v))).collect(),
     }
+}
+
+fn decoder(rule: PacketMatch) -> fgds_core::DecoderFactory {
+    Arc::new(move |_| Ok(Box::new(NullDecoder(rule.clone()))))
 }
 
 fn conflict(first: P, second: P) -> String {
@@ -69,13 +73,13 @@ fn duplicate_registrations_fail_naming_both_plugins() {
             r.add_routes(Routes { prefix: "things", router: axum::Router::new(), access: vec![] })
         }),
         ("tab \"things\"", |r| {
-            r.add_tab(UiBundle { tab_id: "things", title: "", order: 0, module: "m.js", files: &FILES })
+            r.add_tab(UiBundle { tab_id: "things", title: None, order: 0, module: "m.js", files: &FILES })
         }),
         ("subcommand \"thing\"", |r| r.add_subcommand(Arc::new(Sub("thing")))),
         ("framing layer \"l\"", |r| r.add_framing_layer("l", Arc::new(testing::LengthFraming))),
         ("framing profile \"p\"", |r| r.add_framing_profile("p", &[])),
         ("storage \"s\"", |r| r.add_storage("s", Arc::new(testing::MemoryStorage::default()))),
-        ("decoder match rule", |r| r.add_decoder(Arc::new(NullDecoder(rule(Some(2), &[]))))),
+        ("request kind \"t.request\"", |r| r.add_encoder("t.request", Arc::new(|_| Err(Error::other("unused"))))),
     ];
     for (what, register) in cases {
         let message = conflict(P("first", register), P("second", register));
@@ -87,14 +91,33 @@ fn duplicate_registrations_fail_naming_both_plugins() {
     let message = conflict(P("first", nothing), P("second", core_kind));
     assert!(message.contains("plugin \"core\" and plugin \"second\""), "{message}");
     assert!(conflict(P("same", nothing), P("same", nothing)).starts_with("plugin \"same\""));
-    assert!(conflict(P("opt-a", nothing), P("opt-b", nothing)).starts_with("argument \"shared-option\""));
+    // Options carry the plugin's name, so two plugins may use one option name; the
+    // core's own arguments and subcommands are claimed for "core".
+    let mut reg = Registry::new();
+    reg.register(&P("opt-a", nothing)).unwrap();
+    reg.register(&P("opt-b", nothing)).unwrap();
+    let message = conflict(P("first", nothing), P("read", nothing));
+    assert!(message.starts_with("argument \"read-only\""), "{message}");
+    assert!(message.contains("plugin \"core\" and plugin \"read\""), "{message}");
+    let run: Register = |r| r.add_subcommand(Arc::new(Sub("run")));
+    assert!(conflict(P("first", nothing), P("second", run)).contains("plugin \"core\" and plugin \"second\""));
+
+    // Decoders are built from the configuration, so their rules are checked then.
+    let decoder: Register = |r| r.add_decoder(decoder(rule(Some(2), &[])));
+    let mut reg = Registry::new();
+    reg.register(&P("first", decoder)).unwrap();
+    reg.register(&P("second", decoder)).unwrap();
+    let message = reg.build_decoders(&Config::default()).err().unwrap().to_string();
+    assert!(message.contains("decoder match rule"), "{message}");
+    assert!(message.contains("plugin \"first\" and plugin \"second\""), "{message}");
 }
 
 #[test]
 fn decoder_rules_conflict_only_when_equally_specific_and_overlapping() {
     let add = |rules: &[PacketMatch]| {
         let mut reg = Registry::new();
-        rules.iter().try_for_each(|r| reg.add_decoder(Arc::new(NullDecoder(r.clone()))))
+        rules.iter().try_for_each(|r| reg.add_decoder(decoder(r.clone()))).unwrap();
+        reg.build_decoders(&Config::default())
     };
     // Different packet types, or different values of one metadata key, never overlap.
     assert!(add(&[rule(Some(1), &[]), rule(Some(2), &[])]).is_ok());
@@ -109,18 +132,20 @@ fn decoder_rules_conflict_only_when_equally_specific_and_overlapping() {
 #[test]
 fn override_decoder_replaces_the_decoder_with_the_same_rule() {
     let mut reg = Registry::new();
-    reg.add_decoder(Arc::new(NullDecoder(rule(Some(1), &[])))).unwrap();
-    assert!(reg.override_decoder(Arc::new(NullDecoder(rule(Some(1), &[])))).is_ok());
-    assert_eq!(reg.decoders.len(), 1);
-    assert!(reg.override_decoder(Arc::new(NullDecoder(rule(Some(3), &[])))).is_err());
+    reg.add_decoder(decoder(rule(Some(1), &[]))).unwrap();
+    reg.override_decoder(Arc::new(NullDecoder(rule(Some(1), &[]))));
+    assert_eq!(reg.build_decoders(&Config::default()).unwrap().len(), 1);
+    reg.override_decoder(Arc::new(NullDecoder(rule(Some(3), &[]))));
+    let message = reg.build_decoders(&Config::default()).err().unwrap().to_string();
+    assert!(message.contains("override_decoder"), "{message}");
 }
 
 #[tokio::test]
 async fn the_most_specific_rule_receives_the_packet() {
     let register: Register = |r| {
         r.add_kind(KindSpec::new("t.kind", ""))?;
-        r.add_decoder(Arc::new(NullDecoder(rule(None, &[]))))?;
-        r.add_decoder(Arc::new(NullDecoder(rule(Some(1), &[]))))
+        r.add_decoder(decoder(rule(None, &[])))?;
+        r.add_decoder(decoder(rule(Some(1), &[])))
     };
     let gds = FakeGds::start(&[&P("p", register)], empty_dictionary()).await.unwrap();
     gds.receive(&[0, 1]).await;

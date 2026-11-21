@@ -8,7 +8,7 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::Engine;
-use fgds_core::{ApiError, Core, FieldFilter, Filter, Page, Query, StreamEnd, TimeRange, Timestamp};
+use fgds_core::{ApiError, Core, FieldFilter, Filter, Page, Query, StreamEnd, StreamItem, TimeRange, Timestamp};
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -128,6 +128,8 @@ fn query(params: &[(String, String)]) -> Result<Query, ApiError> {
 
 /// `WS /api/v1/stream?kind=&after_seq=`: stored records after `after_seq`, then live
 /// ones, each as `{"type": "record", "record": ...}`. Without `after_seq`, live only.
+/// `{"type": "live", "seq": ...}` is sent once, when the stored records have all been
+/// sent and every later record is live; `seq` is the last record sent (0 for none).
 /// A client that falls too far behind gets `{"type": "lagged", "last_seq": ...}` and
 /// the connection is closed; it reconnects with `after_seq=<last_seq>` (API-6).
 async fn stream(
@@ -149,8 +151,9 @@ async fn feed(mut socket: WebSocket, core: Arc<Core>, q: Query) {
     let mut records = core.records.subscribe(Filter { kinds: q.kinds }, q.after_seq);
     loop {
         let message = tokio::select! {
-            next = records.next_strict() => match next {
-                Ok(record) => json!({"type": "record", "record": record.to_json()}),
+            next = records.next_item() => match next {
+                Ok(StreamItem::Record(record)) => json!({"type": "record", "record": record.to_json()}),
+                Ok(StreamItem::Live { seq }) => json!({"type": "live", "seq": seq.to_string()}),
                 Err(StreamEnd::Lagged { last_seq }) => {
                     let lagged = json!({"type": "lagged", "last_seq": last_seq.to_string()});
                     let _ = socket.send(Message::Text(lagged.to_string())).await;
@@ -171,12 +174,13 @@ async fn feed(mut socket: WebSocket, core: Arc<Core>, q: Query) {
 }
 
 /// `POST /api/v1/raw {"data": <base64>}`: send bytes as one packet, framed like any other.
-async fn raw(State(core): Shared, Json(body): Json<Value>) -> Answer {
+async fn raw(State(core): Shared, headers: axum::http::HeaderMap, Json(body): Json<Value>) -> Answer {
+    let client = headers.get("x-fgds-client").and_then(|v| v.to_str().ok()).unwrap_or("api");
     let data = body["data"].as_str().ok_or_else(|| ApiError::bad_request("\"data\" is missing"))?;
     let packet = base64::engine::general_purpose::STANDARD
         .decode(data)
         .map_err(|e| ApiError::bad_request(format!("\"data\" is not base64: {e}")))?;
-    let seq = core.uplink.send_packet(&packet, body["client"].as_str().unwrap_or("api")).await?;
+    let seq = core.uplink.send_packet(&packet, &Default::default(), client, true).await?;
     Ok(Json(json!({"sent": packet.len(), "seq": seq.to_string()})))
 }
 

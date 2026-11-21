@@ -73,7 +73,7 @@ impl Deframe for StationFraming {
             // Drop whatever precedes the next marker.
             let start = input.windows(2).position(|w| w == MARKER).unwrap_or(input.len().saturating_sub(1));
             if start > 0 {
-                out.push(Deframed::Discarded { bytes: input.split_to(start).freeze(), reason: "no station marker" });
+                out.push(Deframed::Discarded { bytes: input.split_to(start).freeze(), reason: "no station marker".into() });
             }
             if input.len() < HEADER {
                 return Ok(());
@@ -95,7 +95,7 @@ struct StationFramer {
 }
 
 impl Frame for StationFramer {
-    fn frame(&mut self, packet: &[u8], out: &mut BytesMut) -> Result<()> {
+    fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
         let length = u16::try_from(packet.len()).map_err(|_| Error::other("frame too long for a station frame"))?;
         out.put_slice(&MARKER);
         out.put_u8(self.station);
@@ -133,7 +133,7 @@ impl Plugin for NotesPlugin {
                 RouteAccess { method: "POST", path: "/", access: Access::Write },
             ],
         })?;
-        reg.add_tab(UiBundle { tab_id: "notes", title: "Notes", order: 100, module: "notes.js", files: &NOTES_FILES })?;
+        reg.add_tab(UiBundle { tab_id: "notes", title: Some("Notes"), order: 100, module: "notes.js", files: &NOTES_FILES })?;
         reg.add_subcommand(Arc::new(KindsCommand))
     }
 }
@@ -183,7 +183,7 @@ impl Plugin for FaultyPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_handler(Arc::new(|_| Box::new(FaultyHandler)))?;
+        reg.add_handler(Arc::new(|_| Ok(Box::new(FaultyHandler))))?;
         Ok(())
     }
 }

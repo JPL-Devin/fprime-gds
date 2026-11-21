@@ -33,8 +33,8 @@ impl Plugin for TestPlugin {
             fields: &[FieldSpec { name: "level", pointer: "/level", ty: FieldType::Number }],
             ..KindSpec::new("t.sample", "a sample")
         })?;
-        reg.add_decoder(Arc::new(Decode))?;
-        reg.add_tab(UiBundle { tab_id: "test", title: "Test", order: 1, module: "tab.js", files: &FILES })?;
+        reg.add_decoder(Arc::new(|_| Ok(Box::new(Decode))))?;
+        reg.add_tab(UiBundle { tab_id: "test", title: Some("Test"), order: 1, module: "tab.js", files: &FILES })?;
         let router = axum::Router::new()
             .route("/hello", get(|| async { "hello" }))
             .route("/panic", get(broken).post(|_: String| async { "posted" }));

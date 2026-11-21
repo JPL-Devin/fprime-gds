@@ -4,12 +4,12 @@ use framing_fprime::FprimeFraming;
 
 fn frame(packet: &[u8]) -> Vec<u8> {
     let mut out = BytesMut::new();
-    FprimeFraming.framer(&PluginConfig::default()).frame(packet, &mut out).unwrap();
+    FprimeFraming.framer(&PluginConfig::default()).frame(packet, &Default::default(), &mut out).unwrap();
     out.to_vec()
 }
 
 /// Feed the input in pieces of `step` bytes; return (packets, discarded bytes, reasons).
-fn deframe(input: &[u8], step: usize) -> (Vec<Vec<u8>>, Vec<u8>, Vec<&'static str>) {
+fn deframe(input: &[u8], step: usize) -> (Vec<Vec<u8>>, Vec<u8>, Vec<String>) {
     let mut deframer = FprimeFraming.deframer(&PluginConfig::default(), &PeerInfo::default());
     let (mut buf, mut out) = (BytesMut::new(), Vec::new());
     for piece in input.chunks(step) {

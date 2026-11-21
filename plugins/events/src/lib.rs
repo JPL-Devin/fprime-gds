@@ -28,9 +28,9 @@ impl Plugin for EventsPlugin {
                 FieldSpec { name: "severity", pointer: "/severity", ty: FieldType::Text },
             ],
             text_fields: &["/name", "/display_text"],
-            ..KindSpec::new(KIND, "An F Prime event; id is the event identifier")
+            ..KindSpec::new(KIND, "An F Prime event; id is the event identifier; raw is identifier, time tag, arguments")
         })?;
-        reg.add_decoder(Arc::new(EventDecoder))?;
+        reg.add_decoder(Arc::new(|_| Ok(Box::new(EventDecoder))))?;
         reg.add_routes(Routes {
             prefix: "events",
             router: Router::new().route("/definitions", get(definitions)),
@@ -67,6 +67,7 @@ impl Decoder for EventDecoder {
         // A packet may hold several events one after the other, as the Python GDS accepts.
         let mut records = Vec::new();
         while records.is_empty() || r.remaining() > 0 {
+            let start = packet.len() - r.remaining();
             let id = r.uint(bits("FwEventIdType", 32)).map_err(error)? as u32;
             let time = dict.decode_time(&mut r).map_err(error)?;
             let event = dict.event(id).ok_or_else(|| DecodeError(format!("event {id} is not in the dictionary")))?;
@@ -81,6 +82,8 @@ impl Decoder for EventDecoder {
             let display_text = dict.format(&event.format, &values);
             records.push(NewRecord {
                 id: Some(id),
+                // The event's own bytes: event identifier, time tag, arguments.
+                raw: fgds_core::bytes::Bytes::copy_from_slice(&packet[start..packet.len() - r.remaining()]),
                 flight_time: Some(FlightTime {
                     base: time.base,
                     context: time.context,

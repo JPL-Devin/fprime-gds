@@ -7,7 +7,7 @@ use fgds_core::axum::http::HeaderMap;
 use fgds_core::axum::routing::{get, post};
 use fgds_core::axum::{Json, Router};
 use fgds_core::dictionary::Type;
-use fgds_core::serde_json::{json, Map, Value};
+use fgds_core::serde_json::{json, Value};
 use fgds_core::{
     Access, ApiError, Context, Dictionary, Encoded, Encoder, FieldSpec, FieldType, KindSpec, Manifest, PacketType,
     Plugin, Registry, Result, RouteAccess, Routes, ValidationError,
@@ -35,7 +35,7 @@ impl Plugin for CommandsPlugin {
             has_entities: true,
             ..KindSpec::new(KIND, "A command send, accepted or not; id is the opcode")
         })?;
-        reg.add_encoder(Arc::new(CommandEncoder))?;
+        reg.add_encoder(REQUEST, Arc::new(|_| Ok(Box::new(CommandEncoder))))?;
         reg.add_routes(Routes {
             prefix: "commands",
             router: Router::new().route("/", post(send)).route("/definitions", get(definitions)),
@@ -94,50 +94,18 @@ impl Encoder for CommandEncoder {
 
     /// Packet: packet type, opcode, arguments in declaration order.
     fn encode(&self, request: &Value, dict: &Dictionary) -> Result<Encoded, ValidationError> {
-        let invalid = |message: String| ValidationError(message);
-        let name = request["name"].as_str().ok_or_else(|| invalid("\"name\" is missing".into()))?;
-        let command = dict.command(name).ok_or_else(|| invalid(format!("unknown command {name}")))?;
-        let params = &command.params;
-        let count = |n: usize| match n == params.len() {
-            true => Ok(()),
-            false => Err(invalid(format!("{name} takes {} arguments, {n} given", params.len()))),
-        };
-        // Arguments in declaration order, whichever way they were given.
-        let values: Vec<&Value> = match &request["args"] {
-            Value::Null => count(0).map(|_| Vec::new())?,
-            Value::Array(values) => count(values.len()).map(|_| values.iter().collect())?,
-            Value::Object(by_name) => {
-                if let Some(extra) = by_name.keys().find(|k| !params.iter().any(|p| p.name == **k)) {
-                    return Err(invalid(format!("{name} has no argument {extra}")));
-                }
-                let find = |p: &fgds_core::dictionary::Param| {
-                    by_name.get(&p.name).ok_or_else(|| invalid(format!("argument {} is missing", p.name)))
-                };
-                params.iter().map(find).collect::<Result<_, _>>()?
-            }
-            _ => return Err(invalid("\"args\" is neither a list nor an object".into())),
-        };
-
-        let width = |name: &str, default: Type| dict.config_type(name, default);
+        let name = request["name"].as_str().ok_or_else(|| ValidationError("\"name\" is missing".into()))?;
+        let command = dict.encode_command(name, &request["args"]).map_err(|e| ValidationError(e.0))?;
         let mut packet = Vec::new();
-        let put = |packet: &mut Vec<u8>, ty: &Type, value: &Value, what: &str| {
-            dict.encode(ty, value, packet).map_err(|e| invalid(format!("{what}: {}", e.0)))
-        };
-        let packet_type = json!(PacketType::COMMAND.0);
-        put(&mut packet, &width("FwPacketDescriptorType", Type::U16), &packet_type, "packet type")?;
-        put(&mut packet, &width("FwOpcodeType", Type::U32), &json!(command.opcode), "opcode")?;
-        let mut args = Map::new();
-        for (param, value) in params.iter().zip(values) {
-            let start = packet.len();
-            put(&mut packet, &param.ty, value, &format!("argument {}", param.name))?;
-            // Record what was sent, not what was asked: decode the bytes just written.
-            let sent = dict.decode(&param.ty, &mut fgds_core::dictionary::Reader::new(&packet[start..]));
-            args.insert(param.name.clone(), sent.unwrap_or_else(|_| value.clone()));
-        }
+        let descriptor = dict.config_type("FwPacketDescriptorType", Type::U16);
+        dict.encode(&descriptor, &json!(PacketType::COMMAND.0), &mut packet)
+            .map_err(|e| ValidationError(format!("packet type: {}", e.0)))?;
+        packet.extend_from_slice(&command.bytes);
         Ok(Encoded {
             packet: packet.into(),
             id: Some(command.opcode),
-            body: json!({"name": command.name, "opcode": command.opcode, "args": args}),
+            body: json!({"name": name, "opcode": command.opcode, "args": command.args}),
+            meta: Default::default(),
         })
     }
 }

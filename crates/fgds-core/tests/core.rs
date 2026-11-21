@@ -33,7 +33,7 @@ impl Encoder for TestEncoder {
     }
     fn encode(&self, request: &serde_json::Value, _: &Dictionary) -> Result<Encoded, ValidationError> {
         match request["byte"].as_u64() {
-            Some(b) => Ok(Encoded { packet: vec![b as u8].into(), id: Some(7), body: json!({"byte": b}) }),
+            Some(b) => Ok(Encoded { packet: vec![b as u8].into(), id: Some(7), body: json!({"byte": b}), meta: Default::default() }),
             None => Err(ValidationError("byte is missing".into())),
         }
     }
@@ -68,9 +68,9 @@ impl Plugin for TestPlugin {
         reg.add_kind(KindSpec { has_entities: true, ..KindSpec::new("t.sent", "") })?;
         reg.add_kind(KindSpec { transient: true, ..KindSpec::new("t.transient", "") })?;
         for packet_type in [1, 8, 9] {
-            reg.add_decoder(Arc::new(TestDecoder(typed(packet_type))))?;
+            reg.add_decoder(Arc::new(move |_| Ok(Box::new(TestDecoder(typed(packet_type))))))?;
         }
-        reg.add_encoder(Arc::new(TestEncoder))
+        reg.add_encoder("test", Arc::new(|_| Ok(Box::new(TestEncoder))))
     }
 }
 
@@ -81,7 +81,7 @@ impl Plugin for FaultyPlugin {
         Manifest { name: "faulty", version: "1", requires_kinds: vec!["t.packet"], ..Default::default() }
     }
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_handler(Arc::new(|_| Box::new(PanicHandler)))?;
+        reg.add_handler(Arc::new(|_| Ok(Box::new(PanicHandler))))?;
         Ok(())
     }
 }

@@ -31,6 +31,8 @@ const records = {
     socket.onmessage = (message) => {
       const data = JSON.parse(message.data);
       if (data.type === "record") callback(data.record);
+      // The stored records have all arrived; `onLive` is optional.
+      if (data.type === "live" && query.onLive) query.onLive(data.seq);
     };
     return () => socket.close();
   },
@@ -46,6 +48,8 @@ async function start() {
   for (const tab of tabs) {
     const module = (await import(tab.module)).default;
     if (module.setup) module.setup(gds);
+    // No title: a module without a tab (a renderer, an argument input).
+    if (!(module.title || tab.title)) continue;
     const button = document.createElement("button");
     button.textContent = module.title || tab.title;
     button.onclick = () => {
