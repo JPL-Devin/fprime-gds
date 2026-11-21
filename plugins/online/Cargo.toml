@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 fgds-core = { workspace = true }
+fgds-offline = { workspace = true }
 futures-util = { workspace = true }
 reqwest = { workspace = true }
 time = { workspace = true }

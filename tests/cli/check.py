@@ -9,6 +9,7 @@ Three parts (see README.md):
 Standard library only; the Python GDS is run through the executables of its virtual environment.
 """
 import argparse
+import difflib
 import json
 import os
 import re
@@ -130,55 +131,37 @@ class PythonGds:
 # 1. Definitions: neither command line needs a link for these; fprime-cli reads the
 # dictionary file, fgds asks the running GDS.
 
-def event_definition(item):
-    return {"id": item["id"], "name": item["name"], "severity": item["severity"].replace("EventSeverity.", ""),
-            "time": item["raw_time"], "args": item["args"], "description": item["display_text"]}
-
-
-def channel_definition(item):
-    return {"id": item["id"], "name": item["name"], "time": item["raw_time"], "description": item["display_text"]}
-
-
-def command_definitions(text):
-    """The commands of the text form (the JSON form of fprime-cli is a Python `repr`, not JSON)."""
-    found = []
-    for line in text.splitlines():
-        if match := re.fullmatch(r"(\S+) \((\d+)\) \| Takes (\d+) arguments\.", line):
-            found.append({"name": match[1], "opcode": int(match[2]), "count": int(match[3]), "description": None, "args": []})
-        elif line.startswith("Description: "):
-            found[-1]["description"] = line[len("Description: "):]
-        elif match := re.fullmatch(r"\t(\S+) \((\S+)\): (.*)", line):
-            # fprime-cli names a primitive type by its Python class (`U32Type`), fgds as the dictionary does (`U32`).
-            kind = re.sub(r"^([UI](8|16|32|64)|F(32|64)|Bool)Type$", r"\1", match[2])
-            found[-1]["args"].append({"name": match[1], "type": "bool" if kind == "Bool" else kind, "description": match[3].strip()})
-        elif line.strip():
-            # A description of several lines continues the command's or its last argument's.
-            holder = found[-1]["args"][-1] if found[-1]["args"] else found[-1]
-            holder["description"] += "\n" + line.strip()
-    return found
-
-
 def definitions(fgds):
+    """The output of both command lines is the same text, byte for byte, in the text and the JSON form."""
     print("definitions: the --list of both command lines")
     dictionary = ["--dictionary", args.dictionary]
-    filters = [[], ["-i", "16777217", "16777223"], ["-c", "CdhCore.cmdDisp"], ["-s", "ommand"],
-               ["-c", "CdhCore.cmdDisp", "Ref.pingRcvr", "-s", "Ping"]]
-    for subcommand, shape in (("events", event_definition), ("channels", channel_definition)):
-        for chosen in filters:
-            _, python, _ = run([PYTHON_CLI, subcommand, "--list", "--json", *dictionary, *chosen])
-            _, rust, _ = run(fgds.cli(subcommand, "--list", "--json", *chosen))
-            python, rust = [shape(i) for i in json_lines(python)], [shape(i) for i in json_lines(rust)]
-            assert python or chosen == filters[-1], f"fprime-cli {subcommand} --list {chosen} printed nothing"
-            check(f"{len(python)} {subcommand[:-1]} definitions, filters {' '.join(chosen) or 'none'}", python, rust)
-    for chosen in filters:
-        _, python, _ = run([PYTHON_CLI, "command-send", "--list", *dictionary, *chosen])
-        _, rust, _ = run(fgds.cli("commands", *chosen))
-        python, rust = command_definitions(python), command_definitions(rust)
-        assert python, f"fprime-cli command-send --list {chosen} printed nothing"
-        check(f"{len(python)} command definitions, filters {' '.join(chosen) or 'none'}", python, rust)
+    filters = [[], ["-i", "16777217", "16777223"], ["-c", "CdhCore.cmdDisp"], ["-s", "ommand"], ["-c", "cdhcore.cmddisp"],
+               ["-i", "999"], ["-s", "zzzzNOMATCH"], ["-c", "CdhCore.cmdDisp", "Ref.pingRcvr", "-s", "Ping"]]
+    for subcommand in ("events", "channels", "command-send"):
+        # README.md: the JSON form of `fprime-cli command-send --list` is a Python `repr`, not JSON.
+        for form in ([], ["--json"]) if subcommand != "command-send" else ([],):
+            for chosen in filters:
+                code, python, _ = run([PYTHON_CLI, subcommand, "--list", *form, *dictionary, *chosen])
+                also, rust, _ = run(fgds.cli(subcommand, "--list", *form, *chosen))
+                assert python or chosen != filters[0], f"fprime-cli {subcommand} --list printed nothing"
+                check(f"{subcommand} --list {' '.join(form + chosen)}: exit code and the {len(python.splitlines())} lines printed",
+                      [code, *python.splitlines()], [also, *rust.splitlines()])
+        for wrong in ("abc", "0x1000007"):
+            code, _, python = run([PYTHON_CLI, subcommand, "--list", *dictionary, "-i", wrong])
+            also, _, rust = run(fgds.cli(subcommand, "--list", "-i", wrong))
+            last = lambda text: text.strip().splitlines()[-1].split(": ", 1)[1]
+            check(f"{subcommand} --list -i {wrong}: exit code {code} and the error", [code, last(python)], [also, last(rust)])
     _, also, _ = run(fgds.cli("command-send", "--list"))
     _, rust, _ = run(fgds.cli("commands"))
     require("fgds command-send --list is fgds commands", also == rust and rust)
+    for item in json_lines(run(fgds.cli("commands", "--json"))[1]):
+        assert item["full_name"] and isinstance(item["args"], list), item
+    names = [c["name"] for c in json.load(open(args.dictionary))["commands"]]
+    for name in ("CdhCore.cmdDisp.CMD_NO_OPP", "Ref.nope.CMD", "cdhcore.cmddisp.cmd_no_op", "Ref.typeDemo.CHOICEZ", "x"):
+        close = difflib.get_close_matches(name, names, n=3)
+        expected = f"{name} is not a known command\n" + (f"Similar known commands: {close}\n" if close else "")
+        code, output, _ = run(fgds.cli("command-send", name))
+        check(f"unknown command {name}: exit code 0 and the text of fprime-cli, {len(close)} near names", [0, expected], [code, output])
 
 
 # 2. Live: each command line sends the scenario's commands to Ref through its GDS.
@@ -203,12 +186,15 @@ def live(name, gds, out):
 
 def refused(fgds):
     """What fgds answers to commands that cannot be sent, and its dry run."""
-    code, _, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_NO_OPP"))
-    require("an unknown command is refused and near names are proposed",
-            code != 0 and "unknown command" in error and "CdhCore.cmdDisp.CMD_NO_OP" in error, error)
+    code, _, error = run(fgds.cli("command-send"))
+    require("no command name: exit code 2 and the error of fprime-cli",
+            code == 2 and error.strip() == "fgds: error: One of command-name or --list is required", error)
+    code, _, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--arguments", "-2147483648", "-3.4e38", "255"))
+    require("an argument `-3.4e38` ends the command line as with argparse: exit code 2, nothing sent",
+            code == 2 and error.strip() == "fgds: error: unrecognized arguments: -3.4e38 255", error)
     code, _, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--arguments", "1"))
     require("a command with too few arguments is refused and its arguments are listed",
-            code != 0 and "3 arguments" in error and "arg2 (F32)" in error, error)
+            code != 0 and "3 arguments" in error and "arg2 (F32Type)" in error, error)
     code, _, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--arguments", "1", "x", "3"))
     require("a command with an argument of the wrong type is refused", code != 0 and "x" in error, error)
     before = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])

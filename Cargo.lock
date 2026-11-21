@@ -1000,6 +1000,7 @@ name = "online"
 version = "0.1.0"
 dependencies = [
  "fgds-core",
+ "fgds-offline",
  "futures-util",
  "reqwest",
  "time",

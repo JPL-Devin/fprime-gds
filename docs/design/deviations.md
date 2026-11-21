@@ -297,3 +297,8 @@ Decisions taken while making `scripts/check.sh` pass on the merged tree.
 - The Commanding tab applies the stricter rules of the Python GDS page before sending (signed integers decimal only;
   unsigned binary, octal, decimal, hexadecimal; no surrounding spaces) and shows its messages; a float is a number
   input.
+
+### Command line output (command line findings 2, 3, 6, 7, 9 to 16, 21)
+
+- Fixed, not deviations: `events`, `channels` and `command-send` print the lines of `fprime-cli` (`EventSeverity.X`, `None` for a missing description, `U32Type`, JSON as `json.dumps` writes it, time without zone, channel `display_text` typed as in Python and no `value` key); an unknown command prints the text of `fprime-cli` on the standard output with exit code 0 and the near names of `difflib.get_close_matches`; no command name, `-i abc` and an argument such as `-3.4e38` give the argparse error and exit code 2. `tests/cli/check.py` compares the output byte for byte.
+- Kept: `command-send --list --json` is JSON (finding 14: Python prints a `repr` that is not JSON); the readable time is UTC (Python: local time of the machine); a refused argument is one line, not a traceback (finding 6); the usage text of argparse is not printed. Reasons in `tests/cli/README.md`.

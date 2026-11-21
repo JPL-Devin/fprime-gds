@@ -34,6 +34,12 @@ fn url_arg() -> Arg {
     Arg::new("url").long("url").value_name("URL").help("Address of the running GDS [default: the configured --bind]")
 }
 
+/// A command line that argparse of `fprime-cli` refuses: its last line and its exit code.
+fn refused(error: &str) -> ExitCode {
+    eprintln!("fgds: error: {error}");
+    ExitCode::from(2)
+}
+
 fn filter_args() -> [Arg; 4] {
     [
         Arg::new("ids")
@@ -41,7 +47,7 @@ fn filter_args() -> [Arg; 4] {
             .long("ids")
             .value_name("ID")
             .num_args(1..)
-            .value_parser(fgds_core::clap::value_parser!(u64))
+            .allow_negative_numbers(true)
             .help("Only items with one of these identifiers"),
         Arg::new("components")
             .short('c')
@@ -132,7 +138,10 @@ impl Subcommand for Records {
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let api = api(args, env)?;
-        let filter = Filter::from(args);
+        let filter = match Filter::from(args) {
+            Ok(filter) => filter,
+            Err(error) => return Ok(refused(&error)),
+        };
         let json = args.get_flag("json");
         let timeout = args.get_one::<f64>("timeout").copied().filter(|t| *t > 0.0);
         runtime()?.block_on(async {
@@ -150,8 +159,13 @@ impl Subcommand for Records {
             let now =
                 api::seq(&cursor["seq"]).ok_or_else(|| Error::Other("the cursor has no sequence number".into()))?;
             let mut after = if args.get_flag("history") { 0 } else { now };
+            let plain = if json && self.kind == "fprime.channel" {
+                items::plain_channels(&api.get("/dictionary", &[]).await?)
+            } else {
+                Default::default()
+            };
             let mut on_record = |record: &Value| {
-                let item = Item::from_record(record);
+                let item = Item::from_record(record, &plain);
                 let accepted = filter.accepts(&item, json);
                 if accepted {
                     print(&item, json);
@@ -191,7 +205,11 @@ impl Subcommand for Commands {
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let api = api(args, env)?;
-        let (filter, json) = (Filter::from(args), args.get_flag("json"));
+        let filter = match Filter::from(args) {
+            Ok(filter) => filter,
+            Err(error) => return Ok(refused(&error)),
+        };
+        let json = args.get_flag("json");
         runtime()?.block_on(async {
             api.check_version().await?;
             let dictionary = api.get("/dictionary", &[]).await?;
@@ -212,11 +230,7 @@ impl Subcommand for CommandSend {
         Command::new("command-send")
             .about("Send a command through a running GDS")
             .arg(url_arg())
-            .arg(
-                Arg::new("command-name")
-                    .required_unless_present("list")
-                    .help("Full name of the command, \"<component>.<name>\""),
-            )
+            .arg(Arg::new("command-name").help("Full name of the command, \"<component>.<name>\""))
             .arg(
                 Arg::new("arguments")
                     .long("arguments")
@@ -248,9 +262,24 @@ impl Subcommand for CommandSend {
         }
         let api = api(args, env)?;
         let json = args.get_flag("json");
-        let name = args.get_one::<String>("command-name").expect("required by clap");
+        let Some(name) = args.get_one::<String>("command-name") else {
+            return Ok(refused("One of command-name or --list is required"));
+        };
         let arguments: Vec<&String> = args.get_many::<String>("arguments").map(Iterator::collect).unwrap_or_default();
         let dry_run = args.get_flag("dry-run");
+        // argparse of fprime-cli: an argument that starts with `-` is taken as an argument only when it
+        // is a negative number written with digits (`-5`, `-0.5`), so `-3.4e38` ends the command line.
+        let number = |text: &str| {
+            let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+            match text.split_once('.') {
+                Some((whole, fraction)) => (whole.is_empty() || digits(whole)) && digits(fraction),
+                None => digits(text),
+            }
+        };
+        if let Some(first) = arguments.iter().position(|a| a.strip_prefix('-').is_some_and(|rest| !number(rest))) {
+            let rest: Vec<&str> = arguments[first..].iter().map(|a| a.as_str()).collect();
+            return Ok(refused(&format!("unrecognized arguments: {}", rest.join(" "))));
+        }
         runtime()?.block_on(async {
             api.check_version().await?;
             let body = json!({"name": name, "args": arguments});
@@ -260,19 +289,20 @@ impl Subcommand for CommandSend {
                 Ok(answer) if dry_run => println!("{}", api::hex(answer["packet"].as_str().unwrap_or_default())?),
                 Ok(_) => {}
                 Err(error) => {
-                    eprintln!("{error}");
-                    // Like fprime-cli: help the operator to the right name or arguments.
                     let dictionary = api.get("/dictionary", &[]).await?;
                     let commands = items::commands(&dictionary);
-                    match commands.iter().find(|c| c.name == *name) {
-                        Some(command) => eprint!("{}", command.line(false)),
-                        None => {
-                            let similar = items::similar(name, &commands);
-                            if !similar.is_empty() {
-                                eprintln!("Similar known commands: {}", similar.join(", "));
-                            }
+                    let Some(command) = commands.iter().find(|c| c.name == *name) else {
+                        // As fprime-cli: said on the standard output, and the exit code is 0.
+                        println!("{name} is not a known command");
+                        let similar: Vec<String> =
+                            items::similar(name, &commands).iter().map(|s| format!("'{s}'")).collect();
+                        if !similar.is_empty() {
+                            println!("Similar known commands: [{}]", similar.join(", "));
                         }
-                    }
+                        return Ok(ExitCode::SUCCESS);
+                    };
+                    eprintln!("{error}");
+                    eprint!("{}", command.line(false));
                     return Ok(ExitCode::FAILURE);
                 }
             }
