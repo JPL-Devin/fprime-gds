@@ -185,3 +185,27 @@ Where the result differs from the Python tools, on purpose
 - Parameters are written in the order of their qualified names, as the Python tool does (its loader sorts them); with the same identifier twice in a dictionary the last one is used for decoding.
 
 Not built: the Sequences tab and uplink (another part); `fpy` and other sequence languages; `fprime-prm-write` has no other output forms.
+
+
+## File uplink and downlink
+
+1. **Ground-side downlink names follow the Python GDS**: the destination path of the start packet becomes one file
+   name with `/` and `\` replaced by `_` (`./DpCat/x.fdp` is stored as `._DpCat_x.fdp`), directly inside the
+   downlink directory. Names that are empty, `.` or `..` fail the transfer and are reported.
+2. **Upload is the raw request body**: `POST <prefix>/uplink?name=<file>&destination=<flight path>`, not a multipart
+   form. The staged copy lives under the files directory; `--files-max-upload-bytes` bounds it.
+3. **The queue starts paused** and stays paused while the link is not connected; resume is refused then (FIL-4).
+   A link drop fails the active uplink, pauses the queue and keeps the files behind it.
+4. **Pause ends the active uplink** with a cancel packet, as cancel does; the file is not continued after resume,
+   the next one is sent.
+5. **`fprime.file.packet` is a transient kind**: file packets are decoded for the handler but not stored, so file
+   content is never in the record store. Progress, state and problems are `fprime.file.uplink`,
+   `fprime.file.downlink` and `fprime.file.problem` records.
+6. **`fgds files`** (upload, queue, pause, resume, cancel, list, download) is the online tool; it supersedes item 3
+   of the previous section for file uplink.
+7. **Lit** is one embedded file (`plugins/files/ui/lit-core.min.js`) served by the plugin.
+8. **Data products**: a product made by `dpDemo.Dp` is downlinked through `dpCat` and compared by content with the
+   file `Ref` wrote; it is not handed to a decoder, no data products plugin is on the base branch.
+9. **Core change**: `StatusHandle::link()` in `crates/fgds-core/src/status.rs` returns the link state, which the
+   uplink handler needs for FIL-4.
+10. **The tabs were not exercised in a browser**; the checks only fetch the modules.

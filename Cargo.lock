@@ -9,6 +9,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
+name = "advanced"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+]
+
+[[package]]
 name = "anstream"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -158,6 +165,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "browser-gds"
+version = "0.1.0"
+dependencies = [
+ "advanced",
+ "dictionary-tab",
+ "fgds",
+ "logs",
 ]
 
 [[package]]
@@ -314,6 +331,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e9de72ce2ad1f90dc62fa25f0f430ef85eb4b0d8fa0be4f30373bc40a21d28e"
 
 [[package]]
+name = "dictionary-tab"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -362,17 +386,23 @@ dependencies = [
 name = "fgds"
 version = "0.1.0"
 dependencies = [
+ "advanced",
  "channels",
  "clap",
  "comm-tcp",
  "commands",
  "data-products",
+ "dictionary-tab",
  "events",
  "fgds-core",
  "fgds-shell",
+ "files",
  "framing-ccsds",
  "framing-fprime",
+ "logs",
  "online",
+ "params",
+ "sequences",
  "storage-memory",
  "tokio",
  "tracing",
@@ -421,6 +451,17 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing",
+]
+
+[[package]]
+name = "files"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+ "fgds-shell",
+ "reqwest",
+ "serde",
+ "tokio",
 ]
 
 [[package]]
@@ -783,6 +824,14 @@ name = "log"
 version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
+
+[[package]]
+name = "logs"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+ "tokio",
+]
 
 [[package]]
 name = "matchit"

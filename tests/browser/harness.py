@@ -15,7 +15,7 @@ class Gds:
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.url = f"http://127.0.0.1:{http}"
         self.process = scenario.start(
-            [binary, "run", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}",
+            [binary, "run", "--framing", "fprime", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}",
              "--comm-tcp-address", f"127.0.0.1:{self.link_port}"],
             open(f"{out}/gds.log", "w"), env={**os.environ, **(env or {})},
         )

@@ -16,6 +16,12 @@ commands = { workspace = true }
 comm-tcp = { workspace = true }
 events = { workspace = true }
 online = { path = "../../plugins/online" }
+files = { workspace = true }
+sequences = { path = "../../plugins/sequences" }
+params = { path = "../../plugins/params" }
+dictionary-tab = { path = "../../plugins/dictionary-tab" }
+logs = { path = "../../plugins/logs" }
+advanced = { path = "../../plugins/advanced" }
 framing-ccsds = { workspace = true }
 data-products = { path = "../../plugins/data-products" }
 framing-fprime = { workspace = true }
