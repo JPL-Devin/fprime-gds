@@ -119,13 +119,13 @@ impl Value {
         }
     }
 
-    /// Parse JSON text, with the message of Python's `json.loads` for text that is not JSON at all.
+    /// Parse JSON text, with the message of Python's `json.loads` for text it rejects.
     pub fn parse_json(text: &str) -> Result<Value, String> {
+        if let Some(message) = crate::pyjson::error(text) {
+            return Err(message);
+        }
         match serde_json::from_str::<serde_json::Value>(text) {
             Ok(v) => Ok(Value::from_json(&v)),
-            Err(_) if !text.trim_start().starts_with(['[', '{', '"']) => {
-                Err("Expecting value: line 1 column 1 (char 0)".into())
-            }
             Err(e) => Err(format!("invalid JSON: {e}")),
         }
     }

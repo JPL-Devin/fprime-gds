@@ -34,7 +34,7 @@ impl Param {
     }
 }
 
-/// The parameters of a dictionary, in its order, and what is needed to serialize their values.
+/// The parameters of a dictionary, by qualified name, and what is needed to serialize their values.
 pub struct ParamDictionary {
     pub params: Vec<Param>,
     types: Dictionary,
@@ -76,11 +76,13 @@ impl ParamDictionary {
                 default: item.get("default").filter(|d| !d.is_null()).cloned(),
             });
         }
+        // The order the Python tools write in: by qualified name.
+        params.sort_by_key(Param::full_name);
         Ok(ParamDictionary { params, types })
     }
 
-    /// The parameters to write and their values: those of the JSON file, in dictionary
-    /// order, and with `defaults` also those that have a default in the dictionary.
+    /// The parameters to write and their values: those of the JSON file, by qualified
+    /// name, and with `defaults` also those that have a default in the dictionary.
     pub fn select<'a>(
         &'a self,
         file: &serde_json::Value,
@@ -194,6 +196,7 @@ pub fn to_csv(values: &[(&Param, Value)]) -> String {
     let mut lines = vec!["Component,Parameter,Value,Type,ID".to_string()];
     for (param, value) in values {
         let mut shown = match value {
+            Value::Array(_) | Value::Object(_) => value.python_str().replace('"', "\"\""),
             Value::Str(s) => s.replace('"', "\"\""),
             other => other.python_str(),
         };
@@ -252,7 +255,6 @@ impl Subcommand for WriteCommand {
             Command::new(name)
                 .about(about)
                 .arg(Arg::new("json_file").required(true).help("Path of the JSON file of parameter values"))
-                .arg(sequences::dictionary_arg())
                 .arg(
                     Arg::new("defaults")
                         .long("defaults")
@@ -298,7 +300,6 @@ impl Subcommand for DecodeCommand {
         Command::new("prm-decode")
             .about("Decode a parameter database file (as fprime-prm-decode)")
             .arg(Arg::new("dat_file").required(true).help("Path of the parameter database file"))
-            .arg(sequences::dictionary_arg())
             .arg(
                 Arg::new("format")
                     .short('f')

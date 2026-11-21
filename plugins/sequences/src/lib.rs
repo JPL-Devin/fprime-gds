@@ -8,6 +8,7 @@
 pub mod convert;
 pub mod lexer;
 pub mod parser;
+mod pyjson;
 mod tables;
 pub mod time;
 pub mod value;
@@ -230,11 +231,6 @@ pub fn dictionary_path(env: &CliEnv) -> Result<PathBuf> {
     Ok(env.config.dictionary.clone())
 }
 
-/// The `--dictionary` option of the offline subcommands.
-pub fn dictionary_arg() -> Arg {
-    Arg::new("dictionary").short('d').long("dictionary").help("Path of the F Prime JSON dictionary")
-}
-
 pub struct SequencesPlugin;
 
 impl Plugin for SequencesPlugin {
@@ -255,7 +251,6 @@ impl Subcommand for SeqgenCommand {
             .about("Build the binary file of a command sequence (as fprime-seqgen)")
             .arg(Arg::new("sequence").required(true).help("Path of the sequence text file"))
             .arg(Arg::new("output").help("Path of the binary file [default: the sequence path with .bin]"))
-            .arg(dictionary_arg())
             .arg(Arg::new("timebase").short('t').long("timebase").help("Time base of the sequence [default: any]"))
             .arg(
                 Arg::new("all-errors")

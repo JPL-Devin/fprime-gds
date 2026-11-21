@@ -46,10 +46,10 @@ fn action(state: u8, sym: u8) -> Option<Action> {
 
 /// A string inside an array or object that starts like a JSON array or object is read as
 /// one, as the Python parser does.
-fn nested(value: Value, error: &mut Option<String>) -> Value {
+fn nested(value: Value, rule: &str, error: &mut Option<String>) -> Value {
     match value {
         Value::Str(s) if s.starts_with(['[', '{']) => Value::parse_json(&s).unwrap_or_else(|e| {
-            error.get_or_insert(format!("in {}: {e}", crate::value::str_repr(&s)));
+            error.get_or_insert(format!("Error trying to process rule \"{rule}\":\n\n{e}"));
             Value::Str(s)
         }),
         other => other,
@@ -93,7 +93,7 @@ impl Builder {
                     }
                 }
                 if origin == "array" {
-                    let items = values.into_iter().map(|v| nested(v, &mut self.arg_error)).collect();
+                    let items = values.into_iter().map(|v| nested(v, "array", &mut self.arg_error)).collect();
                     Node::Value(Value::Array(items))
                 } else {
                     Node::Values(values)
@@ -113,7 +113,8 @@ impl Builder {
                     }
                 }
                 if origin == "object" {
-                    let pairs: Vec<_> = pairs.into_iter().map(|(k, v)| (k, nested(v, &mut self.arg_error))).collect();
+                    let pairs: Vec<_> =
+                        pairs.into_iter().map(|(k, v)| (k, nested(v, "object", &mut self.arg_error))).collect();
                     Node::Value(Value::object(pairs))
                 } else {
                     Node::Pairs(pairs)

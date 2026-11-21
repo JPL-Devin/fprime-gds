@@ -54,3 +54,36 @@ fn manifest() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+/// Every fixture input cut at every character, and with characters replaced, compiles or
+/// is rejected with a message naming the file; nothing panics (MNT-6).
+#[test]
+fn damaged_sequences_never_panic() {
+    let dict = sequences::load_dictionary(&fixtures().join("resources/enhanced_dictionary.json")).unwrap();
+    let mut inputs: Vec<_> = std::fs::read_dir(fixtures().join("input")).unwrap().map(|e| e.unwrap().path()).collect();
+    inputs.sort();
+    let (mut compiled, mut rejected) = (0, 0);
+    let mut check = |text: &str, all: bool| match sequences::compile(text, "damaged.seq", &dict, 0xFFFF, all) {
+        Ok(binary) => {
+            assert!(binary.len() >= 15);
+            compiled += 1;
+        }
+        Err(message) => {
+            assert!(message.contains("damaged.seq"), "{message}");
+            rejected += 1;
+        }
+    };
+    for path in inputs.iter().filter(|p| p.extension().is_some_and(|e| e == "seq")) {
+        let Ok(text) = std::fs::read_to_string(path) else { continue };
+        let chars: Vec<char> = text.chars().collect();
+        for end in 0..chars.len() {
+            check(&chars[..end].iter().collect::<String>(), end % 2 == 0);
+        }
+        for (index, replacement) in (0..chars.len()).zip("\"[{:,\\\n;]}'.-x9R\0\u{e9}".chars().cycle()) {
+            let mut changed = chars.clone();
+            changed[index] = replacement;
+            check(&changed.iter().collect::<String>(), index % 2 == 0);
+        }
+    }
+    assert!(compiled > 1000 && rejected > 1000, "{compiled} compiled, {rejected} rejected");
+}
