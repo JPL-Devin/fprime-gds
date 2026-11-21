@@ -54,10 +54,15 @@ export function percent(t) {
   return t.size ? Math.floor((t.done * 100) / t.size) : 100;
 }
 
+// A time as the Python GDS page shows it: "Sat, 21 Nov 2026 22:53:23 GMT".
+export function when(time) {
+  return time ? new Date(time).toUTCString() : "";
+}
+
 export function row(t, extra) {
   return html`<tr>
-    <td>${t.started || ""}</td>
-    <td>${t.ended || ""}</td>
+    <td>${when(t.started)}</td>
+    <td>${when(t.ended)}</td>
     <td>${t.name}</td>
     <td>${t.source}</td>
     <td>${t.destination}</td>

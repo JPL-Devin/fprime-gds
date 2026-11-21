@@ -8,10 +8,12 @@ The stock binary is what every check runs, except the one of a tab that fails: t
 import base64
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
 import sys
+from email.utils import parsedate_to_datetime
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -22,9 +24,10 @@ from harness import rows, scenario, show, step
 
 BINARY, BROKEN_BINARY, REF, DICTIONARY, OUT = sys.argv[1:6]
 os.makedirs(OUT, exist_ok=True)
-TABS = {"commands": "Commanding", "events": "Events", "channels": "Channels", "dictionary": "Dictionaries",
-        "logs": "Logs", "advanced": "Advanced", "uplink": "Uplink", "downlink": "Downlink", "data-products": "Data Products",
-        "charts": "Charts", "sequences": "Sequences"}
+# In the order of the Python GDS page, then the tab it does not have.
+TABS = {"commands": "Commanding", "events": "Events", "channels": "Channels", "uplink": "Uplink", "downlink": "Downlink",
+        "dictionary": "Dictionaries", "charts": "Charts", "logs": "Logs", "sequences": "Sequences", "advanced": "Advanced",
+        "data-products": "Data Products"}
 ELEMENTS = {"commands": "commands-tab", "events": "events-tab", "channels": "channels-tab",
             "dictionary": "dictionary-tab", "logs": "logs-tab", "advanced": "advanced-tab",
             "uplink": "fgds-uplink", "downlink": "fgds-downlink", "data-products": "data-products-tab",
@@ -54,7 +57,7 @@ def stock(browser, gds):
 
     # Each tab loads: its button, its element, and content from the API.
     titles = page.eval_on_selector_all("#tabs button", "all => all.map((b) => [b.dataset.tab, b.textContent])")
-    assert dict(map(tuple, titles)) == TABS, titles
+    assert list(map(tuple, titles)) == list(TABS.items()), titles
     content = {"commands": "#command-select option", "events": "#events-table tbody tr",
                "channels": "#channels-table tbody tr", "dictionary": "#dictionary-table tbody tr",
                "logs": "#logs-select option", "advanced": "#advanced-plugins tbody tr",
@@ -285,7 +288,22 @@ def files_and_products(page, gds):
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text(f"{len(content)} / {len(content)} bytes")
     received = scenario.wait_for("the file on the Ref side", lambda: os.path.getsize(f"{gds.out}/ref/up.bin") == len(content))
     assert received and open(f"{gds.out}/ref/up.bin", "rb").read() == content
-    step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes")
+    # Times and destination as the Python GDS page writes them: "Sat, 21 Nov 2026 22:53:23 GMT"; the name alone
+    # without a directory, and directory, "/", name with one (`os.path.join` in its uplinker).
+    cells = uplink.locator("tr", has_text="up.bin").locator("td").all_text_contents()
+    http_date = re.compile(r"^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$")
+    assert http_date.match(cells[0]) and http_date.match(cells[1]), cells
+    assert parsedate_to_datetime(cells[0]) <= parsedate_to_datetime(cells[1]), cells
+    assert cells[4] == "up.bin", cells
+    shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/up2.bin")
+    uplink.locator("#files").set_input_files(f"{gds.out}/up2.bin")
+    uplink.locator("#directory").fill(".")
+    uplink.get_by_role("button", name="Add to queue").click()
+    expect(uplink.locator("tr", has_text="up2.bin")).to_contain_text("finished", timeout=30000)
+    assert uplink.locator("tr", has_text="up2.bin").locator("td").all_text_contents()[4] == "./up2.bin"
+    uplink.locator("#directory").fill("")
+    step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes; "
+         f"times as the Python page ({cells[0]}), destination up.bin, and ./up2.bin with the directory '.'")
 
     # A file and a data product come down: the Downlink tab lists both, the directory of
     # downlinked files is the watched directory of the data products.
@@ -294,6 +312,12 @@ def files_and_products(page, gds):
     gds.post("/commands", {"name": "FileHandling.fileDownlink.SendFile", "args": ["down-source.bin", "down.bin"]})
     expect(downlink.locator("tr", has_text="down.bin").first).to_contain_text("finished", timeout=30000)
     expect(downlink.locator("a[download='down.bin']")).to_have_count(1)
+    # A part of a file ends as finished with its percentage and no problem counted, as on the Python GDS page.
+    gds.post("/commands", {"name": "FileHandling.fileDownlink.SendPartial", "args": ["down-source.bin", "part.bin", 100, 500]})
+    expect(downlink.locator("tr", has_text="part.bin").first).to_contain_text("finished", timeout=30000)
+    part = downlink.locator("tr", has_text="part.bin").first.locator("td").all_text_contents()
+    assert http_date.match(part[0]) and http_date.match(part[1]) and part[5] == "finished" and part[7] == "", part
+    assert re.search(r"\(\d+%\)", part[6]) and "(100%)" not in part[6], part
     with page.expect_download() as download:
         downlink.locator("a[download='down.bin']").click()
     assert open(download.value.path(), "rb").read() == open(f"{gds.out}/ref/down-source.bin", "rb").read()
