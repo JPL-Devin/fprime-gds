@@ -69,7 +69,7 @@ fn sample(channel: &Channel, time: FlightTime, r: &mut Reader, dict: &Dictionary
         .map_err(|e| DecodeError(format!("channel {}: {}", channel.name, e.0)))?;
     let display_text = match &channel.format {
         Some(format) => dict.format(format, &[(&channel.ty, &value)]),
-        None => dict.display(&channel.ty, &value),
+        None => dict.display_channel(&channel.ty, &value),
     };
     Ok(NewRecord {
         id: Some(channel.id),

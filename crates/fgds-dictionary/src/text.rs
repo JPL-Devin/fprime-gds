@@ -40,6 +40,29 @@ fn plain(ty: &Type, value: &Value, nested: bool) -> String {
     }
 }
 
+/// A channel value as the Python GDS shows it: in arrays and structs every leaf is text.
+fn leaves_as_text(ty: &Type, value: &Value) -> String {
+    let list = |ty: &Type, items: &[Value]| {
+        let items: Vec<_> = items.iter().map(|v| leaves_as_text(ty, v)).collect();
+        format!("[{}]", items.join(", "))
+    };
+    match (ty, value) {
+        (Type::Array { element, .. }, Value::Array(items)) => list(element, items),
+        (Type::Struct { members, .. }, Value::Object(fields)) => {
+            let fields: Vec<_> = members
+                .iter()
+                .filter_map(|m| Some((m, fields.get(&m.name)?)))
+                .map(|(m, v)| match (m.count, v) {
+                    (Some(_), Value::Array(items)) => format!("'{}': {}", m.name, list(&m.ty, items)),
+                    _ => format!("'{}': {}", m.name, leaves_as_text(&m.ty, v)),
+                })
+                .collect();
+            format!("{{{}}}", fields.join(", "))
+        }
+        _ => format!("'{}'", plain(ty, value, false)),
+    }
+}
+
 /// A float as Python's `repr()` shows it.
 fn float(v: f64) -> String {
     let magnitude = v.abs();
@@ -107,6 +130,14 @@ impl Dictionary {
     /// The value as text, without a format string.
     pub fn display(&self, ty: &Type, value: &Value) -> String {
         plain(ty, value, false)
+    }
+
+    /// The value of a channel as text, without a format string.
+    pub fn display_channel(&self, ty: &Type, value: &Value) -> String {
+        match ty {
+            Type::Array { .. } | Type::Struct { .. } => leaves_as_text(ty, value),
+            _ => plain(ty, value, false),
+        }
     }
 
     /// Fill an FPP format string: `{}` takes the next value as it is, `{x}`, `{.2f}`
