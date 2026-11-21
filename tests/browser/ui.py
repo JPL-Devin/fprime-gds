@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import struct
+import time
 import subprocess
 import sys
 from email.utils import parsedate_to_datetime
@@ -62,7 +63,7 @@ def stock(browser, gds):
                "channels": "#channels-table tbody tr", "dictionary": "#dictionary-table tbody tr",
                "logs": "#logs-select option", "advanced": "#advanced-plugins tbody tr",
                "uplink": "#files", "downlink": "table", "data-products": "table.products",
-               "charts": "#chart-channel option", "sequences": "#sequence-text"}
+               "charts": ".chart-channel option", "sequences": "#sequence-text"}
     for tab in TABS:
         show(page, tab)
         page.wait_for_selector(f"{ELEMENTS[tab]} {content[tab]}", state="attached")
@@ -347,38 +348,75 @@ def charts_and_sequences(page, gds, problems):
     """The Charts tab plots a channel as it arrives; the Sequences tab builds a sequence and sends it."""
     show(page, "charts")
     charts = page.locator("charts-tab")
-    charts.locator("#chart-channel").select_option(COUNTER)
-    charts.locator("#chart-add").click()
+    offered = charts.locator(".chart-channel").first.locator("option").all_text_contents()[1:]
+    channels = sorted(gds.get("/dictionary")["telemetryChannels"], key=lambda c: c["id"])
+    owner = lambda entry: max((c for c in channels if entry == c["name"] or entry.startswith(c["name"] + ".")),
+                              key=lambda c: len(c["name"]))["id"]
+    identifiers = [owner(entry) for entry in offered]
+    assert len(offered) == 187 and identifiers == sorted(identifiers), (len(offered), offered[:5])
+    assert {"ComCcsds.comQueue.comQueueDepth.0", "ComCcsds.comQueue.comQueueDepth.1", COUNTER} <= set(offered), offered
+    before = [r for r in gds.records("fprime.channel") if r["body"]["name"] == COUNTER]
+    assert before, "the counter has samples before the chart"
+    charts.locator(".chart-channel").first.select_option(COUNTER)
     canvas = charts.locator("canvas")
     expect(canvas).to_have_count(1)
     points = lambda: int(canvas.get_attribute("data-points") or 0)
-    first = scenario.wait_for("points in the chart", points)
+    time.sleep(1)
+    assert points() == 0, f"{points()} points before any sample arrived"
+    gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
+    scenario.wait_for("a point in the chart", points)
+    after = [r for r in gds.records("fprime.channel") if r["body"]["name"] == COUNTER][len(before):]
+    assert float(canvas.get_attribute("data-first")) == float(after[0]["body"]["value"]), (canvas.get_attribute("data-first"), after[0])
+    start = float(canvas.get_attribute("data-from"))
+    assert abs(time.time() * 1000 - 60000 - start) < 5000, start
     drawn = page.evaluate("""() => { const c = document.querySelector("charts-tab canvas");
         const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
         let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n += 1; return n; }""")
     assert drawn > 100, drawn
-    gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
-    scenario.wait_for("more points in the chart", lambda: points() > first)
-    samples = [r for r in gds.records("fprime.channel") if r["body"]["name"] == COUNTER]
-    scenario.wait_for("every sample in the chart", lambda: points() >= len(samples))
-    step(f"Charts tab: {COUNTER} plotted with the vendored Chart.js, {points()} points, the samples of the record API; "
-         "it grows while the page stays open")
+    depth = lambda: [r for r in gds.records("fprime.channel") if r["body"]["name"] == "ComCcsds.comQueue.comQueueDepth"]
+    known = len(depth())
+    charts.locator("#chart-add").click()
+    charts.locator(".chart-channel").nth(1).select_option("ComCcsds.comQueue.comQueueDepth.1")
+    expect(canvas).to_have_count(2)
+    scenario.wait_for("a point of the array element", lambda: int(canvas.nth(1).get_attribute("data-points") or 0))
+    assert float(canvas.nth(1).get_attribute("data-first")) in [float(r["body"]["value"][1]) for r in depth()[known - 1:]]
+    charts.locator(".chart-remove").first.click()
+    expect(canvas).to_have_count(1)
+    assert charts.locator(".chart-channel").first.input_value() == "ComCcsds.comQueue.comQueueDepth.1"
+    step(f"Charts tab: {len(offered)} entries in identifier order, array elements by index; {COUNTER} drawn with the "
+         f"vendored Chart.js from the first sample after it was chosen ({len(before)} earlier ones are not drawn), "
+         "on an axis that ends at the present; a second chart of an array element")
 
     show(page, "sequences")
     tab = page.locator("fgds-sequences")
     text = "; two commands\nR00:00:00 CdhCore.cmdDisp.CMD_NO_OP\nR00:00:01 CdhCore.cmdDisp.CMD_NO_OP_STRING \"from a sequence\"\n"
+    assert tab.locator("#sequence-text").input_value() == "" and not tab.locator("#sequence-run").is_enabled()
+    staged = gds.get("/files/uplink")["directory"]
+    tab.locator("#sequence-uplink").click()
+    expect(tab.locator("#sequence-error")).to_have_text("Supply filename with .seq suffix")
     tab.locator("#sequence-name").fill("page.seq")
-    tab.locator("#sequence-directory").fill("")
+    # A directory of the flight side; `Ref` runs in a directory of this check, and a command takes 40 characters.
+    tab.locator("#sequence-directory").fill(".")
     tab.locator("#sequence-text").fill("R00:00:00 Not.a.COMMAND\n")
     tab.locator("#sequence-uplink").click()
-    expect(tab.locator("#sequence-result.error")).to_contain_text("Not.a.COMMAND")
-    refused = tab.locator("#sequence-result").inner_text()
+    wrong = f"{staged}/page.seq:1: 'Not.a.COMMAND' does not match any command in the command dictionary."
+    expect(tab.locator("#sequence-result")).to_have_value(wrong)
+    refused = wrong
     # The browser logs the refusal of the route; it is the one error expected in the console.
     assert [p for p in problems if "422" not in p] == [], problems
     problems.clear()
-    tab.locator("#sequence-text").fill(text)
+    with page.expect_file_chooser() as chooser:
+        tab.locator("#sequence-open").click()
+    chooser.value.set_files({"name": "opened.seq", "mimeType": "text/plain", "buffer": text.encode()})
+    expect(tab.locator("#sequence-name")).to_have_value("opened.seq")
+    assert tab.locator("#sequence-text").input_value() == text
+    tab.locator("#sequence-name").fill("page.seq")
+    with page.expect_download() as download:
+        tab.locator("#sequence-save").click()
+    assert download.value.suggested_filename == "page.seq" and open(download.value.path()).read() == text
     tab.locator("#sequence-uplink").click()
-    expect(tab.locator("#sequence-result")).to_contain_text("added to the uplink queue")
+    expect(tab.locator("#sequence-result")).to_have_value(re.compile("Please confirm"))
+    said = tab.locator("#sequence-result").input_value()
     with open(f"{gds.out}/page.seq", "w") as file:
         file.write(text)
     subprocess.run([BINARY, "seqgen", "--dictionary", DICTIONARY, f"{gds.out}/page.seq", f"{gds.out}/page.tool.bin"],
@@ -389,14 +427,19 @@ def charts_and_sequences(page, gds, problems):
     assert open(f"{gds.out}/ref/page.bin", "rb").read() == built
     scenario.wait_for("the uplink finished", lambda: [t for t in gds.get("/files/uplink")["files"]
                                                      if t["name"] == "page.bin" and t["state"] == "finished"])
+    crc = struct.unpack(">I", built[-4:])[0]
+    assert said == (f"Sequence is {len(built) - 15} bytes with timebase ANY\nCRC: {crc} (0x{crc:04X})\n"
+                    "Uplinking to ./page.bin. Please confirm uplink EVRs before running.\n"), said
     before = len(gds.records("fprime.event"))
-    gds.post("/commands", {"name": "Ref.cmdSeq.CS_RUN", "args": ["page.bin", "BLOCK"]})
+    tab.locator("#sequence-run").click()
+    expect(tab.locator("#sequence-result")).to_have_value("Sent CS_RUN for ./page.bin")
     scenario.wait_for("the sequence ran", lambda: [e for e in gds.records("fprime.event")[before:]
                                                    if e["body"]["name"] == "Ref.cmdSeq.CS_SequenceComplete"])
     ran = [e["body"]["name"].rsplit(".", 1)[1] for e in gds.records("fprime.event")[before:]]
     assert "NoOpStringReceived" in ran, ran
-    step(f"Sequences tab: a sequence with an unknown command is refused ({refused.strip()[:60]!r}); a good one is built "
-         f"({len(built)} bytes, equal to `fgds seqgen`), uplinked, and run by Ref: {', '.join(ran)}")
+    step(f"Sequences tab: a sequence with an unknown command is refused ({refused.strip()[:60]!r}); one opened from a file is saved, built "
+         f"({len(built)} bytes, equal to `fgds seqgen`), uplinked with the messages of the Python GDS page, and run with "
+         f"the Run button: {', '.join(ran)}")
 
 
 def stream_that_ends(browser, gds):
