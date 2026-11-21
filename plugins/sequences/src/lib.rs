@@ -171,7 +171,7 @@ impl Plugin for SequencesPlugin {
         reg.add_tab(UiBundle {
             tab_id: "sequences",
             title: Some("Sequences"),
-            order: 52,
+            order: 90,
             module: "sequences.js",
             files: &UI_FILES,
         })?;

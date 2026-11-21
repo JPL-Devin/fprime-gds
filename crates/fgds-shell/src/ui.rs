@@ -37,7 +37,8 @@ fn file(name: &str, content: &'static [u8]) -> Response {
 async fn tabs(State(core): State<Arc<Core>>) -> Json<Value> {
     let mut tabs: Vec<_> = core.registry.tabs.iter().collect();
     // A bundle without a title is no tab: its module is loaded for `setup` only.
-    tabs.sort_by_key(|t| (t.order, t.tab_id));
+    let order = |t: &fgds_core::UiBundle| core.config.tab_order.get(t.tab_id).copied().unwrap_or(t.order);
+    tabs.sort_by_key(|t| (order(t), t.tab_id));
     let module = |t: &fgds_core::UiBundle| format!("/ui/plugins/{}/{}", t.tab_id, t.module);
     Json(tabs.iter().map(|t| json!({"id": t.tab_id, "title": t.title, "module": module(t)})).collect())
 }

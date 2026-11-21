@@ -318,11 +318,11 @@ impl Plugin for FilesPlugin {
             Ok(Box::new(downlink::DownlinkHandler::new(for_handler.clone(), options)))
         }))?;
         reg.add_routes(routes::routes(shared))?;
-        reg.add_tab(UiBundle { tab_id: "uplink", title: Some("Uplink"), order: 50, module: "uplink.js", files: &UI })?;
+        reg.add_tab(UiBundle { tab_id: "uplink", title: Some("Uplink"), order: 40, module: "uplink.js", files: &UI })?;
         reg.add_tab(UiBundle {
             tab_id: "downlink",
             title: Some("Downlink"),
-            order: 51,
+            order: 50,
             module: "downlink.js",
             files: &UI,
         })?;

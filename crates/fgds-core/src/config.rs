@@ -51,6 +51,8 @@ pub struct Config {
     /// Largest accepted request body (API-7).
     pub max_body_bytes: usize,
     pub plugins: BTreeMap<String, PluginConfig>,
+    /// `[tab_order]`: tab identifier to position, over the `order` its plugin registered (lowest first).
+    pub tab_order: BTreeMap<String, u32>,
 }
 
 impl Default for Config {
@@ -69,6 +71,7 @@ impl Default for Config {
             disabled_plugins: Vec::new(),
             max_body_bytes: 1024 * 1024,
             plugins: BTreeMap::new(),
+            tab_order: BTreeMap::new(),
         }
     }
 }

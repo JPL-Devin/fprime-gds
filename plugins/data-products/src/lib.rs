@@ -58,7 +58,7 @@ impl Plugin for DataProductsPlugin {
         reg.add_tab(UiBundle {
             tab_id: PLUGIN,
             title: Some("Data Products"),
-            order: 70,
+            order: 110,
             module: "data-products.js",
             files: &FILES,
         })?;

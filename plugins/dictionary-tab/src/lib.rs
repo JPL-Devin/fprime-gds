@@ -15,7 +15,7 @@ impl Plugin for DictionaryTabPlugin {
         reg.add_tab(UiBundle {
             tab_id: "dictionary",
             title: Some("Dictionaries"),
-            order: 40,
+            order: 60,
             module: "dictionary.js",
             files: &FILES,
         })

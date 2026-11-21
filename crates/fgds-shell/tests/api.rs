@@ -208,6 +208,35 @@ where
         }
     }
 }
+struct Tab(&'static str, &'static str, u32);
+
+impl Plugin for Tab {
+    fn manifest(&self) -> Manifest {
+        Manifest { name: self.0, version: "1", ..Default::default() }
+    }
+    fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_tab(UiBundle { tab_id: self.1, title: Some("T"), order: self.2, module: "tab.js", files: &FILES })
+    }
+}
+
+#[tokio::test]
+async fn tabs_are_listed_by_their_order_and_the_configuration_can_move_one() {
+    let plugins: [&dyn Plugin; 3] = [&Tab("p1", "late", 30), &Tab("p2", "early", 10), &Tab("p3", "middle", 20)];
+    let ids = |config: Config| async {
+        let gds = FakeGds::start_with(&plugins, empty_dictionary(), config).await.unwrap();
+        let tabs = fgds_shell::router(gds.core.clone());
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, tabs).await });
+        let listed: Value = reqwest::get(format!("http://{address}/ui/tabs")).await.unwrap().json().await.unwrap();
+        listed.as_array().unwrap().iter().map(|t| t["id"].as_str().unwrap().to_string()).collect::<Vec<_>>()
+    };
+    assert_eq!(ids(FakeGds::config()).await, ["early", "middle", "late"]);
+    let mut config = FakeGds::config();
+    config.tab_order.insert("late".into(), 15);
+    assert_eq!(ids(config).await, ["early", "late", "middle"]);
+}
+
 #[tokio::test]
 async fn plugin_routes_tabs_and_the_page_shell_are_served() {
     let server = Server::start().await;

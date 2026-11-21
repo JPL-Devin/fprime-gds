@@ -16,7 +16,7 @@ impl Plugin for AdvancedPlugin {
         reg.add_tab(UiBundle {
             tab_id: "advanced",
             title: Some("Advanced"),
-            order: 60,
+            order: 100,
             module: "advanced.js",
             files: &FILES,
         })

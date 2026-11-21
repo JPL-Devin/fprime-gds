@@ -17,6 +17,6 @@ impl Plugin for ChartsPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_tab(UiBundle { tab_id: "charts", title: Some("Charts"), order: 35, module: "charts.js", files: &FILES })
+        reg.add_tab(UiBundle { tab_id: "charts", title: Some("Charts"), order: 70, module: "charts.js", files: &FILES })
     }
 }

@@ -37,7 +37,7 @@ impl Plugin for LogsPlugin {
                 RouteAccess { method: "GET", path: "/:name", access: Access::Read },
             ],
         })?;
-        reg.add_tab(UiBundle { tab_id: "logs", title: Some("Logs"), order: 50, module: "logs.js", files: &FILES })
+        reg.add_tab(UiBundle { tab_id: "logs", title: Some("Logs"), order: 80, module: "logs.js", files: &FILES })
     }
 }
 
