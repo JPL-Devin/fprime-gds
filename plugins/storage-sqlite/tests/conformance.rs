@@ -26,7 +26,7 @@ fn record(seq: u64, run: u32) -> Record {
         meta: fgds_core::PacketMeta::default()
             .with("vc", fgds_core::MetaValue::U64(u64::MAX))
             .with("station", fgds_core::MetaValue::Text("x".into())),
-        body: serde_json::json!({"big": "18446744073709551615", "nested": {"list": [1, 2.5, null, "é"]}}),
+        body: serde_json::json!({"big": "18446744073709551615", "nested": {"list": [1, 2.5, null, "é", 12.040816307067871, 1e-320, 0.1]}}),
     }
 }
 
