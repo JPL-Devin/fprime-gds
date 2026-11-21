@@ -13,7 +13,7 @@ impl Plugin for BrokenTabPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_tab(UiBundle { tab_id: "broken", title: "Broken", order: 70, module: "broken.js", files: &FILES })
+        reg.add_tab(UiBundle { tab_id: "broken", title: Some("Broken"), order: 70, module: "broken.js", files: &FILES })
     }
 }
 

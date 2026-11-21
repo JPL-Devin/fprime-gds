@@ -331,8 +331,10 @@ async function start() {
   setInterval(() => status.refresh(), 1000);
 
   const listed = await (await fetch("/ui/tabs")).json();
+  const modules = []; // without a title: loaded for `setup` only (a renderer, an input)
   for (const entry of listed) {
     const tab = { id: entry.id, title: entry.title, module: entry.module, panel: null, error: null, definition: {} };
+    if (!entry.title) { modules.push(tab); continue; }
     tab.button = document.createElement("button");
     tab.button.textContent = entry.title;
     tab.button.setAttribute("role", "tab");
@@ -341,6 +343,14 @@ async function start() {
     nav.append(tab.button);
     tabs.push(tab);
   }
+  await Promise.all(modules.map(async (entry) => {
+    try {
+      const module = (await import(entry.module)).default || {};
+      if (module.setup) await module.setup(gds);
+    } catch (error) {
+      console.error(`module ${entry.id}`, error);
+    }
+  }));
   gds.tabs = tabs.map((t) => ({ id: t.id, title: t.title, module: t.module }));
   // One module failing to load or to set up must not stop the others (UI-3).
   await Promise.all(tabs.map(async (tab) => {

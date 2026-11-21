@@ -13,6 +13,12 @@ impl Plugin for AdvancedPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_tab(UiBundle { tab_id: "advanced", title: Some("Advanced"), order: 60, module: "advanced.js", files: &FILES })
+        reg.add_tab(UiBundle {
+            tab_id: "advanced",
+            title: Some("Advanced"),
+            order: 60,
+            module: "advanced.js",
+            files: &FILES,
+        })
     }
 }

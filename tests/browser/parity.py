@@ -11,6 +11,7 @@ import os
 import socket
 import sys
 import time
+import urllib.request
 
 from playwright.sync_api import sync_playwright
 
@@ -34,6 +35,9 @@ PYTHON_PAGE = """(header) => {
     return {
         rows: [...table.querySelectorAll(":scope > tbody > tr")].map((row) => [...row.querySelectorAll(":scope > td")].map(cell)),
         last: button(">").classList.contains("disabled"),
+        // "a - b": the positions of the rows shown; ">" moves by less than a page.
+        range: [...view.querySelectorAll("*")].map((e) => e.children.length ? "" : e.textContent.trim())
+            .find((text) => /^[0-9]+ - [0-9]+$/.test(text)).split(" - ").map(Number),
     };
 }"""
 PYTHON_CLICK = """([header, text]) => {
@@ -122,13 +126,18 @@ def new_page_tables(browser, data):
 def python_rows(page, header):
     """Every row of a table of the Python GDS page: it shows one page of rows at a time."""
     page.evaluate(PYTHON_CLICK, [header, "First"])
-    found = []
+    found, before = [], None
     while True:
         page.wait_for_timeout(300)
         shown = page.evaluate(PYTHON_PAGE, header)
-        found += shown["rows"]
+        first, end = shown["range"]
+        if shown["range"] == before:  # ">" moved nothing: the end of the table
+            return found
+        assert first <= len(found) and end - first == len(shown["rows"]), f"rows {first} to {end} after {len(found)} rows"
+        found += shown["rows"][len(found) - first:]
         if shown["last"]:
             return found
+        before = shown["range"]
         page.evaluate(PYTHON_CLICK, [header, ">"])
 
 
@@ -144,10 +153,14 @@ def python_page_tables(browser, data, events_wanted):
     )
     try:
         flight = scenario.wait_for("the Python GDS link port", lambda: socket.create_connection(("127.0.0.1", link)))
-        scenario.wait_for("the Python GDS page", lambda: harness.urllib.request.urlopen(f"http://127.0.0.1:{http}/").read())
+        scenario.wait_for("the Python GDS page", lambda: urllib.request.urlopen(f"http://127.0.0.1:{http}/").read())
         page = browser.new_page(viewport={"width": 1400, "height": 850})
+        # A session of the Python GDS sees what arrives after its first request: wait for it.
+        polled = set()
+        page.on("response", lambda r: [polled.add(k) for k in ("/events?session", "/channels?session") if k in r.url])
         page.goto(f"http://127.0.0.1:{http}/")
         page.wait_for_selector("text=Event Severity", state="attached")
+        scenario.wait_for("the first requests of the Python GDS page", lambda: page.wait_for_timeout(200) or len(polled) == 2)
         flight.sendall(data)
         end, events = time.monotonic() + 60, []
         while len(events) < events_wanted and time.monotonic() < end:

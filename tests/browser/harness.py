@@ -16,7 +16,7 @@ class Gds:
         self.url = f"http://127.0.0.1:{http}"
         self.process = scenario.start(
             [binary, "run", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}",
-             "--tcp-address", f"127.0.0.1:{self.link_port}"],
+             "--comm-tcp-address", f"127.0.0.1:{self.link_port}"],
             open(f"{out}/gds.log", "w"), env={**os.environ, **(env or {})},
         )
         scenario.wait_for("the GDS", lambda: self.get("/version"))

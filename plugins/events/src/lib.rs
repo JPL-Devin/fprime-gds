@@ -38,7 +38,13 @@ impl Plugin for EventsPlugin {
             )
         })?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(EventDecoder))))?;
-        reg.add_tab(UiBundle { tab_id: "events", title: Some("Events"), order: 20, module: "events.js", files: &UI_FILES })?;
+        reg.add_tab(UiBundle {
+            tab_id: "events",
+            title: Some("Events"),
+            order: 20,
+            module: "events.js",
+            files: &UI_FILES,
+        })?;
         reg.add_routes(Routes {
             prefix: "events",
             router: Router::new().route("/definitions", get(definitions)),
