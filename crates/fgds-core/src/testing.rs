@@ -88,7 +88,9 @@ impl Storage for MemoryStorage {
             return memory.run.clone().ok_or_else(|| Error::other("memory storage holds no run to open read-only"));
         }
         let max_records = match cfg.options.get("max-records") {
-            Some(text) => text.parse().map_err(|_| Error::Config(format!("max-records: \"{text}\" is not a number")))?,
+            Some(text) => {
+                text.parse().map_err(|_| Error::Config(format!("max-records: \"{text}\" is not a number")))?
+            }
             None => 0,
         };
         tracing::warn!("memory storage: records are lost when the GDS stops");
@@ -373,6 +375,9 @@ impl Deframe for LengthFraming {
 
 impl Frame for LengthFraming {
     fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
+        if packet.len() > u16::MAX as usize {
+            return Err(Error::Invalid(format!("packet of {} bytes does not fit the frame", packet.len())));
+        }
         out.put_slice(&LengthFraming::frame(packet));
         Ok(())
     }

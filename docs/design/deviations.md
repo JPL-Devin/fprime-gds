@@ -106,3 +106,34 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
    sequence uplink methods raise `NotImplementedError`.
 7. **Histories are client side** (SCR-5): `clear_histories` forgets items in the client; the server keeps its records.
 8. **Checks** are in `tests/cli/run.sh`; accepted differences from `fprime-cli` are in `tests/cli/README.md`.
+
+## Review fixes, SQLite storage
+
+Decisions taken while fixing the review of the first slice (`rust-gds-review.md`) and building `storage-sqlite`.
+
+- STO-9 is the simple form (section 7 of the design, decision taken by the orchestrator).
+- Kind `gds.status` exists: one record each time the link state, its peer or its error changes (body `link`, `peer`, `error`). It takes a sequence number, so the first record of a run is usually the link's `connected`.
+- A write that fails or times out drops the connection: half a frame may be on the link, and the next frame must not follow it. The adapter reconnects; the send is answered 502 and recorded with outcome `failed`.
+- `Core::start_link` returns an error when the adapter cannot be built; `tcp-server` binds when it is built, so a port in use stops startup. A later failure is retried after 1 s, 2 s, ... 30 s and reported once per distinct message, under the plugin that owns the adapter.
+- `tcp-server` closes a second peer at once while one is connected. The listener stays open while the link is disabled (LNK-22 asks for it closed): not built.
+- Stopping: the link task and the handlers get 2 s, then are aborted; storage gets 3 s to flush and close. A second interrupt is not handled separately: the 5 s limit ends the process.
+- A stream client that does not take a message within 10 s is closed without `lagged`; a client that reads but fell behind gets `lagged`. The stream refuses an `Origin` that is not the `Host` (403); a request without `Origin` (not a browser) is accepted. Tokens stay deferred.
+- Dictionary limits: named types nested at most 64 deep, a type expands to at most 100,000 nodes, a struct has at most 10,000 members, a type encodes to at most 1 MiB, an array element has a size. Replacement fields of format strings: width and precision at most 512, checked at load (error naming the event, channel or type) and left as written when formatting.
+- A command float beyond the range of `F32` is refused. `Infinity` and `NaN` given by name are still sent: the Python GDS sends them.
+- `framing-fprime` refuses to frame a packet of 4,096 bytes or more (the answer is 422, the record `raw.sent` has outcome `rejected`), because the deframer of both GDS takes such a length for noise.
+- A packet with several events or channel samples keeps the items decoded before a malformed one; the rest is one `gds.decode_error` with `partial: true` and `raw` set to the bytes not decoded (`fgds_core::keep_decoded`). A telemetry packet (fixed layout) is still all or nothing. The Python GDS was not compared on these bytes.
+- Memory storage keeps at most `max-records` records (default 1,000,000), drops the oldest, and warns; it is no longer the default of the stock binary.
+
+### Not built in this slice
+
+| Requirement | What is missing | Milestone |
+|---|---|---|
+| MNT-5 | `cargo deny` is not run by `scripts/check.sh` | M2 |
+| MNT-9 | No macOS job in the workflow | M2 |
+| LNK-17, LNK-18 | Text logs per kind and the GDS log file | M2 |
+| SEC-5 | Remote address of the client on sent-command records (a free-text client name is stored) | M3, with tokens |
+| CUS-9, 4.3 | `--disable-plugin` and `--framing-layers` exist in the configuration file only | M2 |
+| 4.4 | Startup does not log the configuration, dictionary version and plugin list | M2 |
+| LNK-22 | The `tcp-server` listener stays open while the link is disabled | M2 |
+| LNK-14 | A second interrupt does not shorten the stop | M2 |
+| MNT-6 | No fuzz target for the dictionary loader and the deframer (hostile-input unit tests only) | M2 |
