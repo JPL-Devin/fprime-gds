@@ -88,3 +88,18 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
 - Plugin options are global arguments like the core options, so a plugin subcommand accepts them.
 - `fixtures/vectors/format_strings.json` was not extended with the Python tool; the new cases (negative `x`/`o`, `g`, non-finite values, element and member format strings) are unit tests whose expected text was taken from the review and from `formatted_val` of the Python GDS.
 - Not done from the review list: nothing else was skipped; the items above are the reduced ones.
+
+## Data products
+
+- The plugin is `plugins/data-products`. It is not in `default_plugins()` on this branch (the orchestrator adds the line); `plugins/data-products/examples/fgds-dp.rs` is the stock GDS with the plugin, used by `tests/dp/run.sh` until then.
+- The decoder reads the dictionary JSON itself (`types.rs`) instead of using `fgds-dictionary`: `fprime-dp` output carries dictionary text (`format`, `description`, type definitions) that the shared crate does not keep, and that crate was closed to changes. To merge later.
+- The subcommand is `fgds dp decode|validate` with the arguments of `fprime-dp`. Argument errors give exit code 2 and the `fprime-dp` message; the usage text and `--help` are not those of `argparse`.
+- Compression: `fprime-dp` handles `UNCOMPRESSED` and `ZLIB_DEFLATE`, so does the plugin. `miniz_oxide` is a direct dependency not in section 5 (no compression crate is listed there). `sha2` is in section 5 but was not in the workspace dependency list; both are declared in the plugin's `Cargo.toml`.
+- The watched directory is polled (a quarter of the settle time, between 50 ms and 1 s) instead of using `notify` (section 5): DP-6 needs the size checked over time anyway, and polling behaves the same on network file systems.
+- Options: `--data-products-dir`, `--data-products-settle-ms` (default 2000, DP-6), `--data-products-max-bytes` (default 268435456). Without `dir` nothing is indexed.
+- A product over the size limit, or that inflates over it, is rejected with `Data product is over the size limit of N bytes`. `fprime-dp` has no limit; no fixture reaches it.
+- DP-1: only the watched directory is a source (`"watch"`); completed downlinks wait for the files plugin. A record keeps a list of sources so DP-7 needs no change of body.
+- A file whose content changes is a new product (new hash); the old one becomes missing when no file holds its content any more.
+- The index record holds header fields, record count and the validation result, read once when indexed; records are decoded on demand from the file, which is read again only if it is a regular file inside the watched directory with the indexed hash (DP-8).
+- The detail route returns strict JSON (non-finite floats as strings); the export route returns the bytes `fprime-dp` writes.
+- The tab was not driven in a browser: its module, Lit and the routes it calls are checked over HTTP only.

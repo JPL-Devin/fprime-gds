@@ -25,9 +25,9 @@ use std::sync::Arc;
 pub const PLUGIN: &str = "data-products";
 
 /// Option names; each is also the command-line flag.
-pub const OPTION_DIR: &str = "dp-dir";
-pub const OPTION_SETTLE_MS: &str = "dp-settle-ms";
-pub const OPTION_MAX_BYTES: &str = "dp-max-bytes";
+pub const OPTION_DIR: &str = "dir";
+pub const OPTION_SETTLE_MS: &str = "settle-ms";
+pub const OPTION_MAX_BYTES: &str = "max-bytes";
 
 static FILES: StaticFiles = StaticFiles(&[
     ("data-products.js", include_bytes!("../ui/data-products.js")),
@@ -53,11 +53,11 @@ impl Plugin for DataProductsPlugin {
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
         reg.add_kind(index::kind())?;
-        reg.add_handler(Arc::new(|config| Box::new(index::Indexer::new(Options::from_config(config)))));
+        reg.add_handler(Arc::new(|config| Ok(Box::new(index::Indexer::new(Options::from_config(config))))))?;
         reg.add_routes(index::routes())?;
         reg.add_tab(UiBundle {
             tab_id: PLUGIN,
-            title: "Data Products",
+            title: Some("Data Products"),
             order: 70,
             module: "data-products.js",
             files: &FILES,

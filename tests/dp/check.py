@@ -185,7 +185,7 @@ def check_server():
     http, link = free_port(), free_port()
     api = f"http://127.0.0.1:{http}"
     command = [FGDS, "run", "--dictionary", "test_dp_data/dictionary_ref.json", "--bind", f"127.0.0.1:{http}",
-               "--tcp-address", f"127.0.0.1:{link}", "--dp-dir", watched, "--dp-settle-ms", "300"]
+               "--comm-tcp-address", f"127.0.0.1:{link}", "--data-products-dir", watched, "--data-products-settle-ms", "300"]
     log = open(os.path.join(cwd, "fgds.log"), "w")
     server = subprocess.Popen(command, cwd=cwd, stdout=log, stderr=subprocess.STDOUT)
 
