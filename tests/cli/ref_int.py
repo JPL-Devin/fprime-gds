@@ -25,7 +25,7 @@ os.makedirs(out, exist_ok=True)
 http, link = scenario.free_port(), scenario.free_port()
 url = f"http://127.0.0.1:{http}"
 gds = scenario.start(
-    [args.fgds, "run", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}", "--tcp-address", f"127.0.0.1:{link}"],
+    [args.fgds, "run", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}", "--comm-tcp-address", f"127.0.0.1:{link}"],
     open(f"{out}/fgds.log", "w"),
 )
 ref = None

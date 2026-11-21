@@ -88,7 +88,6 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
 - Plugin options are global arguments like the core options, so a plugin subcommand accepts them.
 - `fixtures/vectors/format_strings.json` was not extended with the Python tool; the new cases (negative `x`/`o`, `g`, non-finite values, element and member format strings) are unit tests whose expected text was taken from the review and from `formatted_val` of the Python GDS.
 - Not done from the review list: nothing else was skipped; the items above are the reduced ones.
-||||||| parent of 58bcd2f1 (Python client, pytest fixture, online subcommands and their checks)
 
 
 ## Python client, pytest fixture and online command-line tools

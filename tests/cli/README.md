@@ -1,13 +1,13 @@
 # Checks of the Python client and of the online subcommands
 
-`tests/cli/run.sh` (run by `scripts/check.sh`; needs `FPRIME`, optionally `FPRIME_VENV`) does three things.
+`tests/cli/run.sh` (run by `scripts/check.sh`, which sets `FGDS`, `REF_BIN`, `DICTIONARY`, `VENV` and `OUT`) does three things.
 
 1. `python/tests/unit`: the parts of `fgds_client` that need no GDS.
 2. `ref_int.py`: starts `fgds` and `Ref`, runs the `Ref` integration tests of F Prime (copies in
    `python/tests/ref_int`, changed in their imports only) through the `fprime_test_api` fixture of `fgds_client`.
 3. `check.py`: the subcommands of `plugins/online` against `fprime-cli` of the Python GDS.
 
-The `fgds` binary used is `target/debug/fgds` when it has the `events` subcommand, otherwise
+The `fgds` binary used is `$FGDS` when it has the `events` subcommand, otherwise
 `target/debug/examples/fgds-online` (the stock GDS plus `OnlinePlugin`).
 
 ## Ref integration tests
