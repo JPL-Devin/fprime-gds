@@ -318,32 +318,57 @@ async fn the_stream_refuses_another_origin() {
     assert!(connect(format!("http://{}", server.address)).await.is_ok());
 }
 
-#[tokio::test]
-async fn a_stream_client_that_does_not_read_is_dropped() {
-    fgds_shell::STREAM_SEND_TIMEOUT_MS.store(200, std::sync::atomic::Ordering::Relaxed);
-    let server = Server::start().await;
+/// Publish `total` records of 2 kB while the client of `socket` does not read, then
+/// read to the end of the connection: (records received, last message).
+async fn flood(server: &Server, total: usize) -> (usize, Value) {
     let url = format!("ws://{}/api/v1/stream?kind=t.sample", server.address);
     let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
-    // Far more than the socket buffers hold, and nobody reads.
-    let pad = "x".repeat(4000);
-    let total = 8000;
+    let pad = "x".repeat(2000);
     for _ in 0..total {
         server.gds.core.records.publish(NewRecord::new("t.sample", json!({"pad": pad}))).await.unwrap();
     }
     tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-    // The server gave up: what was buffered arrives, then the connection ends without
-    // the rest and without a `lagged` message, which only a reading client is sent.
     let mut received = 0;
-    let mut last = String::new();
+    let mut last = Value::Null;
+    let mut last_record = String::new();
     let drain = async {
         while let Some(Ok(message)) = socket.next().await {
             if let Message::Text(text) = message {
-                received += 1;
-                last = text.chars().take(40).collect();
+                last = fgds_core::serde_json::from_str(&text).unwrap();
+                if last["type"] == "record" {
+                    received += 1;
+                    last_record = last["record"]["seq"].as_str().unwrap().to_string();
+                    last = json!({"type": "record"});
+                }
             }
         }
     };
-    tokio::time::timeout(std::time::Duration::from_secs(20), drain).await.expect("the connection ends");
-    assert!(received < total, "{received} messages");
-    assert!(!last.contains("lagged"), "{last}");
+    let ended = tokio::time::timeout(std::time::Duration::from_secs(60), drain).await;
+    let limit = fgds_shell::STREAM_SEND_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(ended.is_ok(), "the connection does not end: {received} records, last {last}, time-out {limit}");
+    if last["type"] == "lagged" {
+        assert_eq!(last["last_seq"], last_record.as_str());
+    }
+    (received, last)
+}
+
+#[tokio::test]
+async fn a_slow_stream_client_is_told_it_lagged_and_one_that_does_not_read_is_dropped() {
+    // More records than a subscriber may be behind, far more than the socket holds.
+    // (The queue of a subscriber holds 16,384: the next power of two above 10,000.)
+    let total = 40_000;
+    let server = Server::start().await;
+    // A client that reads again in time gets what was queued, then `lagged` with the
+    // last sequence number it was sent, then the close (API-6).
+    let (received, last) = flood(&server, total).await;
+    assert!(received > 0 && received < total, "{received} records");
+    assert_eq!(last["type"], "lagged", "{last}");
+
+    // A client that does not read within the time-out is closed without the message.
+    fgds_shell::STREAM_SEND_TIMEOUT_MS.store(200, std::sync::atomic::Ordering::Relaxed);
+    // Fewer records than the subscriber queue, so the send time-out is what ends it.
+    let total = 12_000;
+    let (received, last) = flood(&server, total).await;
+    assert!(received < total, "{received} records");
+    assert_eq!(last["type"], "record", "{last}");
 }

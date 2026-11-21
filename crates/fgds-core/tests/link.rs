@@ -79,6 +79,7 @@ impl Plugin for TestPlugin {
                 _ => Err(Error::other("no such device")),
             }),
         )?;
+        reg.add_framing_profile("none", &[])?;
         reg.add_adapter("panics", Arc::new(|_| Ok(Box::new(PanickingAdapter))))
     }
 }
@@ -215,4 +216,57 @@ async fn stop_does_not_wait_for_ever_for_a_stuck_handler() {
     gds.core.stop().await.unwrap();
     let took = started.elapsed();
     assert!(took >= Duration::from_secs(2) && took < Duration::from_secs(5), "{took:?}");
+}
+
+async fn gds_with(config: Config) -> FakeGds {
+    let config = Config { comm: "scripted".into(), ..config };
+    FakeGds::start_with(&[&TestPlugin::new(false)], empty_dictionary(), config).await.unwrap()
+}
+
+async fn lengths(gds: &FakeGds, count: usize) -> Vec<serde_json::Value> {
+    let mut stream = gds.core.records.subscribe(Filter::kinds(&["t.packet"]), Some(0));
+    let mut out = Vec::new();
+    while out.len() < count {
+        let next = tokio::time::timeout(Duration::from_secs(5), stream.next()).await;
+        out.push(next.expect("a record in time").unwrap().body["len"].clone());
+    }
+    out
+}
+
+#[tokio::test]
+async fn without_a_framing_layer_each_read_is_a_packet_and_each_packet_a_write() {
+    let gds = gds_with(Config { framing: "none".into(), ..Default::default() }).await;
+    gds.wait_for_link("connected").await;
+    gds.link.push(&[1, 2, 3]);
+    assert_eq!(lengths(&gds, 1).await, [json!(3)]);
+    gds.core.uplink.send_packet(&[9, 8], &PacketMeta::default(), "tester", false).await.unwrap();
+    assert_eq!(gds.link.sent(), [&[9u8, 8][..]]);
+}
+
+#[tokio::test]
+async fn two_framing_layers_are_applied_outermost_first_in_both_directions() {
+    let layers = vec!["length".to_string(), "length".to_string()];
+    let gds = gds_with(Config { framing: "length".into(), framing_layers: layers, ..Default::default() }).await;
+    gds.wait_for_link("connected").await;
+    // One outer frame holding two inner frames, delivered in two reads.
+    let inner = [LengthFraming::frame(&[1, 2, 3]), LengthFraming::frame(&[4])].concat();
+    let outer = LengthFraming::frame(&inner);
+    gds.link.push(&outer[..4]);
+    gds.link.push(&outer[4..]);
+    assert_eq!(lengths(&gds, 2).await, [json!(3), json!(1)]);
+    gds.core.uplink.send_packet(&[7], &PacketMeta::default(), "tester", false).await.unwrap();
+    assert_eq!(gds.link.sent(), [LengthFraming::frame(&LengthFraming::frame(&[7]))]);
+}
+
+#[tokio::test]
+async fn records_received_before_the_link_closes_are_kept_across_the_reconnection() {
+    let gds = gds().await;
+    gds.receive(&[0, 1]).await;
+    gds.link.close();
+    gds.wait_for_link("disconnected").await;
+    gds.wait_for_link("connected").await;
+    gds.receive(&[0, 1, 2]).await;
+    assert_eq!(lengths(&gds, 2).await, [json!(2), json!(3)]);
+    let states: Vec<_> = status_records(&gds).await.iter().map(|s| s["link"].clone()).collect();
+    assert_eq!(states, ["connected", "disconnected", "connected"]);
 }
