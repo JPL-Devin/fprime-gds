@@ -9,6 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+tracing = { workspace = true }
 fgds-core = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }

@@ -26,6 +26,7 @@ framing-ccsds = { workspace = true }
 data-products = { path = "../../plugins/data-products" }
 framing-fprime = { workspace = true }
 storage-memory = { workspace = true }
+storage-sqlite = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

@@ -198,7 +198,7 @@ fn format_strings_match_the_python_fixture() {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/vectors/format_strings.json");
     let fixture: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let dict = dict();
-    let mut checked = 0;
+    let (mut checked, mut recorded) = (0, 0);
     for vector in fixture["vectors"].as_array().unwrap() {
         let (Some(expected), Some(values)) = (vector["expected"].as_str(), vector["values"].as_array()) else {
             continue;
@@ -206,19 +206,24 @@ fn format_strings_match_the_python_fixture() {
         if vector["style"] != "fpp" {
             continue;
         }
+        // Recorded vectors name the type of each value; asserted ones do not.
         let typed: Vec<(Type, &Value)> = values
             .iter()
-            .map(|v| match v {
-                Value::Number(n) if n.is_f64() => (Type::Float { bits: 64 }, v),
-                Value::Number(_) => (Type::Int { bits: 64, signed: true }, v),
+            .enumerate()
+            .map(|(index, v)| match (vector["types"][index].as_str(), v) {
+                (Some("float"), _) => (Type::Float { bits: 64 }, v),
+                (Some("string"), _) => (Type::String { max: 80 }, v),
+                (None, Value::Number(n)) if n.is_f64() => (Type::Float { bits: 64 }, v),
+                (_, Value::Number(n)) => (Type::Int { bits: 64, signed: n.is_i64() }, v),
                 _ => (Type::String { max: 80 }, v),
             })
             .collect();
+        recorded += usize::from(vector["origin"] == "recorded");
         let refs: Vec<_> = typed.iter().map(|(t, v)| (t, *v)).collect();
         assert_eq!(dict.format(vector["template"].as_str().unwrap(), &refs), expected, "{vector}");
         checked += 1;
     }
-    assert!(checked >= 8, "only {checked} vectors checked");
+    assert!(checked >= 24 && recorded >= 16, "only {checked} vectors checked, {recorded} recorded");
 }
 
 /// Channels of array and struct type: each leaf goes through the format string of its
@@ -254,4 +259,115 @@ fn time_tags_are_base_context_seconds_microseconds() {
     assert_eq!((time.base, time.context, time.seconds, time.microseconds), (2, 9, 5, 7));
     assert_eq!(r.remaining(), 1);
     assert!(dict().decode_time(&mut Reader::new(&bytes[..5])).is_err());
+}
+
+/// A dictionary with the given type definitions, one event format and nothing else.
+fn hostile(types: Value, event_format: &str) -> Result<Dictionary, String> {
+    let event =
+        json!({"name": "T.c.Ev", "id": 1, "severity": "ACTIVITY_HI", "format": event_format, "formalParams": []});
+    let text = json!({"typeDefinitions": types, "commands": [], "events": [event], "telemetryChannels": []});
+    Dictionary::parse("hostile.json", &text.to_string()).map_err(|e| e.problem)
+}
+
+fn u8_ref() -> Value {
+    json!({"kind": "integer", "size": 8, "signed": false})
+}
+
+fn named(name: &str) -> Value {
+    json!({"kind": "qualifiedIdentifier", "name": name})
+}
+
+fn problem(types: Value) -> String {
+    hostile(types, "").err().unwrap()
+}
+
+#[test]
+fn a_chain_of_aliases_deeper_than_the_limit_is_refused() {
+    let mut types = vec![json!({"kind": "alias", "qualifiedName": "A0", "type": u8_ref()})];
+    for n in 1..=5000 {
+        types.push(json!({"kind": "alias", "qualifiedName": format!("A{n}"), "type": named(&format!("A{}", n - 1))}));
+    }
+    assert!(problem(json!(types)).contains("nested more than 64 deep"));
+}
+
+#[test]
+fn a_type_that_expands_without_bound_is_refused() {
+    // Each struct holds two of the one before: 2^40 nodes if expanded.
+    let mut types = vec![json!({"kind": "alias", "qualifiedName": "S0", "type": u8_ref()})];
+    for n in 1..=40 {
+        let inner = named(&format!("S{}", n - 1));
+        let members = json!({"a": {"type": inner, "index": 0}, "b": {"type": inner, "index": 1}});
+        types.push(json!({"kind": "struct", "qualifiedName": format!("S{n}"), "members": members}));
+    }
+    let problem = problem(json!(types));
+    assert!(
+        problem.contains("expands to more than 100000 types") || problem.contains("encoded size exceeds"),
+        "{problem}"
+    );
+}
+
+#[test]
+fn oversized_arrays_members_and_strings_are_refused() {
+    let array = |size: u64, element: Value| json!([{"kind": "array", "qualifiedName": "A", "size": size, "elementType": element}]);
+    assert_eq!(problem(array(u64::MAX, u8_ref())), "type A: encoded size exceeds 1048576 bytes");
+    assert_eq!(problem(array(2_000_000, u8_ref())), "type A: encoded size exceeds 1048576 bytes");
+    let string = json!({"kind": "string", "size": 4_000_000_000u64});
+    assert_eq!(problem(array(1, string)), "type A: encoded size exceeds 1048576 bytes");
+    let member = json!({"m": {"type": u8_ref(), "index": 0, "size": u64::MAX}});
+    let types = json!([{"kind": "struct", "qualifiedName": "S", "members": member}]);
+    assert_eq!(problem(types), "type S: encoded size exceeds 1048576 bytes");
+    // Arrays of arrays whose sizes multiply past 64 bits.
+    let types = json!([
+        {"kind": "array", "qualifiedName": "A", "size": 1u64 << 20, "elementType": u8_ref()},
+        {"kind": "array", "qualifiedName": "B", "size": 1u64 << 50, "elementType": named("A")},
+    ]);
+    assert!(problem(types).contains("encoded size exceeds"));
+}
+
+#[test]
+fn an_array_of_elements_without_size_is_refused() {
+    let types = json!([
+        {"kind": "struct", "qualifiedName": "Empty", "members": {}},
+        {"kind": "array", "qualifiedName": "A", "size": 1_000_000_000, "elementType": named("Empty")},
+    ]);
+    assert_eq!(problem(types), "type A: array element has no size");
+}
+
+#[test]
+fn max_size_does_not_overflow() {
+    let huge = Type::Array { name: "A".into(), size: usize::MAX, element: Box::new(Type::U32), format: None };
+    assert_eq!(dict().max_size(&huge), usize::MAX);
+}
+
+#[test]
+fn a_format_field_that_is_not_ascii_or_is_too_wide_is_left_as_written() {
+    let d = dict();
+    let one = json!(1);
+    let value = [(&Type::U32, &one)];
+    assert_eq!(d.format("{é}", &value), "{é}");
+    assert_eq!(d.format("{3é}", &value), "{3é}");
+    assert_eq!(d.format("{100000000d}", &value), "{100000000d}");
+    assert_eq!(d.format("{.100000000f}", &value), "{.100000000f}");
+    assert_eq!(d.format("{513d}", &value), "{513d}");
+    assert_eq!(d.format("{512d}", &value).len(), 512);
+}
+
+#[test]
+fn an_oversized_format_field_is_a_load_error_naming_the_definition() {
+    let problem = hostile(json!([]), "value {100000000d}").err().unwrap();
+    assert_eq!(problem, "event T.c.Ev: format field {100000000d}: width or precision above 512");
+    assert!(hostile(json!([]), "value {08x} {é}").is_ok());
+}
+
+#[test]
+fn a_command_float_beyond_f32_is_rejected() {
+    let d = dict();
+    let f32 = Type::Float { bits: 32 };
+    let encode = |value: Value| d.encode(&f32, &value, &mut Vec::new()).map_err(|e| e.0);
+    assert!(encode(json!(1e39)).unwrap_err().ends_with("is out of range for F32"));
+    assert!(encode(json!("-1e39")).unwrap_err().ends_with("is out of range for F32"));
+    assert!(encode(json!(3.4e38)).is_ok());
+    // Not finite is sent only when asked for by name.
+    assert!(encode(json!("Infinity")).is_ok() && encode(json!("NaN")).is_ok());
+    assert!(d.encode(&Type::Float { bits: 64 }, &json!(1e39), &mut Vec::new()).is_ok());
 }

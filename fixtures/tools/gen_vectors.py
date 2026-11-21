@@ -11,6 +11,7 @@ The generator asserts that the bytes produced by the Python code equal the asser
 import contextlib
 import io
 import json
+import math
 import struct
 import sys
 import tempfile
@@ -717,9 +718,43 @@ FORMAT_CASES = [
     ("fpp", "test_fpp_format_list_value", "{.2f}%, {.2f}%", [1.23456, 1.23456], "1.23%, 1.23%"),
 ]
 
+# Cases no Python test asserts: the output of the Python GDS is recorded as it is. A value is
+# (type, value); a float that JSON cannot hold is written "NaN", "Infinity" or "-Infinity".
+NAN, INF = float("nan"), float("inf")
+RECORDED_FORMAT_CASES = [
+    ("{x} {X} {o}", [("int", -255), ("int", -255), ("int", -8)]),
+    ("{x} {X} {o}", [("int", 0), ("int", 18446744073709551615), ("int", 9223372036854775807)]),
+    ("{08x}|{8x}|{08o}|{6X}", [("int", -255), ("int", -255), ("int", 8), ("int", 255)]),
+    ("{d} {5d}|{05d}|{}", [("int", -42), ("int", -42), ("int", -42), ("int", -9223372036854775808)]),
+    ("{g} {g} {g} {g}", [("float", 0.0001), ("float", 0.00001), ("float", 123456.0), ("float", 1234567.0)]),
+    ("{g} {g} {g} {g}", [("float", 100000.0), ("float", 1e21), ("float", 0.5), ("float", -2.5e-7)]),
+    ("{.3g} {.10g} {10.4g}|{g}", [("float", 3.14159), ("float", 3.14159), ("float", 31415.9), ("float", 0.0)]),
+    ("{e} {.2e} {E} {.0e}", [("float", 12345.678), ("float", 12345.678), ("float", 0.00012), ("float", 5.5)]),
+    ("{f} {.1f} {.0f} {10.3f}|{010.3f}", [("float", 2.5), ("float", 0.25), ("float", 2.5), ("float", -3.14159), ("float", -3.14159)]),
+    ("{} {} {}", [("float", 2.0), ("float", 0.1), ("float", 1e16)]),
+    ("{} {} {}", [("float", 1e-5), ("float", 123456789.125), ("float", -0.0)]),
+    ("{} {} {}", [("float", NAN), ("float", INF), ("float", -INF)]),
+    ("{f} {f} {f}", [("float", NAN), ("float", INF), ("float", -INF)]),
+    ("{.2f} {e} {g} {8f}|{08.1f}|", [("float", NAN), ("float", INF), ("float", -INF), ("float", NAN), ("float", -INF)]),
+    ("{c} {} {}", [("int", 65), ("string", "text"), ("string", "")]),
+    ("{{}} {{{}}} 100% {}", [("int", 1), ("string", "{x}")]),
+]
+
 
 def format_vectors():
     vectors = []
+    for template, typed in RECORDED_FORMAT_CASES:
+        values = [value for _, value in typed]
+        written = [repr(v).replace("nan", "NaN").replace("inf", "Infinity") if isinstance(v, float) and not math.isfinite(v) else v
+                   for v in values]
+        vector = {"source": "fprime_gds.common.utils.string_util.format_string_template", "origin": "recorded",
+                  "operation": "format", "style": "fpp", "template": template, "types": [kind for kind, _ in typed], "values": written}
+        try:
+            vector["expected"] = format_string_template(preprocess_fpp_format_str(template), tuple(values))
+        except ValueError as exception:
+            vector["expected_error"] = error(exception)
+        vectors.append(vector)
+    recorded, vectors = vectors, []
     for style, test, template, values, expected in FORMAT_CASES:
         preprocess = preprocess_c_style_format_str if style == "c" else preprocess_fpp_format_str
         vector = {"source": f"{TESTS}/utils/test_string_util.py::TestFormatString::{test}", "origin": "asserted", "operation": "format",
@@ -732,10 +767,13 @@ def format_vectors():
             assert expected is None, test
             vector["expected_error"] = error(exception)
         vectors.append(vector)
+    vectors += recorded
     write(
         "format_strings.json",
         "Event and channel format strings: template (C printf style or FPP style) and values -> text. `values` that is "
-        "not a list is a single value.",
+        "not a list is a single value. Origin `asserted`: a Python test asserts the result. Origin `recorded`: the "
+        "output of the Python GDS as it is; `types` gives the type of each value (int, float, string) and a float "
+        "that JSON cannot hold is written \"NaN\", \"Infinity\" or \"-Infinity\".",
         vectors,
     )
     return len(vectors)

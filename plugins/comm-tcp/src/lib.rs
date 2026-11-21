@@ -30,7 +30,7 @@ impl Plugin for TcpPlugin {
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
         reg.add_adapter("tcp-client", Arc::new(|cfg| Ok(Box::new(Client { address: address(cfg) }))))?;
-        reg.add_adapter("tcp-server", Arc::new(|cfg| Ok(Box::new(Server { address: address(cfg), listener: None }))))
+        reg.add_adapter("tcp-server", Arc::new(|cfg| Ok(Box::new(Server::bind(address(cfg))?))))
     }
 }
 
@@ -43,7 +43,7 @@ type Halves = (Box<dyn LinkReader>, Box<dyn LinkWriter>, PeerInfo);
 fn halves(stream: TcpStream, address: String) -> Halves {
     let (reader, writer) = stream.into_split();
     let peer = PeerInfo { address, message_boundaries: false };
-    (Box::new(Reader(reader)), Box::new(Writer(writer)), peer)
+    (Box::new(Reader(reader, None)), Box::new(Writer(writer)), peer)
 }
 
 struct Client {
@@ -60,21 +60,47 @@ impl Adapter for Client {
 
 struct Server {
     address: String,
-    /// Kept between connections so the port stays bound.
-    listener: Option<TcpListener>,
+    /// Bound when the adapter is built, so a port in use or a bad address stops startup.
+    listener: Arc<TcpListener>,
+    /// Refuses other peers while one is connected.
+    refusing: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Server {
+    /// Must be called inside the runtime.
+    fn bind(address: String) -> Result<Server> {
+        let listener = std::net::TcpListener::bind(&address).map_err(|e| io(&address, e))?;
+        listener.set_nonblocking(true).map_err(|e| io(&address, e))?;
+        let listener = TcpListener::from_std(listener).map_err(|e| io(&address, e))?;
+        Ok(Server { address, listener: Arc::new(listener), refusing: None })
+    }
 }
 
 #[async_trait]
 impl Adapter for Server {
     async fn connect(&mut self) -> Result<Halves> {
-        let listener = match self.listener.take() {
-            Some(listener) => listener,
-            None => TcpListener::bind(&self.address).await.map_err(|e| io(&self.address, e))?,
-        };
-        let accepted = listener.accept().await;
-        self.listener = Some(listener);
-        let (stream, peer) = accepted.map_err(|e| io(&self.address, e))?;
-        Ok(halves(stream, peer.to_string()))
+        // The task that refused peers during the last connection ends with it.
+        if let Some(refusing) = self.refusing.take() {
+            let _ = refusing.await;
+        }
+        let (stream, peer) = self.listener.accept().await.map_err(|e| io(&self.address, e))?;
+        let (reader, writer) = stream.into_split();
+        let (connected, mut closed) = tokio::sync::oneshot::channel::<()>();
+        let listener = self.listener.clone();
+        // One connection at a time (LNK-5): another peer is closed at once, not kept waiting.
+        self.refusing = Some(tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = &mut closed => return,
+                    accepted = listener.accept() => match accepted {
+                        Ok((_, other)) => tracing::warn!(peer = %other, "connection refused: the link is already connected"),
+                        Err(_) => tokio::time::sleep(std::time::Duration::from_millis(100)).await,
+                    },
+                }
+            }
+        }));
+        let info = PeerInfo { address: peer.to_string(), message_boundaries: false };
+        Ok((Box::new(Reader(reader, Some(connected))), Box::new(Writer(writer)), info))
     }
 }
 
@@ -82,7 +108,8 @@ fn io(address: &str, e: std::io::Error) -> Error {
     Error::other(format!("tcp {address}: {e}"))
 }
 
-struct Reader(OwnedReadHalf);
+/// The second field is dropped with the reader: it tells the server the connection ended.
+struct Reader(OwnedReadHalf, #[allow(dead_code)] Option<tokio::sync::oneshot::Sender<()>>);
 
 #[async_trait]
 impl LinkReader for Reader {

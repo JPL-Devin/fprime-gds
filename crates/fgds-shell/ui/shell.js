@@ -36,16 +36,33 @@ function params(query = {}) {
 const PAGE = 5000;
 
 const records = {
-  // Stored records after `query.afterSeq`, then live ones, on one WebSocket. Without
-  // `afterSeq`, live only. Returns the function that stops the subscription.
+  // Replay from `afterSeq`, then live. Returns a function that ends the subscription.
+  // When the server says `lagged` or the connection closes, the subscription is opened
+  // again after the last record delivered, so nothing is missed or repeated.
   subscribe(query, callback) {
     const scheme = location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${scheme}://${location.host}/api/v1/stream?${params(query)}`);
-    socket.onmessage = (message) => {
-      const data = JSON.parse(message.data);
-      if (data.type === "record") callback(data.record);
+    let last = query.afterSeq;
+    let ended = false;
+    let socket;
+    const open = () => {
+      socket = new WebSocket(`${scheme}://${location.host}/api/v1/stream?${params({ ...query, afterSeq: last })}`);
+      socket.onmessage = (message) => {
+        const data = JSON.parse(message.data);
+        if (data.type === "record") {
+          last = data.record.seq;
+          callback(data.record);
+        }
+        // The stored records have all arrived; `onLive` is optional.
+        if (data.type === "live") {
+          if (last === undefined) last = data.seq;
+          if (query.onLive) query.onLive(data.seq);
+        }
+        if (data.type === "lagged") last = data.last_seq;
+      };
+      socket.onclose = () => { if (!ended) setTimeout(open, 1000); };
     };
-    return () => socket.close();
+    open();
+    return () => { ended = true; socket.close(); };
   },
   query(query) { return api.get("/records?" + params(query)); },
   latest(kind) { return api.get("/records/latest?kind=" + encodeURIComponent(kind)); },
@@ -73,6 +90,8 @@ const records = {
       socket.onmessage = (message) => {
         const data = JSON.parse(message.data);
         if (data.type === "record") deliver([data.record]);
+        // Records were dropped for this subscriber: read again from the last one delivered.
+        if (data.type === "lagged") socket.close();
       };
       socket.onclose = () => { if (!stopped) timer = setTimeout(open, 1000); };
     };

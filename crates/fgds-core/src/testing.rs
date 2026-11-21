@@ -19,6 +19,9 @@ struct Memory {
     /// In `seq` order.
     records: Vec<Record>,
     dictionary: Vec<u8>,
+    /// Oldest records are dropped beyond this many; 0 keeps all.
+    max_records: usize,
+    dropped: u64,
 }
 
 /// Storage that keeps one run in memory. The `storage-memory` plugin registers it.
@@ -26,11 +29,19 @@ struct Memory {
 pub struct MemoryStorage(Mutex<Memory>);
 
 impl MemoryStorage {
+    /// How many records were dropped to stay within `max-records`.
+    pub fn dropped(&self) -> u64 {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).dropped
+    }
+
     /// Matching records in `seq` order, cut to the query's page size.
     fn page(&self, q: &Query, latest_only: bool) -> Result<Page> {
         let memory = self.0.lock().unwrap_or_else(|e| e.into_inner());
         let run = memory.run.as_ref().ok_or_else(|| Error::other("storage is not open"))?.run;
-        let matching = memory.records.iter().filter(|r| q.matches(r, memory.kinds.get(&r.kind), run));
+        // Records are in `seq` order: start at the first one the query can match.
+        let start = memory.records.partition_point(|r| q.after_seq.is_some_and(|after| r.seq <= after));
+        let limit = q.limit as usize;
+        let matching = memory.records[start..].iter().filter(|r| q.matches(r, memory.kinds.get(&r.kind), run));
         let mut records: Vec<&Record> = if latest_only {
             // Later records replace earlier ones with the same key.
             let mut latest = BTreeMap::new();
@@ -46,9 +57,9 @@ impl MemoryStorage {
             records.sort_by_key(|r| r.seq);
             records
         } else {
-            matching.collect()
+            // One more than the page, to know whether there is a next page.
+            matching.take(limit + 1).collect()
         };
-        let limit = q.limit as usize;
         let more = records.len() > limit;
         records.truncate(limit);
         Ok(Page {
@@ -76,7 +87,16 @@ impl Storage for MemoryStorage {
             // No run begins: the last run, when this process has one.
             return memory.run.clone().ok_or_else(|| Error::other("memory storage holds no run to open read-only"));
         }
+        let max_records = match cfg.options.get("max-records") {
+            Some(text) => {
+                text.parse().map_err(|_| Error::Config(format!("max-records: \"{text}\" is not a number")))?
+            }
+            None => 0,
+        };
+        tracing::warn!("memory storage: records are lost when the GDS stops");
         *memory = Memory {
+            max_records,
+            dropped: 0,
             run: Some(run.clone()),
             kinds: cfg.kinds.iter().map(|k| (k.id.clone(), k.clone())).collect(),
             records: Vec::new(),
@@ -92,6 +112,14 @@ impl Storage for MemoryStorage {
             if let Err(at) = memory.records.binary_search_by_key(&record.seq, |r| r.seq) {
                 memory.records.insert(at, record.clone());
             }
+        }
+        let excess = memory.records.len().saturating_sub(memory.max_records);
+        if memory.max_records > 0 && excess > 0 {
+            if memory.dropped == 0 {
+                tracing::warn!(max = memory.max_records, "memory storage is full: the oldest records are dropped");
+            }
+            memory.records.drain(..excess);
+            memory.dropped += excess as u64;
         }
         Ok(())
     }
@@ -184,8 +212,22 @@ enum Step {
 }
 
 struct Script {
-    incoming: tokio::sync::Mutex<mpsc::UnboundedReceiver<Step>>,
+    /// The steps to come and what is left of a chunk larger than the reader's buffer.
+    incoming: tokio::sync::Mutex<(mpsc::UnboundedReceiver<Step>, Bytes)>,
     sent: Mutex<Vec<Bytes>>,
+    writes: Mutex<Writes>,
+    connect_error: Mutex<Option<String>>,
+}
+
+/// What a scripted link does with a write.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub enum Writes {
+    #[default]
+    Accept,
+    /// The write returns an error.
+    Fail,
+    /// The write never completes, as to a peer that stopped reading.
+    Stall,
 }
 
 /// An adapter driven by the test: it connects at once, delivers the bytes the test
@@ -202,7 +244,12 @@ pub struct ScriptHandle {
 impl ScriptedAdapter {
     pub fn new() -> (ScriptedAdapter, ScriptHandle) {
         let (steps, incoming) = mpsc::unbounded_channel();
-        let script = Arc::new(Script { incoming: tokio::sync::Mutex::new(incoming), sent: Mutex::new(Vec::new()) });
+        let script = Arc::new(Script {
+            incoming: tokio::sync::Mutex::new((incoming, Bytes::new())),
+            sent: Mutex::new(Vec::new()),
+            writes: Mutex::default(),
+            connect_error: Mutex::default(),
+        });
         (ScriptedAdapter(script.clone()), ScriptHandle { steps, script })
     }
 }
@@ -216,6 +263,16 @@ impl ScriptHandle {
     /// Close the connection; the adapter reconnects on the next attempt.
     pub fn close(&self) {
         let _ = self.steps.send(Step::Close);
+    }
+
+    /// What happens to the writes of the GDS from now on.
+    pub fn set_writes(&self, writes: Writes) {
+        *self.script.writes.lock().unwrap_or_else(|e| e.into_inner()) = writes;
+    }
+
+    /// Make every connection attempt fail with this error, or succeed again with `None`.
+    pub fn fail_connect(&self, error: Option<&str>) {
+        *self.script.connect_error.lock().unwrap_or_else(|e| e.into_inner()) = error.map(str::to_string);
     }
 
     /// Every write of the GDS so far.
@@ -233,6 +290,9 @@ impl ScriptHandle {
 #[async_trait]
 impl Adapter for ScriptedAdapter {
     async fn connect(&mut self) -> Result<(Box<dyn LinkReader>, Box<dyn LinkWriter>, PeerInfo)> {
+        if let Some(error) = self.0.connect_error.lock().unwrap_or_else(|e| e.into_inner()).clone() {
+            return Err(Error::other(error));
+        }
         let peer = PeerInfo { address: "scripted".into(), message_boundaries: false };
         Ok((Box::new(ScriptedAdapter(self.0.clone())), Box::new(ScriptedAdapter(self.0.clone())), peer))
     }
@@ -241,19 +301,34 @@ impl Adapter for ScriptedAdapter {
 #[async_trait]
 impl LinkReader for ScriptedAdapter {
     async fn read(&mut self, buf: &mut BytesMut) -> Result<usize> {
-        match self.0.incoming.lock().await.recv().await {
-            Some(Step::Data(data)) => {
-                buf.extend_from_slice(&data);
-                Ok(data.len())
+        let mut incoming = self.0.incoming.lock().await;
+        if incoming.1.is_empty() {
+            match incoming.0.recv().await {
+                Some(Step::Data(data)) => incoming.1 = data,
+                Some(Step::Close) | None => return Ok(0),
             }
-            Some(Step::Close) | None => Ok(0),
         }
+        // As a socket read: no more than the room the caller reserved, 64 bytes when none.
+        let room = match buf.capacity() - buf.len() {
+            0 => 64,
+            room => room,
+        };
+        let take = room.min(incoming.1.len());
+        let data = incoming.1.split_to(take);
+        buf.extend_from_slice(&data);
+        Ok(data.len())
     }
 }
 
 #[async_trait]
 impl LinkWriter for ScriptedAdapter {
     async fn write(&mut self, data: &[u8]) -> Result<()> {
+        let writes = *self.0.writes.lock().unwrap_or_else(|e| e.into_inner());
+        match writes {
+            Writes::Accept => {}
+            Writes::Fail => return Err(Error::other("broken pipe")),
+            Writes::Stall => std::future::pending().await,
+        }
         self.0.sent.lock().unwrap_or_else(|e| e.into_inner()).push(Bytes::copy_from_slice(data));
         Ok(())
     }
@@ -300,6 +375,9 @@ impl Deframe for LengthFraming {
 
 impl Frame for LengthFraming {
     fn frame(&mut self, packet: &[u8], _: &PacketMeta, out: &mut BytesMut) -> Result<()> {
+        if packet.len() > u16::MAX as usize {
+            return Err(Error::Invalid(format!("packet of {} bytes does not fit the frame", packet.len())));
+        }
         out.put_slice(&LengthFraming::frame(packet));
         Ok(())
     }
@@ -330,18 +408,33 @@ pub struct FakeGds {
 impl FakeGds {
     /// Register `plugins` beside the test doubles and start the core with the link up.
     pub async fn start(plugins: &[&dyn Plugin], dictionary: Dictionary) -> Result<FakeGds> {
+        let gds = Self::start_with(plugins, dictionary, Self::config()).await?;
+        gds.wait_for_link("connected").await;
+        Ok(gds)
+    }
+
+    /// The configuration of the test doubles: nothing is written to disk.
+    pub fn config() -> Config {
+        Config {
+            comm: "scripted".into(),
+            framing: "length".into(),
+            storage: "memory".into(),
+            logs: None,
+            ..Default::default()
+        }
+    }
+
+    /// As `start` with a given configuration, without waiting for the link to connect.
+    pub async fn start_with(plugins: &[&dyn Plugin], dictionary: Dictionary, config: Config) -> Result<FakeGds> {
         let (_, link) = ScriptedAdapter::new();
         let mut registry = Registry::new();
         registry.register(&Doubles(link.clone()))?;
         for plugin in plugins {
             registry.register(*plugin)?;
         }
-        let config = Config { comm: "scripted".into(), framing: "length".into(), ..Default::default() };
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
-        core.start_link();
-        let gds = FakeGds { core, link };
-        gds.wait_for_link("connected").await;
-        Ok(gds)
+        core.start_link()?;
+        Ok(FakeGds { core, link })
     }
 
     /// The context plugin `name` would receive.
@@ -356,11 +449,12 @@ impl FakeGds {
         for _ in 0..2000 {
             let now = self.core.status.snapshot()["counters"]["packets_received"].as_u64().unwrap_or(0);
             if now > before {
-                break;
+                self.core.records.flush().await;
+                return;
             }
             tokio::time::sleep(std::time::Duration::from_millis(1)).await;
         }
-        self.core.records.flush().await;
+        panic!("packet not received");
     }
 
     pub async fn wait_for_link(&self, state: &str) {

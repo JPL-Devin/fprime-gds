@@ -106,11 +106,18 @@ impl Decoder for ChannelDecoder {
         let mut records = Vec::new();
         loop {
             let start = packet.len() - r.remaining();
-            let id = uint(&mut r, dict, "FwChanIdType", 32)?;
-            let time = time(&mut r, dict)?;
-            let channel =
-                dict.channel(id).ok_or_else(|| DecodeError(format!("channel {id} is not in the dictionary")))?;
-            let mut record = sample(channel, time, &mut r, dict)?;
+            let item = (|| {
+                let id = uint(&mut r, dict, "FwChanIdType", 32)?;
+                let time = time(&mut r, dict)?;
+                let channel =
+                    dict.channel(id).ok_or_else(|| DecodeError(format!("channel {id} is not in the dictionary")))?;
+                sample(channel, time, &mut r, dict)
+            })();
+            let mut record = match item {
+                Ok(record) => record,
+                // The samples before the malformed one are kept.
+                Err(e) => return fgds_core::keep_decoded(records, &packet[start..], e),
+            };
             let end = packet.len() - r.remaining();
             // The sample's own bytes: channel identifier, time tag, value.
             record.raw = fgds_core::bytes::Bytes::copy_from_slice(&packet[start..end]);

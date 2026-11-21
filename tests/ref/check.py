@@ -6,11 +6,8 @@ Usage: check.py <fgds binary> <Ref binary> <dictionary> <directory for logs> [fr
 
 The framing profile (`ccsds` or `fprime`, the default) is the one Ref was built with.
 """
-import base64
 import json
 import os
-import socket
-import struct
 import sys
 import time
 import urllib.request
@@ -44,49 +41,12 @@ def step(text):
     print(f"  ok: {text}")
 
 
-class Stream:
-    """`WS /api/v1/stream`, read with the standard library: text messages from the server only."""
-
-    def __init__(self, query):
-        self.socket = socket.create_connection(("127.0.0.1", HTTP), timeout=15)
-        key = base64.b64encode(os.urandom(16)).decode()
-        self.socket.sendall(
-            f"GET /api/v1/stream?{query} HTTP/1.1\r\nHost: 127.0.0.1:{HTTP}\r\nUpgrade: websocket\r\n"
-            f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n".encode()
-        )
-        self.file = self.socket.makefile("rb")
-        status = self.file.readline()
-        assert b"101" in status, status
-        while self.file.readline() != b"\r\n":
-            pass
-
-    def next(self):
-        while True:
-            first, second = self.file.read(2)
-            length = second & 0x7F
-            if length == 126:
-                length = struct.unpack(">H", self.file.read(2))[0]
-            elif length == 127:
-                length = struct.unpack(">Q", self.file.read(8))[0]
-            payload = self.file.read(length)
-            if first & 0x0F == 1:
-                message = json.loads(payload)
-                if message["type"] == "live":
-                    self.live = message["seq"]
-                    continue
-                assert message["type"] == "record", message
-                return message["record"]
-
-    def until(self, wanted):
-        """Records up to and including the first one that `wanted` accepts."""
-        found = []
-        while not found or not wanted(found[-1]):
-            found.append(self.next())
-        return found
+def Stream(query):
+    return scenario.Stream(HTTP, query)
 
 
 fgds = scenario.start(
-    [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{HTTP}", "--comm-tcp-address", f"127.0.0.1:{LINK}",
+    [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{HTTP}", "--logs", f"{OUT}/logs", "--comm-tcp-address", f"127.0.0.1:{LINK}",
      "--framing", FRAMING],
     open(f"{OUT}/fgds.log", "w"),
 )

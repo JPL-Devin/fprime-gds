@@ -1,0 +1,20 @@
+[package]
+name = "storage-sqlite"
+description = "Storage plugin that keeps every run in one SQLite database"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+rusqlite = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = "3"
+rusqlite = { workspace = true }

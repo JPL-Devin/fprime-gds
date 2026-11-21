@@ -41,7 +41,12 @@ pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
         }
     };
     let (name, sub) = matches.subcommand().expect("a subcommand is required");
-    let config = config(&matches, &registry)?;
+    let mut config = config(&matches, &registry)?;
+    let replay = if name == "run" { sub.get_one::<String>("replay") } else { None };
+    if let Some(database) = replay {
+        config.database = Some(database.into());
+        config.read_only = true;
+    }
     let registry = match config.disabled_plugins.is_empty() {
         true => registry,
         false => builder.registry(&config.disabled_plugins)?,
@@ -83,7 +88,12 @@ fn command(registry: &Registry) -> Command {
                 .action(ArgAction::SetTrue),
         )
         .args(OPTIONS.iter().map(|(name, help)| global(name, help.to_string())))
-        .subcommand(Command::new("run").about("Start the GDS"))
+        .subcommand(Command::new("run").about("Start the GDS").arg(
+            Arg::new("replay").long("replay").value_name("DATABASE").help(
+                "Serve the runs of a database file without a link and without writing to it; \
+                 the dictionary is the one stored with its last run",
+            ),
+        ))
         .subcommand(Command::new("check").about("Load configuration, dictionary and plugins; print what would start"));
     for manifest in &registry.manifests {
         for spec in &manifest.options {
@@ -198,13 +208,17 @@ fn check(registry: &Registry, config: &Config) -> Result<ExitCode> {
 /// `fgds run`: the start order of section 4.4, then serve until interrupted.
 fn serve(registry: Registry, config: Config) -> Result<ExitCode> {
     tracing_subscriber::fmt().with_writer(std::io::stderr).init();
-    let dictionary = load_dictionary(&config)?;
     let runtime = tokio::runtime::Runtime::new().map_err(Error::Io)?;
     runtime.block_on(async {
+        // An old database is shown with the dictionary it was recorded with (STO-5).
+        let dictionary = match config.read_only && config.dictionary == Path::new("") {
+            true => fgds_core::stored_dictionary(&registry, &config).await?,
+            false => load_dictionary(&config)?,
+        };
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
         let listener = fgds_shell::bind(&core).await?;
         eprintln!("listening on http://{}", listener.local_addr().map_err(Error::Io)?);
-        core.start_link();
+        core.start_link()?;
         let served = fgds_shell::serve(core.clone(), listener, interrupted()).await;
         core.stop().await?;
         served.map(|()| ExitCode::SUCCESS)

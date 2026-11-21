@@ -17,7 +17,7 @@ class Fgds:
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.api = f"http://127.0.0.1:{http}/api/v1"
         self.process = scenario.start(
-            [binary, "run", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}",
+            [binary, "run", "--dictionary", dictionary, "--bind", f"127.0.0.1:{http}", "--logs", f"{out}/logs",
              "--comm-tcp-address", f"127.0.0.1:{self.link_port}", "--framing", framing],
             open(f"{out}/fgds.log", "w"),
         )

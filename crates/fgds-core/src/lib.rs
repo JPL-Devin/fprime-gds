@@ -27,7 +27,7 @@ pub use pipeline::{PipelineOptions, RecordStream, Records, StreamEnd, StreamItem
 pub use plugin::*;
 pub use record::*;
 pub use registry::Registry;
-pub use router::Router;
+pub use router::{keep_decoded, Router};
 pub use runtime::{framing_layers, named, open_read_only, stored_dictionary, Context, Core, ShutdownToken};
 pub use status::{Status, StatusHandle};
 pub use supervisor::{report_fault, spawn_supervised};

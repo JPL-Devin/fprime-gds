@@ -86,10 +86,10 @@ async fn records_are_served_in_pages_with_the_api_encoding() {
         server.gds.receive(&[level]).await;
     }
     let (status, page) = server.get("/api/v1/records?kind=t.sample&limit=2").await;
-    assert_eq!((status, seqs(&page)), (200, vec!["1", "2"]));
-    assert_eq!(page["next"], "2");
-    let (_, rest) = server.get("/api/v1/records?after_seq=2&limit=10").await;
-    assert_eq!((seqs(&rest), &rest["next"]), (vec!["3", "4", "5"], &Value::Null));
+    assert_eq!((status, seqs(&page)), (200, vec!["2", "3"]));
+    assert_eq!(page["next"], "3");
+    let (_, rest) = server.get("/api/v1/records?after_seq=3&limit=10").await;
+    assert_eq!((seqs(&rest), &rest["next"]), (vec!["4", "5", "6"], &Value::Null));
 
     // API-4: 64-bit integers and non-finite floats as text, bytes as base64, UTC time.
     let record = &page["records"][0];
@@ -100,11 +100,11 @@ async fn records_are_served_in_pages_with_the_api_encoding() {
     assert!(time.len() == 27 && time.ends_with('Z') && time.as_bytes()[19] == b'.', "{time}");
 
     let (_, filtered) = server.get("/api/v1/records?filter=level:ge:4&id=4,5").await;
-    assert_eq!(seqs(&filtered), ["4", "5"]);
+    assert_eq!(seqs(&filtered), ["5", "6"]);
     server.gds.receive(&[5]).await;
     let (_, latest) = server.get("/api/v1/records/latest?kind=t.sample").await;
-    assert_eq!(seqs(&latest), ["1", "2", "3", "4", "6"]);
-    assert_eq!(server.get("/api/v1/cursor").await.1, json!({"seq": "6", "run": 1}));
+    assert_eq!(seqs(&latest), ["2", "3", "4", "5", "7"]);
+    assert_eq!(server.get("/api/v1/cursor").await.1, json!({"seq": "7", "run": 1}));
 }
 
 #[tokio::test]
@@ -153,7 +153,7 @@ async fn version_status_kinds_runs_and_dictionary_are_served() {
 #[tokio::test]
 async fn the_link_is_switched_and_raw_bytes_are_sent() {
     let server = Server::start().await;
-    assert_eq!(server.post("/api/v1/raw", json!({"data": "AQI="})).await, (200, json!({"sent": 2, "seq": "1"})));
+    assert_eq!(server.post("/api/v1/raw", json!({"data": "AQI="})).await, (200, json!({"sent": 2, "seq": "2"})));
     assert_eq!(server.gds.link.sent(), [vec![0, 2, 1, 2]]);
     assert_eq!(server.post("/api/v1/link", json!({"enabled": false})).await.0, 200);
     server.gds.wait_for_link("disabled").await;
@@ -180,19 +180,19 @@ async fn the_stream_replays_from_a_sequence_number_then_continues_live() {
     for level in 1..=3 {
         server.gds.receive(&[level]).await;
     }
-    let url = format!("ws://{}/api/v1/stream?kind=t.sample&after_seq=1", server.address);
+    let url = format!("ws://{}/api/v1/stream?kind=t.sample&after_seq=2", server.address);
     let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
     let mut seqs = Vec::new();
     while seqs.len() < 2 {
         seqs.push(next_seq(&mut socket).await);
     }
-    assert_eq!(seqs, ["2", "3"]);
+    assert_eq!(seqs, ["3", "4"]);
     // The replay has ended: told once, with the last sequence number sent.
     let Message::Text(text) = socket.next().await.unwrap().unwrap() else { panic!("not text") };
-    assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({"type": "live", "seq": "3"}));
+    assert_eq!(serde_json::from_str::<Value>(&text).unwrap(), json!({"type": "live", "seq": "4"}));
     server.gds.receive(&[4]).await;
     server.gds.receive(&[5]).await;
-    assert_eq!((next_seq(&mut socket).await, next_seq(&mut socket).await), ("4".into(), "5".into()));
+    assert_eq!((next_seq(&mut socket).await, next_seq(&mut socket).await), ("5".into(), "6".into()));
 }
 
 /// The sequence number of the next record on the stream.
@@ -242,4 +242,150 @@ async fn a_panicking_route_answers_500_and_the_server_keeps_running() {
     let (_, status) = server.get("/api/v1/status").await;
     assert_eq!(status["plugins"]["test"]["fault"], "route bug");
     assert_eq!(server.get("/api/v1/cursor").await.0, 200);
+}
+
+#[tokio::test]
+async fn errors_answered_by_the_framework_are_json_too() {
+    let server = Server::start().await;
+    let url = |path: &str| format!("http://{}{path}", server.address);
+    let check = |response: reqwest::Response, status: u16, code: &'static str| async move {
+        assert_eq!(response.status().as_u16(), status);
+        let body: Value = response.json().await.expect("a JSON body");
+        assert_eq!(body["error"]["code"], code);
+        assert!(!body["error"]["message"].as_str().unwrap().is_empty());
+    };
+    let post = || server.http.post(url("/api/v1/link"));
+    // A body that is not JSON, a body of the wrong type, a wrong method, a body too large.
+    let invalid = post().header("content-type", "application/json").body("{not json");
+    check(invalid.send().await.unwrap(), 400, "bad_request").await;
+    check(post().body("enabled=false").send().await.unwrap(), 415, "unsupported_media_type").await;
+    check(server.http.get(url("/api/v1/link")).send().await.unwrap(), 405, "method_not_allowed").await;
+    check(server.http.delete(url("/api/v1/records")).send().await.unwrap(), 405, "method_not_allowed").await;
+    let big = post().json(&json!({"enabled": "x".repeat(2 * 1024 * 1024)}));
+    check(big.send().await.unwrap(), 413, "payload_too_large").await;
+    check(server.http.get(url("/api/v1/records?after_seq=-1")).send().await.unwrap(), 400, "bad_request").await;
+}
+
+#[tokio::test]
+async fn a_failed_write_is_502_and_a_packet_too_large_for_the_frame_is_422() {
+    let server = Server::start().await;
+    server.gds.link.set_writes(fgds_core::testing::Writes::Fail);
+    let (status, body) = server.post("/api/v1/raw", json!({"data": "AQI="})).await;
+    assert_eq!((status, &body["error"]["code"]), (502, &json!("send_failed")));
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent").await;
+    assert_eq!(page["records"][0]["body"]["outcome"], "failed");
+
+    // Refused by the framing layer: nothing is written, the link stays up.
+    server.gds.link.set_writes(fgds_core::testing::Writes::Accept);
+    server.gds.wait_for_link("connected").await;
+    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, vec![0u8; 70_000]);
+    let (status, body) = server.post("/api/v1/raw", json!({"data": data})).await;
+    assert_eq!((status, &body["error"]["code"]), (422, &json!("invalid")));
+    assert_eq!(body["error"]["message"], "packet of 70000 bytes does not fit the frame");
+    let (_, page) = server.get("/api/v1/records?kind=raw.sent").await;
+    assert_eq!(page["records"][1]["body"]["outcome"], "rejected");
+    assert!(server.gds.link.sent().is_empty());
+    assert_eq!(server.get("/api/v1/status").await.1["link"]["state"], "connected");
+}
+
+#[tokio::test]
+async fn records_are_selected_by_sequence_time_run_and_repeated_kind() {
+    let server = Server::start().await;
+    for level in 1..=4 {
+        server.gds.receive(&[level]).await;
+    }
+    let get = |query: &str| {
+        let path = format!("/api/v1/records?{query}");
+        let server = &server;
+        async move {
+            let (status, page) = server.get(&path).await;
+            assert_eq!(status, 200, "{path}");
+            page["records"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|r| r["seq"].as_str().unwrap().to_string())
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(get("kind=t.sample&before_seq=4").await, ["2", "3"]);
+    assert_eq!(get("kind=t.sample&kind=gds.status&limit=2").await, ["1", "2"]);
+    assert_eq!(get("kind=t.sample&run=1&after_seq=4").await, ["5"]);
+    assert_eq!(get("kind=t.sample&run=2").await, [] as [&str; 0]);
+    // Ground time in microseconds: from inclusive, to exclusive.
+    let now = fgds_core::Timestamp::now().0;
+    assert_eq!(get(&format!("kind=t.sample&from={}&to={}", now - 60_000_000, now + 1)).await.len(), 4);
+    assert_eq!(get(&format!("kind=t.sample&from={}", now + 1)).await.len(), 0);
+    assert_eq!(get(&format!("kind=t.sample&to={}", now - 60_000_000)).await.len(), 0);
+    assert_eq!(get("kind=t.sample&text=zzz").await, [] as [&str; 0]);
+}
+
+#[tokio::test]
+async fn the_stream_refuses_another_origin() {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let server = Server::start().await;
+    let connect = |origin: String| {
+        let mut request = format!("ws://{}/api/v1/stream", server.address).into_client_request().unwrap();
+        request.headers_mut().insert("origin", origin.parse().unwrap());
+        tokio_tungstenite::connect_async(request)
+    };
+    let refused = connect("http://evil.example".into()).await.unwrap_err();
+    let tokio_tungstenite::tungstenite::Error::Http(response) = refused else { panic!("{refused:?}") };
+    assert_eq!(response.status().as_u16(), 403);
+    assert!(connect(format!("http://{}", server.address)).await.is_ok());
+}
+
+/// Publish `total` records of 2 kB while the client of `socket` does not read, then
+/// read to the end of the connection: (records received, last message).
+async fn flood(server: &Server, total: usize) -> (usize, Value) {
+    let url = format!("ws://{}/api/v1/stream?kind=t.sample", server.address);
+    let (mut socket, _) = tokio_tungstenite::connect_async(url).await.unwrap();
+    let pad = "x".repeat(2000);
+    for _ in 0..total {
+        server.gds.core.records.publish(NewRecord::new("t.sample", json!({"pad": pad}))).await.unwrap();
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+    let mut received = 0;
+    let mut last = Value::Null;
+    let mut last_record = String::new();
+    let drain = async {
+        while let Some(Ok(message)) = socket.next().await {
+            if let Message::Text(text) = message {
+                last = fgds_core::serde_json::from_str(&text).unwrap();
+                if last["type"] == "record" {
+                    received += 1;
+                    last_record = last["record"]["seq"].as_str().unwrap().to_string();
+                    last = json!({"type": "record"});
+                }
+            }
+        }
+    };
+    let ended = tokio::time::timeout(std::time::Duration::from_secs(60), drain).await;
+    let limit = fgds_shell::STREAM_SEND_TIMEOUT_MS.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(ended.is_ok(), "the connection does not end: {received} records, last {last}, time-out {limit}");
+    if last["type"] == "lagged" {
+        assert_eq!(last["last_seq"], last_record.as_str());
+    }
+    (received, last)
+}
+
+#[tokio::test]
+async fn a_slow_stream_client_is_told_it_lagged_and_one_that_does_not_read_is_dropped() {
+    // More records than a subscriber may be behind, far more than the socket holds.
+    // (The queue of a subscriber holds 16,384: the next power of two above 10,000.)
+    let total = 40_000;
+    let server = Server::start().await;
+    // A client that reads again in time gets what was queued, then `lagged` with the
+    // last sequence number it was sent, then the close (API-6).
+    let (received, last) = flood(&server, total).await;
+    assert!(received > 0 && received < total, "{received} records");
+    assert_eq!(last["type"], "lagged", "{last}");
+
+    // A client that does not read within the time-out is closed without the message.
+    fgds_shell::STREAM_SEND_TIMEOUT_MS.store(200, std::sync::atomic::Ordering::Relaxed);
+    // Fewer records than the subscriber queue, so the send time-out is what ends it.
+    let total = 12_000;
+    let (received, last) = flood(&server, total).await;
+    assert!(received < total, "{received} records");
+    assert_eq!(last["type"], "record", "{last}");
 }

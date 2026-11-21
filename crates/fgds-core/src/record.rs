@@ -15,6 +15,8 @@ pub const KIND_UNKNOWN_PACKET: &str = "gds.unknown_packet";
 pub const KIND_PLUGIN_FAULT: &str = "gds.plugin_fault";
 pub const KIND_STORAGE_GAP: &str = "gds.storage_gap";
 pub const KIND_STORAGE_RECOVERED: &str = "gds.storage_recovered";
+/// A change of the link state: `link`, `peer`, `error`.
+pub const KIND_STATUS: &str = "gds.status";
 pub const KIND_RAW_SENT: &str = "raw.sent";
 
 /// Ground time: microseconds since the Unix epoch, UTC.
@@ -215,6 +217,7 @@ pub(crate) fn core_kinds() -> Vec<KindSpec> {
         text(KIND_UNKNOWN_PACKET, "A packet no decoder matches"),
         text(KIND_PLUGIN_FAULT, "A panic caught in plugin code"),
         text(KIND_STORAGE_GAP, "Records that were broadcast but could not be stored"),
+        text(KIND_STATUS, "The link changed state"),
         text(KIND_STORAGE_RECOVERED, "Storage accepts records again"),
         KindSpec {
             fields: &[
@@ -368,6 +371,15 @@ fn as_text(value: &Value) -> String {
     }
 }
 
+/// An integer carried as a JSON number or as text (64-bit values are text in the API).
+fn as_integer(value: &Value) -> Option<i128> {
+    match value {
+        Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
+        Value::String(s) => s.trim().parse().ok(),
+        _ => None,
+    }
+}
+
 impl FieldFilter {
     /// Compare a field value with the filter value: as numbers when both are numeric, else as text.
     fn accepts(&self, field: &Value) -> bool {
@@ -381,9 +393,13 @@ impl FieldFilter {
             }
             _ => {}
         }
-        let order = match (as_number(field), as_number(&self.value)) {
-            (Some(a), Some(b)) => a.partial_cmp(&b),
-            _ => Some(as_text(field).cmp(&as_text(&self.value))),
+        let order = match (as_integer(field), as_integer(&self.value)) {
+            // Integers are compared exactly: 64-bit values do not fit a float.
+            (Some(a), Some(b)) => Some(a.cmp(&b)),
+            _ => match (as_number(field), as_number(&self.value)) {
+                (Some(a), Some(b)) => a.partial_cmp(&b),
+                _ => Some(as_text(field).cmp(&as_text(&self.value))),
+            },
         };
         match self.op {
             Op::Eq => order == Some(Equal),

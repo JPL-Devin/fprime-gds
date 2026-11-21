@@ -33,7 +33,7 @@ fn check_prints_what_would_start_and_command_line_wins_over_the_file() {
         "framing: ccsds-tm-tc > ccsds-space-packet",
         "server: http://127.0.0.1:2",
         "--comm-tcp-address = 10.0.0.1:7",
-        "record kinds: raw.discarded, gds.decode_error, gds.unknown_packet, gds.plugin_fault, gds.storage_gap, gds.storage_recovered",
+        "record kinds: raw.discarded, gds.decode_error, gds.unknown_packet, gds.plugin_fault, gds.storage_gap, gds.status, gds.storage_recovered",
     ] {
         assert!(stdout.contains(line), "missing \"{line}\" in:\n{stdout}");
     }

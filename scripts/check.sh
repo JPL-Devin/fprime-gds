@@ -26,6 +26,17 @@ test "$(ls crates/*/Cargo.toml plugins/*/Cargo.toml examples/*/Cargo.toml | wc -
      "$(grep -l '^\[lints\]' crates/*/Cargo.toml plugins/*/Cargo.toml examples/*/Cargo.toml | wc -l)"
 grep -q '^unsafe_code = "forbid"' Cargo.toml
 echo "  ok: every crate forbids unsafe"
+# MNT-1: plugins depend on the core crates only, never on another plugin.
+cargo metadata --format-version 1 --no-deps | python3 -c '
+import json, sys
+packages = json.load(sys.stdin)["packages"]
+plugins = {p["name"] for p in packages if "/plugins/" in p["manifest_path"]}
+bad = [(p["name"], d["name"]) for p in packages if p["name"] in plugins
+       for d in p["dependencies"] if d["name"] in plugins and d.get("kind") != "dev"]
+for name, dependency in bad:
+    print(f"plugin {name} depends on plugin {dependency}")
+sys.exit(1 if bad else 0)'
+echo "  ok: no plugin depends on another plugin"
 cargo fmt --check
 echo "  ok: cargo fmt --check"
 cargo clippy --workspace --all-targets --quiet -- -D warnings

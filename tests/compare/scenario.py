@@ -1,6 +1,7 @@
 """What both ground systems are asked to do, and the pieces both sides share."""
 import atexit
 import binascii
+import base64
 import json
 import math
 import os
@@ -310,3 +311,44 @@ class Shapes:
               + (f"; NOT SEEN: {', '.join(missing)}" if missing else ""))
         if missing:
             problems.append(f"{what}: no sample with {', '.join(missing)}")
+
+
+class Stream:
+    """`WS /api/v1/stream`, read with the standard library: text messages from the server only."""
+
+    def __init__(self, port, query):
+        self.socket = socket.create_connection(("127.0.0.1", port), timeout=15)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.socket.sendall(
+            f"GET /api/v1/stream?{query} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\n"
+            f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n".encode()
+        )
+        self.file = self.socket.makefile("rb")
+        status = self.file.readline()
+        assert b"101" in status, status
+        while self.file.readline() != b"\r\n":
+            pass
+
+    def next(self):
+        while True:
+            first, second = self.file.read(2)
+            length = second & 0x7F
+            if length == 126:
+                length = struct.unpack(">H", self.file.read(2))[0]
+            elif length == 127:
+                length = struct.unpack(">Q", self.file.read(8))[0]
+            payload = self.file.read(length)
+            if first & 0x0F == 1:
+                message = json.loads(payload)
+                if message["type"] == "live":
+                    self.live = message["seq"]
+                    continue
+                assert message["type"] == "record", message
+                return message["record"]
+
+    def until(self, wanted):
+        """Records up to and including the first one that `wanted` accepts."""
+        found = []
+        while not found or not wanted(found[-1]):
+            found.append(self.next())
+        return found

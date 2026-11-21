@@ -17,6 +17,10 @@ use tokio::net::TcpListener;
 /// Version of the network API, the `v1` of the paths.
 pub const API_VERSION: u32 = 1;
 
+/// How long one message of the stream may take to be accepted by the client, in
+/// milliseconds; then the connection is dropped. Changed by tests only.
+pub static STREAM_SEND_TIMEOUT_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(10_000);
+
 /// Only same-origin scripts and connections: nothing inline, nothing evaluated (UI-5).
 const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; connect-src 'self'; frame-ancestors 'none'";
 
@@ -30,7 +34,7 @@ pub fn router(core: Arc<Core>) -> Router {
     }
     let not_found = || async { ApiError::new(StatusCode::NOT_FOUND, "not_found", "no such route") };
     Router::new()
-        .nest("/api/v1", api.fallback(not_found))
+        .nest("/api/v1", api.fallback(not_found).layer(middleware::from_fn(json_errors)))
         .merge(ui::routes(core.clone()))
         .layer(DefaultBodyLimit::max(core.config.max_body_bytes))
         .layer(middleware::from_fn(security_headers))
@@ -74,6 +78,39 @@ async fn contain(State((core, plugin)): State<(Arc<Core>, String)>, request: Req
             ))
         }
     }
+}
+
+/// Every error of the API is `{"error": {"code", "message"}}` (API-8), also those the
+/// framework answers itself: a body that is not JSON, a wrong method, a body too large.
+async fn json_errors(request: Request, next: Next) -> Response {
+    let response = next.run(request).await;
+    let status = response.status();
+    let is_json = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("application/json"));
+    if !(status.is_client_error() || status.is_server_error()) || is_json {
+        return response;
+    }
+    let code = match status {
+        StatusCode::BAD_REQUEST => "bad_request",
+        StatusCode::NOT_FOUND => "not_found",
+        StatusCode::METHOD_NOT_ALLOWED => "method_not_allowed",
+        StatusCode::PAYLOAD_TOO_LARGE => "payload_too_large",
+        StatusCode::UNSUPPORTED_MEDIA_TYPE => "unsupported_media_type",
+        StatusCode::UNPROCESSABLE_ENTITY => "invalid",
+        _ if status.is_client_error() => "bad_request",
+        _ => "internal",
+    };
+    // The framework's text says what was wrong; it is short.
+    let text = axum::body::to_bytes(response.into_body(), 4096).await.unwrap_or_default();
+    let text = String::from_utf8_lossy(&text).trim().to_string();
+    let message = match text.is_empty() {
+        true => status.canonical_reason().unwrap_or("error").to_string(),
+        false => text,
+    };
+    axum::response::IntoResponse::into_response(ApiError::new(status, code, message))
 }
 
 async fn security_headers(request: Request, next: Next) -> Response {

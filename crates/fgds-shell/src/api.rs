@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use base64::Engine;
 use fgds_core::{ApiError, Core, FieldFilter, Filter, Page, Query, StreamEnd, StreamItem, TimeRange, Timestamp};
 use serde_json::{json, Value};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 type Shared = State<Arc<Core>>;
@@ -50,10 +51,13 @@ async fn status(State(core): Shared) -> Json<Value> {
 }
 
 async fn dictionary(State(core): Shared, Params(params): Pairs) -> Answer {
-    // Only the current run's dictionary exists until a storage keeps earlier runs.
+    // Each run is shown with the dictionary it was recorded with (STO-4, STO-5).
+    let missing = |run: &str| ApiError::new(StatusCode::NOT_FOUND, "not_found", format!("no dictionary for run {run}"));
     match params.iter().find(|(key, _)| key == "run") {
         Some((_, run)) if *run != core.run.run.to_string() => {
-            Err(ApiError::new(StatusCode::NOT_FOUND, "not_found", format!("no dictionary for run {run}")))
+            let number: u32 = run.parse().map_err(|_| ApiError::bad_request(format!("run={run} is not a number")))?;
+            let stored = core.records.dictionary(number).await?.ok_or_else(|| missing(run))?;
+            Ok(Json(serde_json::from_slice(&stored).map_err(|_| missing(run))?))
         }
         _ => Ok(Json(core.dictionary.json.clone())),
     }
@@ -103,6 +107,8 @@ fn query(params: &[(String, String)]) -> Result<Query, ApiError> {
                     q.ids.push(number(key, id)?);
                 }
             }
+            // `run=all`: every run of the database (STO-5).
+            "run" if value == "all" => q.all_runs = true,
             "run" => q.run = Some(number(key, value)?),
             "after_seq" => q.after_seq = Some(number(key, value)?),
             "before_seq" => q.before_seq = Some(number(key, value)?),
@@ -135,8 +141,19 @@ fn query(params: &[(String, String)]) -> Result<Query, ApiError> {
 async fn stream(
     State(core): Shared,
     Params(params): Pairs,
+    headers: axum::http::HeaderMap,
     upgrade: Option<WebSocketUpgrade>,
 ) -> Result<Response, ApiError> {
+    // A page of another site must not read the stream through the operator's browser:
+    // a browser always sends `Origin`, and it must be this server.
+    let text = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
+    if let Some(origin) = text("origin") {
+        let host = origin.split_once("://").map_or(origin, |(_, host)| host);
+        if Some(host) != text("host") {
+            let message = format!("origin {origin} is not this server");
+            return Err(ApiError::new(StatusCode::FORBIDDEN, "forbidden", message));
+        }
+    }
     let q = query(&params)?;
     if let Some((key, _)) = params.iter().find(|(key, _)| key != "kind" && key != "after_seq") {
         return Err(ApiError::bad_request(format!("the stream does not take \"{key}\"")));
@@ -156,7 +173,8 @@ async fn feed(mut socket: WebSocket, core: Arc<Core>, q: Query) {
                 Ok(StreamItem::Live { seq }) => json!({"type": "live", "seq": seq.to_string()}),
                 Err(StreamEnd::Lagged { last_seq }) => {
                     let lagged = json!({"type": "lagged", "last_seq": last_seq.to_string()});
-                    let _ = socket.send(Message::Text(lagged.to_string())).await;
+                    let limit = std::time::Duration::from_secs(1);
+                    let _ = tokio::time::timeout(limit, socket.send(Message::Text(lagged.to_string()))).await;
                     return;
                 }
                 Err(StreamEnd::Closed) => return,
@@ -167,8 +185,15 @@ async fn feed(mut socket: WebSocket, core: Arc<Core>, q: Query) {
                 Some(Ok(_)) => continue,
             },
         };
-        if socket.send(Message::Text(message.to_string())).await.is_err() {
-            return;
+        // A client that stopped reading must not hold the task and its records for ever.
+        let limit = std::time::Duration::from_millis(crate::STREAM_SEND_TIMEOUT_MS.load(Ordering::Relaxed));
+        match tokio::time::timeout(limit, socket.send(Message::Text(message.to_string()))).await {
+            Ok(Ok(())) => {}
+            Ok(Err(_)) => return,
+            Err(_) => {
+                tracing::warn!("stream client does not read: connection dropped");
+                return;
+            }
         }
     }
 }
