@@ -22,6 +22,9 @@ async fn channel_packets_become_samples() {
     gds.receive(&channel(770, &[0, 2, b'o', b'k'])).await;
     gds.receive(&channel(999, &[])).await;
     gds.receive(&channel(768, &[0, 0, 1])).await;
+    // Several samples in one packet.
+    let second = &channel(769, &21.5f32.to_be_bytes())[2..];
+    gds.receive(&[&channel(768, &[0, 0, 1, 0])[..], second].concat()).await;
 
     let samples = gds.records(&["channel"]).await;
     let bodies: Vec<_> = samples.iter().map(|r| r.body.clone()).collect();
@@ -31,10 +34,13 @@ async fn channel_packets_become_samples() {
             json!({"name": "T.c.Count", "value": 256, "display_text": "256"}),
             json!({"name": "T.c.Temp", "value": 21.5, "display_text": "21.5 C"}),
             json!({"name": "T.c.Label", "value": "ok", "display_text": "ok"}),
+            json!({"name": "T.c.Count", "value": 256, "display_text": "256"}),
+            json!({"name": "T.c.Temp", "value": 21.5, "display_text": "21.5 C"}),
         ]
     );
     assert_eq!(samples[0].id, Some(768));
     assert_eq!(samples[0].flight_time.unwrap().seconds, 100);
+    assert_eq!(samples[4].raw.as_ref(), second);
     assert_eq!(gds.records(&["gds.decode_error"]).await.len(), 2);
 }
 

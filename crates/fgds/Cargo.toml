@@ -1,0 +1,23 @@
+[package]
+name = "fgds"
+description = "The F Prime GDS: Gds::builder for project binaries and the stock `fgds` binary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+fgds-shell = { workspace = true }
+channels = { workspace = true }
+commands = { workspace = true }
+comm-tcp = { workspace = true }
+events = { workspace = true }
+framing-fprime = { workspace = true }
+storage-memory = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

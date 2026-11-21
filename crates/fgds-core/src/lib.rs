@@ -28,7 +28,7 @@ pub use plugin::*;
 pub use record::*;
 pub use registry::Registry;
 pub use router::Router;
-pub use runtime::{Context, Core, ShutdownToken};
+pub use runtime::{framing_layers, named, Context, Core, ShutdownToken};
 pub use status::{Status, StatusHandle};
 pub use supervisor::{report_fault, spawn_supervised};
 pub use uplink::{SendError, Sent, Uplink};

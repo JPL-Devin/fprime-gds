@@ -68,10 +68,7 @@ impl Core {
             .await?;
         let records = Records::start(storage, &run, &registry.kinds, status.clone());
 
-        let layer_names = match config.framing_layers.is_empty() {
-            true => named(&registry.framing_profiles, "framing profile", &config.framing)?.clone(),
-            false => config.framing_layers.clone(),
-        };
+        let layer_names = framing_layers(&registry, &config)?;
         let mut layers = Vec::new();
         for name in &layer_names {
             let (plugin, layer) = named(&registry.framing_layers, "framing layer", name)?;
@@ -138,7 +135,20 @@ impl Core {
     }
 }
 
-fn named<'a, T>(map: &'a std::collections::BTreeMap<String, T>, what: &str, name: &str) -> Result<&'a T> {
+/// The names of the framing layers in use, outermost first.
+pub fn framing_layers(registry: &Registry, config: &Config) -> Result<Vec<String>> {
+    let names = match config.framing_layers.is_empty() {
+        true => named(&registry.framing_profiles, "framing profile", &config.framing)?.clone(),
+        false => config.framing_layers.clone(),
+    };
+    for name in &names {
+        named(&registry.framing_layers, "framing layer", name)?;
+    }
+    Ok(names)
+}
+
+/// The entry called `name`, or an error listing what is available.
+pub fn named<'a, T>(map: &'a std::collections::BTreeMap<String, T>, what: &str, name: &str) -> Result<&'a T> {
     map.get(name).ok_or_else(|| {
         let known: Vec<_> = map.keys().map(String::as_str).collect();
         Error::Config(format!("unknown {what} \"{name}\"; available: {}", known.join(", ")))
