@@ -1,4 +1,5 @@
 """What both ground systems are asked to do, and the pieces both sides share."""
+import atexit
 import binascii
 import json
 import math
@@ -64,9 +65,17 @@ def wait_for(what, condition, timeout=30.0):
     raise TimeoutError(f"timed out waiting for {what}")
 
 
+STARTED = []
+
+
 def start(command, log, **options):
-    """Start a process in its own group, so that `stop` also ends its children."""
-    return subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True, **options)
+    """Start a process in its own group; `stop` ends it and what it started.
+
+    Whatever is still running when the script ends, however it ends, is stopped then.
+    """
+    process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True, **options)
+    STARTED.append(process)
+    return process
 
 
 def descendants(pid):
@@ -74,17 +83,66 @@ def descendants(pid):
     return [int(child) for child in children] + [d for child in children for d in descendants(int(child))]
 
 
-def stop(process):
-    """End the process and everything it started; the Python GDS leaves children behind otherwise."""
-    for pid in [process.pid, *descendants(process.pid)]:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+def alive(pid):
     try:
-        process.wait(timeout=10)
+        with open(f"/proc/{pid}/stat") as file:
+            return file.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return False
+
+
+def stop(process, patience=10.0):
+    """End the process and everything it started, and wait until all of it is gone.
+
+    The Python GDS starts children (`comm`, the GUI server) that outlive it: the process,
+    its group and its descendants are asked to end, then killed if they have not.
+    """
+    if process in STARTED:
+        STARTED.remove(process)
+    pids = [process.pid, *descendants(process.pid)]
+
+    def signal_all(number):
+        try:
+            os.killpg(process.pid, number)
+        except (ProcessLookupError, PermissionError):
+            pass
+        for pid in pids:
+            try:
+                os.kill(pid, number)
+            except ProcessLookupError:
+                pass
+
+    def gone():
+        process.poll()
+        return not any(alive(pid) for pid in pids)
+
+    signal_all(signal.SIGTERM)
+    end = time.monotonic() + patience
+    while not gone() and time.monotonic() < end:
+        time.sleep(0.05)
+    if not gone():
+        signal_all(signal.SIGKILL)
+        while not gone() and time.monotonic() < end + 5:
+            time.sleep(0.05)
+    try:
+        process.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+        pass
+
+
+def stop_all():
+    for process in list(STARTED):
+        stop(process, patience=3.0)
+
+
+def _ended(number, _frame):
+    raise SystemExit(128 + number)
+
+
+atexit.register(stop_all)
+if threading.current_thread() is threading.main_thread():
+    for _number in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(_number, _ended)
 
 
 class Proxy:

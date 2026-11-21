@@ -82,11 +82,12 @@ fn sample(channel: &Channel, time: FlightTime, r: &mut Reader, dict: &Dictionary
         Some(format) => dict.format(format, &[(&channel.ty, &value)]),
         None => dict.display_channel(&channel.ty, &value),
     };
-    Ok(NewRecord {
-        id: Some(channel.id),
-        flight_time: Some(time),
-        ..NewRecord::new(KIND, json!({"name": channel.name, "value": value, "display_text": display_text}))
-    })
+    let mut body = json!({"name": channel.name, "value": value, "display_text": display_text});
+    // An array or a struct without a format string: its members, each leaf as text.
+    if let (None, Some(members)) = (&channel.format, dict.display_channel_members(&channel.ty, &value)) {
+        body["display_members"] = members;
+    }
+    Ok(NewRecord { id: Some(channel.id), flight_time: Some(time), ..NewRecord::new(KIND, body) })
 }
 
 pub struct ChannelDecoder;

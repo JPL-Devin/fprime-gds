@@ -62,10 +62,13 @@ class ChannelsTab extends LitElement {
     if (this.stop) this.stop();
   }
 
-  // Scalars as the dictionary formats them; arrays and structures member by member.
-  shown(record) {
-    const value = record.body.value;
-    return value !== null && typeof value === "object" ? this.gds.format.value(value) : record.body.display_text;
+  // What the Python GDS page shows. With a format string: the formatted text. Without:
+  // an array or a structure member by member, each leaf as formatted text; a scalar is
+  // the value itself, which the page writes (a float as `String(number)`).
+  shown(record, definition) {
+    const body = record.body;
+    if (definition.format) return body.display_text;
+    return this.gds.format.value(body.display_members !== undefined ? body.display_members : body.value);
   }
 
   render() {
@@ -77,7 +80,7 @@ class ChannelsTab extends LitElement {
       if (!record && !this.all) return false;
       if (packet && !packet.members.has(d.name)) return false;
       if (!needle) return true;
-      return [d.name, format.hexId(d.id), record ? this.shown(record) : ""]
+      return [d.name, format.hexId(d.id), record ? this.shown(record, d) : ""]
         .some((field) => String(field).toLowerCase().includes(needle));
     });
     return html`
@@ -108,7 +111,7 @@ class ChannelsTab extends LitElement {
               <td class="nowrap mono" data-col="ground">${r ? format.groundTime(r.ground_time) : ""}</td>
               <td class="nowrap mono" data-col="id">${format.hexId(d.id)}</td>
               <td class="nowrap" data-col="name">${d.name}</td>
-              <td class="text" data-col="value" >${r ? this.shown(r) : ""}</td>
+              <td class="text" data-col="value" >${r ? this.shown(r, d) : ""}</td>
             </tr>`;
           })}
         </tbody>

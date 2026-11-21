@@ -42,30 +42,39 @@ fn plain(ty: &Type, value: &Value, nested: bool) -> String {
 
 /// A channel value as the Python GDS shows it: in arrays and structs every leaf is
 /// text, filled into the format string of its array element or struct member.
-fn leaves_as_text(dict: &Dictionary, ty: &Type, value: &Value, format: Option<&str>) -> String {
+fn leaves_as_text(dict: &Dictionary, ty: &Type, value: &Value, format: Option<&str>) -> Value {
     let list = |ty: &Type, items: &[Value], format: Option<&str>| {
-        let items: Vec<_> = items.iter().map(|v| leaves_as_text(dict, ty, v, format)).collect();
-        format!("[{}]", items.join(", "))
+        Value::Array(items.iter().map(|v| leaves_as_text(dict, ty, v, format)).collect())
     };
     match (ty, value) {
         (Type::Array { element, format, .. }, Value::Array(items)) => list(element, items, format.as_deref()),
-        (Type::Struct { members, .. }, Value::Object(fields)) => {
-            let fields: Vec<_> = members
+        (Type::Struct { members, .. }, Value::Object(fields)) => Value::Object(
+            members
                 .iter()
                 .filter_map(|m| Some((m, fields.get(&m.name)?)))
                 .map(|(m, v)| match (m.count, v) {
-                    (Some(_), Value::Array(items)) => {
-                        format!("'{}': {}", m.name, list(&m.ty, items, m.format.as_deref()))
-                    }
-                    _ => format!("'{}': {}", m.name, leaves_as_text(dict, &m.ty, v, m.format.as_deref())),
+                    (Some(_), Value::Array(items)) => (m.name.clone(), list(&m.ty, items, m.format.as_deref())),
+                    _ => (m.name.clone(), leaves_as_text(dict, &m.ty, v, m.format.as_deref())),
                 })
-                .collect();
+                .collect(),
+        ),
+        _ => Value::String(match format {
+            Some(format) => dict.format(format, &[(ty, value)]),
+            None => plain(ty, value, false),
+        }),
+    }
+}
+
+/// Lists, dictionaries and text as Python's `str()` shows a list or a dictionary.
+fn python_text(value: &Value) -> String {
+    match value {
+        Value::Array(items) => format!("[{}]", items.iter().map(python_text).collect::<Vec<_>>().join(", ")),
+        Value::Object(fields) => {
+            let fields: Vec<_> = fields.iter().map(|(name, v)| format!("'{name}': {}", python_text(v))).collect();
             format!("{{{}}}", fields.join(", "))
         }
-        _ => match format {
-            Some(format) => format!("'{}'", dict.format(format, &[(ty, value)])),
-            None => format!("'{}'", plain(ty, value, false)),
-        },
+        Value::String(text) => format!("'{text}'"),
+        other => other.to_string(),
     }
 }
 
@@ -190,9 +199,15 @@ impl Dictionary {
     /// The value of a channel as text, without a format string.
     pub fn display_channel(&self, ty: &Type, value: &Value) -> String {
         match ty {
-            Type::Array { .. } | Type::Struct { .. } => leaves_as_text(self, ty, value, None),
+            Type::Array { .. } | Type::Struct { .. } => python_text(&leaves_as_text(self, ty, value, None)),
             _ => plain(ty, value, false),
         }
+    }
+
+    /// The members of an array or struct channel value, each leaf as its text: what
+    /// `display_channel` writes on one line. `None` for a scalar.
+    pub fn display_channel_members(&self, ty: &Type, value: &Value) -> Option<Value> {
+        matches!(ty, Type::Array { .. } | Type::Struct { .. }).then(|| leaves_as_text(self, ty, value, None))
     }
 
     /// Fill an FPP format string: `{}` takes the next value as it is, `{x}`, `{.2f}`
