@@ -36,7 +36,8 @@ pub const KIND_PROBLEM: &str = "fprime.file.problem";
 const NAME: &str = "files";
 
 /// `directory`: where the files are kept when the option `directory` is not given;
-/// `None` is `fgds-files` in the temporary directory of the machine.
+/// `None` is the places of the Python GDS: `<user>/fprime-uplink` and `<user>/fprime-downlink` in the
+/// temporary directory of the machine.
 #[derive(Debug, Clone, Default)]
 pub struct FilesPlugin {
     pub directory: Option<PathBuf>,
@@ -45,7 +46,7 @@ pub struct FilesPlugin {
 /// The options of the plugin, read where they are used.
 #[derive(Debug, Clone)]
 pub(crate) struct Options {
-    pub directory: PathBuf,
+    pub directory: Option<PathBuf>,
     pub chunk: usize,
     pub cooldown: Duration,
     pub timeout: Duration,
@@ -67,7 +68,7 @@ impl Options {
             return Err(Error::Config("[plugins.files] chunk-size: between 1 and 65535".into()));
         }
         Ok(Options {
-            directory: directory.unwrap_or_else(|| std::env::temp_dir().join("fgds-files")),
+            directory,
             chunk,
             cooldown: Duration::from_secs_f64(number("cooldown", 0.01)?),
             timeout: Duration::from_secs_f64(number("timeout", 20.0)?),
@@ -76,11 +77,23 @@ impl Options {
     }
 
     pub fn uplink_dir(&self) -> PathBuf {
-        self.directory.join("uplink")
+        self.place("uplink")
     }
 
     pub fn downlink_dir(&self) -> PathBuf {
-        self.directory.join("downlink")
+        self.place("downlink")
+    }
+
+    /// Without the option `directory`, where the Python GDS keeps the files: the path of the staged copy
+    /// is the source path of the start packet, so it is the same bytes for the same user.
+    fn place(&self, kind: &str) -> PathBuf {
+        match &self.directory {
+            Some(directory) => directory.join(kind),
+            None => {
+                let user = std::env::var("USER").or_else(|_| std::env::var("LOGNAME")).unwrap_or_default();
+                std::env::temp_dir().join(user).join(format!("fprime-{kind}"))
+            }
+        }
     }
 }
 
@@ -241,7 +254,7 @@ impl Plugin for FilesPlugin {
             options: vec![
                 option(
                     "directory",
-                    "Directory of uplink and downlink files (default: fgds-files in the temporary directory)",
+                    "Directory of uplink and downlink files (default: <user>/fprime-uplink and <user>/fprime-downlink in the temporary directory, as the Python GDS)",
                     None,
                 ),
                 option("chunk-size", "Bytes of file data per uplink packet", Some("256")),

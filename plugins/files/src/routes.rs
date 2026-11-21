@@ -61,6 +61,9 @@ struct Upload {
     name: String,
     /// Path on the spacecraft, passed unchanged; the base name when absent.
     destination: Option<String>,
+    /// Source path written in the start packet; the path of the staged copy when absent. A script
+    /// gives the path of its own file, as the uplinker of the Python GDS sends it.
+    source: Option<String>,
 }
 
 /// The request body is the content of the file.
@@ -89,7 +92,7 @@ async fn upload(
     }
     // The path of the staged copy is the source path of the start packet, as with the
     // Python GDS; a path too long for the packet is replaced by the name.
-    let source = path.to_string_lossy().into_owned();
+    let source = upload.source.filter(|s| !s.is_empty()).unwrap_or_else(|| path.to_string_lossy().into_owned());
     let source = if source.len() > 255 { name.clone() } else { source };
     let mut transfer = Transfer {
         id: shared.new_id("up"),

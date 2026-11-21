@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import struct
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -62,8 +63,9 @@ class Client:
                 pairs.append((key, "true" if one is True else "false" if one is False else str(one)))
         if pairs:
             url += "?" + urllib.parse.urlencode(pairs)
-        data = None if body is None else json.dumps(body).encode()
-        headers = {"content-type": "application/json", "x-fgds-client": self.name}
+        data = None if body is None else body if isinstance(body, bytes) else json.dumps(body).encode()
+        headers = {"content-type": "application/octet-stream" if isinstance(body, bytes) else "application/json",
+                   "x-fgds-client": self.name}
         request = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as answer:
@@ -77,6 +79,27 @@ class Client:
                 code, message = "http", text.decode(errors="replace")
             raise ApiError(error.code, code, message) from None
         return json.loads(text) if text else None
+
+    def upload(self, path, destination=None, wait=60):
+        """Queue a file for uplink (files plugin); the queue entry is returned.
+
+        The start packet carries `path` as its source path, as with the Python GDS. A file of the same
+        name still in the queue is waited for (`wait` seconds): the Python GDS queues it behind.
+        """
+        path = str(path)
+        query = {"name": os.path.basename(path), "source": path}
+        if destination is not None:
+            query["destination"] = str(destination)
+        with open(path, "rb") as file:
+            content = file.read()
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                return self._call("POST", "files/uplink", query, content)
+            except ApiError as error:
+                if error.status != 409 or time.monotonic() > deadline:
+                    raise
+                time.sleep(0.05)
 
     def version(self):
         return self.get("version")

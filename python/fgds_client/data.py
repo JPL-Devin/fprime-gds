@@ -5,6 +5,37 @@ import functools
 from enum import Enum
 
 
+class _Bool:
+    """A boolean argument: equal to the bool, with `.val` as the type objects of the Python GDS."""
+
+    def __init__(self, value):
+        self.val = value
+
+    def __eq__(self, other):
+        return self.val == other
+
+    def __hash__(self):
+        return hash(self.val)
+
+    def __bool__(self):
+        return self.val
+
+    def __repr__(self):
+        return repr(self.val)
+
+
+def _arg(value):
+    """An argument value that is the plain value (it compares, prints and encodes as it) and also has
+    `.val`, which tests written for the Python GDS read."""
+    if isinstance(value, bool):
+        return _Bool(value)
+    if value is None or hasattr(value, "val"):
+        return value
+    kind = type(value)
+    plain = {"__repr__": kind.__repr__, "__str__": kind.__str__}
+    return type(kind.__name__, (kind,), {"val": property(lambda self: kind(self)), **plain})(value)
+
+
 class EventSeverity(Enum):
     COMMAND = 1
     ACTIVITY_LO = 2
@@ -99,7 +130,7 @@ class EventData(_Item):
         super().__init__(record)
         args = self.body.get("args") or {}
         self.arg_names = list(args) if isinstance(args, dict) else []
-        self.args = list(args.values()) if isinstance(args, dict) else list(args)
+        self.args = [_arg(value) for value in (args.values() if isinstance(args, dict) else args)]
         self.display_text = self.body.get("display_text", "")
         severity = self.body.get("severity")
         self.severity = EventSeverity[severity] if severity in EventSeverity.__members__ else severity
@@ -121,7 +152,7 @@ class EventData(_Item):
             "name": self.name,
             "id": self.id,
             "severity": str(self.severity),
-            "args": self.args,
+            "args": [a.val if isinstance(a, _Bool) else a for a in self.args],
             "display_text": self.display_text,
         }
 
@@ -174,7 +205,7 @@ class CmdData(_Item):
     def __init__(self, record):
         super().__init__(record)
         args = self.body.get("args") or {}
-        self.args = list(args.values()) if isinstance(args, dict) else list(args)
+        self.args = [_arg(value) for value in (args.values() if isinstance(args, dict) else args)]
         self.client = self.body.get("client")
         self.outcome = self.body.get("outcome")
 

@@ -12,7 +12,10 @@ echo "== cli 1. Python client, without a GDS"
 PYTHONPATH=$PWD/python "$VENV/bin/python" -m pytest -q -p no:fprime_test_api -p no:cacheprovider python/tests/unit
 
 echo "== cli 2. Ref integration tests through fgds_client"
-"$VENV/bin/python" tests/cli/ref_int.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT/ref-int"
+# The test files of the fprime checkout, unchanged. test_fpy needs fprime-fpyc with llvmlite, which the
+# environment does not have: it fails before reaching any GDS, with the Python GDS too.
+"$VENV/bin/python" tests/cli/ref_int.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT/ref-int" \
+    --tests "${FPRIME:?}/TestDeploymentsProject/Ref/test/int" --deselect test_fpy.py::test_fpy_sequence
 
 echo "== cli 3. fgds subcommands against fprime-cli"
 python3 tests/cli/check.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" \

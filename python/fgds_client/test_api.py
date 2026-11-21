@@ -11,6 +11,8 @@ import bisect
 import datetime
 import json
 import os
+import shutil
+import subprocess
 import tempfile
 import threading
 import time
@@ -99,7 +101,9 @@ class TestApi:
 
     NOW = "NOW"
 
-    def __init__(self, client=None, logpath=None, dictionary_path=None):
+    def __init__(self, client=None, logpath=None, dictionary_path=None, deployment_config=None):
+        self.deployment_config = deployment_config
+        self._sequence_tempdirs = []
         self.client = client if isinstance(client, Client) else Client(client) if client else Client()
         self.logpath, self._dictionary_path = logpath, dictionary_path
         self._log_file = None
@@ -131,6 +135,9 @@ class TestApi:
         return self
 
     def teardown(self):
+        for directory in self._sequence_tempdirs:
+            shutil.rmtree(directory, ignore_errors=True)
+        self._sequence_tempdirs = []
         self._stop.set()
         if self._stream is not None:
             self._stream.close()
@@ -421,19 +428,77 @@ class TestApi:
         self.__assert_pred("Event count", self.__count_pred(count), len(results), "checks if count search found a correct amount of events")
         return results
 
-    # Files: served by the files plugin of `fgds`, not by this client yet.
+    # Deployment configuration: the JSON file of `--deployment-config`, as in the F Prime API.
+
+    def get_deployment(self):
+        return self.client.dictionary().get("metadata", {}).get("deploymentName")
+
+    def get_config_file_path(self):
+        return self.deployment_config if self.deployment_config else None
+
+    def load_config_file(self):
+        path = self.get_config_file_path()
+        if path is None:
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                return json.load(file)
+        except FileNotFoundError:
+            self.__log(f"Error: File not found at path {path}")
+        except json.JSONDecodeError as error:
+            self.__log(f"Error: {path} is not JSON: {error}")
+        return None
+
+    def get_mnemonic(self, comp=None, name=None):
+        mnemonic = (self.load_config_file() or {}).get(comp)
+        if mnemonic is None:
+            if self.get_config_file_path() is not None:
+                self.__log(f"Error: {comp} not found")
+            mnemonic = comp
+        return f"{mnemonic}.{name}" if name else f"{mnemonic}"
+
+    def get_prm_db_path(self):
+        path = (self.load_config_file() or {}).get("Svc.PrmDb.filename")
+        if path is None:
+            return None
+        if not path.startswith("/"):
+            self.__log(f"Error: {path} did not start with a forward slash")
+            return None
+        return path
+
+    # Files: queued for uplink through the files plugin of `fgds`.
 
     def uplink_file(self, file_path, destination=None, packets=None):
-        raise NotImplementedError("file uplink needs the files plugin of fgds; use client.post(...) on its routes")
+        """Put the file on the uplink queue; `packets` (fault injection of the Python GDS) is not supported."""
+        if packets is not None:
+            raise NotImplementedError("fgds sends every packet of a file; a packet selection is not supported")
+        entry = self.client.upload(file_path, destination)
+        self.__log(f"Queued {file_path} for uplink to {destination or os.path.basename(str(file_path))}")
+        return entry
 
     def uplink_file_and_await_completion(self, file_path, destination=None, timeout=10, packets=None):
-        raise NotImplementedError("file uplink needs the files plugin of fgds; use client.post(...) on its routes")
+        start = self.event_history.size()
+        self.uplink_file(file_path, destination, packets)
+        return self.await_event("FileReceived", start=start, timeout=timeout) is not None
 
     def uplink_sequence(self, sequence_path, destination=None):
-        raise NotImplementedError("sequence uplink needs the files plugin of fgds; use client.post(...) on its routes")
+        """Compile the sequence with `fgds seqgen` (`$FGDS` or `fgds` on the path) and queue the binary file."""
+        directory = tempfile.mkdtemp(prefix="fgds-sequence-")
+        self._sequence_tempdirs.append(directory)
+        binary = os.path.join(directory, os.path.splitext(os.path.basename(str(sequence_path)))[0] + ".bin")
+        command = [os.environ.get("FGDS", "fgds"), "seqgen", str(sequence_path), binary,
+                   "--dictionary", str(self._dictionaries.dictionary_path)]
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            message = f"Failed to generate sequence binary from {sequence_path}: {(result.stderr or result.stdout).strip()}"
+            self.__log(message)
+            raise RuntimeError(message)
+        return self.uplink_file(binary, destination)
 
     def uplink_sequence_and_await_completion(self, sequence_path, destination=None, timeout=10):
-        raise NotImplementedError("sequence uplink needs the files plugin of fgds; use client.post(...) on its routes")
+        start = self.event_history.size()
+        self.uplink_sequence(sequence_path, destination)
+        return self.await_event("FileReceived", start=start, timeout=timeout) is not None
 
     # Searches.
 
