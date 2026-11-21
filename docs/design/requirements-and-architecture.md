@@ -602,6 +602,21 @@ examples/                one worked plugin per extension point; `custom-gds` bin
 
 Each feature is one crate holding its backend, routes, tab and subcommands, so omitting the crate removes the whole feature (CUS-4, CUS-5).
 
+### 4.11 Amendments after the first slice
+
+Accepted from `deviations.md` after the first slice was built. Where this section and 4.2 to 4.7 differ, this section wins.
+
+1. `Encoder` has `record_kind()`, and `encode` returns `Encoded { packet, id, body }`: the packet to send, the identifier and the body of the record published for the send.
+2. A raw send (`Uplink::send_packet`, `POST /api/v1/raw`) is recorded with kind `gds.raw_sent`; body: `length` and `source` (the plugin or client that sent it); `raw` holds the packet. File uplink uses it.
+3. Adapters, handlers and decoders are registered as factories that receive `PluginConfig`, so each can read its options (a decoder bound to an application identifier, for example). Every `add_*` returns `Result`, and a conflict names both plugins.
+4. `Manifest { name, version, options: Vec<OptionSpec { name, help, default, secret }>, requires_kinds }`. Option `name` of plugin `p` is `--p-name` on the command line, `[plugins.p] name` in the configuration file, and `name` in `PluginConfig`.
+5. `RunInfo` has `first_seq`. `KindSpec.text_fields` are JSON pointers into the body.
+6. Record API filters: `filter=<field>:<op>:<value>` with `eq ne lt le gt ge contains`, plus `before_seq`, `from`, `to`. Stream messages: `{"type":"record","record":{..}}` and `{"type":"lagged","last_seq":".."}` before a slow client is closed.
+7. Display text is produced by the decoder, stored in the body as `display_text`, and must equal the text the Python GDS shows, including format strings of array elements and struct members.
+8. A decoder may return several records for one packet; `raw` of each is its own slice of the packet.
+9. Every route of a plugin shares one `Context` (`axum::Router<Context>`).
+10. The storage failure path of 4.2 (commit time-out, buffer, retry) and the reserved uplink part of the hand-off queue are built with `storage-sqlite`, not in memory storage.
+
 ## 5. Dependencies
 
 | Need | Crate |
