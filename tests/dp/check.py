@@ -171,10 +171,18 @@ def check_against_live_tool():
     step(f"{compared} runs on damaged products equal a live fprime-dp ({decoded} still decoded, identical JSON)")
 
 
+_GIVEN = set()
+
+
 def free_port():
-    with socket.socket() as probe:
-        probe.bind(("127.0.0.1", 0))
-        return probe.getsockname()[1]
+    """A free port; never the same one twice in this process."""
+    while True:
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        if port not in _GIVEN:
+            _GIVEN.add(port)
+            return port
 
 
 def check_server():

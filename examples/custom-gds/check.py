@@ -17,10 +17,18 @@ BIN, DICTIONARY, OUT = sys.argv[1:4]
 TIME = bytes([0, 2, 0, 0, 0, 0, 100, 0, 0, 0, 7])
 
 
+_GIVEN = set()
+
+
 def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    """A free port; never the same one twice in this process."""
+    while True:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        if port not in _GIVEN:
+            _GIVEN.add(port)
+            return port
 
 
 def run(binary, *args):

@@ -47,10 +47,18 @@ START_WORD = bytes.fromhex("deadbeef")
 SETTLE = 4.0
 
 
+_GIVEN = set()
+
+
 def free_port():
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    """A free port; never the same one twice in this process."""
+    while True:
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        if port not in _GIVEN:
+            _GIVEN.add(port)
+            return port
 
 
 def wait_for(what, condition, timeout=30.0):
