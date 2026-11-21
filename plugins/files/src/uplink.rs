@@ -2,13 +2,37 @@
 
 use crate::packet::{self, Checksum, FilePacket};
 use crate::{publish, Options, Shared, Transfer, KIND_UPLINK};
-use fgds_core::{async_trait, Context, Filter, Handler, PacketMeta, RecordStream, Result, SendError};
+use fgds_core::{async_trait, Context, Filter, Handler, PacketMeta, Record, RecordStream, Result, SendError};
 use std::io::Read;
 use std::sync::Arc;
 use std::time::Duration;
 
 /// How often the link state is looked at when nothing else happens.
 const POLL: Duration = Duration::from_millis(100);
+
+/// How long after the end packet the flight side is watched before a transfer counts as finished.
+/// A write to a peer that is about to go away succeeds, and Ref takes about a second to end after
+/// an assert; `FileReceived` of `Svc.FileUplink` for the destination ends the wait at once.
+const CONFIRM: Duration = Duration::from_secs(2);
+
+/// What an event says about the transfer in progress.
+enum Seen {
+    Received,
+    Fatal(String),
+}
+
+fn seen(record: &Record, destination: &str) -> Option<Seen> {
+    if record.kind != "fprime.event" {
+        return None;
+    }
+    let name = record.body["name"].as_str().unwrap_or_default();
+    if record.body["severity"] == "FATAL" {
+        let text = record.body["display_text"].as_str().unwrap_or_default();
+        return Some(Seen::Fatal(format!("the flight software reported {name}: {text}")));
+    }
+    let named = record.body["args"].as_object().is_some_and(|args| args.values().any(|v| v == destination));
+    (name.ends_with(".FileReceived") && named).then_some(Seen::Received)
+}
 
 pub(crate) struct UplinkHandler {
     pub shared: Arc<Shared>,
@@ -26,8 +50,8 @@ enum Stop {
 #[async_trait]
 impl Handler for UplinkHandler {
     fn subscription(&self) -> Filter {
-        // Its own records, read and dropped: the queue is fed by the routes.
-        Filter::kinds(&[KIND_UPLINK])
+        // Events tell how the flight side took a transfer; its own records are read and dropped.
+        Filter::kinds(&[KIND_UPLINK, "fprime.event"])
     }
 
     async fn run(self: Box<Self>, ctx: Context, mut records: RecordStream) -> Result<()> {
@@ -44,7 +68,7 @@ impl Handler for UplinkHandler {
                     t.clone()
                 })
             };
-            // Its own progress records are read so that the subscription never lags.
+            // Records are read also when idle so that the subscription never lags.
             while let Ok(Some(_)) = tokio::time::timeout(Duration::ZERO, records.next()).await {}
             let Some(transfer) = next else {
                 tokio::select! {
@@ -56,7 +80,7 @@ impl Handler for UplinkHandler {
                 continue;
             };
             publish(&ctx, transfer.record(KIND_UPLINK)).await;
-            let outcome = self.transfer(&ctx, &transfer).await;
+            let outcome = self.transfer(&ctx, &transfer, &mut records).await;
             if matches!(outcome, Err(Stop::LinkLost)) {
                 self.shared.state().paused = true;
             }
@@ -96,8 +120,32 @@ impl UplinkHandler {
         }
     }
 
+    /// After the end packet: finished unless the link goes away or the flight software reports a
+    /// fatal event within `CONFIRM`.
+    async fn confirm(&self, ctx: &Context, transfer: &Transfer, records: &mut RecordStream) -> Result<(), Stop> {
+        let end = tokio::time::Instant::now() + CONFIRM;
+        loop {
+            if ctx.status.link() != "connected" {
+                return Err(Stop::LinkLost);
+            }
+            let wait = POLL.min(end.saturating_duration_since(tokio::time::Instant::now()));
+            if wait.is_zero() {
+                return Ok(());
+            }
+            match tokio::time::timeout(wait, records.next()).await {
+                Ok(Some(record)) => match seen(&record, &transfer.destination) {
+                    Some(Seen::Received) => return Ok(()),
+                    Some(Seen::Fatal(reason)) => return Err(Stop::Failed(reason)),
+                    None => {}
+                },
+                Ok(None) => return Ok(()),
+                Err(_) => {}
+            }
+        }
+    }
+
     /// Start packet, data packets, end packet: the sequence of the Python GDS.
-    async fn transfer(&self, ctx: &Context, transfer: &Transfer) -> Result<(), Stop> {
+    async fn transfer(&self, ctx: &Context, transfer: &Transfer, records: &mut RecordStream) -> Result<(), Stop> {
         let path = self.options.uplink_dir().join(&transfer.name);
         let mut file = std::fs::File::open(&path).map_err(|e| Stop::Failed(format!("{}: {e}", transfer.name)))?;
         let mut seq = 0;
@@ -118,6 +166,11 @@ impl UplinkHandler {
             if ctx.status.link() != "connected" {
                 return Err(Stop::LinkLost);
             }
+            while let Ok(Some(record)) = tokio::time::timeout(Duration::ZERO, records.next()).await {
+                if let Some(Seen::Fatal(reason)) = seen(&record, &transfer.destination) {
+                    return Err(Stop::Failed(reason));
+                }
+            }
             // Pausing the queue cancels the file being sent, as the Python GDS does.
             if cancel || paused || ctx.shutdown.is_cancelled() {
                 self.send(ctx, &mut seq, FilePacket::Cancel).await?;
@@ -127,7 +180,8 @@ impl UplinkHandler {
             // The size is in the start packet: never send more, even if the file grew.
             let length = length.min((transfer.size - offset) as usize);
             if length == 0 {
-                return self.send(ctx, &mut seq, FilePacket::End { checksum: checksum.0 }).await;
+                self.send(ctx, &mut seq, FilePacket::End { checksum: checksum.0 }).await?;
+                return self.confirm(ctx, transfer, records).await;
             }
             checksum.update(&chunk[..length], offset);
             self.send(ctx, &mut seq, FilePacket::Data { offset: offset as u32, data: chunk[..length].to_vec() })

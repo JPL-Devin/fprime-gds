@@ -69,7 +69,7 @@ impl Options {
         Ok(Options {
             directory: directory.unwrap_or_else(|| std::env::temp_dir().join("fgds-files")),
             chunk,
-            cooldown: Duration::from_secs_f64(number("cooldown", 0.0)?),
+            cooldown: Duration::from_secs_f64(number("cooldown", 0.01)?),
             timeout: Duration::from_secs_f64(number("timeout", 20.0)?),
             max_upload: number("max-upload-bytes", 64.0 * 1024.0 * 1024.0)? as usize,
         })
@@ -245,7 +245,7 @@ impl Plugin for FilesPlugin {
                     None,
                 ),
                 option("chunk-size", "Bytes of file data per uplink packet", Some("256")),
-                option("cooldown", "Seconds between two uplink packets", Some("0")),
+                option("cooldown", "Seconds between two uplink packets", Some("0.01")),
                 option("timeout", "Seconds without progress after which a transfer fails", Some("20")),
                 option("max-upload-bytes", "Largest file accepted for uplink", Some("67108864")),
             ],

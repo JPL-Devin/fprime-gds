@@ -3,3 +3,5 @@
 set -euo pipefail
 PATH="$VENV/bin:$PATH" "$VENV/bin/python" tests/files/check.py --fgds "$FGDS" --ref "$REF_BIN" \
     --dictionary "$DICTIONARY" --out "$OUT"
+PATH="$VENV/bin:$PATH" "$VENV/bin/python" tests/files/repeat.py --fgds "$FGDS" --ref "$REF_BIN" \
+    --dictionary "$DICTIONARY" --out "$OUT"

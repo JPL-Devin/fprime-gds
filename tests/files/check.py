@@ -340,7 +340,8 @@ def cancel(seq):
 def bad_packets(args, out):
     shutil.rmtree(out, ignore_errors=True)
     store = f"{out}/store"
-    gds = Fgds(args, out, store, ["--files-timeout", "1.5"], framing="fprime")
+    # No pause between uplink packets: the buffers of a flight side that does not read fill at once.
+    gds = Fgds(args, out, store, ["--files-timeout", "1.5", "--files-cooldown", "0"], framing="fprime")
     try:
         flight = scenario.wait_for("the link", lambda: socket.create_connection(("127.0.0.1", gds.link_port)))
         a, b, c = b"A" * 300, b"B" * 300, b"C" * 77
@@ -524,4 +525,5 @@ def main():
     print("files: all passed")
 
 
-main()
+if __name__ == "__main__":
+    main()
