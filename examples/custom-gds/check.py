@@ -112,7 +112,8 @@ try:
     assert get("/api/v1/records?kind=raw.discarded")["records"], "the noise was not recorded"
     step("downlink through station + fprime framing; station number kept as packet metadata")
     assert call("/api/v1/commands", {"name": "T.c.NO_OP"})[0] == 200
-    sent = flight.recv(100)
+    # The TCP adapter writes its keep-alive text between frames while idle, as the Python GDS does.
+    sent = flight.recv(100).replace(b"sitting well", b"")
     assert sent == station_frame(fprime_frame(bytes([0, 0, 0, 0, 1, 0])), 1), sent.hex()
     step("uplink through fprime + station framing")
 

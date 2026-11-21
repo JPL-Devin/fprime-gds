@@ -7,9 +7,11 @@ use fgds_core::{
     Adapter, Error, LinkReader, LinkWriter, Manifest, OptionSpec, PeerInfo, Plugin, PluginConfig, Registry, Result,
 };
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Mutex;
 
 pub struct TcpPlugin;
 
@@ -23,14 +25,22 @@ impl Plugin for TcpPlugin {
                 help: "Address to listen on (tcp-server) or to connect to (tcp-client)",
                 default: Some("0.0.0.0:50000"),
                 secret: false,
+            }, OptionSpec {
+                name: "keepalive-interval",
+                help: "Seconds between the keep-alive bytes written to the flight software, as the Python GDS; 0 writes none",
+                default: Some("0.5"),
+                secret: false,
             }],
             ..Default::default()
         }
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_adapter("tcp-client", Arc::new(|cfg| Ok(Box::new(Client { address: address(cfg) }))))?;
-        reg.add_adapter("tcp-server", Arc::new(|cfg| Ok(Box::new(Server::bind(address(cfg))?))))
+        reg.add_adapter(
+            "tcp-client",
+            Arc::new(|cfg| Ok(Box::new(Client { address: address(cfg), keepalive: keepalive(cfg)? }))),
+        )?;
+        reg.add_adapter("tcp-server", Arc::new(|cfg| Ok(Box::new(Server::bind(address(cfg), keepalive(cfg)?)?))))
     }
 }
 
@@ -38,23 +48,38 @@ fn address(cfg: &PluginConfig) -> String {
     cfg.get("address").unwrap_or_default()
 }
 
+/// What the IP adapter of the Python GDS writes, unframed, every interval while connected
+/// (`IpAdapter.KEEPALIVE_DATA`): a write that fails tells it the peer left. The flight software
+/// deframer discards the bytes.
+const KEEPALIVE: &[u8] = b"sitting well";
+
+fn keepalive(cfg: &PluginConfig) -> Result<Duration> {
+    // Without the option (a registry built by hand) nothing is written.
+    let text = cfg.get("keepalive-interval").unwrap_or_else(|| "0".into());
+    match text.parse::<f64>() {
+        Ok(seconds) if seconds.is_finite() && seconds >= 0.0 => Ok(Duration::from_secs_f64(seconds)),
+        _ => Err(Error::other(format!("comm-tcp keepalive-interval: {text:?} is not a number of seconds"))),
+    }
+}
+
 type Halves = (Box<dyn LinkReader>, Box<dyn LinkWriter>, PeerInfo);
 
-fn halves(stream: TcpStream, address: String) -> Halves {
+fn halves(stream: TcpStream, address: String, keepalive: Duration) -> Halves {
     let (reader, writer) = stream.into_split();
     let peer = PeerInfo { address, message_boundaries: false };
-    (Box::new(Reader(reader, None)), Box::new(Writer(writer)), peer)
+    (Box::new(Reader(reader, None)), Box::new(Writer::new(writer, keepalive)), peer)
 }
 
 struct Client {
     address: String,
+    keepalive: Duration,
 }
 
 #[async_trait]
 impl Adapter for Client {
     async fn connect(&mut self) -> Result<Halves> {
         let stream = TcpStream::connect(&self.address).await.map_err(|e| io(&self.address, e))?;
-        Ok(halves(stream, self.address.clone()))
+        Ok(halves(stream, self.address.clone(), self.keepalive))
     }
 }
 
@@ -64,15 +89,16 @@ struct Server {
     listener: Arc<TcpListener>,
     /// Refuses other peers while one is connected.
     refusing: Option<tokio::task::JoinHandle<()>>,
+    keepalive: Duration,
 }
 
 impl Server {
     /// Must be called inside the runtime.
-    fn bind(address: String) -> Result<Server> {
+    fn bind(address: String, keepalive: Duration) -> Result<Server> {
         let listener = std::net::TcpListener::bind(&address).map_err(|e| io(&address, e))?;
         listener.set_nonblocking(true).map_err(|e| io(&address, e))?;
         let listener = TcpListener::from_std(listener).map_err(|e| io(&address, e))?;
-        Ok(Server { address, listener: Arc::new(listener), refusing: None })
+        Ok(Server { address, listener: Arc::new(listener), refusing: None, keepalive })
     }
 }
 
@@ -100,7 +126,7 @@ impl Adapter for Server {
             }
         }));
         let info = PeerInfo { address: peer.to_string(), message_boundaries: false };
-        Ok((Box::new(Reader(reader, Some(connected))), Box::new(Writer(writer)), info))
+        Ok((Box::new(Reader(reader, Some(connected))), Box::new(Writer::new(writer, self.keepalive)), info))
     }
 }
 
@@ -118,11 +144,38 @@ impl LinkReader for Reader {
     }
 }
 
-struct Writer(OwnedWriteHalf);
+/// The keep-alive task shares the socket: a frame and the keep-alive bytes never interleave.
+struct Writer {
+    socket: Arc<Mutex<OwnedWriteHalf>>,
+    keepalive: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Writer {
+    fn new(socket: OwnedWriteHalf, interval: Duration) -> Writer {
+        let socket = Arc::new(Mutex::new(socket));
+        let keepalive = (!interval.is_zero()).then(|| {
+            let socket = socket.clone();
+            tokio::spawn(async move {
+                while socket.lock().await.write_all(KEEPALIVE).await.is_ok() {
+                    tokio::time::sleep(interval).await;
+                }
+            })
+        });
+        Writer { socket, keepalive }
+    }
+}
+
+impl Drop for Writer {
+    fn drop(&mut self) {
+        if let Some(task) = &self.keepalive {
+            task.abort();
+        }
+    }
+}
 
 #[async_trait]
 impl LinkWriter for Writer {
     async fn write(&mut self, data: &[u8]) -> Result<()> {
-        self.0.write_all(data).await.map_err(Error::Io)
+        self.socket.lock().await.write_all(data).await.map_err(Error::Io)
     }
 }

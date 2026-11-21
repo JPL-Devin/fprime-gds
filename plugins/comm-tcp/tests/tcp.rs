@@ -107,3 +107,43 @@ async fn a_second_peer_is_closed_while_the_first_is_connected() {
     third.write_all(b"y").await.unwrap();
     assert_eq!(reader.read(&mut buf).await.unwrap(), 1);
 }
+
+#[tokio::test]
+async fn keepalive_bytes_are_written_between_frames_as_the_python_gds() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let mut registry = Registry::new();
+    registry.register(&comm_tcp::TcpPlugin).unwrap();
+    let mut cfg = PluginConfig::default();
+    cfg.set("address", &listener.local_addr().unwrap().to_string());
+    cfg.set("keepalive-interval", "0.05");
+    let mut client = (registry.adapters["tcp-client"].1)(&cfg).unwrap();
+    let (_reader, mut writer, _) = client.connect().await.unwrap();
+    let mut peer = listener.accept().await.unwrap().0;
+    let mut first = [0; 12];
+    peer.read_exact(&mut first).await.unwrap();
+    assert_eq!(&first, b"sitting well");
+    writer.write(b"<frame>").await.unwrap();
+    let mut seen = Vec::new();
+    while seen.len() < 100 {
+        let mut buf = [0; 64];
+        let n = peer.read(&mut buf).await.unwrap();
+        seen.extend_from_slice(&buf[..n]);
+    }
+    // Whole keep-alive texts and the whole frame, never one inside the other.
+    let text = String::from_utf8(seen).unwrap();
+    let rest = text.replacen("<frame>", "", 1);
+    assert_ne!(rest, text);
+    assert!(rest.replace("sitting well", "").len() < 12, "{text}");
+    // Nothing more once the writer is gone.
+    drop(writer);
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let mut buf = [0; 256];
+    while let Ok(Ok(n)) = tokio::time::timeout(std::time::Duration::from_millis(200), peer.read(&mut buf)).await {
+        if n == 0 {
+            break;
+        }
+    }
+    assert!(tokio::time::timeout(std::time::Duration::from_millis(200), peer.read(&mut buf))
+        .await
+        .map_or(true, |r| r.unwrap() == 0));
+}
