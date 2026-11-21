@@ -107,6 +107,8 @@ fn query(params: &[(String, String)]) -> Result<Query, ApiError> {
                     q.ids.push(number(key, id)?);
                 }
             }
+            // `run=all`: every run of the database (STO-5).
+            "run" if value == "all" => q.all_runs = true,
             "run" => q.run = Some(number(key, value)?),
             "after_seq" => q.after_seq = Some(number(key, value)?),
             "before_seq" => q.before_seq = Some(number(key, value)?),

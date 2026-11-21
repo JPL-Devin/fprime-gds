@@ -272,7 +272,20 @@ impl Open {
         if !path.is_file() {
             return Err(at(&"no such database"));
         }
-        let reader = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| at(&e))?;
+        // A database that was closed properly is opened as immutable: not one file is
+        // created beside it. After a killed GDS the write-ahead log still holds the last
+        // records, and reading it needs SQLite's shared-memory file beside the database.
+        let wal = PathBuf::from(format!("{}-wal", path.display()));
+        let reader = match wal.metadata().is_ok_and(|m| m.len() > 0) {
+            true => Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY),
+            false => {
+                let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
+                let absolute = std::path::absolute(&path).map_err(|e| at(&e))?;
+                let quoted = absolute.display().to_string().replace('%', "%25").replace('?', "%3f").replace('#', "%23");
+                Connection::open_with_flags(format!("file:{quoted}?immutable=1"), flags)
+            }
+        }
+        .map_err(|e| at(&e))?;
         reader.prepare("SELECT 1 FROM meta").map_err(|_| at(&"not a GDS database"))?;
         check_version(&reader, &path)?;
         let last = read_runs(&reader)?.pop().ok_or_else(|| at(&"the database holds no run"))?;
@@ -487,9 +500,20 @@ impl Storage for SqliteStorage {
     async fn close(&self) -> Result<()> {
         let Some(open) = locked(&self.0).take() else { return Ok(()) };
         tokio::task::spawn_blocking(move || {
-            // Fold the write-ahead log into the file, so the file alone is the database.
-            if let Some(writer) = &open.writer {
-                let _ = locked(writer).pragma_update(None, "wal_checkpoint", "TRUNCATE");
+            // The reader goes first: the last connection to close is then the writer,
+            // which folds the write-ahead log into the file and removes it, so the file
+            // alone is the database.
+            match Arc::try_unwrap(open) {
+                Ok(Open { writer, reader, .. }) => {
+                    drop(reader);
+                    drop(writer);
+                }
+                // A query is still running: its connection closes when it ends.
+                Err(open) => {
+                    if let Some(writer) = &open.writer {
+                        let _ = locked(writer).execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
+                    }
+                }
             }
         })
         .await
