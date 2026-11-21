@@ -235,27 +235,37 @@ def files_and_products(page, gds):
 def stream_that_ends(browser, gds):
     """A subscription whose server ends it continues after the last record delivered (UI-3)."""
     page = browser.new_page()
-    opened = []
-
-    def serve(socket):
-        opened.append(socket.url.split("?")[1])
-        if len(opened) == 1:  # one record, then the server says records were dropped and closes
-            socket.send(json.dumps({"type": "record", "record": {"seq": "5"}}))
-            socket.send(json.dumps({"type": "lagged", "last_seq": "5"}))
-            socket.close()
-        elif len(opened) == 2:
-            socket.send(json.dumps({"type": "record", "record": {"seq": "6"}}))
-
-    page.route_web_socket(lambda url: "kind=test.stream" in url, serve)
+    # The stream of kind `test.stream` is played by the page itself: the first socket delivers a
+    # record, says records were dropped and closes; the second delivers the next record.
+    page.add_init_script("""
+        window.opened = [];
+        const Real = window.WebSocket;
+        window.WebSocket = function (url) {
+            if (!url.includes("kind=test.stream")) return new Real(url);
+            const socket = { close() { setTimeout(() => socket.onclose && socket.onclose({}), 0); } };
+            const say = (data) => socket.onmessage && socket.onmessage({ data: JSON.stringify(data) });
+            const nth = window.opened.push(url.split("?")[1]);
+            setTimeout(() => {
+                if (nth === 1) {
+                    say({ type: "record", record: { seq: "5" } });
+                    say({ type: "lagged", last_seq: "5" });
+                    socket.close();
+                } else if (nth === 2) say({ type: "record", record: { seq: "6" } });
+            }, 0);
+            return socket;
+        };
+    """)
     page.goto(gds.url)
     page.wait_for_selector("body[data-ready=true]")
     page.evaluate("""() => { window.seen = [];
         window.end = gds.records.subscribe({ kinds: ["test.stream"], afterSeq: "3" }, (r) => window.seen.push(r.seq)); }""")
     page.wait_for_function("() => window.seen.length === 2", timeout=10000)
-    assert page.evaluate("window.seen") == ["5", "6"] and opened == ["kind=test.stream&after_seq=3", "kind=test.stream&after_seq=5"], opened
+    opened = page.evaluate("window.opened")
+    assert page.evaluate("window.seen") == ["5", "6"], page.evaluate("window.seen")
+    assert opened == ["kind=test.stream&after_seq=3", "kind=test.stream&after_seq=5"], opened
     page.evaluate("() => window.end()")
     page.wait_for_timeout(1500)
-    assert len(opened) == 2, opened  # ended by the tab: no reconnection
+    assert len(page.evaluate("window.opened")) == 2  # ended by the tab: no reconnection
     step("a stream the server ends is opened again after the last record delivered, "
          "not when the tab ended it")
     page.close()
