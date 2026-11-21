@@ -83,7 +83,28 @@ def results(args, out, proxy, down_dir, product, skip=0):
 
 # ---------------------------------------------------------------- the Python GDS
 
-def python_side(args, out, staging):
+class HandshakeMissed(Exception):
+    """The uplinker of the Python GDS stopped: it sends a packet before it notes the handshake to expect."""
+
+
+def python_side(args, out, staging, attempts=3):
+    """The run of the Python GDS, begun again from a new Ref when its uplinker missed a handshake.
+
+    `FileUplinker.send` (fprime_gds/common/files/uplinker.py) hands the packet to the encoder and only then
+    sets the handshake it expects; the handshake of a start packet (sent from the queue thread) can return
+    in between, is ignored, nothing more is sent and the file ends as TIMEOUT after 20 s. No fgds process is
+    part of this.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return python_once(args, out, staging)
+        except HandshakeMissed as missed:
+            print(f"  note: Python GDS, attempt {attempt}: {missed}; its uplinker missed a handshake", flush=True)
+            if attempt == attempts:
+                raise
+
+
+def python_once(args, out, staging):
     from fprime_gds.executables.cli import ConfigDrivenParser, StandardPipelineParser
 
     prepare(out)
@@ -112,8 +133,14 @@ def python_side(args, out, staging):
             with open(f"{staging}/{name}", "wb") as file:
                 file.write(content(name, size))
             uplinker.enqueue(f"{staging}/{name}", name)
-            scenario.wait_for(f"the uplink of {name}", lambda: [
-                f for f in uplinker.current_files() if f["destination"] == name and f["state"] == "FINISHED"], 60)
+
+            def uplinked():
+                states = [f["state"] for f in uplinker.current_files() if f["destination"] == name]
+                if "TIMEOUT" in states:
+                    raise HandshakeMissed(f"the uplink of {name} ended as TIMEOUT")
+                return "FINISHED" in states
+
+            scenario.wait_for(f"the uplink of {name}", uplinked, 60)
 
         def downlinked(name):
             return [f for f in downlinker.current_files()
