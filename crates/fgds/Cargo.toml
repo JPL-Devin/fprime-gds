@@ -17,6 +17,7 @@ comm-tcp = { workspace = true }
 events = { workspace = true }
 framing-fprime = { workspace = true }
 storage-memory = { workspace = true }
+storage-sqlite = { workspace = true }
 clap = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
