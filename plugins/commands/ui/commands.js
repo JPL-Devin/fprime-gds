@@ -57,8 +57,13 @@ function mistake(type, text) {
       const min = type.signed ? -(1n << BigInt(type.bits - 1)) : 0n;
       const max = type.signed ? (1n << BigInt(type.bits - 1)) - 1n : (1n << BigInt(type.bits)) - 1n;
       const kind = type.signed ? "signed decimal integer" : "binary, octal, decimal, or hexadecimal unsigned integer";
-      const valid = pattern.test(text) && BigInt(text) >= min && BigInt(text) <= max;
-      return valid ? null : `Supply ${kind}  between ${min} and ${max}`;
+      // validate.js reads the text with BigInt (which takes " 4 ", "007", "0x10" and ""): a message only when
+      // that fails or the value is out of range. The pattern and `required` of the input then refuse the
+      // rest without a message.
+      let value = null;
+      try { value = BigInt(text); } catch (e) { /* not an integer */ }
+      if (value === null || value < min || value > max) return `Supply ${kind}  between ${min} and ${max}`;
+      return pattern.test(text) ? null : "";
     }
     case "float": return Number.isNaN(parseFloat(text)) ? "Supply floating point number" : null;
     case "bool": return text === "true" || text === "false" ? null : "choose true or false";
@@ -85,7 +90,7 @@ function convert(type, state, path, mistakes) {
       ]));
     default: {
       const problem = mistake(type, state);
-      if (problem) mistakes.set(path, problem);
+      if (problem !== null) mistakes.set(path, problem);
       if (type.kind === "bool") return state === "true";
       // Numbers go as typed: the GDS reads the text by the rule of the Python GDS.
       return state;
@@ -152,6 +157,7 @@ class CommandsTab extends LitElement {
     ]));
     this.mistakes = new Map();
     this.message = null;
+    this.cleared = true;
   }
 
   // Replace the value at `path` (argument name, then member names and indexes).
@@ -174,7 +180,8 @@ class CommandsTab extends LitElement {
 
   async send(request = this.request()) {
     if (!request) {
-      this.message = { error: true, text: "The arguments are not valid; nothing was sent." };
+      // As the Python GDS page: the fields are marked, with their messages; no line under the form.
+      this.message = null;
       return;
     }
     this.sending = true;
@@ -190,9 +197,10 @@ class CommandsTab extends LitElement {
 
   input(type, state, path, label) {
     const key = label;
-    const problem = this.mistakes.get(key);
+    const problem = this.mistakes.has(key);
+    const text = this.mistakes.get(key);
     const set = (e) => this.setAt(path, e.target.value);
-    const note = problem ? html`<span class="error-text" data-error-for=${key}>${problem}</span>` : nothing;
+    const note = problem ? html`<span class="error-text" data-error-for=${key}>${text}</span>` : nothing;
     switch (type.kind) {
       case "enum":
         return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
@@ -219,10 +227,23 @@ class CommandsTab extends LitElement {
           </div>`)}
         </div>`;
       default:
-        // A float is a number input, as in the Python GDS page: text that is not a number leaves it empty.
-        return html`<input type=${type.kind === "float" ? "number" : "text"} step="any" data-arg=${key}
+        if (type.kind === "float") {
+          // A number input, as in the Python GDS page. While the text is not yet a number ("1e", "-") the
+          // input reports an empty value: `updated` then leaves the field alone, so the typing goes on.
+          return html`<input type="number" step="any" data-arg=${key} class=${problem ? "invalid" : ""}
+            .wanted=${state} placeholder=${type.name} @input=${set}>${note}`;
+        }
+        return html`<input type="text" data-arg=${key}
           class=${problem ? "invalid" : ""} .value=${state} placeholder=${type.name} @input=${set}>${note}`;
     }
+  }
+
+  updated() {
+    for (const input of this.querySelectorAll('input[type="number"]')) {
+      const typing = !this.cleared && input.validity.badInput && input.wanted === "";
+      if (!typing && input.value !== input.wanted) input.value = input.wanted;
+    }
+    this.cleared = false;
   }
 
   render() {

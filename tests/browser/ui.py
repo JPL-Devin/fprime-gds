@@ -5,9 +5,11 @@ Usage: ui.py <fgds binary> <browser-gds binary> <Ref binary> <dictionary> <direc
 
 The stock binary is what every check runs, except the one of a tab that fails: that tab is in browser-gds.
 """
+import base64
 import json
 import os
 import shutil
+import struct
 import subprocess
 import sys
 
@@ -101,10 +103,13 @@ def stock(browser, gds):
     # The inputs take and refuse what the Python GDS page takes and refuses, with its messages.
     signed = "Supply signed decimal integer  between -2147483648 and 2147483647"
     unsigned = "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
-    cases = [("arg1", "-5", None), ("arg1", "0", None), ("arg1", "0x10", signed), ("arg1", "007", signed),
-             ("arg1", " 4 ", signed), ("arg1", "", signed), ("arg1", "2147483648", signed),
+    # "0x10", "007" and " 4 " for a signed integer, "007" and " 4 " for an unsigned one, and no text: the Python
+    # GDS page marks the field and sends nothing, without a message (its validate.js reads them with BigInt; the
+    # pattern of the input refuses them).
+    cases = [("arg1", "-5", None), ("arg1", "0", None), ("arg1", "0x10", ""), ("arg1", "007", ""),
+             ("arg1", " 4 ", ""), ("arg1", "", ""), ("arg1", "2147483648", signed), ("arg1", "abc", signed),
              ("arg3", "0b101", None), ("arg3", "0o17", None), ("arg3", "0x10", None), ("arg3", "255", None),
-             ("arg3", "007", unsigned), ("arg3", "256", unsigned), ("arg3", "-1", unsigned), ("arg3", " 4 ", unsigned)]
+             ("arg3", "007", ""), ("arg3", "256", unsigned), ("arg3", "-1", unsigned), ("arg3", " 4 ", "")]
     assert page.get_attribute("[data-arg=arg2]", "type") == "number", "a float is a number input"
     for name, text, message in cases:
         for key, good in (("arg1", "1"), ("arg2", "-2.5"), ("arg3", "1")):
@@ -115,9 +120,57 @@ def stock(browser, gds):
             scenario.wait_for(f"{name}={text!r} sent", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
         else:
             assert page.text_content(f"[data-error-for={name}]") == message, (name, text)
+            assert "invalid" in page.get_attribute(f"[data-arg={name}]", "class"), (name, text)
+            assert page.locator("#command-message").count() == 0 or not page.text_content("#command-message"), \
+                "a line under the form, which the Python GDS page does not have"
             assert len(rows(page, "#command-history")) == sent, f"{name}={text!r} was sent"
     step(f"command inputs: {len(cases)} integer texts taken or refused as in the Python GDS page, with its messages; "
          "a negative float is sent")
+    # Every form of number the Python GDS page takes, typed key by key; what is compared is the packet sent.
+    def last_command():
+        return gds.get("/records?kind=fprime.command&limit=10000")["records"][-1]
+
+    def typed(values):
+        """Type each text into its input, send, and return the bytes of the arguments (None when refused)."""
+        before = last_command()["seq"]
+        for key, text in values.items():
+            page.fill(f'[data-arg="{key}"]', "")
+            page.locator(f'[data-arg="{key}"]').press_sequentially(text)
+        shown = {key: page.input_value(f'[data-arg="{key}"]') for key in values}
+        page.click("#command-send")
+        try:
+            scenario.wait_for("the command", lambda: last_command()["seq"] != before, 2)
+        except TimeoutError:
+            return shown, None
+        return shown, base64.b64decode(last_command()["raw"])
+
+    floats = [("1e3", 1000.0), ("1E3", 1000.0), ("-2.5e-3", -0.0025), ("1e-2", 0.01), (".5", 0.5), ("-.5", -0.5),
+              ("-0", -0.0), ("3.25", 3.25), ("-17", -17.0), ("1.5e+2", 150.0)]
+    for text, value in floats:
+        shown, raw = typed({"arg1": "1", "arg2": text, "arg3": "5"})
+        assert shown["arg2"] == text, f"{text!r} typed, the field shows {shown['arg2']!r}"
+        assert raw is not None and raw.endswith(struct.pack(">ifB", 1, value, 5)), (text, raw and raw.hex())
+    integers = [("arg3", "0b101", 5), ("arg3", "0B11", 3), ("arg3", "0o17", 15), ("arg3", "0O7", 7), ("arg3", "0x10", 16),
+                ("arg3", "0XfF", 255), ("arg3", "200", 200), ("arg1", "-2147483648", -2147483648), ("arg1", "17", 17)]
+    for name, text, value in integers:
+        shown, raw = typed({"arg1": "1", "arg2": "2", "arg3": "5", name: text})
+        expected = {"arg1": 1, "arg3": 5, name: value}
+        assert raw is not None and raw.endswith(struct.pack(">ifB", expected["arg1"], 2.0, expected["arg3"])), \
+            (name, text, raw and raw.hex())
+    # A text that is not a number, in a float field: the field stays empty and nothing is sent.
+    for text in ("abc", "e", "1e", "--1"):
+        shown, raw = typed({"arg1": "1", "arg2": text, "arg3": "5"})
+        assert raw is None, f"{text!r} was sent as {raw.hex()}"
+        assert page.text_content("[data-error-for=arg2]") == "Supply floating point number", text
+    choose(page, "Ref.typeDemo.SEND_SCALARS")
+    members = {"i8": "-8", "i16": "-16", "i32": "-32", "i64": "-64", "u8": "0x8", "u16": "0b10000", "u32": "0o40",
+               "u64": "64", "f32": "2.5e1", "f64": "-2.5e-3"}
+    shown, raw = typed({f"scalar_input.{name}": text for name, text in members.items()})
+    assert raw is not None and raw.endswith(struct.pack(">bhiqBHIQfd", -8, -16, -32, -64, 8, 16, 32, 64, 25.0, -0.0025)), \
+        raw and raw.hex()
+    step(f"numbers typed key by key: {len(floats)} float texts (exponent, sign, leading dot), {len(integers)} integer "
+         "texts (binary, octal, hexadecimal, decimal) and the ten members of SEND_SCALARS are sent with the bytes "
+         "of the value; 4 texts that are not numbers are refused")
     choose(page, "CdhCore.events.SET_EVENT_FILTER")
     options = page.eval_on_selector("select[data-arg=filterLevel]", "(s) => [...s.options].map((o) => o.value)")
     assert "WARNING_HI" in options and "ACTIVITY_LO" in options, options
