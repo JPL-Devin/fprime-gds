@@ -43,16 +43,18 @@ fn error(status: StatusCode, code: &'static str, message: impl Into<String>) -> 
     ApiError::new(status, code, message)
 }
 
-fn queue_json(ctx: &Context, state: &State) -> Value {
+fn queue_json(ctx: &Context, shared: &Shared, state: &State) -> Value {
     json!({
         "paused": state.paused,
         "link": ctx.status.link(),
+        // Where uploads are staged: the source path of each transfer starts with it.
+        "directory": shared.options(&ctx.config).ok().map(|options| options.uplink_dir()),
         "files": state.uplinks.iter().map(Transfer::to_json).collect::<Vec<_>>(),
     })
 }
 
 async fn queue(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Json<Value> {
-    Json(queue_json(&ctx, &shared.state()))
+    Json(queue_json(&ctx, &shared, &shared.state()))
 }
 
 #[derive(Deserialize)]
@@ -137,7 +139,7 @@ async fn upload(
 async fn pause(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Json<Value> {
     let mut state = shared.state();
     state.paused = true;
-    Json(queue_json(&ctx, &state))
+    Json(queue_json(&ctx, &shared, &state))
 }
 
 /// Resume the queue; refused while the link is not connected (FIL-4).
@@ -149,7 +151,7 @@ async fn resume(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Result<Json
     let mut state = shared.state();
     state.paused = false;
     shared.wake.notify_one();
-    Ok(Json(queue_json(&ctx, &state)))
+    Ok(Json(queue_json(&ctx, &shared, &state)))
 }
 
 /// Cancel the file being sent, or remove a queued file.
@@ -184,7 +186,7 @@ async fn cancel(
         }
         publish(&ctx, transfer.record(KIND_UPLINK)).await;
     }
-    Ok(Json(queue_json(&ctx, &shared.state())))
+    Ok(Json(queue_json(&ctx, &shared, &shared.state())))
 }
 
 /// The downlinks of this run, and the files of the downlink directory.

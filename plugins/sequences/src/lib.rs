@@ -187,16 +187,25 @@ impl Plugin for SequencesPlugin {
 /// The tab module, embedded in the binary.
 static UI_FILES: StaticFiles = StaticFiles(&[("sequences.js", include_bytes!("../ui/sequences.js"))]);
 
-/// `{"name", "text"}` gives the binary of `fgds seqgen` for that text, as hexadecimal, with the
-/// numbers the tool prints; a sequence with an error is answered 422 with the message of the tool.
+/// `{"name", "text"}` gives the binary of `fgds seqgen` for that text, as hexadecimal, with what the
+/// tool prints (`output`); a sequence with an error is answered 422 with the message of the tool.
+/// `name` is the path the messages name.
 async fn compile_route(State(ctx): State<Context>, Json(request): Json<Value>) -> Result<Json<Value>, ApiError> {
     let text = request["text"].as_str().ok_or_else(|| ApiError::bad_request("text: a string is required"))?;
     let name = request["name"].as_str().unwrap_or("sequence.seq");
     let binary = compile(text, name, &ctx.dictionary, TIMEBASE_ANY, true)
         .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "invalid", e))?;
-    let crc = u32::from_be_bytes(binary[binary.len() - 4..].try_into().expect("four bytes"));
     let hex: String = binary.iter().map(|b| format!("{b:02x}")).collect();
-    Ok(Json(json!({"hex": hex, "size": binary.len(), "records": binary.len() - 15, "crc": format!("0x{crc:08X}")})))
+    Ok(Json(json!({"hex": hex, "size": binary.len(), "output": summary(&binary, TIMEBASE_ANY)})))
+}
+
+/// What `fprime-seqgen` prints for a sequence it built: the size without the 11-byte header and the
+/// checksum, which ends the file.
+fn summary(binary: &[u8], timebase: u32) -> String {
+    let shown = if timebase == TIMEBASE_ANY { "ANY".to_string() } else { format!("{timebase:#x}") };
+    let (records, crc) = (binary.len() - 15, &binary[binary.len() - 4..]);
+    let crc = u32::from_be_bytes(crc.try_into().expect("four bytes"));
+    format!("Sequence is {records} bytes with timebase {shown}\nCRC: {crc} (0x{crc:04X})\n")
 }
 
 struct SeqgenCommand;
@@ -245,11 +254,7 @@ impl Subcommand for SeqgenCommand {
             println!("Encountered problem opening output file '{}': {e}", output.display());
             return Ok(ExitCode::FAILURE);
         }
-        let shown = if timebase == TIMEBASE_ANY { "ANY".to_string() } else { format!("{timebase:#x}") };
-        // As fprime-seqgen: the size without the 11-byte header and the checksum, which ends the file.
-        let (records, crc) = (binary.len() - 15, &binary[binary.len() - 4..]);
-        let crc = u32::from_be_bytes(crc.try_into().expect("four bytes"));
-        println!("Sequence is {records} bytes with timebase {shown}\nCRC: {crc} (0x{crc:04X})");
+        print!("{}", summary(&binary, timebase));
         Ok(ExitCode::SUCCESS)
     }
 }
