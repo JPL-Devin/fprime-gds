@@ -15,10 +15,18 @@ pub use fgds_offline::{
 };
 
 use convert::{convert, type_name, Source};
+use fgds_core::axum::extract::State;
+use fgds_core::axum::http::StatusCode;
+use fgds_core::axum::routing::post;
+use fgds_core::axum::{Json, Router};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::dictionary::Type;
 use fgds_core::serde_json::json;
-use fgds_core::{CliEnv, Dictionary, Manifest, Plugin, Registry, Result, Subcommand};
+use fgds_core::serde_json::Value;
+use fgds_core::{
+    Access, ApiError, CliEnv, Context, Dictionary, Manifest, Plugin, Registry, Result, RouteAccess, Routes,
+    StaticFiles, Subcommand, UiBundle,
+};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -159,8 +167,36 @@ impl Plugin for SequencesPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_subcommand(Arc::new(SeqgenCommand))
+        reg.add_subcommand(Arc::new(SeqgenCommand))?;
+        reg.add_tab(UiBundle {
+            tab_id: "sequences",
+            title: Some("Sequences"),
+            order: 52,
+            module: "sequences.js",
+            files: &UI_FILES,
+        })?;
+        reg.add_routes(Routes {
+            prefix: "sequences",
+            router: Router::new().route("/compile", post(compile_route)),
+            // Building a binary changes nothing in the GDS.
+            access: vec![RouteAccess { method: "POST", path: "/compile", access: Access::Read }],
+        })
     }
+}
+
+/// The tab module, embedded in the binary.
+static UI_FILES: StaticFiles = StaticFiles(&[("sequences.js", include_bytes!("../ui/sequences.js"))]);
+
+/// `{"name", "text"}` gives the binary of `fgds seqgen` for that text, as hexadecimal, with the
+/// numbers the tool prints; a sequence with an error is answered 422 with the message of the tool.
+async fn compile_route(State(ctx): State<Context>, Json(request): Json<Value>) -> Result<Json<Value>, ApiError> {
+    let text = request["text"].as_str().ok_or_else(|| ApiError::bad_request("text: a string is required"))?;
+    let name = request["name"].as_str().unwrap_or("sequence.seq");
+    let binary = compile(text, name, &ctx.dictionary, TIMEBASE_ANY, true)
+        .map_err(|e| ApiError::new(StatusCode::UNPROCESSABLE_ENTITY, "invalid", e))?;
+    let crc = u32::from_be_bytes(binary[binary.len() - 4..].try_into().expect("four bytes"));
+    let hex: String = binary.iter().map(|b| format!("{b:02x}")).collect();
+    Ok(Json(json!({"hex": hex, "size": binary.len(), "records": binary.len() - 15, "crc": format!("0x{crc:08X}")})))
 }
 
 struct SeqgenCommand;

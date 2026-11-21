@@ -21,6 +21,7 @@ sequences = { path = "../../plugins/sequences" }
 params = { path = "../../plugins/params" }
 dictionary-tab = { path = "../../plugins/dictionary-tab" }
 logs = { path = "../../plugins/logs" }
+charts = { path = "../../plugins/charts" }
 advanced = { path = "../../plugins/advanced" }
 framing-ccsds = { workspace = true }
 data-products = { path = "../../plugins/data-products" }

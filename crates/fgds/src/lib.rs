@@ -35,6 +35,7 @@ pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
         Box::new(params::ParamsPlugin),
         Box::new(dictionary_tab::DictionaryTabPlugin),
         Box::new(logs::LogsPlugin),
+        Box::new(charts::ChartsPlugin),
         Box::new(advanced::AdvancedPlugin),
         Box::new(data_products::DataProductsPlugin),
     ]

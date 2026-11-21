@@ -229,6 +229,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "charts"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+]
+
+[[package]]
 name = "clap"
 version = "4.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -425,6 +432,7 @@ version = "0.1.0"
 dependencies = [
  "advanced",
  "channels",
+ "charts",
  "clap",
  "comm-tcp",
  "commands",

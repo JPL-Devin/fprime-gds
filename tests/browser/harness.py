@@ -25,6 +25,14 @@ class Gds:
         with urllib.request.urlopen(f"{self.url}/api/v1{path}", timeout=10) as response:
             return json.load(response)
 
+    def records(self, kind):
+        """Every record of a kind, in order."""
+        found, after = [], 0
+        while page := self.get(f"/records?kind={kind}&after_seq={after}&limit=10000")["records"]:
+            found += page
+            after = page[-1]["seq"]
+        return found
+
     def post(self, path, body):
         request = urllib.request.Request(
             f"{self.url}/api/v1{path}", json.dumps(body).encode(), {"content-type": "application/json"})
