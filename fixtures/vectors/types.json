@@ -1,0 +1,2875 @@
+{
+ "description": "Serialization of every F Prime type (big-endian). serialize_deserialize: value <-> bytes in both directions. construct_invalid: the value is rejected. deserialize_invalid: the bytes are rejected. deserialize: bytes -> value only.",
+ "time_base_enum": {
+  "TB_NONE": 0,
+  "TB_PROC_TIME": 1,
+  "TB_WORKSTATION_TIME": 2,
+  "TB_SC_TIME": 3,
+  "TB_FPGA_TIME": 4,
+  "TB_DONT_CARE": 65535
+ },
+ "time_base_representation": "U16",
+ "vectors": [
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "bool"
+   },
+   "value": true,
+   "bytes": "ff",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "bool"
+   },
+   "value": false,
+   "bytes": "00",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "value": 0,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'bool'> expected, type <class 'int'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "value": 1,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'bool'> expected, type <class 'int'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "value": "True",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'bool'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'bool'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "bytes": "",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "Not enough bytes to deserialize bool."
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_nominal",
+   "origin": "generated",
+   "operation": "deserialize",
+   "type": {
+    "kind": "bool"
+   },
+   "bytes": "00",
+   "value": false
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_nominal",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "bytes": "01",
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 1 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_nominal",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "bytes": "02",
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 2 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_boolean_nominal",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "bool"
+   },
+   "bytes": "7f",
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 127 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I8"
+   },
+   "value": 0,
+   "bytes": "00",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I8"
+   },
+   "value": -1,
+   "bytes": "ff",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I8"
+   },
+   "value": 1,
+   "bytes": "01",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I8"
+   },
+   "value": -128,
+   "bytes": "80",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I8"
+   },
+   "value": 127,
+   "bytes": "7f",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "value": -129,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -129 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "value": 128,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 128 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "value": -4480,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -4480 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "value": 4480,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 4480 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "I8"
+   },
+   "bytes": "",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 1 bytes for unpacking 1 bytes at offset 0 (actual buffer size is 0)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I16"
+   },
+   "value": 0,
+   "bytes": "0000",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I16"
+   },
+   "value": -1,
+   "bytes": "ffff",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I16"
+   },
+   "value": 1,
+   "bytes": "0001",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I16"
+   },
+   "value": -32768,
+   "bytes": "8000",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I16"
+   },
+   "value": 32767,
+   "bytes": "7fff",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "value": -32769,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -32769 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "value": 32768,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 32768 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "value": -1146880,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -1146880 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "value": 1146880,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 1146880 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "I16"
+   },
+   "bytes": "00",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 2 bytes for unpacking 2 bytes at offset 0 (actual buffer size is 1)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I32"
+   },
+   "value": 0,
+   "bytes": "00000000",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I32"
+   },
+   "value": -1,
+   "bytes": "ffffffff",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I32"
+   },
+   "value": 1,
+   "bytes": "00000001",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I32"
+   },
+   "value": -2147483648,
+   "bytes": "80000000",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I32"
+   },
+   "value": 2147483647,
+   "bytes": "7fffffff",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "value": -2147483649,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -2147483649 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "value": 2147483648,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 2147483648 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "value": -75161927680,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -75161927680 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "value": 75161927680,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 75161927680 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "I32"
+   },
+   "bytes": "000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 4 bytes for unpacking 4 bytes at offset 0 (actual buffer size is 3)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I64"
+   },
+   "value": 0,
+   "bytes": "0000000000000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I64"
+   },
+   "value": -1,
+   "bytes": "ffffffffffffffff",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I64"
+   },
+   "value": 1,
+   "bytes": "0000000000000001",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I64"
+   },
+   "value": -9223372036854775808,
+   "bytes": "8000000000000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "I64"
+   },
+   "value": 9223372036854775807,
+   "bytes": "7fffffffffffffff",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "value": -9223372036854775809,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -9223372036854775809 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "value": 9223372036854775808,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 9223372036854775808 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "value": -322818021289917153280,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -322818021289917153280 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "value": 322818021289917153280,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 322818021289917153280 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_int_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "I64"
+   },
+   "bytes": "00000000000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 8 bytes for unpacking 8 bytes at offset 0 (actual buffer size is 7)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 0,
+   "bytes": "00",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 1,
+   "bytes": "01",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 254,
+   "bytes": "fe",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 255,
+   "bytes": "ff",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": -1,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -1 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": -2,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -2 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 256,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 256 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 8925,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 8925 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": -255,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -255 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "U8"
+   },
+   "bytes": "",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 1 bytes for unpacking 1 bytes at offset 0 (actual buffer size is 0)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 0,
+   "bytes": "0000",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 1,
+   "bytes": "0001",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 65534,
+   "bytes": "fffe",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 65535,
+   "bytes": "ffff",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": -1,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -1 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": -2,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -2 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 65536,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 65536 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 2293725,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 2293725 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": -65535,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -65535 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "U16"
+   },
+   "bytes": "00",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 2 bytes for unpacking 2 bytes at offset 0 (actual buffer size is 1)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 0,
+   "bytes": "00000000",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 1,
+   "bytes": "00000001",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 4294967294,
+   "bytes": "fffffffe",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 4294967295,
+   "bytes": "ffffffff",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": -1,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -1 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": -2,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -2 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 4294967296,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 4294967296 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 150323855325,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 150323855325 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": -4294967295,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -4294967295 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "U32"
+   },
+   "bytes": "000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 4 bytes for unpacking 4 bytes at offset 0 (actual buffer size is 3)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 0,
+   "bytes": "0000000000000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 1,
+   "bytes": "0000000000000001",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 18446744073709551614,
+   "bytes": "fffffffffffffffe",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 18446744073709551615,
+   "bytes": "ffffffffffffffff",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": -1,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -1 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": -2,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -2 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 18446744073709551616,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 18446744073709551616 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 645636042579834306525,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 645636042579834306525 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": -18446744073709551615,
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -18446744073709551615 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": "1",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_uint_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "value": 1.5,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'float'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "U64"
+   },
+   "bytes": "00000000000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 8 bytes for unpacking 8 bytes at offset 0 (actual buffer size is 7)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "F32"
+   },
+   "value": 0.31415000557899475,
+   "bytes": "3ea0d845",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "F32"
+   },
+   "value": 0.0,
+   "bytes": "00000000",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "F32"
+   },
+   "value": -3.141590118408203,
+   "bytes": "c0490fd0",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "F32"
+   },
+   "value": "1.0",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'float'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "F32"
+   },
+   "value": [
+    1.0
+   ],
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'float'> expected, type <class 'list'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "F32"
+   },
+   "bytes": "3f8000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 4 bytes for unpacking 4 bytes at offset 0 (actual buffer size is 3)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "F64"
+   },
+   "value": 0.31415000557899475,
+   "bytes": "3fd41b08a0000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "F64"
+   },
+   "value": 0.0,
+   "bytes": "0000000000000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "F64"
+   },
+   "value": -3.141590118408203,
+   "bytes": "c00921fa00000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "F64"
+   },
+   "value": "1.0",
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'float'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_float_types_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "F64"
+   },
+   "value": [
+    1.0
+   ],
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'float'> expected, type <class 'list'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "F64"
+   },
+   "bytes": "3ff00000000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "unpack_from requires a buffer of at least 8 bytes for unpacking 8 bytes at offset 0 (actual buffer size is 7)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "00000000",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "00000006",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "00000009",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB12",
+   "expected_error": {
+    "type": "EnumMismatchException",
+    "message": "Invalid enum member MEMB12 set in ABCMeta enum!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB22",
+   "expected_error": {
+    "type": "EnumMismatchException",
+    "message": "Invalid enum member MEMB22 set in ABCMeta enum!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB23",
+   "expected_error": {
+    "type": "EnumMismatchException",
+    "message": "Invalid enum member MEMB23 set in ABCMeta enum!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": 0,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'str'> expected, type <class 'int'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "bytes": "000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "Could not deserialize enum value. Needed: 4 bytes Found: 3"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU8",
+    "representation": "U8",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "00",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU8",
+    "representation": "U8",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "06",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU8",
+    "representation": "U8",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "09",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU16",
+    "representation": "U16",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "0000",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU16",
+    "representation": "U16",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "0006",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU16",
+    "representation": "U16",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "0009",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI8",
+    "representation": "I8",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "00",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI8",
+    "representation": "I8",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "06",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI8",
+    "representation": "I8",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "09",
+   "max_size": 1
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI16",
+    "representation": "I16",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "0000",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI16",
+    "representation": "I16",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "0006",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI16",
+    "representation": "I16",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "0009",
+   "max_size": 2
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU32",
+    "representation": "U32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "00000000",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU32",
+    "representation": "U32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "00000006",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU32",
+    "representation": "U32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "00000009",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI64",
+    "representation": "I64",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "0000000000000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI64",
+    "representation": "I64",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "0000000000000006",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumI64",
+    "representation": "I64",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "0000000000000009",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU64",
+    "representation": "U64",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB1",
+   "bytes": "0000000000000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU64",
+    "representation": "U64",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB2",
+   "bytes": "0000000000000006",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnumU64",
+    "representation": "U64",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "value": "MEMB3",
+   "bytes": "0000000000000009",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_enum_off_nominal",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "enum",
+    "name": "SomeEnum",
+    "representation": "I32",
+    "members": {
+     "MEMB1": 0,
+     "MEMB2": 6,
+     "MEMB3": 9
+    }
+   },
+   "bytes": "00000005",
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 5 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": "ABC123DEF4",
+   "bytes": "000a41424331323344454634",
+   "max_size": 12
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": "ABC1",
+   "bytes": "000441424331",
+   "max_size": 12
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": "ABC123D",
+   "bytes": "000741424331323344",
+   "max_size": 12
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": "",
+   "bytes": "0000",
+   "max_size": 12
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_nominal",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": "h\u00e9llo",
+   "bytes": "000668c3a96c6c6f",
+   "max_size": 12
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": "ABC123DEF456",
+   "expected_error": {
+    "type": "StringSizeException",
+    "message": "String size 12 is greater than 10!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "value": 1,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'str'> expected, type <class 'int'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "bytes": "0004414243",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "Not enough data to deserialize string data. Needed: 4 Left: 3"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_off_nominal",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "bytes": "000b4142433132334445463435",
+   "expected_error": {
+    "type": "StringSizeException",
+    "message": "String size 11 is greater than 10!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_string_off_nominal",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "string",
+    "name": "MyFancyString",
+    "max_length": 10
+   },
+   "bytes": "00",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "Not enough bytes to deserialize string length."
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_basic",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "struct",
+    "name": "BasicSerializable0",
+    "members": [
+     {
+      "name": "member1",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member2",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member3",
+      "type": {
+       "kind": "I64"
+      }
+     }
+    ]
+   },
+   "value": {
+    "member1": 123,
+    "member2": 456,
+    "member3": -234
+   },
+   "bytes": "0000007b000001c8ffffffffffffff16",
+   "max_size": 16
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_basic",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "struct",
+    "name": "BasicSerializable1",
+    "members": [
+     {
+      "name": "member4",
+      "type": {
+       "kind": "string",
+       "name": "StringMember1",
+       "max_length": 10
+      }
+     },
+     {
+      "name": "member5",
+      "type": {
+       "kind": "string",
+       "name": "StringMember2",
+       "max_length": 4
+      }
+     },
+     {
+      "name": "member6",
+      "type": {
+       "kind": "I64"
+      }
+     }
+    ]
+   },
+   "value": {
+    "member4": "345",
+    "member5": "abc1",
+    "member6": 213
+   },
+   "bytes": "000333343500046162633100000000000000d5",
+   "max_size": 26
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_basic_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "struct",
+    "name": "BasicInvalidSerializable",
+    "members": [
+     {
+      "name": "member1",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member2",
+      "type": {
+       "kind": "string",
+       "name": "StringMember1",
+       "max_length": 10
+      }
+     }
+    ]
+   },
+   "value": {
+    "member5": 123,
+    "member6": 456
+   },
+   "expected_error": {
+    "type": "MissingMemberException",
+    "message": "Value does not define required field: member1"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_basic_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "struct",
+    "name": "BasicInvalidSerializable",
+    "members": [
+     {
+      "name": "member1",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member2",
+      "type": {
+       "kind": "string",
+       "name": "StringMember1",
+       "max_length": 10
+      }
+     }
+    ]
+   },
+   "value": {
+    "member1": "345",
+    "member2": 123
+   },
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_basic_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "struct",
+    "name": "BasicInvalidSerializable",
+    "members": [
+     {
+      "name": "member1",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member2",
+      "type": {
+       "kind": "string",
+       "name": "StringMember1",
+       "max_length": 10
+      }
+     }
+    ]
+   },
+   "value": {
+    "member1": 345,
+    "member2": "234",
+    "member3": "Something"
+   },
+   "expected_error": {
+    "type": "IncorrectMembersException",
+    "message": "Value does not define required fields: ['member1', 'member2']"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_basic_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "struct",
+    "name": "BasicInvalidSerializable",
+    "members": [
+     {
+      "name": "member1",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member2",
+      "type": {
+       "kind": "string",
+       "name": "StringMember1",
+       "max_length": 10
+      }
+     }
+    ]
+   },
+   "value": [
+    1,
+    "a"
+   ],
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'dict'> expected, type <class 'list'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "struct",
+    "name": "BasicInvalidSerializable",
+    "members": [
+     {
+      "name": "member1",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "member2",
+      "type": {
+       "kind": "string",
+       "name": "StringMember1",
+       "max_length": 10
+      }
+     }
+    ]
+   },
+   "bytes": "0000000100036162",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "Field 'member2' [StringMember1] failed to deserialize: Not enough data to deserialize string data. Needed: 3 Left: 2"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_serializable_advanced",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "struct",
+    "name": "AdvancedSerializable",
+    "members": [
+     {
+      "name": "field1",
+      "type": {
+       "kind": "string",
+       "name": "StringMember",
+       "max_length": 3
+      }
+     },
+     {
+      "name": "field2",
+      "type": {
+       "kind": "U32"
+      }
+     },
+     {
+      "name": "field3",
+      "type": {
+       "kind": "enum",
+       "name": "EnumMember",
+       "representation": "I32",
+       "members": {
+        "Option1": 0,
+        "Option2": 6,
+        "Option3": 9
+       }
+      }
+     },
+     {
+      "name": "field4",
+      "type": {
+       "kind": "array",
+       "name": "ArrayMember",
+       "length": 3,
+       "member": {
+        "kind": "string",
+        "name": "StringMember",
+        "max_length": 3
+       }
+      }
+     },
+     {
+      "name": "field5",
+      "type": {
+       "kind": "struct",
+       "name": "AdvancedSubSerializable",
+       "members": [
+        {
+         "name": "subfield1",
+         "type": {
+          "kind": "U32"
+         }
+        },
+        {
+         "name": "subfield2",
+         "type": {
+          "kind": "array",
+          "name": "ArrayMember",
+          "length": 3,
+          "member": {
+           "kind": "string",
+           "name": "StringMember",
+           "max_length": 3
+          }
+         }
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "value": {
+    "field1": "abc",
+    "field2": 123,
+    "field3": "Option2",
+    "field4": [
+     "",
+     "123",
+     "6"
+    ],
+    "field5": {
+     "subfield1": 3234,
+     "subfield2": [
+      "abc",
+      "def",
+      "abc"
+     ]
+    }
+   },
+   "bytes": "00036162630000007b000000060000000331323300013600000ca2000361626300036465660003616263",
+   "max_size": 47
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "array",
+    "name": "TestArray",
+    "length": 2,
+    "member": {
+     "kind": "I32"
+    }
+   },
+   "value": [
+    32,
+    1
+   ],
+   "bytes": "0000002000000001",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "array",
+    "name": "TestArray2",
+    "length": 4,
+    "member": {
+     "kind": "U8"
+    }
+   },
+   "value": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "bytes": "00010203",
+   "max_size": 4
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "array",
+    "name": "TestArray3",
+    "length": 3,
+    "member": {
+     "kind": "string",
+     "name": "TestArrayString",
+     "max_length": 18
+    }
+   },
+   "value": [
+    "one",
+    "1234",
+    "1"
+   ],
+   "bytes": "00036f6e65000431323334000131",
+   "max_size": 60
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayF64",
+    "length": 2,
+    "member": {
+     "kind": "F64"
+    }
+   },
+   "value": [
+    1.5,
+    -2.25
+   ],
+   "bytes": "3ff8000000000000c002000000000000",
+   "max_size": 16
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayBool",
+    "length": 3,
+    "member": {
+     "kind": "bool"
+    }
+   },
+   "value": [
+    true,
+    false,
+    true
+   ],
+   "bytes": "ff00ff",
+   "max_size": 3
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayEnum",
+    "length": 2,
+    "member": {
+     "kind": "enum",
+     "name": "EnumMember",
+     "representation": "I32",
+     "members": {
+      "Option1": 0,
+      "Option2": 6,
+      "Option3": 9
+     }
+    }
+   },
+   "value": [
+    "Option3",
+    "Option1"
+   ],
+   "bytes": "0000000900000000",
+   "max_size": 8
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayPicky",
+    "length": 4,
+    "member": {
+     "kind": "I32"
+    }
+   },
+   "value": [
+    1,
+    2,
+    3
+   ],
+   "expected_error": {
+    "type": "ArrayLengthException",
+    "message": "Array type <class 'fprime_gds.common.models.serialize.numerical_types.I32Type'> is of length 4, actual length 3 found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayPicky",
+    "length": 4,
+    "member": {
+     "kind": "I32"
+    }
+   },
+   "value": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "expected_error": {
+    "type": "ArrayLengthException",
+    "message": "Array type <class 'fprime_gds.common.models.serialize.numerical_types.I32Type'> is of length 4, actual length 6 found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayPicky",
+    "length": 4,
+    "member": {
+     "kind": "I32"
+    }
+   },
+   "value": [
+    "one",
+    "two",
+    "three",
+    "four"
+   ],
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'int'> expected, type <class 'str'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_array_type_off_nominal",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayPicky",
+    "length": 4,
+    "member": {
+     "kind": "I32"
+    }
+   },
+   "value": 1,
+   "expected_error": {
+    "type": "TypeMismatchException",
+    "message": "Type <class 'list'> expected, type <class 'int'> found!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::valid_values_test",
+   "origin": "generated",
+   "operation": "deserialize_invalid",
+   "type": {
+    "kind": "array",
+    "name": "TestArrayPicky",
+    "length": 4,
+    "member": {
+     "kind": "I32"
+    }
+   },
+   "bytes": "000000010000000200000003000000",
+   "expected_error": {
+    "type": "DeserializeException",
+    "message": "Array NumericalType optimization failed to deserialize: unpack_from requires a buffer of at least 16 bytes for unpacking 16 bytes at offset 0 (actual buffer size is 15)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_NONE",
+    "base_value": 0,
+    "context": 1,
+    "seconds": 100,
+    "microseconds": 999999
+   },
+   "bytes": "00000100000064000f423f",
+   "max_size": 11
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_PROC_TIME",
+    "base_value": 1,
+    "context": 255,
+    "seconds": 1234567,
+    "microseconds": 2952
+   },
+   "bytes": "0001ff0012d68700000b88",
+   "max_size": 11
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_WORKSTATION_TIME",
+    "base_value": 2,
+    "context": 8,
+    "seconds": 1529430215,
+    "microseconds": 12
+   },
+   "bytes": "0002085b2940c70000000c",
+   "max_size": 11
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_SC_TIME",
+    "base_value": 3,
+    "context": 231,
+    "seconds": 1344230277,
+    "microseconds": 123456
+   },
+   "bytes": "0003e7501f53850001e240",
+   "max_size": 11
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_FPGA_TIME",
+    "base_value": 4,
+    "context": 78,
+    "seconds": 10395,
+    "microseconds": 24556
+   },
+   "bytes": "00044e0000289b00005fec",
+   "max_size": 11
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "serialize_deserialize",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_DONT_CARE",
+    "base_value": 65535,
+    "context": 179,
+    "seconds": 12390819,
+    "microseconds": 12356
+   },
+   "bytes": "ffffb300bd11a300003044",
+   "max_size": 11
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_NONE",
+    "context": 1,
+    "seconds": 3,
+    "microseconds": -1
+   },
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value -1 out of range!"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/models/serialize/test_types.py::test_time_type",
+   "origin": "generated",
+   "operation": "construct_invalid",
+   "type": {
+    "kind": "time"
+   },
+   "value": {
+    "base": "TB_WORKSTATION_TIME",
+    "context": 1,
+    "seconds": 700000,
+    "microseconds": 1234567
+   },
+   "expected_error": {
+    "type": "TypeRangeException",
+    "message": "Value 1234567 out of range!"
+   }
+  }
+ ]
+}

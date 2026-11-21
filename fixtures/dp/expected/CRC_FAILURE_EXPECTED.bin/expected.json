@@ -1,0 +1,144 @@
+{
+  "product": "CRC_FAILURE_EXPECTED.bin",
+  "dictionary": "dictionary.json",
+  "header_size": 63,
+  "sha256": "4c860fa6ae389819a1c2b854f5c65f7f38fe22bd8aade5cd4a956b3c0e22dde9",
+  "runs": [
+    {
+      "mode": "decode",
+      "args": [
+        "decode",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-d",
+        "test_dp_data/dictionary.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding test_dp_data/CRC_FAILURE_EXPECTED.bin...\n",
+      "stderr": "Error: Record ID 3707770120 not found in dictionary\n",
+      "output_json": null
+    },
+    {
+      "mode": "decode_no_decompression",
+      "args": [
+        "decode",
+        "-z",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-d",
+        "test_dp_data/dictionary.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding test_dp_data/CRC_FAILURE_EXPECTED.bin...\n",
+      "stderr": "Error: Record ID 3707770120 not found in dictionary\n",
+      "output_json": null
+    },
+    {
+      "mode": "validate_dictionary",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-d",
+        "test_dp_data/dictionary.json"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Data checksum. Checksum in file 394ecc3a. Calculated Checksum df8442ba\n"
+    },
+    {
+      "mode": "validate_dictionary_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-d",
+        "test_dp_data/dictionary.json"
+      ],
+      "exit_code": 1,
+      "stdout": "Calculated a header size of 63\n",
+      "stderr": "Invalid Data checksum. Checksum in file 394ecc3a. Calculated Checksum df8442ba\n"
+    },
+    {
+      "mode": "validate_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-s",
+        "63"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Data checksum. Checksum in file 394ecc3a. Calculated Checksum df8442ba\n"
+    },
+    {
+      "mode": "validate_header_size_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-s",
+        "63"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Data checksum. Checksum in file 394ecc3a. Calculated Checksum df8442ba\n"
+    },
+    {
+      "mode": "validate_wrong_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin",
+        "-s",
+        "66"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Header checksum. Checksum in file db000015. Calculated Checksum 3783c427\n"
+    },
+    {
+      "mode": "validate_guess",
+      "args": [
+        "validate",
+        "-g",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "No valid checksum found with header sizes in range [21,301]\n"
+    },
+    {
+      "mode": "validate_guess_verbose",
+      "args": [
+        "validate",
+        "-g",
+        "-v",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "No valid checksum found with header sizes in range [21,301]\n"
+    },
+    {
+      "mode": "validate_no_option",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/CRC_FAILURE_EXPECTED.bin"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "No valid checksum found with header sizes in range [21,301]\n"
+    }
+  ]
+}

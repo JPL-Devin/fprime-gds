@@ -1,0 +1,584 @@
+{
+  "cases": [
+    {
+      "name": "file_default_output_name",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/Dp_00002576_00000010_00000020.fdp"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/Dp_00002576_00000010_00000020.json\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "Dp_00002576_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_explicit_output",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "product.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/product.fdp",
+        "-o",
+        "in/custom.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/product.fdp...\nDecoding complete: in/custom.json\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "custom.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_rename_id",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/Dp_00002576_00000010_00000020.fdp",
+        "--rename-id"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/DpDemoContainer_00000010_00000020.json\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "DpDemoContainer_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_rename_id_explicit_output_wins",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/Dp_00002576_00000010_00000020.fdp",
+        "--rename-id",
+        "-o",
+        "in/custom.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/custom.json\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "custom.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_rename_id_downlinked_name",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "._DpCat_Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/._DpCat_Dp_00002576_00000010_00000020.fdp",
+        "--rename-id"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/._DpCat_Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/._DpCat_DpDemoContainer_00000010_00000020.json\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "._DpCat_DpDemoContainer_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_rename_id_unknown_container",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00000001_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/Dp_00000001_00000010_00000020.fdp",
+        "--rename-id"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00000001_00000010_00000020.fdp...\nDecoding complete: in/Dp_00000001_00000010_00000020.json\n",
+      "stderr": "Warning: container id 1 (Dp_00000001_00000010_00000020.fdp) not found in dictionary, keeping file name\n",
+      "json_files_written": [
+        {
+          "name": "Dp_00000001_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_rename_id_unconventional_name",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "DpDemoUncompressed.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/DpDemoUncompressed.fdp",
+        "--rename-id"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/DpDemoUncompressed.fdp...\nDecoding complete: in/DpDemoUncompressed.json\n",
+      "stderr": "Warning: DpDemoUncompressed.fdp does not match Dp_<id>_<sec>_<usec> naming, keeping file name\n",
+      "json_files_written": [
+        {
+          "name": "DpDemoUncompressed.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "file_header_crc_failure",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "bad.fdp",
+          "invert_byte_at": 2
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/bad.fdp"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding in/bad.fdp...\n",
+      "stderr": "Error: CRC mismatch in Header: expected 0x2446f1e8, got 0x3adb078a\n",
+      "json_files_written": []
+    },
+    {
+      "name": "file_record_deserialize_failure",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "bad.fdp",
+          "invert_byte_at": -10
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/bad.fdp"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding in/bad.fdp...\n",
+      "stderr": "Unexpected error: Field 'nestedArrays' [Ref.DpDemo.ArrayOfStringArray] failed to deserialize: Array index 2 failed to deserialize: Array index 1 failed to deserialize: 'utf-8' codec can't decode byte 0x92 in position 20: invalid start byte\nError: failed to decode in/bad.fdp: Field 'nestedArrays' [Ref.DpDemo.ArrayOfStringArray] failed to deserialize: Array index 2 failed to deserialize: Array index 1 failed to deserialize: 'utf-8' codec can't decode byte 0x92 in position 20: invalid start byte\n",
+      "json_files_written": []
+    },
+    {
+      "name": "file_missing",
+      "stage": [],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-b",
+        "in/missing.fdp"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding in/missing.fdp...\n",
+      "stderr": "Unexpected error: [Errno 2] No such file or directory: 'in/missing.fdp'\nError: failed to decode in/missing.fdp: [Errno 2] No such file or directory: 'in/missing.fdp'\n",
+      "json_files_written": []
+    },
+    {
+      "name": "dir_decodes_every_fdp",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        },
+        {
+          "source": "DpDemoCompressed.fdp",
+          "name": "Dp_00002576_00000011_00000021.fdp",
+          "invert_byte_at": null
+        },
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "not-a-product.bin",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/Dp_00002576_00000010_00000020.json\nDecoding in/Dp_00002576_00000011_00000021.fdp...\nDecoding complete: in/Dp_00002576_00000011_00000021.json\nDecoded 2/2 data products\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "Dp_00002576_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        },
+        {
+          "name": "Dp_00002576_00000011_00000021.json",
+          "sha256": "1e73d44b339bd22d3eb4327850b0902181ae4c745c4b5e4b8d3cb33347e65398",
+          "identical_to": "DpDemoCompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_rename_id",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        },
+        {
+          "source": "DpDemoCompressed.fdp",
+          "name": "Dp_00002576_00000011_00000021.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in",
+        "-r"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/DpDemoContainer_00000010_00000020.json\nDecoding in/Dp_00002576_00000011_00000021.fdp...\nDecoding complete: in/DpDemoContainer_00000011_00000021.json\nDecoded 2/2 data products\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "DpDemoContainer_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        },
+        {
+          "name": "DpDemoContainer_00000011_00000021.json",
+          "sha256": "1e73d44b339bd22d3eb4327850b0902181ae4c745c4b5e4b8d3cb33347e65398",
+          "identical_to": "DpDemoCompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_no_decompression",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        },
+        {
+          "source": "DpDemoCompressed.fdp",
+          "name": "Dp_00002576_00000011_00000021.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in",
+        "-z"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/Dp_00002576_00000010_00000020.json\nDecoding in/Dp_00002576_00000011_00000021.fdp...\nDecoding complete: in/Dp_00002576_00000011_00000021.json\nDecoded 2/2 data products\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "Dp_00002576_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        },
+        {
+          "name": "Dp_00002576_00000011_00000021.json",
+          "sha256": "aadb7c8c91f7a2cc24ea0d85c2fac98dce2ae350ad2b1b6f48c545a7798b4206",
+          "identical_to": "DpDemoCompressed.fdp/decode_no_decompression.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_continues_past_failures",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000009_00000019.fdp",
+          "invert_byte_at": 2
+        },
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        },
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000011_00000021.fdp",
+          "invert_byte_at": -10
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding in/Dp_00002576_00000009_00000019.fdp...\nDecoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/Dp_00002576_00000010_00000020.json\nDecoding in/Dp_00002576_00000011_00000021.fdp...\nDecoded 1/3 data products\n",
+      "stderr": "Error: CRC mismatch in Header: expected 0x2446f1e8, got 0x3adb078a\nUnexpected error: Field 'nestedArrays' [Ref.DpDemo.ArrayOfStringArray] failed to deserialize: Array index 2 failed to deserialize: Array index 1 failed to deserialize: 'utf-8' codec can't decode byte 0x92 in position 20: invalid start byte\nError: failed to decode in/Dp_00002576_00000011_00000021.fdp: Field 'nestedArrays' [Ref.DpDemo.ArrayOfStringArray] failed to deserialize: Array index 2 failed to deserialize: Array index 1 failed to deserialize: 'utf-8' codec can't decode byte 0x92 in position 20: invalid start byte\n",
+      "json_files_written": [
+        {
+          "name": "Dp_00002576_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_rename_id_output_collision",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        },
+        {
+          "source": "DpDemoCompressed.fdp",
+          "name": "Dp_2576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in",
+        "-r"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/DpDemoContainer_00000010_00000020.json\nDecoded 1/2 data products\n",
+      "stderr": "Error: skipping in/Dp_2576_00000010_00000020.fdp: output <WORKDIR>/in/DpDemoContainer_00000010_00000020.json already written from in/Dp_00002576_00000010_00000020.fdp\n",
+      "json_files_written": [
+        {
+          "name": "DpDemoContainer_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_rename_id_collision_after_failure",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": 2
+        },
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_2576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in",
+        "-r"
+      ],
+      "exit_code": 1,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding in/Dp_2576_00000010_00000020.fdp...\nDecoding complete: in/DpDemoContainer_00000010_00000020.json\nDecoded 1/2 data products\n",
+      "stderr": "Error: CRC mismatch in Header: expected 0x2446f1e8, got 0x3adb078a\n",
+      "json_files_written": [
+        {
+          "name": "DpDemoContainer_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_single_file_summary",
+      "stage": [
+        {
+          "source": "DpDemoUncompressed.fdp",
+          "name": "Dp_00002576_00000010_00000020.fdp",
+          "invert_byte_at": null
+        }
+      ],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding in/Dp_00002576_00000010_00000020.fdp...\nDecoding complete: in/Dp_00002576_00000010_00000020.json\nDecoded 1/1 data products\n",
+      "stderr": "",
+      "json_files_written": [
+        {
+          "name": "Dp_00002576_00000010_00000020.json",
+          "sha256": "6ef48bd59a2f9a6ed031c848f6e2a313d8fd9775f6ce117a9c9a3de3cb36ee4d",
+          "identical_to": "DpDemoUncompressed.fdp/decode.json"
+        }
+      ]
+    },
+    {
+      "name": "dir_empty",
+      "stage": [],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "No .fdp files found in in\n",
+      "json_files_written": []
+    },
+    {
+      "name": "dir_missing",
+      "stage": [],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in/missing"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: fprime-dp decode [-h] (-b BIN_FILE | -B BIN_DIR) -d DICTIONARY\n                        [-o OUTPUT] [-r] [-z]\nfprime-dp decode: error: in/missing is not a directory\n",
+      "json_files_written": []
+    },
+    {
+      "name": "dir_output_rejected",
+      "stage": [],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in",
+        "-o",
+        "in/x.json"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: fprime-dp decode [-h] (-b BIN_FILE | -B BIN_DIR) -d DICTIONARY\n                        [-o OUTPUT] [-r] [-z]\nfprime-dp decode: error: --output cannot be used with --bin-dir\n",
+      "json_files_written": []
+    },
+    {
+      "name": "dir_and_file_exclusive",
+      "stage": [],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "--bin-dir",
+        "in",
+        "-b",
+        "in/x.fdp"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: fprime-dp decode [-h] (-b BIN_FILE | -B BIN_DIR) -d DICTIONARY\n                        [-o OUTPUT] [-r] [-z]\nfprime-dp decode: error: argument -b/--bin-file: not allowed with argument -B/--bin-dir\n",
+      "json_files_written": []
+    },
+    {
+      "name": "input_required",
+      "stage": [],
+      "args": [
+        "decode",
+        "-d",
+        "test_dp_data/dictionary_ref.json"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: fprime-dp decode [-h] (-b BIN_FILE | -B BIN_DIR) -d DICTIONARY\n                        [-o OUTPUT] [-r] [-z]\nfprime-dp decode: error: one of the arguments -b/--bin-file -B/--bin-dir is required\n",
+      "json_files_written": []
+    }
+  ]
+}

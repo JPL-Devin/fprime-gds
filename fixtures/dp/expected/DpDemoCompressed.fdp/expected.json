@@ -1,0 +1,144 @@
+{
+  "product": "DpDemoCompressed.fdp",
+  "dictionary": "dictionary_ref.json",
+  "header_size": 61,
+  "sha256": "b3fbcc3f53c877febae327a7ce8c035298483436168a4c7176f3a0ad02918ea8",
+  "runs": [
+    {
+      "mode": "decode",
+      "args": [
+        "decode",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding test_dp_data/DpDemoCompressed.fdp...\nDecoding complete: out.json\n",
+      "stderr": "",
+      "output_json": "decode.json"
+    },
+    {
+      "mode": "decode_no_decompression",
+      "args": [
+        "decode",
+        "-z",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-d",
+        "test_dp_data/dictionary_ref.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding test_dp_data/DpDemoCompressed.fdp...\nDecoding complete: out.json\n",
+      "stderr": "",
+      "output_json": "decode_no_decompression.json"
+    },
+    {
+      "mode": "validate_dictionary",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-d",
+        "test_dp_data/dictionary_ref.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_dictionary_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-d",
+        "test_dp_data/dictionary_ref.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Calculated a header size of 61\nValidation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-s",
+        "61"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_header_size_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-s",
+        "61"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_wrong_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp",
+        "-s",
+        "64"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Header checksum. Checksum in file b1041000. Calculated Checksum 16a9bd08\n"
+    },
+    {
+      "mode": "validate_guess",
+      "args": [
+        "validate",
+        "-g",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_guess_verbose",
+      "args": [
+        "validate",
+        "-g",
+        "-v",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp"
+      ],
+      "exit_code": 0,
+      "stdout": "Valid checksum found with header size 61\nValidation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_no_option",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/DpDemoCompressed.fdp"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    }
+  ]
+}

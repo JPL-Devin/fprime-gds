@@ -1,0 +1,320 @@
+{
+ "description": "Event and channel format strings: template (C printf style or FPP style) and values -> text. `values` that is not a list is a single value.",
+ "vectors": [
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_with_no_issue",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Opcode 0x%04X dispatched to port %d and value %f",
+   "values": [
+    181,
+    8,
+    1.234
+   ],
+   "expected": "Opcode 0x00B5 dispatched to port 8 and value 1.234000"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_value_with_string_input_as_other_types",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Opcode 0x%04X dispatched to port %u and value %.2f",
+   "values": [
+    181,
+    "8",
+    1.234
+   ],
+   "expected": "Opcode 0x00B5 dispatched to port 8 and value 1.23"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_with_format_spec",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Opcode 0x%04X dispatched to port %04d and value %0.02f",
+   "values": [
+    181,
+    8,
+    1.234
+   ],
+   "expected": "Opcode 0x00B5 dispatched to port 0008 and value 1.23"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_bad_case",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Opcode 0x%04X dispatched to port %04d and value %0.02f",
+   "values": [
+    "181",
+    "8",
+    "0.123"
+   ],
+   "expected_error": {
+    "type": "ValueError",
+    "message": "Unknown format code 'X' for object of type 'str'"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_decimal_with_width_flag",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Decimals: %d %ld",
+   "values": [
+    1977,
+    650000
+   ],
+   "expected": "Decimals: 1977 650000"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_preceding_with_blanks",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Preceding with blanks: %10d",
+   "values": [
+    1977
+   ],
+   "expected": "Preceding with blanks:       1977"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_preceding_with_zeros",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Preceding with zeros: %010d",
+   "values": [
+    1977
+   ],
+   "expected": "Preceding with zeros: 0000001977"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_some_different_radices",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Some different radices: %d %x %o %#x %#o",
+   "values": [
+    100,
+    100,
+    100,
+    100,
+    100
+   ],
+   "expected": "Some different radices: 100 64 144 0x64 0o144"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_floats",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "floats: %4.2f %+.0e %E",
+   "values": [
+    3.1416,
+    3.1416,
+    3.1416
+   ],
+   "expected": "floats: 3.14 +3e+00 3.141600E+00"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_asterisk_width",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Width trick: %*d",
+   "values": [
+    5,
+    10
+   ],
+   "expected_error": {
+    "type": "ValueError",
+    "message": "Unknown format code '*' for object of type 'int'"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_regular_string",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "%s",
+   "values": [
+    "A string"
+   ],
+   "expected": "A string"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_percent_sign",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "%.2f%%",
+   "values": [
+    1.23456
+   ],
+   "expected": "1.23%"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_single_value",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "%.2f%%",
+   "values": 1.23456,
+   "expected": "1.23%"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_list_value",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "%.2f%%, %.2f%%",
+   "values": [
+    1.23456,
+    1.23456
+   ],
+   "expected": "1.23%, 1.23%"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_format_unsigned_flag_with_length_flag",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "c",
+   "template": "Something %lu something %llu something else %lu",
+   "values": [
+    123456,
+    123457,
+    123458
+   ],
+   "expected": "Something 123456 something 123457 something else 123458"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_with_no_issue",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Opcode 0x{04X} dispatched to port {} and value {f}",
+   "values": [
+    181,
+    8,
+    1.234
+   ],
+   "expected": "Opcode 0x00B5 dispatched to port 8 and value 1.234000"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_value_with_string_input_as_other_types",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Opcode 0x{04x} dispatched to port {} and value {.2f}",
+   "values": [
+    181,
+    "8",
+    1.234
+   ],
+   "expected": "Opcode 0x00b5 dispatched to port 8 and value 1.23"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_with_format_spec",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Opcode 0x{04X} dispatched to port {04d} and value {0.02f}",
+   "values": [
+    181,
+    8,
+    1.234
+   ],
+   "expected": "Opcode 0x00B5 dispatched to port 0008 and value 1.23"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_bad_case",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Opcode 0x{04X} dispatched to port {04d} and value {0.02f}",
+   "values": [
+    "181",
+    "8",
+    "0.123"
+   ],
+   "expected_error": {
+    "type": "ValueError",
+    "message": "Unknown format code 'X' for object of type 'str'"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_decimal_with_width_flag",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Decimals: {} {}",
+   "values": [
+    1977,
+    650000
+   ],
+   "expected": "Decimals: 1977 650000"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_preceding_with_blanks",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Preceding with blanks: {10d}",
+   "values": [
+    1977
+   ],
+   "expected": "Preceding with blanks:       1977"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_preceding_with_zeros",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Preceding with zeros: {010d}",
+   "values": [
+    1977
+   ],
+   "expected": "Preceding with zeros: 0000001977"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_with_escape_sequence",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "Some different radices: {} 0x{x} {{ i'm escaped }}",
+   "values": [
+    100,
+    100,
+    100,
+    100,
+    100
+   ],
+   "expected": "Some different radices: 100 0x64 { i'm escaped }"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_regular_string",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{}",
+   "values": [
+    "A string"
+   ],
+   "expected": "A string"
+  },
+  {
+   "source": "test/fprime_gds/common/utils/test_string_util.py::TestFormatString::test_fpp_format_list_value",
+   "origin": "asserted",
+   "operation": "format",
+   "style": "fpp",
+   "template": "{.2f}%, {.2f}%",
+   "values": [
+    1.23456,
+    1.23456
+   ],
+   "expected": "1.23%, 1.23%"
+  }
+ ]
+}

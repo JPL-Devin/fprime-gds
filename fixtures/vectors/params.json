@@ -1,0 +1,117 @@
+{
+ "description": "Parameter database files (.dat): U32 CRC | records of a5 | U32 record size | U32 parameter id | value. encode_dat: JSON parameter file -> .dat bytes. encode_seq: JSON parameter file -> command sequence text. decode_dat: .dat bytes -> JSON, text and CSV renderings, or the error.",
+ "vectors": [
+  {
+   "source": "test/fprime_gds/common/tools/test_paramdb_gen.py::test_nominal_paramdb",
+   "origin": "asserted",
+   "operation": "encode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input_file": "sequences/input/simple_paramdb.json",
+   "expected_file": "sequences/expected/simple_paramdb.dat",
+   "expected": "bb20d936a50000001200001101000c72616e646f6d2076616c7565"
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_paramdb_gen.py::test_nominal_paramdb",
+   "origin": "generated",
+   "operation": "encode_seq",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input_file": "sequences/input/simple_paramdb.json",
+   "expected_text": "; Autocoded sequence file from JSON\nR00:00:00 cmdDisp.FAKE_PRM_PRM_SET \"random value\""
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_paramdb_gen.py::test_failure_paramdb",
+   "origin": "generated",
+   "operation": "encode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input_file": "sequences/input/simple_bad_paramdb.json",
+   "expected_error": {
+    "type": "RuntimeError",
+    "message": "Unable to find param WrongComponent.FAKE_PRM in dictionary"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_decode_simple_paramdb",
+   "origin": "asserted",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input_file": "sequences/expected/simple_paramdb.dat",
+   "input": "bb20d936a50000001200001101000c72616e646f6d2076616c7565",
+   "expected": {
+    "json": {
+     "cmdDisp": {
+      "FAKE_PRM": "random value"
+     }
+    },
+    "text": "Component: cmdDisp\n  FAKE_PRM = \"random value\" (type: String_40, id: 4353)",
+    "csv": "Component,Parameter,Value,Type,ID\ncmdDisp,FAKE_PRM,random value,String_40,4353"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_decode_invalid_delimiter",
+   "origin": "generated",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input": "438206b2ff000000120000110174657374",
+   "expected_error": {
+    "type": "RuntimeError",
+    "message": "Invalid delimiter at offset 4: expected 0xA5, got 0xff"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_decode_unknown_param_id",
+   "origin": "generated",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input": "dfb5e602a500000008ffffffff00000000",
+   "expected_error": {
+    "type": "RuntimeError",
+    "message": "Unknown parameter ID 4294967295 (0xffffffff) at offset 5"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_decode_incomplete_data",
+   "origin": "generated",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input": "df0db966a50000",
+   "expected_error": {
+    "type": "RuntimeError",
+    "message": "Incomplete record size at offset 5: expected 4 bytes, got 2"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_decode_empty_file",
+   "origin": "generated",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input": "ffffffff",
+   "expected": {
+    "json": {},
+    "text": "",
+    "csv": "Component,Parameter,Value,Type,ID"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_decode_file_too_small",
+   "origin": "generated",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input": "0000",
+   "expected_error": {
+    "type": "RuntimeError",
+    "message": "File too small to contain CRC header: expected at least 4 bytes, got 2"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/tools/test_prm_decode.py::test_corrupted_crc_valid_data",
+   "origin": "generated",
+   "operation": "decode_dat",
+   "dictionary": "sequences/resources/simple_dictionary.json",
+   "input": "cdd74a65a5000000080000000100000064",
+   "expected_error": {
+    "type": "RuntimeError",
+    "message": "CRC mismatch: file header has 0xcdd74a65, computed 0x32d74a65"
+   }
+  }
+ ]
+}

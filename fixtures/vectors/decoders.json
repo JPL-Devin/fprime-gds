@@ -1,0 +1,703 @@
+{
+ "description": "Ground-side decoders: bytes -> objects. Decoder input is the message after the length prefix and the descriptor. `dictionary` lists the definitions the decoder was given. split_messages and distribute cover the distributor that cuts the deframed stream into length-prefixed messages and routes them by descriptor.",
+ "vectors": [
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "type": {
+      "kind": "U32"
+     }
+    },
+    {
+     "id": 102,
+     "type": {
+      "kind": "U16"
+     }
+    }
+   ],
+   "input": "000000650002005b6b4ca50001e2400000002a",
+   "expected": [
+    {
+     "id": 101,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "value": 42
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "type": {
+      "kind": "U32"
+     }
+    },
+    {
+     "id": 102,
+     "type": {
+      "kind": "U16"
+     }
+    }
+   ],
+   "input": "000000660002005b6b4ca40001e2410028",
+   "expected": [
+    {
+     "id": 102,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758628,
+      "microseconds": 123457
+     },
+     "value": 40
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "type": {
+      "kind": "U32"
+     }
+    },
+    {
+     "id": 102,
+     "type": {
+      "kind": "U16"
+     }
+    }
+   ],
+   "input": "000000650002005b6b4ca50001e2400000002a000000660002005b6b4ca40001e2410028",
+   "expected": [
+    {
+     "id": 101,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "value": 42
+    },
+    {
+     "id": 102,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758628,
+      "microseconds": 123457
+     },
+     "value": 40
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "type": {
+      "kind": "U32"
+     }
+    },
+    {
+     "id": 102,
+     "type": {
+      "kind": "U16"
+     }
+    }
+   ],
+   "input": "000000670002005b6b4ca50001e24000",
+   "expected_error": {
+    "type": "DecodingException",
+    "message": "Channel 103 not found in dictionary"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "type": {
+      "kind": "U32"
+     }
+    },
+    {
+     "id": 102,
+     "type": {
+      "kind": "U16"
+     }
+    }
+   ],
+   "input": "000000650002005b6b4ca50001e240000000",
+   "expected_error": {
+    "type": "DecodingException",
+    "message": "Channel test_ch failed to decode: unpack_from requires a buffer of at least 19 bytes for unpacking 4 bytes at offset 15 (actual buffer size is 18)"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "arguments": [
+      {
+       "kind": "U32"
+      },
+      {
+       "kind": "U32"
+      }
+     ]
+    },
+    {
+     "id": 102,
+     "arguments": [
+      {
+       "kind": "U8"
+      },
+      {
+       "kind": "U16"
+      }
+     ]
+    }
+   ],
+   "input": "000000650002005b6b4ca50001e2400000002a0000000a",
+   "expected": [
+    {
+     "id": 101,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "arguments": [
+      42,
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "arguments": [
+      {
+       "kind": "U32"
+      },
+      {
+       "kind": "U32"
+      }
+     ]
+    },
+    {
+     "id": 102,
+     "arguments": [
+      {
+       "kind": "U8"
+      },
+      {
+       "kind": "U16"
+      }
+     ]
+    }
+   ],
+   "input": "000000660002005b6b4ca40001e241800028",
+   "expected": [
+    {
+     "id": 102,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758628,
+      "microseconds": 123457
+     },
+     "arguments": [
+      128,
+      40
+     ]
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "arguments": [
+      {
+       "kind": "U32"
+      },
+      {
+       "kind": "U32"
+      }
+     ]
+    },
+    {
+     "id": 102,
+     "arguments": [
+      {
+       "kind": "U8"
+      },
+      {
+       "kind": "U16"
+      }
+     ]
+    }
+   ],
+   "input": "000000650002005b6b4ca50001e2400000002a0000000a000000660002005b6b4ca40001e241800028",
+   "expected": [
+    {
+     "id": 101,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "arguments": [
+      42,
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "arguments": [
+      {
+       "kind": "U32"
+      },
+      {
+       "kind": "U32"
+      }
+     ]
+    },
+    {
+     "id": 102,
+     "arguments": [
+      {
+       "kind": "U8"
+      },
+      {
+       "kind": "U16"
+      }
+     ]
+    }
+   ],
+   "input": "000000670002005b6b4ca50001e240",
+   "expected_error": {
+    "type": "DecodingException",
+    "message": "Event 103 not found in dictionary"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py (bytes of the encoder tests, decoded)",
+   "origin": "generated",
+   "operation": "decode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 101,
+     "arguments": [
+      {
+       "kind": "U32"
+      },
+      {
+       "kind": "U32"
+      }
+     ]
+    },
+    {
+     "id": 102,
+     "arguments": [
+      {
+       "kind": "U8"
+      },
+      {
+       "kind": "U16"
+      }
+     ]
+    }
+   ],
+   "input": "000000650002005b6b4ca50001e2400000002a0000000a0000",
+   "expected": [
+    {
+     "id": 101,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "arguments": [
+      42,
+      10
+     ]
+    }
+   ]
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_pkt_encoder.py (bytes of the encoder test, decoded)",
+   "origin": "generated",
+   "operation": "decode_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "dictionary": [
+    {
+     "id": 64,
+     "channels": [
+      {
+       "id": 101,
+       "type": {
+        "kind": "U32"
+       }
+      },
+      {
+       "id": 102,
+       "type": {
+        "kind": "U8"
+       }
+      },
+      {
+       "id": 103,
+       "type": {
+        "kind": "U16"
+       }
+      }
+     ]
+    }
+   ],
+   "input": "00400002005b6b4ca50001e2400000054c8f05e5",
+   "expected": [
+    {
+     "id": 101,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "value": 1356
+    },
+    {
+     "id": 102,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "value": 143
+    },
+    {
+     "id": 103,
+     "time": {
+      "base": "TB_WORKSTATION_TIME",
+      "base_value": 2,
+      "context": 0,
+      "seconds": 1533758629,
+      "microseconds": 123456
+     },
+     "value": 1509
+    }
+   ]
+  },
+  {
+   "source": "(none: the Python tests hold no file packet bytes; bytes of the file encoder, decoded)",
+   "origin": "generated",
+   "operation": "decode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": "0000000000000000030e2f746d702f6c6f63616c2e62696e0f2f7365712f72656d6f74652e62696e",
+   "expected": {
+    "packet_type": "start",
+    "sequence": 0,
+    "size": 3,
+    "source_path": "/tmp/local.bin",
+    "destination_path": "/seq/remote.bin"
+   }
+  },
+  {
+   "source": "(none: the Python tests hold no file packet bytes; bytes of the file encoder, decoded)",
+   "origin": "generated",
+   "operation": "decode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": "0100000001000000000003010203",
+   "expected": {
+    "packet_type": "data",
+    "sequence": 1,
+    "offset": 0,
+    "data": "010203"
+   }
+  },
+  {
+   "source": "(none: the Python tests hold no file packet bytes; bytes of the file encoder, decoded)",
+   "origin": "generated",
+   "operation": "decode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": "020000000255bc801d",
+   "expected": {
+    "packet_type": "end",
+    "sequence": 2,
+    "hash": 1438416925
+   }
+  },
+  {
+   "source": "(none: the Python tests hold no file packet bytes; bytes of the file encoder, decoded)",
+   "origin": "generated",
+   "operation": "decode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": "0300000003",
+   "expected": {
+    "packet_type": "cancel",
+    "sequence": 3
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/distributor/test_distributor.py::test_distributor",
+   "origin": "asserted",
+   "operation": "split_messages",
+   "config": {
+    "FwPacketDescriptorType": "U32",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": "000e000000046162636465666768696a000a00000001414243444546000f00000002ff",
+   "expected": {
+    "messages": [
+     {
+      "raw": "000e000000046162636465666768696a",
+      "length": 14,
+      "descriptor": 4,
+      "body": "6162636465666768696a"
+     },
+     {
+      "raw": "000a00000001414243444546",
+      "length": 10,
+      "descriptor": 1,
+      "body": "414243444546"
+     }
+    ],
+    "leftover": "000f00000002ff"
+   }
+  },
+  {
+   "source": "test/fprime_gds/common/distributor/test_distributor.py::test_distributor_skips_malformed_messages",
+   "origin": "asserted",
+   "operation": "distribute",
+   "config": {
+    "FwPacketDescriptorType": "U32",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "registered_descriptors": {
+    "FW_PACKET_TELEM": 1
+   },
+   "input": "000600010000aabb00020001000600000002eeff000600000001ccdd",
+   "expected": {
+    "delivered": [
+     {
+      "descriptor": 1,
+      "body": "ccdd"
+     }
+    ]
+   }
+  }
+ ]
+}

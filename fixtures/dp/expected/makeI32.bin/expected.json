@@ -1,0 +1,144 @@
+{
+  "product": "makeI32.bin",
+  "dictionary": "dictionary.json",
+  "header_size": 63,
+  "sha256": "daf5343bcdc16001af283686e4914070de49dd2478e4cfbbf08f235e36ee8c0d",
+  "runs": [
+    {
+      "mode": "decode",
+      "args": [
+        "decode",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-d",
+        "test_dp_data/dictionary.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding test_dp_data/makeI32.bin...\nDecoding complete: out.json\n",
+      "stderr": "",
+      "output_json": "decode.json"
+    },
+    {
+      "mode": "decode_no_decompression",
+      "args": [
+        "decode",
+        "-z",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-d",
+        "test_dp_data/dictionary.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding test_dp_data/makeI32.bin...\nDecoding complete: out.json\n",
+      "stderr": "",
+      "output_json": "decode_no_decompression.json"
+    },
+    {
+      "mode": "validate_dictionary",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-d",
+        "test_dp_data/dictionary.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_dictionary_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-d",
+        "test_dp_data/dictionary.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Calculated a header size of 63\nValidation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-s",
+        "63"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_header_size_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-s",
+        "63"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_wrong_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeI32.bin",
+        "-s",
+        "66"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Header checksum. Checksum in file ac000015. Calculated Checksum b2ac94ce\n"
+    },
+    {
+      "mode": "validate_guess",
+      "args": [
+        "validate",
+        "-g",
+        "-b",
+        "test_dp_data/makeI32.bin"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_guess_verbose",
+      "args": [
+        "validate",
+        "-g",
+        "-v",
+        "-b",
+        "test_dp_data/makeI32.bin"
+      ],
+      "exit_code": 0,
+      "stdout": "Valid checksum found with header size 63\nValidation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_no_option",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeI32.bin"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    }
+  ]
+}

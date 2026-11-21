@@ -1,0 +1,5 @@
+; Test file with multiple errors to test cont=True
+R00:00:00 cmdDisp.CMD_NO_OP
+X00:00:01 cmdDisp.CMD_NO_OP
+R00:00:02 NONEXISTENT_COMMAND
+R00:00:03 cmdDisp.CMD_NO_OP

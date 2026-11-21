@@ -1,0 +1,144 @@
+{
+  "product": "makeDataArray.bin",
+  "dictionary": "dictionary.json",
+  "header_size": 63,
+  "sha256": "52e38cabcbe469cf6dcf1e08b76d9d6fd57ee5397e18e7a14b7a849bbe2f38cb",
+  "runs": [
+    {
+      "mode": "decode",
+      "args": [
+        "decode",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-d",
+        "test_dp_data/dictionary.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding test_dp_data/makeDataArray.bin...\nDecoding complete: out.json\n",
+      "stderr": "",
+      "output_json": "decode.json"
+    },
+    {
+      "mode": "decode_no_decompression",
+      "args": [
+        "decode",
+        "-z",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-d",
+        "test_dp_data/dictionary.json",
+        "-o",
+        "out.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Decoding test_dp_data/makeDataArray.bin...\nDecoding complete: out.json\n",
+      "stderr": "",
+      "output_json": "decode_no_decompression.json"
+    },
+    {
+      "mode": "validate_dictionary",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-d",
+        "test_dp_data/dictionary.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_dictionary_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-d",
+        "test_dp_data/dictionary.json"
+      ],
+      "exit_code": 0,
+      "stdout": "Calculated a header size of 63\nValidation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-s",
+        "63"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_header_size_verbose",
+      "args": [
+        "validate",
+        "-v",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-s",
+        "63"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_wrong_header_size",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeDataArray.bin",
+        "-s",
+        "66"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Invalid Header checksum. Checksum in file c4000015. Calculated Checksum fe0d1888\n"
+    },
+    {
+      "mode": "validate_guess",
+      "args": [
+        "validate",
+        "-g",
+        "-b",
+        "test_dp_data/makeDataArray.bin"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_guess_verbose",
+      "args": [
+        "validate",
+        "-g",
+        "-v",
+        "-b",
+        "test_dp_data/makeDataArray.bin"
+      ],
+      "exit_code": 0,
+      "stdout": "Valid checksum found with header size 63\nValidation OK!\n",
+      "stderr": ""
+    },
+    {
+      "mode": "validate_no_option",
+      "args": [
+        "validate",
+        "-b",
+        "test_dp_data/makeDataArray.bin"
+      ],
+      "exit_code": 0,
+      "stdout": "Validation OK!\n",
+      "stderr": ""
+    }
+  ]
+}
