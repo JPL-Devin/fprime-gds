@@ -12,7 +12,7 @@ use fgds_core::{
 };
 use std::sync::Arc;
 
-pub const KIND: &str = "channel";
+pub const KIND: &str = "fprime.channel";
 
 pub struct ChannelsPlugin;
 

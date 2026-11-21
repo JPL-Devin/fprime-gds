@@ -2,7 +2,21 @@
 
 ## State
 - Design baseline approved by the user on 2026-11-21: `docs/design/requirements-and-architecture.md`.
-- No code yet. Next: the thin end-to-end slice (section 6.2 step 2 of the design).
+- First slice built (M0 and the smallest part of M1): the Cargo workspace of section 4.10 with `fgds-dictionary`, `fgds-core`, `fgds-shell`, `fgds`, the plugins `comm-tcp`, `framing-fprime`, `storage-memory`, `events`, `channels`, `commands`, and `examples/custom-gds`.
+- `scripts/check.sh` runs every check and passes locally: format, lints, tests; `fgds` against `Ref` (commands, events, channels, WebSocket replay then live); the comparison with the Python GDS, live and on replayed bytes (`tests/compare/README.md` lists the accepted differences); the example binary.
+- `.github/workflows/check.yml` calls the same script. It has not run yet: check its first run.
+- Where the code differs from the design, and what to change in the design before more plugins are built: `docs/design/deviations.md`. The design document itself is unchanged.
+
+## How to run
+- `FPRIME=<fprime checkout with fprime-venv> scripts/check.sh`. The first run builds `Ref` under `target/ref` (several minutes).
+- `Ref` is built with F Prime framing (`scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`), because CCSDS is not built yet.
+- `cargo run -p fgds -- run --dictionary <RefTopologyDictionary.json>`, then `Ref -a 127.0.0.1 -p 50000`; the API is on `http://127.0.0.1:5000/api/v1`.
+
+## Known gaps in the slice
+- Storage failure: records are broadcast unstored and a gap record is written on recovery; no buffer, retry or commit time-out (deviation 8). To finish with `storage-sqlite`.
+- A raw send (`POST /api/v1/raw`) is not recorded (deviations 4 and 5).
+- Format strings of array elements and struct members are not applied to display text.
+- No browser test; the page shell only lists and loads tab modules.
 
 ## Rules for every session working here
 - The design document is the reference. A change to a core interface (section 4.2 to 4.5) or to a requirement goes through the orchestrating session, not into a feature branch on its own.
@@ -17,5 +31,5 @@ Section 7 of the design document.
 Access control, the stall watchdog, the load test, project rules checked before a send, `pip install` packaging, a dedicated repository.
 
 ## Next steps
-1. Thin slice: core, shell, dictionary, TCP adapter, F Prime framing, event decoding, command sending, in-memory storage, example project plugin, first comparison with `fprime-gds` on `Ref`.
-2. Then one branch per plugin crate, per the milestones of section 6.3.
+1. Review `docs/design/deviations.md` and update the design ("To change in the design").
+2. Then one branch per plugin crate, per the milestones of section 6.3; `storage-sqlite` first, since it completes the pipeline.

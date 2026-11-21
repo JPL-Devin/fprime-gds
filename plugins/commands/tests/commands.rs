@@ -22,7 +22,7 @@ async fn commands_are_encoded_sent_and_recorded() {
     let set_packet = vec![0, 0, 0, 0, 1, 1, 1, 0, 16, 0, 2, b'h', b'i'];
     assert_eq!(gds.link.sent(), [LengthFraming::frame(&no_op), LengthFraming::frame(&set_packet)]);
 
-    let records = gds.records(&["command"]).await;
+    let records = gds.records(&["fprime.command"]).await;
     assert_eq!((records[0].id, records[0].raw.as_ref()), (Some(256), &no_op[..]));
     assert_eq!(records[0].body["outcome"], "sent");
     assert_eq!(records[1].body["name"], "T.c.SET");
@@ -39,7 +39,7 @@ async fn arguments_may_be_given_by_name() {
     assert_eq!(uplink.dry_run("command", &by_name).unwrap().packet, uplink.dry_run("command", &listed).unwrap().packet);
     // A dry run sends and records nothing.
     assert!(gds.link.sent().is_empty());
-    assert!(gds.records(&["command"]).await.is_empty());
+    assert!(gds.records(&["fprime.command"]).await.is_empty());
 }
 
 #[tokio::test]
@@ -73,7 +73,7 @@ async fn invalid_commands_are_rejected_and_recorded_but_not_sent() {
         }
     }
     assert!(gds.link.sent().is_empty());
-    let records = gds.records(&["command"]).await;
+    let records = gds.records(&["fprime.command"]).await;
     assert_eq!(records.len(), cases.len() + 3);
     assert!(records.iter().all(|r| r.body["outcome"] == "rejected"));
     assert_eq!(records[1].body["request"], json!({"name": "T.c.NOPE"}));

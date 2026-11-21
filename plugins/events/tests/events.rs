@@ -24,7 +24,7 @@ async fn events_are_decoded_with_their_arguments_and_text() {
     gds.receive(&event(513, &[1])).await; // too short
     gds.receive(&event(512, &[0])).await; // too long
 
-    let events = gds.records(&["event"]).await;
+    let events = gds.records(&["fprime.event"]).await;
     assert_eq!(events.len(), 2);
     assert_eq!(events[0].id, Some(512));
     assert_eq!(events[0].flight_time, Some(FlightTime { base: 2, context: 0, seconds: 100, microseconds: 7 }));
@@ -55,7 +55,7 @@ async fn several_events_in_one_packet_are_each_a_record() {
     packet.extend(&event(513, &[1, 0x01, 0xFF])[2..]);
     gds.receive(&packet).await;
 
-    let events = gds.records(&["event"]).await;
+    let events = gds.records(&["fprime.event"]).await;
     let ids: Vec<_> = events.iter().map(|r| r.id).collect();
     assert_eq!(ids, [Some(512), Some(513)]);
 }

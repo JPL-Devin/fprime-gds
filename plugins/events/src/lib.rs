@@ -1,4 +1,4 @@
-//! F Prime events: the decoder of event packets (kind `event`) and the route that
+//! F Prime events: the decoder of event packets (kind `fprime.event`) and the route that
 //! lists the event definitions of the dictionary.
 
 use fgds_core::axum::extract::State;
@@ -12,7 +12,7 @@ use fgds_core::{
 };
 use std::sync::Arc;
 
-pub const KIND: &str = "event";
+pub const KIND: &str = "fprime.event";
 
 pub struct EventsPlugin;
 

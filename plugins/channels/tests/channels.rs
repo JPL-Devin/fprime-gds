@@ -26,7 +26,7 @@ async fn channel_packets_become_samples() {
     let second = &channel(769, &21.5f32.to_be_bytes())[2..];
     gds.receive(&[&channel(768, &[0, 0, 1, 0])[..], second].concat()).await;
 
-    let samples = gds.records(&["channel"]).await;
+    let samples = gds.records(&["fprime.channel"]).await;
     let bodies: Vec<_> = samples.iter().map(|r| r.body.clone()).collect();
     assert_eq!(
         bodies,
@@ -55,7 +55,7 @@ async fn a_telemetry_packet_becomes_one_sample_per_channel() {
     gds.receive(&[&[0, 4, 0, 7][..], &TIME].concat()).await; // unknown packet
     gds.receive(&packet[..packet.len() - 1]).await; // truncated
 
-    let samples = gds.records(&["channel"]).await;
+    let samples = gds.records(&["fprime.channel"]).await;
     let got: Vec<_> = samples.iter().map(|r| (r.id.unwrap(), r.body["value"].clone())).collect();
     assert_eq!(got, [(770, json!("hi")), (768, json!(9)), (769, json!(1.25))]);
     assert_eq!(samples[1].raw.as_ref(), [0, 0, 0, 9]);
@@ -63,7 +63,7 @@ async fn a_telemetry_packet_becomes_one_sample_per_channel() {
 
     // Current state: the latest sample of each channel.
     gds.receive(&channel(768, &[0, 0, 0, 10])).await;
-    let query = fgds_core::Query { kinds: vec!["channel".into()], ..Default::default() };
+    let query = fgds_core::Query { kinds: vec!["fprime.channel".into()], ..Default::default() };
     let latest = gds.core.records.latest(query).await.unwrap().records;
     let got: Vec<_> = latest.iter().map(|r| (r.id.unwrap(), r.body["value"].clone())).collect();
     assert_eq!(got, [(770, json!("hi")), (769, json!(1.25)), (768, json!(10))]);

@@ -1,4 +1,5 @@
 use crate::{Error, Filter, KindSpec, NewRecord, Page, Query, Record, Result, RunInfo, Status, Storage, Timestamp};
+use serde_json::json;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -55,6 +56,8 @@ impl Records {
     /// Store each batch, then broadcast it: a record is never live before it is stored.
     async fn commit_loop(self, mut rx: mpsc::Receiver<Message>, status: Status) {
         let mut batch = Vec::new();
+        // First and last sequence number lost while storage is failed (STO-9).
+        let mut gap: Option<(u64, u64)> = None;
         while rx.recv_many(&mut batch, BATCH).await > 0 {
             let mut records = Vec::new();
             let mut flushes = Vec::new();
@@ -73,6 +76,16 @@ impl Records {
                     true
                 }
             };
+            match (failed, stored.first().zip(stored.last())) {
+                (true, Some((first, last))) => gap = Some((gap.map_or(first.seq, |g| g.0), last.seq)),
+                (false, Some(_)) => {
+                    if let Some((first, last)) = gap.take() {
+                        status.set_storage("ok");
+                        self.report_recovery(first, last);
+                    }
+                }
+                _ => {}
+            }
             for mut record in records {
                 record.stored &= !failed;
                 self.0.cursor.store(record.seq, Ordering::SeqCst);
@@ -84,6 +97,16 @@ impl Records {
                 let _ = done.send(());
             }
         }
+    }
+
+    /// Tell what was lost. Published from a task of its own: this loop must not wait on its own queue.
+    fn report_recovery(&self, first: u64, last: u64) {
+        let records = self.clone();
+        tokio::spawn(async move {
+            let lost = json!({"first_seq": first.to_string(), "last_seq": last.to_string()});
+            let _ = records.publish(NewRecord::new(crate::KIND_STORAGE_GAP, lost)).await;
+            let _ = records.publish(NewRecord::new(crate::KIND_STORAGE_RECOVERED, json!({}))).await;
+        });
     }
 
     /// Publish a record. Returns its sequence number, assigned now; storage follows.

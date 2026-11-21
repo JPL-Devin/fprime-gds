@@ -13,6 +13,8 @@ pub const KIND_DISCARDED: &str = "raw.discarded";
 pub const KIND_DECODE_ERROR: &str = "gds.decode_error";
 pub const KIND_UNKNOWN_PACKET: &str = "gds.unknown_packet";
 pub const KIND_PLUGIN_FAULT: &str = "gds.plugin_fault";
+pub const KIND_STORAGE_GAP: &str = "gds.storage_gap";
+pub const KIND_STORAGE_RECOVERED: &str = "gds.storage_recovered";
 
 /// Ground time: microseconds since the Unix epoch, UTC.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -211,6 +213,8 @@ pub(crate) fn core_kinds() -> Vec<KindSpec> {
         text(KIND_DECODE_ERROR, "A packet its decoder could not decode"),
         text(KIND_UNKNOWN_PACKET, "A packet no decoder matches"),
         text(KIND_PLUGIN_FAULT, "A panic caught in plugin code"),
+        text(KIND_STORAGE_GAP, "Records that were broadcast but could not be stored"),
+        text(KIND_STORAGE_RECOVERED, "Storage accepts records again"),
     ]
 }
 

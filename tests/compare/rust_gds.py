@@ -47,16 +47,16 @@ class Fgds:
         events = [
             {"id": r["id"], "name": r["body"]["name"], "severity": r["body"]["severity"], "time": flight_time(r),
              "args": scenario.plain(list(r["body"]["args"].values())), "display_text": r["body"]["display_text"]}
-            for r in self.records("event")
+            for r in self.records("fprime.event")
         ]
         channels = [
             {"id": r["id"], "name": r["body"]["name"], "time": flight_time(r),
              "value": scenario.plain(r["body"]["value"]), "display_text": r["body"]["display_text"]}
-            for r in self.records("channel")
+            for r in self.records("fprime.channel")
         ]
         commands = [
             {"name": r["body"]["name"], "opcode": r["id"], "args": scenario.plain(list(r["body"]["args"].values()))}
-            for r in self.records("command")
+            for r in self.records("fprime.command")
         ]
         problems = self.records("gds.decode_error") + self.records("gds.unknown_packet") + self.records("raw.discarded")
         assert not problems, f"fgds could not decode: {problems[:3]}"
@@ -69,7 +69,7 @@ def live(args):
     try:
         proxy = scenario.Proxy(gds.link_port)
         ref = scenario.start_ref(args.ref, proxy, args.out)
-        scenario.wait_for("telemetry", lambda: gds.get("/records?kind=channel&limit=1")["records"])
+        scenario.wait_for("telemetry", lambda: gds.get("/records?kind=fprime.channel&limit=1")["records"])
         for name, arguments in scenario.COMMANDS:
             gds.post("/commands", {"name": name, "args": arguments})
             time.sleep(scenario.GAP)

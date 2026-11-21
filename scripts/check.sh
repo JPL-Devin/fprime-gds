@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Every check of this repository, the same locally and in the workflow.
+#
+#   1. format, lints and tests
+#   2. fgds against a running Ref: commands, events, channels, WebSocket
+#   3. comparison with the Python GDS, live and on replayed bytes (tests/compare/README.md)
+#   4. the example project binary
+#
+# Items 2 and 3 need F Prime: set FPRIME to a checkout of fprime that has its virtual
+# environment in fprime-venv (fprime-util and fprime-gds installed). Ref is built from a
+# copy of it under target/ref, on the first run only.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+: "${FPRIME:?set FPRIME to an fprime checkout with its fprime-venv}"
+venv=${FPRIME_VENV:-$FPRIME/fprime-venv}
+out=target/check
+rm -rf "$out"
+mkdir -p "$out"
+
+echo "== 1. format, lints, tests"
+if grep -L '^workspace = true' $(grep -l '^\[lints\]' crates/*/Cargo.toml plugins/*/Cargo.toml examples/*/Cargo.toml) | grep .; then
+    echo "these crates do not take the workspace lints (unsafe_code = forbid)"; exit 1
+fi
+test "$(ls crates/*/Cargo.toml plugins/*/Cargo.toml examples/*/Cargo.toml | wc -l)" = \
+     "$(grep -l '^\[lints\]' crates/*/Cargo.toml plugins/*/Cargo.toml examples/*/Cargo.toml | wc -l)"
+grep -q '^unsafe_code = "forbid"' Cargo.toml
+echo "  ok: every crate forbids unsafe"
+cargo fmt --check
+echo "  ok: cargo fmt --check"
+cargo clippy --workspace --all-targets --quiet -- -D warnings
+echo "  ok: cargo clippy -D warnings"
+cargo test --workspace --quiet 2>&1 | tee "$out/test.log" | grep -E "^test result|FAILED|panicked|^error" \
+    | awk '/^test result: ok/ {n += $4; next} {print; bad = 1} END {if (bad) exit 1; print "  ok: cargo test, " n " tests passed"}'
+cargo build --workspace --quiet
+
+echo "== Ref with F Prime framing"
+ref=target/ref/TestDeploymentsProject/build-artifacts/Linux/Ref
+PATH="$venv/bin:$PATH" scripts/build-ref.sh "$FPRIME" target/ref
+dictionary=$PWD/$ref/dict/RefTopologyDictionary.json
+echo "  ok: $ref/bin/Ref"
+
+echo "== 2. fgds against Ref"
+python3 tests/ref/check.py "$PWD/target/debug/fgds" "$PWD/$ref/bin/Ref" "$dictionary" "$PWD/$out/ref"
+
+echo "== 3. comparison with the Python GDS"
+PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$PWD/target/debug/fgds" --ref "$PWD/$ref/bin/Ref" \
+    --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/compare"
+
+echo "== 4. example project binary"
+python3 examples/custom-gds/check.py target/debug tests/data/dictionary.json
+
+echo "check: all passed"

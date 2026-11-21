@@ -274,3 +274,63 @@ async fn invalid_queries_are_rejected() {
     let query = Query { filters: vec![filter], ..Default::default() };
     assert!(matches!(gds.core.records.query(query).await, Err(Error::Invalid(_))));
 }
+
+/// Memory storage whose `append` fails while the flag is set.
+struct FlakyStorage(testing::MemoryStorage, std::sync::atomic::AtomicBool);
+
+#[async_trait]
+impl Storage for FlakyStorage {
+    async fn open(&self, cfg: &StorageConfig) -> Result<RunInfo> {
+        self.0.open(cfg).await
+    }
+    async fn append(&self, batch: &[Record]) -> Result<()> {
+        match self.1.load(std::sync::atomic::Ordering::SeqCst) {
+            true => Err(Error::other("disk full")),
+            false => self.0.append(batch).await,
+        }
+    }
+    async fn query(&self, q: &Query) -> Result<Page> {
+        self.0.query(q).await
+    }
+    async fn latest(&self, q: &Query) -> Result<Page> {
+        self.0.latest(q).await
+    }
+    async fn runs(&self) -> Result<Vec<RunInfo>> {
+        self.0.runs().await
+    }
+    async fn close(&self) -> Result<()> {
+        self.0.close().await
+    }
+}
+
+#[tokio::test]
+async fn storage_failure_is_broadcast_unstored_and_reported_on_recovery() {
+    let kinds = [
+        KindSpec::new("t.data", "test"),
+        KindSpec::new(KIND_STORAGE_GAP, "gap"),
+        KindSpec::new(KIND_STORAGE_RECOVERED, "recovered"),
+    ];
+    let storage = Arc::new(FlakyStorage(Default::default(), true.into()));
+    let run = storage.open(&StorageConfig { kinds: kinds.to_vec(), ..Default::default() }).await.unwrap();
+    let status = Status::default();
+    let records = Records::start(storage.clone(), &run, &kinds, status.clone());
+    let mut live = records.subscribe(Filter::default(), None);
+
+    records.publish(NewRecord::new("t.data", json!(1))).await.unwrap();
+    let lost = live.next().await.unwrap();
+    assert_eq!((lost.seq, lost.stored), (1, false));
+    assert!(status.snapshot()["storage"]["state"].as_str().unwrap().starts_with("failed"));
+
+    storage.1.store(false, std::sync::atomic::Ordering::SeqCst);
+    records.publish(NewRecord::new("t.data", json!(2))).await.unwrap();
+    let after: Vec<_> = [live.next().await, live.next().await, live.next().await].into_iter().flatten().collect();
+    assert_eq!(
+        after.iter().map(|r| (r.kind.as_str(), r.stored)).collect::<Vec<_>>(),
+        [("t.data", true), (KIND_STORAGE_GAP, true), (KIND_STORAGE_RECOVERED, true)]
+    );
+    assert_eq!(after[1].body, json!({"first_seq": "1", "last_seq": "1"}));
+    assert_eq!(status.snapshot()["storage"]["state"], "ok");
+    // A replay from the start crosses the gap and is told about it.
+    let replay = records.query(Query::default()).await.unwrap();
+    assert_eq!(replay.records.iter().map(|r| r.seq).collect::<Vec<_>>(), [2, 3, 4]);
+}

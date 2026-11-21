@@ -49,7 +49,7 @@ step(f"duplicate registration stops startup: {conflict.stderr.strip()}")
 # The subcommand, and the build without one default plugin.
 kinds = run("custom-gds", "kinds")
 assert kinds.returncode == 0 and "example.note: A note written by an operator" in kinds.stdout, kinds
-assert "channel" not in kinds.stdout
+assert "fprime.channel" not in kinds.stdout and "fprime.event" in kinds.stdout
 step("subcommand `kinds` lists example.note and no channel kind")
 check = run("custom-gds", "check", "--dictionary", DICTIONARY, "--framing", "station-fprime")
 assert check.returncode == 0, check.stderr
@@ -99,7 +99,7 @@ try:
     # The added framing layer in use, both directions.
     event = bytes([0, 2, 0, 0, 2, 0]) + TIME  # event 512, T.c.NoOp
     flight.sendall(b"noise" + station_frame(fprime_frame(event), 3))
-    events = wait_for("the event", lambda: get("/api/v1/records?kind=event")["records"])
+    events = wait_for("the event", lambda: get("/api/v1/records?kind=fprime.event")["records"])
     assert events[0]["body"]["name"] == "T.c.NoOp" and events[0]["meta"] == {"station": "3"}, events
     assert get("/api/v1/records?kind=raw.discarded")["records"], "the noise was not recorded"
     step("downlink through station + fprime framing; station number kept as packet metadata")

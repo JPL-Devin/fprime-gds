@@ -14,7 +14,9 @@ use fgds_core::{
 };
 use std::sync::Arc;
 
-pub const KIND: &str = "command";
+pub const KIND: &str = "fprime.command";
+/// The request kind of the uplink service (section 4.5).
+pub const REQUEST: &str = "command";
 
 pub struct CommandsPlugin;
 
@@ -61,12 +63,12 @@ async fn send(
     Json(request): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
     if options.dry_run {
-        let encoded = ctx.uplink.dry_run(KIND, &request)?;
+        let encoded = ctx.uplink.dry_run(REQUEST, &request)?;
         let packet = base64::engine::general_purpose::STANDARD.encode(&encoded.packet);
         return Ok(Json(json!({"dry_run": true, "packet": packet, "command": encoded.body})));
     }
     let client = headers.get("x-fgds-client").and_then(|v| v.to_str().ok()).unwrap_or("api");
-    let sent = ctx.uplink.send(KIND, &request, client).await?;
+    let sent = ctx.uplink.send(REQUEST, &request, client).await?;
     Ok(Json(json!({"seq": sent.seq.to_string(), "entity": sent.entity})))
 }
 
@@ -83,7 +85,7 @@ pub struct CommandEncoder;
 
 impl Encoder for CommandEncoder {
     fn request_kind(&self) -> &'static str {
-        KIND
+        REQUEST
     }
 
     fn record_kind(&self) -> &'static str {
