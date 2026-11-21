@@ -1,0 +1,302 @@
+use crate::types::{Time, Type};
+use crate::Dictionary;
+use serde_json::{json, Map, Value};
+
+/// A value that cannot be encoded, or bytes that cannot be decoded, as a given type.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+#[error("{0}")]
+pub struct TypeError(pub String);
+
+fn fail<T>(msg: impl Into<String>) -> Result<T, TypeError> {
+    Err(TypeError(msg.into()))
+}
+
+/// A cursor over packet bytes. All F Prime wire values are big-endian.
+pub struct Reader<'a> {
+    data: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> Reader<'a> {
+    pub fn new(data: &'a [u8]) -> Self {
+        Reader { data, pos: 0 }
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.data.len() - self.pos
+    }
+
+    pub fn take(&mut self, n: usize) -> Result<&'a [u8], TypeError> {
+        if self.remaining() < n {
+            return fail(format!(
+                "needed {n} bytes at offset {}, {} left",
+                self.pos,
+                self.remaining()
+            ));
+        }
+        let out = &self.data[self.pos..self.pos + n];
+        self.pos += n;
+        Ok(out)
+    }
+
+    /// An unsigned big-endian integer of 8, 16, 32 or 64 bits.
+    pub fn uint(&mut self, bits: u8) -> Result<u64, TypeError> {
+        let bytes = self.take(bits as usize / 8)?;
+        Ok(bytes.iter().fold(0u64, |acc, b| (acc << 8) | *b as u64))
+    }
+}
+
+fn put_uint(out: &mut Vec<u8>, bits: u8, value: u64) {
+    let bytes = value.to_be_bytes();
+    out.extend_from_slice(&bytes[8 - bits as usize / 8..]);
+}
+
+/// An integer given as a JSON number or as a decimal or `0x` string.
+fn int_from_json(value: &Value) -> Option<i128> {
+    match value {
+        Value::Number(n) => n
+            .as_i64()
+            .map(i128::from)
+            .or_else(|| n.as_u64().map(i128::from)),
+        Value::String(s) => {
+            let s = s.trim();
+            match s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")) {
+                Some(hex) => i128::from_str_radix(hex, 16).ok(),
+                None => s.parse().ok(),
+            }
+        }
+        _ => None,
+    }
+}
+
+fn float_to_json(v: f64) -> Value {
+    if v.is_nan() {
+        json!("NaN")
+    } else if v.is_infinite() {
+        json!(if v > 0.0 { "Infinity" } else { "-Infinity" })
+    } else {
+        json!(v)
+    }
+}
+
+impl Dictionary {
+    /// A time tag: time base, time context, seconds, microseconds.
+    pub fn decode_time(&self, r: &mut Reader) -> Result<Time, TypeError> {
+        let bits = |name: &str, default: u8| match self.types.get(name) {
+            Some(Type::Int { bits, .. }) => *bits,
+            _ => default,
+        };
+        Ok(Time {
+            base: r.uint(bits("FwTimeBaseStoreType", 16))? as u16,
+            context: r.uint(bits("FwTimeContextStoreType", 8))? as u8,
+            seconds: r.uint(32)? as u32,
+            microseconds: r.uint(32)? as u32,
+        })
+    }
+
+    /// The largest encoded size of a type: what a telemetry packet reserves for a channel.
+    pub fn max_size(&self, ty: &Type) -> usize {
+        match ty {
+            Type::Int { bits, .. } | Type::Float { bits } => *bits as usize / 8,
+            Type::Bool => 1,
+            Type::String { max } => self.max_size(&self.size_store) + max,
+            Type::Enum { rep, .. } => self.max_size(rep),
+            Type::Array { size, element, .. } => size * self.max_size(element),
+            Type::Struct { members, .. } => members
+                .iter()
+                .map(|m| m.count.unwrap_or(1) * self.max_size(&m.ty))
+                .sum(),
+        }
+    }
+
+    /// Decode one value of type `ty` from `r`.
+    pub fn decode(&self, ty: &Type, r: &mut Reader) -> Result<Value, TypeError> {
+        match ty {
+            Type::Int { bits, signed } => {
+                let raw = r.uint(*bits)?;
+                Ok(match (*bits, *signed) {
+                    (64, false) => json!(raw.to_string()),
+                    (64, true) => json!((raw as i64).to_string()),
+                    (_, false) => json!(raw),
+                    // Sign-extend from the encoded width.
+                    (bits, true) => json!(((raw << (64 - bits)) as i64) >> (64 - bits)),
+                })
+            }
+            Type::Float { bits: 32 } => {
+                Ok(float_to_json(f32::from_bits(r.uint(32)? as u32) as f64))
+            }
+            Type::Float { .. } => Ok(float_to_json(f64::from_bits(r.uint(64)?))),
+            Type::Bool => match r.uint(8)? as u8 {
+                b if b == self.bool_true => Ok(json!(true)),
+                b if b == self.bool_false => Ok(json!(false)),
+                b => fail(format!("invalid boolean byte 0x{b:02X}")),
+            },
+            Type::String { max } => {
+                let Type::Int { bits, .. } = self.size_store else {
+                    unreachable!("checked at load")
+                };
+                let len = r.uint(bits)? as usize;
+                if len > *max {
+                    return fail(format!("string length {len} exceeds maximum {max}"));
+                }
+                match std::str::from_utf8(r.take(len)?) {
+                    Ok(s) => Ok(json!(s)),
+                    Err(_) => fail("string is not valid UTF-8"),
+                }
+            }
+            Type::Enum {
+                name,
+                rep,
+                constants,
+            } => {
+                let raw = int_from_json(&self.decode(rep, r)?).unwrap_or_default();
+                match constants.iter().find(|(_, v)| *v as i128 == raw) {
+                    Some((constant, _)) => Ok(json!(constant)),
+                    None => fail(format!("{raw} is not a constant of enum {name}")),
+                }
+            }
+            Type::Array { size, element, .. } => (0..*size)
+                .map(|_| self.decode(element, r))
+                .collect::<Result<Vec<_>, _>>()
+                .map(Value::Array),
+            Type::Struct { members, .. } => {
+                let mut out = Map::new();
+                for m in members {
+                    let value = match m.count {
+                        None => self.decode(&m.ty, r)?,
+                        Some(n) => Value::Array(
+                            (0..n)
+                                .map(|_| self.decode(&m.ty, r))
+                                .collect::<Result<_, _>>()?,
+                        ),
+                    };
+                    out.insert(m.name.clone(), value);
+                }
+                Ok(Value::Object(out))
+            }
+        }
+    }
+
+    /// Encode `value` as type `ty`, appending to `out`. The value is validated against the type.
+    pub fn encode(&self, ty: &Type, value: &Value, out: &mut Vec<u8>) -> Result<(), TypeError> {
+        match ty {
+            Type::Int { bits, signed } => {
+                let name = format!("{}{bits}", if *signed { 'I' } else { 'U' });
+                let Some(v) = int_from_json(value) else {
+                    return fail(format!("{value} is not an integer ({name})"));
+                };
+                let (min, max) = match signed {
+                    true => (-(1i128 << (bits - 1)), (1i128 << (bits - 1)) - 1),
+                    false => (0, (1i128 << bits) - 1),
+                };
+                if v < min || v > max {
+                    return fail(format!("{v} is out of range for {name}"));
+                }
+                put_uint(out, *bits, v as u64);
+            }
+            Type::Float { bits } => {
+                let v = match value {
+                    Value::Number(n) => n.as_f64(),
+                    Value::String(s) => match s.trim() {
+                        "NaN" => Some(f64::NAN),
+                        "Infinity" => Some(f64::INFINITY),
+                        "-Infinity" => Some(f64::NEG_INFINITY),
+                        other => other.parse().ok(),
+                    },
+                    _ => None,
+                };
+                match (v, bits) {
+                    (None, _) => return fail(format!("{value} is not a number (F{bits})")),
+                    (Some(v), 32) => put_uint(out, 32, (v as f32).to_bits() as u64),
+                    (Some(v), _) => put_uint(out, 64, v.to_bits()),
+                }
+            }
+            Type::Bool => {
+                let v = match value {
+                    Value::Bool(b) => Some(*b),
+                    Value::String(s) => match s.to_ascii_lowercase().as_str() {
+                        "true" => Some(true),
+                        "false" => Some(false),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                match v {
+                    Some(true) => out.push(self.bool_true),
+                    Some(false) => out.push(self.bool_false),
+                    None => return fail(format!("{value} is not a boolean")),
+                }
+            }
+            Type::String { max } => {
+                let Some(s) = value.as_str() else {
+                    return fail(format!("{value} is not a string"));
+                };
+                if s.len() > *max {
+                    return fail(format!("string of {} bytes exceeds maximum {max}", s.len()));
+                }
+                let Type::Int { bits, .. } = self.size_store else {
+                    unreachable!("checked at load")
+                };
+                put_uint(out, bits, s.len() as u64);
+                out.extend_from_slice(s.as_bytes());
+            }
+            Type::Enum {
+                name,
+                rep,
+                constants,
+            } => {
+                let found = value
+                    .as_str()
+                    .and_then(|s| constants.iter().find(|(c, _)| c == s));
+                match found {
+                    Some((_, v)) => self.encode(rep, &json!(v), out)?,
+                    None => return fail(format!("{value} is not a constant of enum {name}")),
+                }
+            }
+            Type::Array {
+                name,
+                size,
+                element,
+            } => self.encode_list(name, element, *size, value, out)?,
+            Type::Struct { name, members } => {
+                let Some(map) = value.as_object() else {
+                    return fail(format!("{value} is not an object (struct {name})"));
+                };
+                if let Some(extra) = map.keys().find(|k| !members.iter().any(|m| &m.name == *k)) {
+                    return fail(format!("struct {name} has no member {extra}"));
+                }
+                for m in members {
+                    let Some(v) = map.get(&m.name) else {
+                        return fail(format!("struct {name}: member {} is missing", m.name));
+                    };
+                    let at = |e: TypeError| TypeError(format!("{name}.{}: {}", m.name, e.0));
+                    match m.count {
+                        None => self.encode(&m.ty, v, out).map_err(at)?,
+                        Some(n) => self.encode_list(&m.name, &m.ty, n, v, out).map_err(at)?,
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn encode_list(
+        &self,
+        name: &str,
+        element: &Type,
+        size: usize,
+        value: &Value,
+        out: &mut Vec<u8>,
+    ) -> Result<(), TypeError> {
+        match value.as_array() {
+            Some(items) if items.len() == size => items
+                .iter()
+                .enumerate()
+                .try_for_each(|(i, v)| {
+                    self.encode(element, v, out)
+                        .map_err(|e| TypeError(format!("{name}[{i}]: {}", e.0)))
+                }),
+            _ => fail(format!("{value} is not an array of {size} elements ({name})")),
+        }
+    }
+}

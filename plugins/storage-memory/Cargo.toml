@@ -1,0 +1,16 @@
+[package]
+name = "storage-memory"
+description = "Storage plugin that keeps one run in memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+

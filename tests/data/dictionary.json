@@ -1,0 +1,36 @@
+{
+  "metadata": {"deploymentName": "Test", "projectVersion": "test-1", "dictionarySpecVersion": "1.0.0"},
+  "typeDefinitions": [
+    {"kind": "alias", "qualifiedName": "FwSizeStoreType", "type": {"name": "U16", "kind": "integer", "size": 16, "signed": false}, "underlyingType": {"name": "U16", "kind": "integer", "size": 16, "signed": false}},
+    {"kind": "enum", "qualifiedName": "T.Mode", "representationType": {"name": "U8", "kind": "integer", "size": 8, "signed": false}, "enumeratedConstants": [{"name": "OFF", "value": 0}, {"name": "ON", "value": 1}], "default": "T.Mode.OFF"}
+  ],
+  "constants": [],
+  "commands": [
+    {"name": "T.c.NO_OP", "commandKind": "async", "opcode": 256, "formalParams": []},
+    {"name": "T.c.SET", "commandKind": "async", "opcode": 257, "formalParams": [
+      {"name": "mode", "type": {"name": "T.Mode", "kind": "qualifiedIdentifier"}, "ref": false},
+      {"name": "level", "type": {"name": "U16", "kind": "integer", "size": 16, "signed": false}, "ref": false},
+      {"name": "label", "type": {"name": "string", "kind": "string", "size": 8}, "ref": false}
+    ]}
+  ],
+  "parameters": [],
+  "events": [
+    {"name": "T.c.NoOp", "severity": "ACTIVITY_HI", "formalParams": [], "id": 512, "format": "Received a NO-OP command"},
+    {"name": "T.c.ModeSet", "severity": "WARNING_LO", "formalParams": [
+      {"name": "mode", "type": {"name": "T.Mode", "kind": "qualifiedIdentifier"}, "ref": false},
+      {"name": "level", "type": {"name": "U16", "kind": "integer", "size": 16, "signed": false}, "ref": false}
+    ], "id": 513, "format": "Mode {} at level 0x{x}"}
+  ],
+  "telemetryChannels": [
+    {"name": "T.c.Count", "type": {"name": "U32", "kind": "integer", "size": 32, "signed": false}, "id": 768, "telemetryUpdate": "always"},
+    {"name": "T.c.Temp", "type": {"name": "F32", "kind": "float", "size": 32}, "id": 769, "format": "{.1f} C", "telemetryUpdate": "always"},
+    {"name": "T.c.Label", "type": {"name": "string", "kind": "string", "size": 8}, "id": 770, "telemetryUpdate": "always"}
+  ],
+  "records": [],
+  "containers": [],
+  "telemetryPacketSets": [
+    {"name": "Packets", "members": [
+      {"name": "All", "id": 1, "group": 1, "members": ["T.c.Label", "T.c.Count", "T.c.Temp"]}
+    ], "omitted": []}
+  ]
+}

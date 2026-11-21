@@ -1,0 +1,15 @@
+[package]
+name = "channels"
+description = "F Prime telemetry channel and telemetry packet decoders"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

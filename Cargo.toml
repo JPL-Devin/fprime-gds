@@ -1,0 +1,40 @@
+[workspace]
+resolver = "2"
+members = ["crates/fgds-dictionary", "crates/fgds-core", "plugins/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+rust-version = "1.82"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+# Direct dependencies are limited to section 5 of the design (MNT-5).
+[workspace.dependencies]
+async-trait = "0.1"
+axum = { version = "0.7", features = ["ws"] }
+base64 = "0.22"
+bytes = "1"
+clap = { version = "4", features = ["string"] }
+crc = "3"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "1"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "signal"] }
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+fgds-dictionary = { path = "crates/fgds-dictionary" }
+fgds-core = { path = "crates/fgds-core" }
+fgds-shell = { path = "crates/fgds-shell" }
+fgds = { path = "crates/fgds" }
+comm-tcp = { path = "plugins/comm-tcp" }
+framing-fprime = { path = "plugins/framing-fprime" }
+storage-memory = { path = "plugins/storage-memory" }
+events = { path = "plugins/events" }
+channels = { path = "plugins/channels" }
+commands = { path = "plugins/commands" }

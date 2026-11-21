@@ -1,0 +1,18 @@
+[package]
+name = "framing-fprime"
+description = "The F Prime framing layer: start word, length, packet, CRC-32"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+bytes = { workspace = true }
+crc = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+

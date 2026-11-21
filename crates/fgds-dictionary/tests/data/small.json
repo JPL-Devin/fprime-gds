@@ -1,0 +1,40 @@
+{
+  "metadata": {"deploymentName": "T", "projectVersion": "v1", "dictionarySpecVersion": "1.0.0"},
+  "typeDefinitions": [
+    {"kind": "alias", "qualifiedName": "FwOpcodeType", "type": {"name": "FwIdType", "kind": "qualifiedIdentifier"},
+     "underlyingType": {"name": "U32", "kind": "integer", "size": 32, "signed": false}},
+    {"kind": "alias", "qualifiedName": "FwIdType", "type": {"name": "U32", "kind": "integer", "size": 32, "signed": false},
+     "underlyingType": {"name": "U32", "kind": "integer", "size": 32, "signed": false}},
+    {"kind": "alias", "qualifiedName": "FwSizeStoreType", "type": {"name": "U16", "kind": "integer", "size": 16, "signed": false},
+     "underlyingType": {"name": "U16", "kind": "integer", "size": 16, "signed": false}},
+    {"kind": "enum", "qualifiedName": "T.Color", "representationType": {"name": "U8", "kind": "integer", "size": 8, "signed": false},
+     "enumeratedConstants": [{"name": "RED", "value": 0}, {"name": "GREEN", "value": 1}], "default": "T.Color.RED"},
+    {"kind": "array", "qualifiedName": "T.Pair", "size": 2, "elementType": {"name": "U16", "kind": "integer", "size": 16, "signed": false}},
+    {"kind": "struct", "qualifiedName": "T.Mixed", "members": {
+      "a": {"type": {"name": "T.Color", "kind": "qualifiedIdentifier"}, "index": 1},
+      "b": {"type": {"name": "T.Pair", "kind": "qualifiedIdentifier"}, "index": 0},
+      "c": {"type": {"name": "U8", "kind": "integer", "size": 8, "signed": false}, "index": 2, "size": 3}}}
+  ],
+  "constants": [
+    {"kind": "constant", "qualifiedName": "FW_SERIALIZE_TRUE_VALUE", "type": {"name": "U64", "kind": "integer", "size": 64, "signed": false}, "value": 255},
+    {"kind": "constant", "qualifiedName": "FW_SERIALIZE_FALSE_VALUE", "type": {"name": "U64", "kind": "integer", "size": 64, "signed": false}, "value": 0}
+  ],
+  "commands": [
+    {"name": "T.c.SET", "commandKind": "async", "opcode": 16, "formalParams": [
+      {"name": "color", "type": {"name": "T.Color", "kind": "qualifiedIdentifier"}, "ref": false},
+      {"name": "level", "type": {"name": "U8", "kind": "integer", "size": 8, "signed": false}, "ref": false}]},
+    {"name": "T.c.NO_OP", "commandKind": "async", "opcode": 17, "formalParams": []}
+  ],
+  "parameters": [],
+  "events": [
+    {"name": "T.c.NoOp", "severity": "ACTIVITY_LO", "formalParams": [], "id": 1, "format": "No-op received"},
+    {"name": "T.c.ColorSet", "severity": "ACTIVITY_HI", "formalParams": [
+      {"name": "color", "type": {"name": "T.Color", "kind": "qualifiedIdentifier"}, "ref": false},
+      {"name": "level", "type": {"name": "U8", "kind": "integer", "size": 8, "signed": false}, "ref": false}],
+     "id": 2, "format": "Color {} at level 0x{x}"}
+  ],
+  "telemetryChannels": [
+    {"name": "T.c.Volts", "type": {"name": "F32", "kind": "float", "size": 32}, "id": 3, "telemetryUpdate": "always", "format": "{.2f} V"},
+    {"name": "T.c.Count", "type": {"name": "U32", "kind": "integer", "size": 32, "signed": false}, "id": 4, "telemetryUpdate": "always"}
+  ]
+}
