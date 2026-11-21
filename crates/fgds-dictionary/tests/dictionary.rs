@@ -198,7 +198,7 @@ fn format_strings_match_the_python_fixture() {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/vectors/format_strings.json");
     let fixture: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     let dict = dict();
-    let mut checked = 0;
+    let (mut checked, mut recorded) = (0, 0);
     for vector in fixture["vectors"].as_array().unwrap() {
         let (Some(expected), Some(values)) = (vector["expected"].as_str(), vector["values"].as_array()) else {
             continue;
@@ -206,19 +206,24 @@ fn format_strings_match_the_python_fixture() {
         if vector["style"] != "fpp" {
             continue;
         }
+        // Recorded vectors name the type of each value; asserted ones do not.
         let typed: Vec<(Type, &Value)> = values
             .iter()
-            .map(|v| match v {
-                Value::Number(n) if n.is_f64() => (Type::Float { bits: 64 }, v),
-                Value::Number(_) => (Type::Int { bits: 64, signed: true }, v),
+            .enumerate()
+            .map(|(index, v)| match (vector["types"][index].as_str(), v) {
+                (Some("float"), _) => (Type::Float { bits: 64 }, v),
+                (Some("string"), _) => (Type::String { max: 80 }, v),
+                (None, Value::Number(n)) if n.is_f64() => (Type::Float { bits: 64 }, v),
+                (_, Value::Number(n)) => (Type::Int { bits: 64, signed: n.is_i64() }, v),
                 _ => (Type::String { max: 80 }, v),
             })
             .collect();
+        recorded += usize::from(vector["origin"] == "recorded");
         let refs: Vec<_> = typed.iter().map(|(t, v)| (t, *v)).collect();
         assert_eq!(dict.format(vector["template"].as_str().unwrap(), &refs), expected, "{vector}");
         checked += 1;
     }
-    assert!(checked >= 8, "only {checked} vectors checked");
+    assert!(checked >= 24 && recorded >= 16, "only {checked} vectors checked, {recorded} recorded");
 }
 
 /// Channels of array and struct type: each leaf goes through the format string of its
