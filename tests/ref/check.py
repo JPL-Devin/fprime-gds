@@ -68,6 +68,9 @@ class Stream:
             payload = self.file.read(length)
             if first & 0x0F == 1:
                 message = json.loads(payload)
+                if message["type"] == "live":
+                    self.live = message["seq"]
+                    continue
                 assert message["type"] == "record", message
                 return message["record"]
 
