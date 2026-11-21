@@ -222,7 +222,7 @@ impl Dictionary {
                     None => return fail(format!("{value} is not a constant of enum {name}")),
                 }
             }
-            Type::Array { name, size, element } => self.encode_list(name, element, *size, value, out)?,
+            Type::Array { name, size, element, .. } => self.encode_list(name, element, *size, value, out)?,
             Type::Struct { name, members } => {
                 let Some(map) = value.as_object() else {
                     return fail(format!("{value} is not an object (struct {name})"));

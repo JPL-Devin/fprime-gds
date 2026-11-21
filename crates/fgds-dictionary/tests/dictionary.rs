@@ -1,4 +1,4 @@
-use fgds_dictionary::{Dictionary, Reader, Type};
+use fgds_dictionary::{Dictionary, Member, Reader, Type};
 use serde_json::{json, Value};
 
 const DICT: &str = include_str!("data/small.json");
@@ -139,6 +139,7 @@ fn format_strings_are_filled_as_the_python_gds_fills_them() {
     let dict = dict();
     let (u32t, f64t) = (Type::U32, Type::Float { bits: 64 });
     let u64t = Type::Int { bits: 64, signed: false };
+    let i32t = Type::Int { bits: 32, signed: true };
     let text = Type::String { max: 10 };
     type Case<'a> = (&'a str, Vec<(&'a Type, Value)>, &'a str);
     let cases: Vec<Case> = vec![
@@ -155,18 +156,76 @@ fn format_strings_are_filled_as_the_python_gds_fills_them() {
         ("{{}} {}", vec![(&u32t, json!(1))], "{} 1"),
         ("{} {}", vec![(&u32t, json!(1))], "1 {}"),
         ("{x}", vec![(&text, json!("abc"))], "{x}"),
+        // As Python's `format`: sign and magnitude, a real `g`, non-finite values.
+        ("{x} {o} {04x} {5d}|", vec![(&i32t, json!(-255)), (&i32t, json!(-8)), (&i32t, json!(-1)), (&i32t, json!(-42))], "-ff -10 -001   -42|"),
+        ("{g} {g} {.3g} {g}", vec![(&f64t, json!(100.0)), (&f64t, json!(1234567.0)), (&f64t, json!(0.000012345)), (&f64t, json!(0.5))], "100 1.23457e+06 1.23e-05 0.5"),
+        ("{f} {.2f} {e} {g} {8.1f}|", vec![(&f64t, json!("NaN")), (&f64t, json!("Infinity")), (&f64t, json!("-Infinity")), (&f64t, json!("NaN")), (&f64t, json!("-Infinity"))], "nan inf -inf nan     -inf|"),
     ];
     for (template, values, expected) in cases {
         let values: Vec<_> = values.iter().map(|(t, v)| (*t, v)).collect();
         assert_eq!(dict.format(template, &values), expected, "{template}");
     }
-    let array = Type::Array { name: "A".into(), size: 2, element: Box::new(text.clone()) };
+    let array = Type::Array { name: "A".into(), size: 2, element: Box::new(text.clone()), format: None };
     assert_eq!(dict.display(&array, &json!(["a", "b"])), "['a', 'b']");
     let mixed = json!({"a": "RED", "b": [7, 8], "c": [1, 2, 3]});
     let shown = dict.display(&dict.types["T.Mixed"], &mixed);
     assert_eq!(shown, "{'b': [7, 8], 'a': 'RED', 'c': [1, 2, 3]}");
     assert_eq!(dict.max_size(&dict.types["T.Mixed"]), 8);
     assert_eq!(dict.max_size(&Type::String { max: 10 }), 12);
+}
+
+/// The FPP-style vectors recorded from the Python GDS (`format_string_template`).
+#[test]
+fn format_strings_match_the_python_fixture() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/vectors/format_strings.json");
+    let fixture: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let dict = dict();
+    let mut checked = 0;
+    for vector in fixture["vectors"].as_array().unwrap() {
+        let (Some(expected), Some(values)) = (vector["expected"].as_str(), vector["values"].as_array()) else {
+            continue;
+        };
+        if vector["style"] != "fpp" {
+            continue;
+        }
+        let typed: Vec<(Type, &Value)> = values
+            .iter()
+            .map(|v| match v {
+                Value::Number(n) if n.is_f64() => (Type::Float { bits: 64 }, v),
+                Value::Number(_) => (Type::Int { bits: 64, signed: true }, v),
+                _ => (Type::String { max: 80 }, v),
+            })
+            .collect();
+        let refs: Vec<_> = typed.iter().map(|(t, v)| (t, *v)).collect();
+        assert_eq!(dict.format(vector["template"].as_str().unwrap(), &refs), expected, "{vector}");
+        checked += 1;
+    }
+    assert!(checked >= 8, "only {checked} vectors checked");
+}
+
+/// Channels of array and struct type: each leaf goes through the format string of its
+/// array element or struct member, as `formatted_val` of the Python GDS does.
+#[test]
+fn element_and_member_format_strings_are_applied_to_channel_values() {
+    let dict = dict();
+    let hex = Type::Array { name: "A".into(), size: 2, element: Box::new(Type::U32), format: Some("0x{x}".into()) };
+    assert_eq!(dict.display_channel(&hex, &json!([255, 16])), "['0xff', '0x10']");
+    let member = |name: &str, ty: Type, count, format: Option<&str>| Member {
+        name: name.into(),
+        ty,
+        count,
+        format: format.map(str::to_string),
+    };
+    let members = vec![
+        member("ratio", Type::Float { bits: 32 }, None, Some("{.2f} V")),
+        member("pair", Type::U32, Some(2), Some("{03d}")),
+        member("inner", hex.clone(), None, None),
+        member("plain", Type::U32, None, None),
+    ];
+    let ty = Type::Struct { name: "S".into(), members };
+    let value = json!({"ratio": 1.5, "pair": [1, 2], "inner": [1, 2], "plain": 7});
+    let expected = "{'ratio': '1.50 V', 'pair': ['001', '002'], 'inner': ['0x1', '0x2'], 'plain': '7'}";
+    assert_eq!(dict.display_channel(&ty, &value), expected);
 }
 
 #[test]

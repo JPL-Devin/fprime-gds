@@ -220,6 +220,7 @@ impl<'a> Resolver<'a> {
                 name: name.to_string(),
                 size: u64_field(def, "size")? as usize,
                 element: Box::new(self.resolve(&def["elementType"], stack)?),
+                format: def["format"].as_str().map(str::to_string),
             }),
             "struct" => {
                 let map = def["members"].as_object().ok_or("missing \"members\"")?;
@@ -228,7 +229,8 @@ impl<'a> Resolver<'a> {
                     let index = u64_field(spec, "index")?;
                     let ty = self.resolve(&spec["type"], stack).map_err(|e| format!("member {member}: {e}"))?;
                     let count = spec["size"].as_u64().map(|n| n as usize);
-                    members.push((index, Member { name: member.clone(), ty, count }));
+                    let format = spec["format"].as_str().map(str::to_string);
+                    members.push((index, Member { name: member.clone(), ty, count, format }));
                 }
                 // Wire order is the "index" field, not the order of the JSON object.
                 members.sort_by_key(|(index, _)| *index);

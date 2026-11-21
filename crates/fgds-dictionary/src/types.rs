@@ -24,6 +24,8 @@ pub enum Type {
         name: String,
         size: usize,
         element: Box<Type>,
+        /// The format string of each element, when the dictionary gives one.
+        format: Option<String>,
     },
     /// Members in wire order. A member with `count > 1` is that many values in a row.
     Struct {
@@ -37,6 +39,8 @@ pub struct Member {
     pub name: String,
     pub ty: Type,
     pub count: Option<usize>,
+    /// The format string of the member, when the dictionary gives one.
+    pub format: Option<String>,
 }
 
 impl Type {

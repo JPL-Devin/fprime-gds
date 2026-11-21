@@ -40,28 +40,32 @@ fn plain(ty: &Type, value: &Value, nested: bool) -> String {
     }
 }
 
-/// A channel value as the Python GDS shows it: in arrays and structs every leaf is text.
-fn leaves_as_text(ty: &Type, value: &Value) -> String {
-    let list = |ty: &Type, items: &[Value]| {
-        let items: Vec<_> = items.iter().map(|v| leaves_as_text(ty, v)).collect();
+/// A channel value as the Python GDS shows it: in arrays and structs every leaf is
+/// text, filled into the format string of its array element or struct member.
+fn leaves_as_text(dict: &Dictionary, ty: &Type, value: &Value, format: Option<&str>) -> String {
+    let list = |ty: &Type, items: &[Value], format: Option<&str>| {
+        let items: Vec<_> = items.iter().map(|v| leaves_as_text(dict, ty, v, format)).collect();
         format!("[{}]", items.join(", "))
     };
     match (ty, value) {
-        (Type::Array { element, .. }, Value::Array(items)) => list(element, items),
+        (Type::Array { element, format, .. }, Value::Array(items)) => list(element, items, format.as_deref()),
         (Type::Struct { members, .. }, Value::Object(fields)) => {
             let fields: Vec<_> = members
                 .iter()
                 .filter_map(|m| Some((m, fields.get(&m.name)?)))
                 .map(|(m, v)| match (m.count, v) {
                     (Some(_), Value::Array(items)) => {
-                        format!("'{}': {}", m.name, list(&m.ty, items))
+                        format!("'{}': {}", m.name, list(&m.ty, items, m.format.as_deref()))
                     }
-                    _ => format!("'{}': {}", m.name, leaves_as_text(&m.ty, v)),
+                    _ => format!("'{}': {}", m.name, leaves_as_text(dict, &m.ty, v, m.format.as_deref())),
                 })
                 .collect();
             format!("{{{}}}", fields.join(", "))
         }
-        _ => format!("'{}'", plain(ty, value, false)),
+        _ => match format {
+            Some(format) => format!("'{}'", dict.format(format, &[(ty, value)])),
+            None => format!("'{}'", plain(ty, value, false)),
+        },
     }
 }
 
@@ -91,40 +95,89 @@ fn exponent(text: String) -> String {
     format!("{mantissa}{letter}{sign}{digits:0>2}")
 }
 
-/// One value under a conversion such as `x` or `.2f`; `None` when they do not fit.
+/// `%g` as C and Python write it: `precision` significant digits, the exponent form
+/// when the exponent is below -4 or not below the precision, trailing zeros removed.
+fn general(v: f64, precision: usize, upper: bool) -> String {
+    let precision = precision.max(1);
+    if v == 0.0 {
+        return if v.is_sign_negative() { "-0" } else { "0" }.into();
+    }
+    // The exponent after rounding to the precision.
+    let scientific = format!("{:.*e}", precision - 1, v);
+    let exp: i32 = scientific.split_once('e').and_then(|(_, e)| e.parse().ok()).unwrap_or(0);
+    let trim = |text: &str| match text.contains('.') {
+        true => text.trim_end_matches('0').trim_end_matches('.').to_string(),
+        false => text.to_string(),
+    };
+    if exp < -4 || exp >= precision as i32 {
+        let (mantissa, _) = scientific.split_once('e').unwrap_or((&scientific, ""));
+        let text = exponent(format!("{}e{exp}", trim(mantissa)));
+        return if upper { text.to_uppercase() } else { text };
+    }
+    trim(&format!("{:.*}", (precision as i32 - 1 - exp).max(0) as usize, v))
+}
+
+/// One value under a conversion such as `x`, `04X` or `.2f`, as Python's `format`
+/// fills it (the Python GDS turns `{04X}` into `{:04X}`); `None` when they do not fit.
 fn convert(spec: &str, ty: &Type, value: &Value) -> Option<String> {
     let conversion = spec.chars().last()?;
-    let (width, precision) = match spec[..spec.len() - 1].split_once('.') {
-        Some((w, p)) => (w, p.parse::<usize>().ok()),
-        None => (&spec[..spec.len() - 1], None),
+    let mut rest = &spec[..spec.len() - conversion.len_utf8()];
+    let plus = rest.starts_with('+');
+    rest = rest.strip_prefix('+').unwrap_or(rest);
+    let (width, precision) = match rest.split_once('.') {
+        Some((w, p)) => (w, Some(p.parse::<usize>().ok()?)),
+        None => (rest, None),
     };
+    let zero = width.starts_with('0');
     let width: usize = if width.is_empty() { 0 } else { width.parse().ok()? };
     let int = || match value {
-        Value::Number(n) => n.as_i64().map(i128::from),
-        Value::String(s) => s.parse::<i128>().ok(),
+        Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
+        Value::String(s) if matches!(ty, Type::Int { .. }) => s.parse::<i128>().ok(),
         _ => None,
     };
     let number = || match (ty, value) {
-        (Type::Float { .. }, Value::String(_)) => None,
+        (Type::Float { .. }, Value::String(s)) => Some(match s.as_str() {
+            "Infinity" => f64::INFINITY,
+            "-Infinity" => f64::NEG_INFINITY,
+            _ => f64::NAN,
+        }),
+        (_, Value::String(_)) => None,
         _ => value.as_f64().or_else(|| int().map(|i| i as f64)),
     };
-    let precision_or_6 = precision.unwrap_or(6);
-    let text = match conversion {
-        'd' | 'D' => int()?.to_string(),
-        'x' => format!("{:x}", int()?),
-        'X' => format!("{:X}", int()?),
-        'o' | 'O' => format!("{:o}", int()?),
-        'c' | 'C' => char::from_u32(int()? as u32)?.to_string(),
-        'f' | 'F' => format!("{:.*}", precision_or_6, number()?),
-        'e' => exponent(format!("{:.*e}", precision_or_6, number()?)),
-        'E' => exponent(format!("{:.*E}", precision_or_6, number()?)),
-        // `g` picks between `f` and `e`; the shortest exact form is close and simpler.
-        _ => float(number()?),
+    // Sign and magnitude apart: Python writes -255 as `-ff`, and pads after the sign.
+    let signed = |negative: bool, digits: String| (negative, digits);
+    let magnitude = |i: i128, digits: fn(u128) -> String| signed(i < 0, digits(i.unsigned_abs()));
+    let float = |digits: &dyn Fn(f64) -> String| {
+        let v = number()?;
+        let text = match v {
+            v if v.is_nan() => "nan".to_string(),
+            v if v.is_infinite() => "inf".to_string(),
+            v => digits(v.abs()),
+        };
+        let text = if conversion.is_uppercase() { text.to_uppercase() } else { text };
+        Some(signed(v.is_sign_negative() && !v.is_nan(), text))
     };
-    // Numbers are right-aligned in their width; a character is left-aligned.
-    Some(match conversion {
-        'c' | 'C' => format!("{text:<width$}"),
-        _ => format!("{text:>width$}"),
+    let precision_or_6 = precision.unwrap_or(6);
+    let (negative, digits) = match conversion {
+        'd' | 'D' | 'u' => magnitude(int()?, |i| i.to_string()),
+        'x' => magnitude(int()?, |i| format!("{i:x}")),
+        'X' => magnitude(int()?, |i| format!("{i:X}")),
+        'o' | 'O' => magnitude(int()?, |i| format!("{i:o}")),
+        'c' | 'C' => return Some(format!("{:<width$}", char::from_u32(u32::try_from(int()?).ok()?)?)),
+        'f' | 'F' => float(&|v| format!("{v:.precision_or_6$}"))?,
+        'e' | 'E' => float(&|v| exponent(format!("{v:.precision_or_6$e}")))?,
+        'g' | 'G' => float(&|v| general(v, precision_or_6, false))?,
+        _ => return None,
+    };
+    let sign = match (negative, plus) {
+        (true, _) => "-",
+        (false, true) => "+",
+        (false, false) => "",
+    };
+    // Numbers are right-aligned in their width; zeros go between the sign and the digits.
+    Some(match zero {
+        true => format!("{sign}{digits:0>pad$}", pad = width.saturating_sub(sign.len())),
+        false => format!("{:>width$}", format!("{sign}{digits}")),
     })
 }
 
@@ -137,7 +190,7 @@ impl Dictionary {
     /// The value of a channel as text, without a format string.
     pub fn display_channel(&self, ty: &Type, value: &Value) -> String {
         match ty {
-            Type::Array { .. } | Type::Struct { .. } => leaves_as_text(ty, value),
+            Type::Array { .. } | Type::Struct { .. } => leaves_as_text(self, ty, value, None),
             _ => plain(ty, value, false),
         }
     }
