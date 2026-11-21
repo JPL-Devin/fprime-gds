@@ -4,7 +4,7 @@
 - Design baseline approved by the user on 2026-11-21: `docs/design/requirements-and-architecture.md`.
 - First slice built (M0 and the smallest part of M1): the Cargo workspace of section 4.10 with `fgds-dictionary`, `fgds-core`, `fgds-shell`, `fgds`, the plugins `comm-tcp`, `framing-fprime`, `storage-memory`, `events`, `channels`, `commands`, and `examples/custom-gds`.
 - `scripts/check.sh` runs every check and passes locally: format, lints, tests; `fgds` against `Ref` (commands, events, channels, WebSocket replay then live); the comparison with the Python GDS, live and on replayed bytes (`tests/compare/README.md` lists the accepted differences); the example binary.
-- `.github/workflows/check.yml` calls the same script. It has not run yet: check its first run.
+- `.github/workflows/check.yml` calls the same script. It passes on this branch.
 - Where the code differs from the design, and what to change in the design before more plugins are built: `docs/design/deviations.md`. The design document itself is unchanged.
 
 ## How to run
