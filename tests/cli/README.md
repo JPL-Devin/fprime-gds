@@ -20,6 +20,10 @@ The `fgds` binary used is `$FGDS`, the stock binary, against the stock `Ref` (CC
 
 `dp_integration_test.py` (data products) is not copied.
 
+A test that fails is run once more, alone, only when `ref.log` has events printed during that test whose
+flight times are in no received packet (`Ref` drops events of a burst now and then, with the Python GDS
+too); `ref_int.py` prints how many and the first one. Any other failure stands.
+
 ## What `check.py` compares
 
 | Part | `fprime-cli` | `fgds` | Required |
