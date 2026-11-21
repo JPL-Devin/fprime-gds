@@ -43,6 +43,15 @@ async fn channel_packets_become_samples() {
     assert_eq!(samples[4].raw.as_ref(), second);
     assert_eq!(samples[0].raw.as_ref(), &channel(768, &[0, 0, 1, 0])[2..]);
     assert_eq!(gds.records(&["gds.decode_error"]).await.len(), 2);
+
+    // A good sample followed by bytes that are not one: the sample is kept.
+    gds.receive(&[&channel(768, &[0, 0, 0, 5])[..], &[9, 9, 9]].concat()).await;
+    let samples = gds.records(&["fprime.channel"]).await;
+    assert_eq!(samples.len(), 6);
+    assert_eq!(samples[5].body["value"], 5);
+    let errors = gds.records(&["gds.decode_error"]).await;
+    assert_eq!(errors.len(), 3);
+    assert_eq!((errors[2].raw.as_ref(), &errors[2].body["partial"]), (&[9, 9, 9][..], &json!(true)));
 }
 
 #[tokio::test]

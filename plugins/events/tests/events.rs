@@ -25,7 +25,12 @@ async fn events_are_decoded_with_their_arguments_and_text() {
     gds.receive(&event(512, &[0])).await; // too long
 
     let events = gds.records(&["fprime.event"]).await;
-    assert_eq!(events.len(), 2);
+    // The last packet holds a whole event before the byte that is not one: it is kept.
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[2].id, Some(512));
+    let errors = gds.records(&["gds.decode_error"]).await;
+    assert_eq!(errors[2].raw.as_ref(), &[0]);
+    assert_eq!(errors[2].body["partial"], true);
     assert_eq!(events[0].id, Some(512));
     assert_eq!(events[0].flight_time, Some(FlightTime { base: 2, context: 0, seconds: 100, microseconds: 7 }));
     // The event without the packet type: identifier, time tag, arguments.

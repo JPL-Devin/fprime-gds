@@ -71,16 +71,25 @@ impl Decoder for EventDecoder {
         let mut records = Vec::new();
         while records.is_empty() || r.remaining() > 0 {
             let start = packet.len() - r.remaining();
-            let id = r.uint(bits("FwEventIdType", 32)).map_err(error)? as u32;
-            let time = dict.decode_time(&mut r).map_err(error)?;
-            let event = dict.event(id).ok_or_else(|| DecodeError(format!("event {id} is not in the dictionary")))?;
-            let mut args = Map::new();
-            for param in &event.params {
-                let value = dict
-                    .decode(&param.ty, &mut r)
-                    .map_err(|e| DecodeError(format!("event {} argument {}: {}", event.name, param.name, e.0)))?;
-                args.insert(param.name.clone(), value);
-            }
+            let header = (|| {
+                let id = r.uint(bits("FwEventIdType", 32)).map_err(error)? as u32;
+                let time = dict.decode_time(&mut r).map_err(error)?;
+                let event =
+                    dict.event(id).ok_or_else(|| DecodeError(format!("event {id} is not in the dictionary")))?;
+                let mut args = Map::new();
+                for param in &event.params {
+                    let value = dict
+                        .decode(&param.ty, &mut r)
+                        .map_err(|e| DecodeError(format!("event {} argument {}: {}", event.name, param.name, e.0)))?;
+                    args.insert(param.name.clone(), value);
+                }
+                Ok((id, time, event, args))
+            })();
+            let (id, time, event, args) = match header {
+                Ok(item) => item,
+                // The events before the malformed one are kept.
+                Err(e) => return fgds_core::keep_decoded(records, &packet[start..], e),
+            };
             let values: Vec<_> = event.params.iter().map(|p| (&p.ty, &args[&p.name])).collect();
             let display_text = dict.format(&event.format, &values);
             records.push(NewRecord {
