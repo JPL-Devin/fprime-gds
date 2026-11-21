@@ -131,7 +131,7 @@ class CommandsTab extends LitElement {
   }
 
   // Replace the value at `path` (argument name, then member names and indexes).
-  update(path, value) {
+  setAt(path, value) {
     const next = structuredClone(this.values);
     let at = next;
     for (const key of path.slice(0, -1)) at = at[key];
@@ -167,7 +167,7 @@ class CommandsTab extends LitElement {
   input(type, state, path, label) {
     const key = label;
     const problem = this.mistakes.get(key);
-    const set = (e) => this.update(path, e.target.value);
+    const set = (e) => this.setAt(path, e.target.value);
     const note = problem ? html`<span class="error-text" data-error-for=${key}>${problem}</span>` : nothing;
     switch (type.kind) {
       case "enum":

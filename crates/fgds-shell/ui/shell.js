@@ -274,14 +274,22 @@ function mount(tab) {
     if (!customElements.get(tab.definition.element)) {
       throw new Error(`custom element <${tab.definition.element}> is not defined by the module`);
     }
-    const element = document.createElement(tab.definition.element);
-    element.gds = gds;
-    // An exception in connectedCallback is reported to the window, not to append().
+    // An exception in the constructor or in connectedCallback is reported to the window,
+    // not to createElement() or append().
     let thrown = null;
     const catcher = (event) => { thrown = event.error || new Error(event.message); event.preventDefault(); };
     window.addEventListener("error", catcher);
-    try { main.append(element); } finally { window.removeEventListener("error", catcher); }
-    tab.panel = element;
+    try {
+      const element = document.createElement(tab.definition.element);
+      if (!thrown && !(element instanceof customElements.get(tab.definition.element))) {
+        thrown = new Error(`<${tab.definition.element}> could not be created`);
+      }
+      if (!thrown) {
+        element.gds = gds;
+        main.append(element);
+        tab.panel = element;
+      }
+    } finally { window.removeEventListener("error", catcher); }
     if (thrown) throw thrown;
   } catch (error) {
     fail(tab, error);

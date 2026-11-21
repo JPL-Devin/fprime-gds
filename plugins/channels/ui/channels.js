@@ -62,6 +62,12 @@ class ChannelsTab extends LitElement {
     if (this.stop) this.stop();
   }
 
+  // Scalars as the dictionary formats them; arrays and structures member by member.
+  shown(record) {
+    const value = record.body.value;
+    return value !== null && typeof value === "object" ? this.gds.format.value(value) : record.body.display_text;
+  }
+
   render() {
     const format = this.gds.format;
     const needle = this.text.toLowerCase();
@@ -71,7 +77,7 @@ class ChannelsTab extends LitElement {
       if (!record && !this.all) return false;
       if (packet && !packet.members.has(d.name)) return false;
       if (!needle) return true;
-      return [d.name, format.hexId(d.id), record ? record.body.display_text : ""]
+      return [d.name, format.hexId(d.id), record ? this.shown(record) : ""]
         .some((field) => String(field).toLowerCase().includes(needle));
     });
     return html`
@@ -102,7 +108,7 @@ class ChannelsTab extends LitElement {
               <td class="nowrap mono" data-col="ground">${r ? format.groundTime(r.ground_time) : ""}</td>
               <td class="nowrap mono" data-col="id">${format.hexId(d.id)}</td>
               <td class="nowrap" data-col="name">${d.name}</td>
-              <td class="text" data-col="value" title=${r ? format.value(r.body.value) : ""}>${r ? r.body.display_text : ""}</td>
+              <td class="text" data-col="value" >${r ? this.shown(r) : ""}</td>
             </tr>`;
           })}
         </tbody>

@@ -44,7 +44,7 @@ class EventsTab extends LitElement {
     if (this.stop) this.stop();
   }
 
-  matches(record) {
+  accepts(record) {
     const body = record.body;
     if (!this.severities.has(body.severity)) return false;
     if (this.component && this.gds.format.component(body.name) !== this.component) return false;
@@ -80,7 +80,7 @@ class EventsTab extends LitElement {
     const format = this.gds.format;
     const source = this.frozen || this.events;
     const components = [...new Set((this.gds.dictionary.events || []).map((e) => format.component(e.name)))].sort();
-    const matching = source.filter((r) => this.matches(r));
+    const matching = source.filter((r) => this.accepts(r));
     const shown = (this.limit ? matching.slice(-this.limit) : matching).reverse();
     return html`
       <div class="toolbar">
