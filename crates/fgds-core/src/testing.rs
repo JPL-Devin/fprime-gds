@@ -408,10 +408,20 @@ pub struct FakeGds {
 impl FakeGds {
     /// Register `plugins` beside the test doubles and start the core with the link up.
     pub async fn start(plugins: &[&dyn Plugin], dictionary: Dictionary) -> Result<FakeGds> {
-        let config = Config { comm: "scripted".into(), framing: "length".into(), ..Default::default() };
-        let gds = Self::start_with(plugins, dictionary, config).await?;
+        let gds = Self::start_with(plugins, dictionary, Self::config()).await?;
         gds.wait_for_link("connected").await;
         Ok(gds)
+    }
+
+    /// The configuration of the test doubles: nothing is written to disk.
+    pub fn config() -> Config {
+        Config {
+            comm: "scripted".into(),
+            framing: "length".into(),
+            storage: "memory".into(),
+            logs: None,
+            ..Default::default()
+        }
     }
 
     /// As `start` with a given configuration, without waiting for the link to connect.

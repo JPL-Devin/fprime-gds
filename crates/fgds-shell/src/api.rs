@@ -51,10 +51,13 @@ async fn status(State(core): Shared) -> Json<Value> {
 }
 
 async fn dictionary(State(core): Shared, Params(params): Pairs) -> Answer {
-    // Only the current run's dictionary exists until a storage keeps earlier runs.
+    // Each run is shown with the dictionary it was recorded with (STO-4, STO-5).
+    let missing = |run: &str| ApiError::new(StatusCode::NOT_FOUND, "not_found", format!("no dictionary for run {run}"));
     match params.iter().find(|(key, _)| key == "run") {
         Some((_, run)) if *run != core.run.run.to_string() => {
-            Err(ApiError::new(StatusCode::NOT_FOUND, "not_found", format!("no dictionary for run {run}")))
+            let number: u32 = run.parse().map_err(|_| ApiError::bad_request(format!("run={run} is not a number")))?;
+            let stored = core.records.dictionary(number).await?.ok_or_else(|| missing(run))?;
+            Ok(Json(serde_json::from_slice(&stored).map_err(|_| missing(run))?))
         }
         _ => Ok(Json(core.dictionary.json.clone())),
     }
