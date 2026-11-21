@@ -12,11 +12,15 @@ use fgds_core::{
     Access, ApiError, Context, Dictionary, Encoded, Encoder, FieldSpec, FieldType, KindSpec, Manifest, PacketType,
     Plugin, Registry, Result, RouteAccess, Routes, ValidationError,
 };
+use fgds_core::{StaticFiles, UiBundle};
 use std::sync::Arc;
 
 pub const KIND: &str = "fprime.command";
 /// The request kind of the uplink service (section 4.5).
 pub const REQUEST: &str = "command";
+
+/// The tab module, embedded in the binary.
+static UI_FILES: StaticFiles = StaticFiles(&[("commands.js", include_bytes!("../ui/commands.js"))]);
 
 pub struct CommandsPlugin;
 
@@ -36,6 +40,13 @@ impl Plugin for CommandsPlugin {
             ..KindSpec::new(KIND, "A command send, accepted or not; id is the opcode")
         })?;
         reg.add_encoder(REQUEST, Arc::new(|_| Ok(Box::new(CommandEncoder))))?;
+        reg.add_tab(UiBundle {
+            tab_id: "commands",
+            title: Some("Commanding"),
+            order: 10,
+            module: "commands.js",
+            files: &UI_FILES,
+        })?;
         reg.add_routes(Routes {
             prefix: "commands",
             router: Router::new().route("/", post(send)).route("/definitions", get(definitions)),

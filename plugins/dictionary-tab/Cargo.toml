@@ -1,0 +1,12 @@
+[package]
+name = "dictionary-tab"
+description = "The Dictionaries tab: commands, events, channels, parameters and types of the dictionary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }

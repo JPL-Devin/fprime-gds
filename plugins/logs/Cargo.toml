@@ -1,0 +1,15 @@
+[package]
+name = "logs"
+description = "Text logs of the records, per kind, and the Logs tab"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+fgds-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

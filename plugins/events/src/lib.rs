@@ -10,9 +10,13 @@ use fgds_core::{
     Access, Context, DecodeError, Decoder, Dictionary, FieldSpec, FieldType, FlightTime, KindSpec, Manifest, NewRecord,
     PacketMatch, PacketMeta, PacketType, Plugin, Registry, Result, RouteAccess, Routes,
 };
+use fgds_core::{StaticFiles, UiBundle};
 use std::sync::Arc;
 
 pub const KIND: &str = "fprime.event";
+
+/// The tab module, embedded in the binary.
+static UI_FILES: StaticFiles = StaticFiles(&[("events.js", include_bytes!("../ui/events.js"))]);
 
 pub struct EventsPlugin;
 
@@ -34,6 +38,7 @@ impl Plugin for EventsPlugin {
             )
         })?;
         reg.add_decoder(Arc::new(|_| Ok(Box::new(EventDecoder))))?;
+        reg.add_tab(UiBundle { tab_id: "events", title: Some("Events"), order: 20, module: "events.js", files: &UI_FILES })?;
         reg.add_routes(Routes {
             prefix: "events",
             router: Router::new().route("/definitions", get(definitions)),

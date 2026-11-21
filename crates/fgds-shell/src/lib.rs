@@ -18,7 +18,7 @@ use tokio::net::TcpListener;
 pub const API_VERSION: u32 = 1;
 
 /// Only same-origin scripts and connections: nothing inline, nothing evaluated (UI-5).
-const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; connect-src 'self'";
+const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; connect-src 'self'; frame-ancestors 'none'";
 
 /// The whole application: core routes, each plugin's routes under its prefix, the UI.
 pub fn router(core: Arc<Core>) -> Router {
@@ -81,5 +81,6 @@ async fn security_headers(request: Request, next: Next) -> Response {
     let headers = response.headers_mut();
     headers.insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static(CONTENT_SECURITY_POLICY));
     headers.insert(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     response
 }
