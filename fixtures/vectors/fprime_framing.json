@@ -1,0 +1,559 @@
+{
+ "description": "F Prime framing: start word deadbeef | U32 length | payload | U32 checksum (CRC-32 of start word, length and payload, or the constant cafecafe for checksum `fixed`). frame_deframe: payload <-> framed, both directions. deframe_all: all packets found in input, the bytes kept for the next read (leftover) and the bytes thrown away (discarded).",
+ "vectors": [
+  {
+   "name": "frame_crc32_24_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "74656c656d657472792d7061636b65742d7061796c6f6164",
+   "framed": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164ff59b2a2"
+  },
+  {
+   "name": "frame_crc32_22_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_udp_to_uart",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "636f6d6d616e642d7061636b65742d7061796c6f6164",
+   "framed": "deadbeef00000016636f6d6d616e642d7061636b65742d7061796c6f6164ca325b07"
+  },
+  {
+   "name": "frame_crc32_11_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "676f6f642d7061636b6574",
+   "framed": "deadbeef0000000b676f6f642d7061636b65747fa71b96"
+  },
+  {
+   "name": "frame_crc32_15_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_udp_to_uart_unexpected_source_dropped",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "616c6c6f7765642d636f6d6d616e64",
+   "framed": "deadbeef0000000f616c6c6f7765642d636f6d6d616e642d78b1d7"
+  },
+  {
+   "name": "frame_crc32_0_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "",
+   "framed": "deadbeef00000000da8d2be2"
+  },
+  {
+   "name": "frame_crc32_256_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+   "framed": "deadbeef00000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeffbb1b76eb"
+  },
+  {
+   "name": "crc32_split_frame_first_part",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp_split_frame",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d",
+   "expected": {
+    "packets": [],
+    "leftover": "deadbeef0000001874656c656d657472792d",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "crc32_split_frame_whole",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp_split_frame",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164ff59b2a2",
+   "expected": {
+    "packets": [
+     "74656c656d657472792d7061636b65742d7061796c6f6164"
+    ],
+    "leftover": "",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "crc32_leading_garbage",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "0001676172626167652d776974686f75742d73746172742d776f7264deadbeef0000000b676f6f642d7061636b65747fa71b96",
+   "expected": {
+    "packets": [
+     "676f6f642d7061636b6574"
+    ],
+    "leftover": "",
+    "discarded": "0001676172626167652d776974686f75742d73746172742d776f7264"
+   }
+  },
+  {
+   "name": "crc32_garbage_only",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "0001676172626167652d776974686f75742d73746172742d776f7264",
+   "expected": {
+    "packets": [],
+    "leftover": "72742d776f7264",
+    "discarded": "0001676172626167652d776974686f75742d737461"
+   }
+  },
+  {
+   "name": "crc32_three_frames_and_partial",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164ff59b2a2deadbeef0000000b676f6f642d7061636b65747fa71b96deadbeef00000016636f6d6d616e642d7061636b65742d7061796c6f6164ca325b07deadbeef0000001874",
+   "expected": {
+    "packets": [
+     "74656c656d657472792d7061636b65742d7061796c6f6164",
+     "676f6f642d7061636b6574",
+     "636f6d6d616e642d7061636b65742d7061796c6f6164"
+    ],
+    "leftover": "deadbeef0000001874",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "crc32_header_only",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp_split_frame",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef00000018",
+   "expected": {
+    "packets": [],
+    "leftover": "deadbeef00000018",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "crc32_bad_checksum_then_good",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164ff59b25ddeadbeef0000000b676f6f642d7061636b65747fa71b96",
+   "expected": {
+    "packets": [
+     "676f6f642d7061636b6574"
+    ],
+    "leftover": "",
+    "discarded": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164ff59b25d"
+   }
+  },
+  {
+   "name": "crc32_length_at_maximum_rejected",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "crc32",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef00001000deadbeef0000000b676f6f642d7061636b65747fa71b96",
+   "expected": {
+    "packets": [
+     "676f6f642d7061636b6574"
+    ],
+    "leftover": "",
+    "discarded": "deadbeef00001000"
+   }
+  },
+  {
+   "name": "frame_fixed_24_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "74656c656d657472792d7061636b65742d7061796c6f6164",
+   "framed": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164cafecafe"
+  },
+  {
+   "name": "frame_fixed_22_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_udp_to_uart",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "636f6d6d616e642d7061636b65742d7061796c6f6164",
+   "framed": "deadbeef00000016636f6d6d616e642d7061636b65742d7061796c6f6164cafecafe"
+  },
+  {
+   "name": "frame_fixed_11_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "676f6f642d7061636b6574",
+   "framed": "deadbeef0000000b676f6f642d7061636b6574cafecafe"
+  },
+  {
+   "name": "frame_fixed_15_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_udp_to_uart_unexpected_source_dropped",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "616c6c6f7765642d636f6d6d616e64",
+   "framed": "deadbeef0000000f616c6c6f7765642d636f6d6d616e64cafecafe"
+  },
+  {
+   "name": "frame_fixed_0_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "",
+   "framed": "deadbeef00000000cafecafe"
+  },
+  {
+   "name": "frame_fixed_256_bytes",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "frame_deframe",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+   "framed": "deadbeef00000100000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeffcafecafe"
+  },
+  {
+   "name": "fixed_split_frame_first_part",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp_split_frame",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d",
+   "expected": {
+    "packets": [],
+    "leftover": "deadbeef0000001874656c656d657472792d",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "fixed_split_frame_whole",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp_split_frame",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164cafecafe",
+   "expected": {
+    "packets": [
+     "74656c656d657472792d7061636b65742d7061796c6f6164"
+    ],
+    "leftover": "",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "fixed_leading_garbage",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "0001676172626167652d776974686f75742d73746172742d776f7264deadbeef0000000b676f6f642d7061636b6574cafecafe",
+   "expected": {
+    "packets": [
+     "676f6f642d7061636b6574"
+    ],
+    "leftover": "",
+    "discarded": "0001676172626167652d776974686f75742d73746172742d776f7264"
+   }
+  },
+  {
+   "name": "fixed_garbage_only",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "0001676172626167652d776974686f75742d73746172742d776f7264",
+   "expected": {
+    "packets": [],
+    "leftover": "72742d776f7264",
+    "discarded": "0001676172626167652d776974686f75742d737461"
+   }
+  },
+  {
+   "name": "fixed_three_frames_and_partial",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164cafecafedeadbeef0000000b676f6f642d7061636b6574cafecafedeadbeef00000016636f6d6d616e642d7061636b65742d7061796c6f6164cafecafedeadbeef0000001874",
+   "expected": {
+    "packets": [
+     "74656c656d657472792d7061636b65742d7061796c6f6164",
+     "676f6f642d7061636b6574",
+     "636f6d6d616e642d7061636b65742d7061796c6f6164"
+    ],
+    "leftover": "deadbeef0000001874",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "fixed_header_only",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_to_udp_split_frame",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef00000018",
+   "expected": {
+    "packets": [],
+    "leftover": "deadbeef00000018",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "fixed_bad_checksum_then_good",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164cafeca01deadbeef0000000b676f6f642d7061636b6574cafecafe",
+   "expected": {
+    "packets": [
+     "676f6f642d7061636b6574"
+    ],
+    "leftover": "",
+    "discarded": "deadbeef0000001874656c656d657472792d7061636b65742d7061796c6f6164cafeca01"
+   }
+  },
+  {
+   "name": "fixed_length_at_maximum_rejected",
+   "source": "test/fprime_gds/common/communication/bridge/test_comm_bridge.py::TestSerialToUdpFramed::test_uart_garbage_discarded",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "FpFramerDeframer",
+    "plugin_name": "fprime",
+    "checksum": "fixed",
+    "start_word": "deadbeef",
+    "maximum_data_size": 4096
+   },
+   "input": "deadbeef00001000deadbeef0000000b676f6f642d7061636b6574cafecafe",
+   "expected": {
+    "packets": [
+     "676f6f642d7061636b6574"
+    ],
+    "leftover": "",
+    "discarded": "deadbeef00001000"
+   }
+  },
+  {
+   "name": "tcp_server_frame",
+   "source": "(none: not exercised by the Python tests)",
+   "origin": "generated",
+   "operation": "frame",
+   "framer": {
+    "class": "TcpServerFramerDeframer"
+   },
+   "payload": "636f6d6d616e642d7061636b65742d7061796c6f6164",
+   "framed": "41354135204755492000000016636f6d6d616e642d7061636b65742d7061796c6f6164"
+  },
+  {
+   "name": "tcp_server_deframe",
+   "source": "(none: not exercised by the Python tests)",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "TcpServerFramerDeframer"
+   },
+   "input": "5a5a5a5a00000016636f6d6d616e642d7061636b65742d7061796c6f6164",
+   "expected": {
+    "packets": [
+     "636f6d6d616e642d7061636b65742d7061796c6f6164"
+    ],
+    "leftover": "",
+    "discarded": ""
+   }
+  },
+  {
+   "name": "tcp_server_deframe_garbage_two_packets_partial",
+   "source": "(none: not exercised by the Python tests)",
+   "origin": "generated",
+   "operation": "deframe_all",
+   "framer": {
+    "class": "TcpServerFramerDeframer"
+   },
+   "input": "78785a5a5a5a00000016636f6d6d616e642d7061636b65742d7061796c6f61645a5a5a5a00000016636f6d6d616e642d7061636b65742d7061796c6f61645a5a5a5a00000016636f",
+   "expected": {
+    "packets": [
+     "636f6d6d616e642d7061636b65742d7061796c6f6164",
+     "636f6d6d616e642d7061636b65742d7061796c6f6164"
+    ],
+    "leftover": "5a5a5a5a00000016636f",
+    "discarded": ""
+   }
+  }
+ ]
+}

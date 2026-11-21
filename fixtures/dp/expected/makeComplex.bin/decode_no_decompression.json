@@ -1,0 +1,5699 @@
+{
+  "Header": {
+    "PacketDescriptor": {
+      "format": "{}",
+      "description": "The F Prime packet descriptor",
+      "value": 5,
+      "type": "U32"
+    },
+    "Id": {
+      "format": "{}",
+      "description": "The container ID",
+      "value": 5390,
+      "type": "U32"
+    },
+    "Priority": {
+      "format": "{}",
+      "description": "The container priority",
+      "value": 10,
+      "type": "U32"
+    },
+    "Time": {
+      "format": "{}",
+      "description": "Fw.Time object",
+      "type": "Time",
+      "base": 0,
+      "context": 0,
+      "seconds": 3880566691,
+      "microseconds": 789045
+    },
+    "ProcTypes": {
+      "format": "{}",
+      "description": "Processing types bit mask",
+      "value": 0,
+      "type": "U8"
+    },
+    "UserData": {
+      "format": "{}",
+      "description": "User-configurable data",
+      "name": "UserData",
+      "type": "UserData",
+      "size": 32,
+      "value_type": "U8",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "DpState": {
+      "format": "{}",
+      "description": "Data product state",
+      "value": "UNTRANSMITTED",
+      "type": "Fw.DpState"
+    },
+    "DataSize": {
+      "format": "{}",
+      "description": "Size of data payload in bytes",
+      "value": 2000,
+      "type": "U16"
+    },
+    "Checksum": {
+      "format": "{}",
+      "description": "Header checksum",
+      "value": 2146021397,
+      "type": "U32"
+    }
+  },
+  "Records": [
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 19197,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1369321801,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11854,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 396473730,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 35336,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1346811305,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 45012,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 705178736,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 34186,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 434248626,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 50772,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1470503465,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 1690,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 552473416,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 63164,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 188213258,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 61710,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1884167637,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 18344,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 201305624,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 65196,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 776532036,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 47603,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1273911899,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 22348,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 620145550,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 46637,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 619290071,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 40201,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 407487131,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 62437,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 7684930,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 63684,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 711845894,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 40367,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 937370163,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 20131,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1973387981,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 40575,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1501252996,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 26541,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1472713773,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 59254,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1662739668,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 19678,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1967681095,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 35868,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 437116466,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 35914,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1176911340,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11824,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1943327684,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11808,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1876855542,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 13957,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1237379107,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 34299,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 588219756,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 18439,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1057418418,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 12276,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1823089412,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 2827,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 625032172,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 24096,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1469262009,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 43910,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 298625210,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 63038,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1057467587,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 33009,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1555319301,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44761,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 476667372,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 52275,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 260401255,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 18073,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 774044599,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 14755,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2001229904,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11284,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1335939811,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 24025,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1756915667,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 20471,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 719346228,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 57248,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1414829150,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 33040,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 555996658,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 63734,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 155789224,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 25492,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1389867269,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 55742,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 619054081,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44220,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 195740084,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 28280,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2006811972,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 53065,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 570073850,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 230,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1635905385,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 22480,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 337739299,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 31194,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1343606042,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 9578,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 446340713,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 29004,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 915256190,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 6993,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 846942590,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 43955,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 700108581,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 25476,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1371499336,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 16698,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 726371155,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 45819,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 292218004,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 38297,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 11614769,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 15922,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1662981776,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 55364,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 246247255,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 62619,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1548348142,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 36329,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 964445884,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 13861,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1520223205,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 16904,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1017679567,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 23529,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 201690613,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11358,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 822262754,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 28512,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1411154259,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 53970,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 282828202,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 27856,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 114723506,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 62970,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1676902021,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 2520,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 950390868,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 46312,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1266235189,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 29030,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1137949908,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 54116,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 777210498,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 47577,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1908518808,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 39559,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 364686248,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 62053,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1129033333,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 29274,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1280321648,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 46911,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1781999754,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 46720,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 212251746,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 28740,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 364319529,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 38012,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 484238046,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 32905,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 624549797,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 27223,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1886086990,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 58835,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1750003033,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 48557,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 78012497,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 38790,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1671294892,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44160,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1795519125,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 48407,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 474613996,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 47237,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1315209188,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11148,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1448703729,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 9574,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1545032460,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 31612,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 861543921,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 18044,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 932026304,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 19490,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 828388027,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 17892,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 332266748,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 57306,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 31308902,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 39947,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 820697697,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 16815,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1583571043,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 19900,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1395132002,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 26292,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1974806403,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 5935,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1739000681,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 32255,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 669908538,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 1831,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 12895151,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 17299,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1812282134,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 45575,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1380171692,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 4792,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 860516127,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 36113,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1543755629,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 28461,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1455590964,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 49391,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 70636429,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 53385,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1472576335,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 30646,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1329202900,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 57653,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1219407971,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 4295,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 12260289,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 6692,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 561717988,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 19047,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1841585795,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 27117,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 733053144,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 32530,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1887658390,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 9541,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 672655340,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 8962,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 400000569,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 17893,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1081174232,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 55288,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1450956042,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44151,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 410409117,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 59089,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1516266761,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 14486,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1175526309,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 55028,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2002495425,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44693,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1989806367,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 47490,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2004504234,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 25196,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1186631626,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 45742,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1717226057,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 10445,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1276673168,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 64872,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2137390358,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 24236,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 696947386,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 31398,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1265204346,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 692,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1630634994,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 60618,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1707056552,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 29362,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1297893529,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 41271,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 358532290,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 10699,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1857756970,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 15055,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1426819080,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 12233,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1314218593,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 27520,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1386418627,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 24686,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 318561886,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 28200,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 70788355,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 61260,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1112720090,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 16234,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1106059479,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 7661,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1051858969,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 43731,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 104152274,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 47436,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 826047641,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 139,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 970925433,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 49954,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 887077888,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 1178,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 873524566,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 45592,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1541027284,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 21758,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1745790417,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11737,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 959372260,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 15941,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2137100237,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 41361,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 159473059,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 15361,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1282648518,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 52937,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 471990783,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 50393,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1983228458,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 51969,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 993967637,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 54831,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1826620483,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 16661,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2037770478,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 25991,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1647149314,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 42620,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1152645729,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 46690,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1025533459,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 21353,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1001089438,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 40818,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2077211388,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 24781,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 983631233,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 57701,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1645933681,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 33854,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 553160358,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 60489,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2069110699,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 51569,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 864101839,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 10190,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1190668363,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 53877,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 410228794,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 22095,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 773319847,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 61674,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1968217462,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 34404,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1302539390,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44417,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 235745791,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 11361,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 427355115,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 20990,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1272796157,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 48539,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1280631491,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 40383,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1204462951,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 43753,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 521035021,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 20862,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 738393740,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 36146,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1983614030,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 44025,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1655035325,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 64396,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2004187516,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 41415,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 962033002,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 3492,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1707746139,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 4098,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 2073785404,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 4530,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 628974580,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 36978,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 786039021,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 13036,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 1605539862,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 33793,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 586235379,
+          "type": "U32"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5377,
+        "record_name": "dpTool.ComplexRecord",
+        "record_type_name": "Svc.DpTool.Complex",
+        "record_type": "<class 'abc.Svc.DpTool.Complex'>",
+        "is_array": false,
+        "description": "Record 2"
+      },
+      "Data": {
+        "f1": {
+          "format": "{}",
+          "description": "A struct in the struct",
+          "u16Field": {
+            "format": "{}",
+            "description": "A U16 field",
+            "value": 37360,
+            "type": "U16"
+          }
+        },
+        "f2": {
+          "format": "{}",
+          "description": "A simple U32 field",
+          "value": 262692685,
+          "type": "U32"
+        }
+      }
+    }
+  ]
+}

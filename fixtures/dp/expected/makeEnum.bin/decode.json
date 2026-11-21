@@ -1,0 +1,4599 @@
+{
+  "Header": {
+    "PacketDescriptor": {
+      "format": "{}",
+      "description": "The F Prime packet descriptor",
+      "value": 5,
+      "type": "U32"
+    },
+    "Id": {
+      "format": "{}",
+      "description": "The container ID",
+      "value": 5390,
+      "type": "U32"
+    },
+    "Priority": {
+      "format": "{}",
+      "description": "The container priority",
+      "value": 10,
+      "type": "U32"
+    },
+    "Time": {
+      "format": "{}",
+      "description": "Fw.Time object",
+      "type": "Time",
+      "base": 0,
+      "context": 0,
+      "seconds": 545880976,
+      "microseconds": 462051
+    },
+    "ProcTypes": {
+      "format": "{}",
+      "description": "Processing types bit mask",
+      "value": 0,
+      "type": "U8"
+    },
+    "UserData": {
+      "format": "{}",
+      "description": "User-configurable data",
+      "name": "UserData",
+      "type": "UserData",
+      "size": 32,
+      "value_type": "U8",
+      "values": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "DpState": {
+      "format": "{}",
+      "description": "Data product state",
+      "value": "UNTRANSMITTED",
+      "type": "Fw.DpState"
+    },
+    "DataSize": {
+      "format": "{}",
+      "description": "Size of data payload in bytes",
+      "value": 2000,
+      "type": "U16"
+    },
+    "Checksum": {
+      "format": "{}",
+      "description": "Header checksum",
+      "value": 3142363511,
+      "type": "U32"
+    }
+  },
+  "Records": [
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "NO",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "MAYBE",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    },
+    {
+      "Record": {
+        "record_id": 5381,
+        "record_name": "dpTool.EnumRecord",
+        "record_type_name": "Svc.DpTool.EnumStruct",
+        "record_type": "<class 'abc.Svc.DpTool.EnumStruct'>",
+        "is_array": false,
+        "description": "Record 6"
+      },
+      "Data": {
+        "status": {
+          "format": "{}",
+          "description": "",
+          "value": "YES",
+          "type": "Svc.DpTool.Status"
+        }
+      }
+    }
+  ]
+}

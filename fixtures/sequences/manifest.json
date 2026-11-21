@@ -1,0 +1,323 @@
+{
+ "description": "One entry per input sequence, compiled by the Python sequence compiler (generateSequence, timebase 0xffff) with the dictionary the Python test uses. result binary: the output is byte-identical to `expected_file`. result error: `python_error` is the full message of the Python compiler, with the input directory written as <fprime-gds>/test/fprime_gds/common/tools/input like the Python tests do; the text of `expected_file` is contained in it. `continue_on_error` is the `cont` argument (collect all errors instead of stopping at the first).",
+ "timebase": 65535,
+ "sequences": [
+  {
+   "input": "input/empty_file.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 15,
+   "expected_file": "expected/empty_file.bin"
+  },
+  {
+   "input": "input/invalid_array_missing_comma.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_array_missing_comma.seq:2:36: Encountered syntax error parsing: unexpected token 'Token('DEC_NUMBER', '2')'",
+   "expected_file": "expected/invalid_array_missing_comma_error.txt"
+  },
+  {
+   "input": "input/invalid_array_unclosed.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_array_unclosed.seq:2:41: Encountered syntax error parsing: unexpected token 'Token('_NEWLINE', '\\n')'",
+   "expected_file": "expected/invalid_array_unclosed_error.txt"
+  },
+  {
+   "input": "input/invalid_array_wrong_length.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_array_wrong_length.seq:2: cmdDisp.CMD_ARRAY_INT errored: values[TestIntArray]: Array type <class 'fprime_gds.common.models.serialize.numerical_types.I32Type'> is of length 3, actual length 5 found!",
+   "expected_file": "expected/invalid_array_wrong_length_error.txt"
+  },
+  {
+   "input": "input/invalid_bool_bad_value.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_bool_bad_value.seq:2: cmdDisp.CMD_BOOL errored: flag[BoolType]: Argument value is not a valid boolean",
+   "expected_file": "expected/invalid_bool_bad_value_error.txt"
+  },
+  {
+   "input": "input/invalid_enum_bad_value.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_enum_bad_value.seq:2: cmdDisp.CMD_ENUM errored: state[StateEnum]: Invalid enum member INVALID_STATE set in ABCMeta enum!",
+   "expected_file": "expected/invalid_enum_bad_value_error.txt"
+  },
+  {
+   "input": "input/invalid_float_not_number.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_float_not_number.seq:2: cmdDisp.CMD_FLOAT errored: value[F32Type]: could not convert string to float: 'not_a_float'",
+   "expected_file": "expected/invalid_float_not_number_error.txt"
+  },
+  {
+   "input": "input/invalid_hex_bad_format.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_hex_bad_format.seq:2:27: Encountered syntax error parsing",
+   "expected_file": "expected/invalid_hex_bad_format_error.txt"
+  },
+  {
+   "input": "input/invalid_int_not_number.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_int_not_number.seq:2: cmdDisp.CMD_INT errored: value[I32Type]: invalid literal for int() with base 0: 'abc'",
+   "expected_file": "expected/invalid_int_not_number_error.txt"
+  },
+  {
+   "input": "input/invalid_missing_command.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_missing_command.seq:1:10: Encountered syntax error parsing: unexpected token 'Token('_NEWLINE', '\\n')'",
+   "expected_file": "expected/invalid_missing_command_error.txt"
+  },
+  {
+   "input": "input/invalid_object_extra_field.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_object_extra_field.seq:2: cmdDisp.CMD_OBJECT_SIMPLE errored: obj[TestPoint]: Value does not define required fields: ['x', 'y']",
+   "expected_file": "expected/invalid_object_extra_field_error.txt"
+  },
+  {
+   "input": "input/invalid_object_missing_colon.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_object_missing_colon.seq:2:40: Encountered syntax error parsing: unexpected token 'Token('DEC_NUMBER', '10')'",
+   "expected_file": "expected/invalid_object_missing_colon_error.txt"
+  },
+  {
+   "input": "input/invalid_object_missing_field.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/invalid_object_missing_field.seq:2: cmdDisp.CMD_OBJECT_SIMPLE errored: obj[TestPoint]: Value does not define required fields: ['x', 'y']",
+   "expected_file": "expected/invalid_object_missing_field_error.txt"
+  },
+  {
+   "input": "input/invalid_object_unclosed.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_object_unclosed.seq:2:50: Encountered syntax error parsing: unexpected token 'Token('_NEWLINE', '\\n')'",
+   "expected_file": "expected/invalid_object_unclosed_error.txt"
+  },
+  {
+   "input": "input/invalid_sign_array.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_sign_array.seq:2:33: Encountered syntax error parsing",
+   "expected_file": "expected/invalid_sign_array_error.txt"
+  },
+  {
+   "input": "input/invalid_sign_enum.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_sign_enum.seq:2:28: Encountered syntax error parsing",
+   "expected_file": "expected/invalid_sign_enum_error.txt"
+  },
+  {
+   "input": "input/invalid_sign_object.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_sign_object.seq:2:37: Encountered syntax error parsing",
+   "expected_file": "expected/invalid_sign_object_error.txt"
+  },
+  {
+   "input": "input/invalid_sign_string.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_sign_string.seq:2:30: Encountered syntax error parsing",
+   "expected_file": "expected/invalid_sign_string_error.txt"
+  },
+  {
+   "input": "input/invalid_time_descriptor.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_time_descriptor.seq:1:1: Encountered syntax error parsing: unexpected token 'Token('NAME', 'X00')'",
+   "expected_file": "expected/invalid_time_descriptor_error.txt"
+  },
+  {
+   "input": "input/invalid_time_format.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/invalid_time_format.seq:1: Encountered syntax error parsing timestamp: time data '25:99:99' does not match format '%H:%M:%S'",
+   "expected_file": "expected/invalid_time_format_error.txt"
+  },
+  {
+   "input": "input/multiple_errors.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": true,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "Parsing error: <fprime-gds>/test/fprime_gds/common/tools/input/multiple_errors.seq:3:1: Encountered syntax error parsing: unexpected token 'Token('NAME', 'X00')'",
+   "expected_file": null
+  },
+  {
+   "input": "input/simple_bad_sequence.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "error",
+   "error_type": "SeqGenException",
+   "python_error": "<fprime-gds>/test/fprime_gds/common/tools/input/simple_bad_sequence.seq:9: 'cmdDisp.FRIENDLY_GREETING' does not match any command in the command dictionary.",
+   "expected_file": "expected/simple_bad_sequence_error.txt"
+  },
+  {
+   "input": "input/simple_sequence.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 70,
+   "expected_file": "expected/simple_expected.bin"
+  },
+  {
+   "input": "input/valid_absolute.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 66,
+   "expected_file": "expected/valid_absolute.bin"
+  },
+  {
+   "input": "input/valid_arguments.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 91,
+   "expected_file": "expected/valid_arguments.bin"
+  },
+  {
+   "input": "input/valid_array_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 180,
+   "expected_file": "expected/valid_array_args.bin"
+  },
+  {
+   "input": "input/valid_bool_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 135,
+   "expected_file": "expected/valid_bool_args.bin"
+  },
+  {
+   "input": "input/valid_comments.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 75,
+   "expected_file": "expected/valid_comments.bin"
+  },
+  {
+   "input": "input/valid_delimiters.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 95,
+   "expected_file": "expected/valid_delimiters.bin"
+  },
+  {
+   "input": "input/valid_enum_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 84,
+   "expected_file": "expected/valid_enum_args.bin"
+  },
+  {
+   "input": "input/valid_float_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 107,
+   "expected_file": "expected/valid_float_args.bin"
+  },
+  {
+   "input": "input/valid_hex_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 84,
+   "expected_file": "expected/valid_hex_args.bin"
+  },
+  {
+   "input": "input/valid_negative_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 256,
+   "expected_file": "expected/valid_negative_args.bin"
+  },
+  {
+   "input": "input/valid_nested_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 85,
+   "expected_file": "expected/valid_nested_args.bin"
+  },
+  {
+   "input": "input/valid_object_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 180,
+   "expected_file": "expected/valid_object_args.bin"
+  },
+  {
+   "input": "input/valid_relative.seq",
+   "dictionary": "resources/simple_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 79,
+   "expected_file": "expected/valid_relative.bin"
+  },
+  {
+   "input": "input/valid_string_args.seq",
+   "dictionary": "resources/enhanced_dictionary.json",
+   "continue_on_error": false,
+   "result": "binary",
+   "size": 132,
+   "expected_file": "expected/valid_string_args.bin"
+  }
+ ]
+}

@@ -1,0 +1,1017 @@
+{
+ "description": "Ground-side encoders: input object -> bytes. Telemetry encoders (channel, event, packet) produce length | descriptor | id | time | value(s). Uplink encoders (command, file packet) produce 5a5a5a5a | length | descriptor | body. `config` gives the configured integer types; msg_len is the length prefix type.",
+ "vectors": [
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py::test_ch_encoder_1",
+   "origin": "asserted",
+   "operation": "encode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "id": 101,
+    "type": {
+     "kind": "U32"
+    },
+    "value": 42,
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758629,
+     "microseconds": 123456
+    }
+   },
+   "expected": "000000150001000000650002005b6b4ca50001e2400000002a"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py::test_ch_encoder_2",
+   "origin": "asserted",
+   "operation": "encode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "id": 102,
+    "type": {
+     "kind": "U16"
+    },
+    "value": 40,
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758628,
+     "microseconds": 123457
+    }
+   },
+   "expected": "000000130001000000660002005b6b4ca40001e2410028"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py::test_ch_encoder_1",
+   "origin": "asserted",
+   "operation": "encode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "id": 101,
+    "type": {
+     "kind": "U32"
+    },
+    "value": 42,
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758629,
+     "microseconds": 123456
+    }
+   },
+   "expected": "00150001000000650002005b6b4ca50001e2400000002a"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_ch_encoder.py::test_ch_encoder_2",
+   "origin": "asserted",
+   "operation": "encode_channel",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "id": 102,
+    "type": {
+     "kind": "U16"
+    },
+    "value": 40,
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758628,
+     "microseconds": 123457
+    }
+   },
+   "expected": "00130001000000660002005b6b4ca40001e2410028"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py::test_event_encoder_1",
+   "origin": "asserted",
+   "operation": "encode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "id": 101,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U32"
+      },
+      "value": 42
+     },
+     {
+      "type": {
+       "kind": "U32"
+      },
+      "value": 10
+     }
+    ],
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758629,
+     "microseconds": 123456
+    }
+   },
+   "expected": "000000190002000000650002005b6b4ca50001e2400000002a0000000a"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py::test_event_encoder_2",
+   "origin": "asserted",
+   "operation": "encode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "id": 102,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U8"
+      },
+      "value": 128
+     },
+     {
+      "type": {
+       "kind": "U16"
+      },
+      "value": 40
+     }
+    ],
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758628,
+     "microseconds": 123457
+    }
+   },
+   "expected": "000000140002000000660002005b6b4ca40001e241800028"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py::test_event_encoder_1",
+   "origin": "asserted",
+   "operation": "encode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "id": 101,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U32"
+      },
+      "value": 42
+     },
+     {
+      "type": {
+       "kind": "U32"
+      },
+      "value": 10
+     }
+    ],
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758629,
+     "microseconds": 123456
+    }
+   },
+   "expected": "00190002000000650002005b6b4ca50001e2400000002a0000000a"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_event_encoder.py::test_event_encoder_2",
+   "origin": "asserted",
+   "operation": "encode_event",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "id": 102,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U8"
+      },
+      "value": 128
+     },
+     {
+      "type": {
+       "kind": "U16"
+      },
+      "value": 40
+     }
+    ],
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758628,
+     "microseconds": 123457
+    }
+   },
+   "expected": "00140002000000660002005b6b4ca40001e241800028"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_pkt_encoder.py::test_pkt_encoder",
+   "origin": "asserted",
+   "operation": "encode_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "id": 64,
+    "channels": [
+     {
+      "id": 101,
+      "type": {
+       "kind": "U32"
+      },
+      "value": 1356
+     },
+     {
+      "id": 102,
+      "type": {
+       "kind": "U8"
+      },
+      "value": 143
+     },
+     {
+      "id": 103,
+      "type": {
+       "kind": "U16"
+      },
+      "value": 1509
+     }
+    ],
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758629,
+     "microseconds": 123456
+    }
+   },
+   "expected": "00000016000400400002005b6b4ca50001e2400000054c8f05e5"
+  },
+  {
+   "source": "test/fprime_gds/common/encoders/test_pkt_encoder.py::test_pkt_encoder",
+   "origin": "asserted",
+   "operation": "encode_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "id": 64,
+    "channels": [
+     {
+      "id": 101,
+      "type": {
+       "kind": "U32"
+      },
+      "value": 1356
+     },
+     {
+      "id": 102,
+      "type": {
+       "kind": "U8"
+      },
+      "value": 143
+     },
+     {
+      "id": 103,
+      "type": {
+       "kind": "U16"
+      },
+      "value": 1509
+     }
+    ],
+    "time": {
+     "base": "TB_WORKSTATION_TIME",
+     "base_value": 2,
+     "context": 0,
+     "seconds": 1533758629,
+     "microseconds": 123456
+    }
+   },
+   "expected": "0016000400400002005b6b4ca50001e2400000054c8f05e5"
+  },
+  {
+   "source": "test/fprime_gds/common/data_types/test_cmd_data.py::CmdDataTest::test_str_bool_command_arg",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "opcode": 42,
+    "arguments": [
+     {
+      "type": {
+       "kind": "bool"
+      },
+      "value": true
+     }
+    ]
+   },
+   "expected": "5a5a5a5a0000000700000000002aff"
+  },
+  {
+   "source": "test/fprime_gds/common/data_types/test_cmd_data.py::CmdDataTest::test_str_numerical_command_args",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "opcode": 43,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U32"
+      },
+      "value": 12345
+     },
+     {
+      "type": {
+       "kind": "F64"
+      },
+      "value": 98.765
+     },
+     {
+      "type": {
+       "kind": "I8"
+      },
+      "value": 127
+     }
+    ]
+   },
+   "expected": "5a5a5a5a0000001300000000002b000030394058b0f5c28f5c297f"
+  },
+  {
+   "source": "test/fprime_gds/common/data_types/test_cmd_data.py::CmdDataTest::test_str_string_command_args",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "opcode": 44,
+    "arguments": [
+     {
+      "type": {
+       "kind": "string",
+       "name": "String_128",
+       "max_length": 128
+      },
+      "value": "Everything is good"
+     }
+    ]
+   },
+   "expected": "5a5a5a5a0000001a00000000002c001245766572797468696e6720697320676f6f64"
+  },
+  {
+   "source": "(none: command without arguments)",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "opcode": 45,
+    "arguments": []
+   },
+   "expected": "5a5a5a5a0000000600000000002d"
+  },
+  {
+   "source": "(none: one argument of every remaining type)",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "opcode": 46,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U8"
+      },
+      "value": 255
+     },
+     {
+      "type": {
+       "kind": "U16"
+      },
+      "value": 65535
+     },
+     {
+      "type": {
+       "kind": "U64"
+      },
+      "value": 18446744073709551615
+     },
+     {
+      "type": {
+       "kind": "I16"
+      },
+      "value": -2
+     },
+     {
+      "type": {
+       "kind": "I32"
+      },
+      "value": -3
+     },
+     {
+      "type": {
+       "kind": "I64"
+      },
+      "value": -4
+     },
+     {
+      "type": {
+       "kind": "F32"
+      },
+      "value": 1.5
+     },
+     {
+      "type": {
+       "kind": "enum",
+       "name": "CmdEnum",
+       "representation": "U8",
+       "members": {
+        "OFF": 0,
+        "ON": 1
+       }
+      },
+      "value": "ON"
+     },
+     {
+      "type": {
+       "kind": "array",
+       "name": "CmdArray",
+       "length": 3,
+       "member": {
+        "kind": "U16"
+       }
+      },
+      "value": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "type": {
+       "kind": "struct",
+       "name": "CmdStruct",
+       "members": [
+        {
+         "name": "x",
+         "type": {
+          "kind": "I16"
+         }
+        },
+        {
+         "name": "label",
+         "type": {
+          "kind": "string",
+          "name": "String_8",
+          "max_length": 8
+         }
+        }
+       ]
+      },
+      "value": {
+       "x": -7,
+       "label": "abc"
+      }
+     }
+    ]
+   },
+   "expected": "5a5a5a5a0000003100000000002efffffffffffffffffffffffffefffffffdfffffffffffffffc3fc0000001000100020003fff90003616263"
+  },
+  {
+   "source": "test/fprime_gds/common/data_types/test_cmd_data.py::CmdDataTest::test_str_bool_command_arg",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "opcode": 42,
+    "arguments": [
+     {
+      "type": {
+       "kind": "bool"
+      },
+      "value": true
+     }
+    ]
+   },
+   "expected": "5a5a5a5a000700000000002aff"
+  },
+  {
+   "source": "test/fprime_gds/common/data_types/test_cmd_data.py::CmdDataTest::test_str_numerical_command_args",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "opcode": 43,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U32"
+      },
+      "value": 12345
+     },
+     {
+      "type": {
+       "kind": "F64"
+      },
+      "value": 98.765
+     },
+     {
+      "type": {
+       "kind": "I8"
+      },
+      "value": 127
+     }
+    ]
+   },
+   "expected": "5a5a5a5a001300000000002b000030394058b0f5c28f5c297f"
+  },
+  {
+   "source": "test/fprime_gds/common/data_types/test_cmd_data.py::CmdDataTest::test_str_string_command_args",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "opcode": 44,
+    "arguments": [
+     {
+      "type": {
+       "kind": "string",
+       "name": "String_128",
+       "max_length": 128
+      },
+      "value": "Everything is good"
+     }
+    ]
+   },
+   "expected": "5a5a5a5a001a00000000002c001245766572797468696e6720697320676f6f64"
+  },
+  {
+   "source": "(none: command without arguments)",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "opcode": 45,
+    "arguments": []
+   },
+   "expected": "5a5a5a5a000600000000002d"
+  },
+  {
+   "source": "(none: one argument of every remaining type)",
+   "origin": "generated",
+   "operation": "encode_command",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "opcode": 46,
+    "arguments": [
+     {
+      "type": {
+       "kind": "U8"
+      },
+      "value": 255
+     },
+     {
+      "type": {
+       "kind": "U16"
+      },
+      "value": 65535
+     },
+     {
+      "type": {
+       "kind": "U64"
+      },
+      "value": 18446744073709551615
+     },
+     {
+      "type": {
+       "kind": "I16"
+      },
+      "value": -2
+     },
+     {
+      "type": {
+       "kind": "I32"
+      },
+      "value": -3
+     },
+     {
+      "type": {
+       "kind": "I64"
+      },
+      "value": -4
+     },
+     {
+      "type": {
+       "kind": "F32"
+      },
+      "value": 1.5
+     },
+     {
+      "type": {
+       "kind": "enum",
+       "name": "CmdEnum",
+       "representation": "U8",
+       "members": {
+        "OFF": 0,
+        "ON": 1
+       }
+      },
+      "value": "ON"
+     },
+     {
+      "type": {
+       "kind": "array",
+       "name": "CmdArray",
+       "length": 3,
+       "member": {
+        "kind": "U16"
+       }
+      },
+      "value": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "type": {
+       "kind": "struct",
+       "name": "CmdStruct",
+       "members": [
+        {
+         "name": "x",
+         "type": {
+          "kind": "I16"
+         }
+        },
+        {
+         "name": "label",
+         "type": {
+          "kind": "string",
+          "name": "String_8",
+          "max_length": 8
+         }
+        }
+       ]
+      },
+      "value": {
+       "x": -7,
+       "label": "abc"
+      }
+     }
+    ]
+   },
+   "expected": "5a5a5a5a003100000000002efffffffffffffffffffffffffefffffffdfffffffffffffffc3fc0000001000100020003fff90003616263"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "packet_type": "start",
+    "sequence": 0,
+    "size": 3,
+    "source_path": "/tmp/local.bin",
+    "destination_path": "/seq/remote.bin"
+   },
+   "expected": "5a5a5a5a0000002a00030000000000000000030e2f746d702f6c6f63616c2e62696e0f2f7365712f72656d6f74652e62696e"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "packet_type": "data",
+    "sequence": 1,
+    "offset": 0,
+    "data": "010203"
+   },
+   "expected": "5a5a5a5a0000001000030100000001000000000003010203"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "packet_type": "end",
+    "sequence": 2,
+    "hash": 1438416925
+   },
+   "expected": "5a5a5a5a0000000b0003020000000255bc801d"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U32"
+   },
+   "input": {
+    "packet_type": "cancel",
+    "sequence": 3
+   },
+   "expected": "5a5a5a5a0000000700030300000003"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "packet_type": "start",
+    "sequence": 0,
+    "size": 3,
+    "source_path": "/tmp/local.bin",
+    "destination_path": "/seq/remote.bin"
+   },
+   "expected": "5a5a5a5a002a00030000000000000000030e2f746d702f6c6f63616c2e62696e0f2f7365712f72656d6f74652e62696e"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "packet_type": "data",
+    "sequence": 1,
+    "offset": 0,
+    "data": "010203"
+   },
+   "expected": "5a5a5a5a001000030100000001000000000003010203"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "packet_type": "end",
+    "sequence": 2,
+    "hash": 1438416925
+   },
+   "expected": "5a5a5a5a000b0003020000000255bc801d"
+  },
+  {
+   "source": "test/fprime_gds/common/gds_cli/file_uplink_test.py (file content 010203; no byte assertion in the Python tests)",
+   "origin": "generated",
+   "operation": "encode_file_packet",
+   "config": {
+    "FwPacketDescriptorType": "U16",
+    "FwOpcodeType": "U32",
+    "FwChanIdType": "U32",
+    "FwEventIdType": "U32",
+    "FwTlmPacketizeIdType": "U16",
+    "FwTimeContextStoreType": "U8",
+    "FwSizeStoreType": "U16",
+    "msg_len": "U16"
+   },
+   "input": {
+    "packet_type": "cancel",
+    "sequence": 3
+   },
+   "expected": "5a5a5a5a000700030300000003"
+  }
+ ]
+}
