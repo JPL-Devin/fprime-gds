@@ -278,6 +278,7 @@ name = "custom-gds"
 version = "0.1.0"
 dependencies = [
  "fgds",
+ "framing-ccsds",
  "tokio",
 ]
 
@@ -413,6 +414,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "afa489199eaffb1211795df1c6236ce1ad0d41a6fa45250add73e3b02420f06e"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "framing-ccsds"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "crc",
+ "fgds",
+ "fgds-core",
+ "fgds-dictionary",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]

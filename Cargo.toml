@@ -40,6 +40,7 @@ fgds-core = { path = "crates/fgds-core" }
 fgds-shell = { path = "crates/fgds-shell" }
 fgds = { path = "crates/fgds" }
 comm-tcp = { path = "plugins/comm-tcp" }
+framing-ccsds = { path = "plugins/framing-ccsds" }
 framing-fprime = { path = "plugins/framing-fprime" }
 storage-memory = { path = "plugins/storage-memory" }
 events = { path = "plugins/events" }

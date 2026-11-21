@@ -9,7 +9,7 @@
 
 ## How to run
 - `FPRIME=<fprime checkout with fprime-venv> scripts/check.sh`. The first run builds `Ref` under `target/ref` (several minutes).
-- `Ref` is built with F Prime framing (`scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`), because CCSDS is not built yet.
+- `Ref` is built twice: as it is (CCSDS framing, `tests/ccsds/run.sh`, plugin `framing-ccsds`) and with F Prime framing (`scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`; `scripts/check.sh`). Both are compared with the Python GDS.
 - `cargo run -p fgds -- run --dictionary <RefTopologyDictionary.json>`, then `Ref -a 127.0.0.1 -p 50000`; the API is on `http://127.0.0.1:5000/api/v1`.
 
 ## Known gaps in the slice

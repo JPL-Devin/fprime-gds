@@ -1,6 +1,7 @@
 //! What a project adds to the stock GDS, one plugin per feature:
 //!
 //! - `StationFramingPlugin`: a framing layer around the F Prime frame.
+//! - `CameraPlugin`: a decoder registered by application identifier (CCSDS framing).
 //! - `NotesPlugin`: a record kind, its route, a browser tab and a subcommand.
 //! - `FaultyPlugin`: a handler that panics, to show that the GDS contains it.
 //!
@@ -22,6 +23,8 @@ pub fn gds() -> fgds::GdsBuilder {
         .with_defaults()
         .without("channels")
         .with(StationFramingPlugin)
+        .with(framing_ccsds::CcsdsFramingPlugin)
+        .with(CameraPlugin)
         .with(NotesPlugin)
         .with(FaultyPlugin)
 }
@@ -105,6 +108,44 @@ impl Frame for StationFramer {
         out.put_u16(length);
         out.put_slice(packet);
         Ok(())
+    }
+}
+
+// A decoder registered by application identifier: the camera sends its own Space Packets,
+// which are not F Prime packets. Needs a CCSDS framing profile (`--framing ccsds`).
+
+pub const CAMERA: &str = "example.camera";
+pub const CAMERA_APID: u64 = 100;
+
+pub struct CameraPlugin;
+
+impl Plugin for CameraPlugin {
+    fn manifest(&self) -> Manifest {
+        Manifest { name: "camera", version: env!("CARGO_PKG_VERSION"), ..Default::default() }
+    }
+
+    fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_kind(KindSpec::new(CAMERA, "A camera status packet; id is the exposure number"))?;
+        reg.add_decoder(Arc::new(CameraDecoder))
+    }
+}
+
+struct CameraDecoder;
+
+impl Decoder for CameraDecoder {
+    /// Any packet of the camera's application identifier, whatever its first bytes are.
+    fn matches(&self) -> PacketMatch {
+        PacketMatch { packet_type: None, meta: vec![(framing_ccsds::META_APID, MetaValue::U64(CAMERA_APID))] }
+    }
+
+    /// Packet: exposure number (32 bits), temperature in tenths of a degree (16 bits, signed).
+    fn decode(&self, packet: &[u8], _: &PacketMeta, _: &Dictionary) -> std::result::Result<Vec<NewRecord>, DecodeError> {
+        let [a, b, c, d, high, low] = *packet else {
+            return Err(DecodeError(format!("a camera packet has 6 bytes, not {}", packet.len())));
+        };
+        let exposure = u32::from_be_bytes([a, b, c, d]);
+        let temperature = f64::from(i16::from_be_bytes([high, low])) / 10.0;
+        Ok(vec![NewRecord { id: Some(exposure), ..NewRecord::new(CAMERA, json!({"temperature": temperature})) }])
     }
 }
 
