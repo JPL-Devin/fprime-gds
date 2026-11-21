@@ -33,6 +33,20 @@ function fromRecord(type, value) {
   }
 }
 
+// An argument of a command record as the history of the Python GDS page writes it: an array in
+// brackets, a struct in braces with its member names, a string in double quotes.
+function shown(type, value) {
+  if (value === null || value === undefined) return "";
+  switch (type && type.kind) {
+    case "array": return `[${value.map((item) => shown(type.element, item)).join(", ")}]`;
+    case "struct":
+      return `{${type.members.map((m) => `${m.name}: ${m.count === null ? shown(m.type, value[m.name])
+        : `[${(value[m.name] || []).map((item) => shown(m.type, item)).join(", ")}]`}`).join(", ")}}`;
+    case "string": return `"${String(value).replace(/"/g, '\\"')}"`;
+    default: return String(value);
+  }
+}
+
 // The mistake in a scalar input, or null.
 function mistake(type, text) {
   switch (type.kind) {
@@ -50,7 +64,9 @@ function mistake(type, text) {
     case "bool": return text === "true" || text === "false" ? null : "choose true or false";
     case "string": {
       const bytes = new TextEncoder().encode(text).length;
-      return type.max !== undefined && bytes > type.max ? `${bytes} bytes, at most ${type.max}` : null;
+      // The Python GDS page refuses an empty text and one longer than the type holds.
+      const fits = bytes > 0 && (type.max === undefined || bytes <= type.max);
+      return fits ? null : `Supply general text of less than ${type.max} characters`;
     }
     case "enum": return type.constants.some((c) => c.name === text) ? null : `not a constant of ${type.name}`;
     default: return `type ${type.name} is not supported`;
@@ -117,6 +133,14 @@ class CommandsTab extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this.stop) this.stop();
+  }
+
+  // The arguments of a history row, in the order and the text of the Python GDS page.
+  argumentText(record) {
+    const command = this.commands.find((c) => c.name === record.body.name);
+    const args = record.body.args || {};
+    if (!command) return this.gds.format.value(Object.values(args));
+    return command.params.map((p) => shown(p.type, args[p.name])).join(", ");
   }
 
   choose(name, args) {
@@ -250,7 +274,7 @@ class CommandsTab extends LitElement {
             <td class="nowrap mono" data-col="ground">${format.groundTime(r.ground_time)}</td>
             <td class="nowrap mono" data-col="opcode">${format.hexId(r.id)}</td>
             <td class="nowrap" data-col="name">${r.body.name}</td>
-            <td class="text" data-col="args">${format.value(Object.values(r.body.args || {}))}</td>
+            <td class="text" data-col="args">${this.argumentText(r)}</td>
             <td data-col="outcome">${r.body.outcome}${r.body.reason ? `: ${r.body.reason}` : ""}</td>
             <td class="nowrap">
               <button class="action secondary" type="button" data-action="load"

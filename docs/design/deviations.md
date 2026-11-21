@@ -104,7 +104,6 @@ Section 4.11 of the design was rewritten to match; this lists what was decided o
    sequence uplink methods raise `NotImplementedError`.
 7. **Histories are client side** (SCR-5): `clear_histories` forgets items in the client; the server keeps its records.
 8. **Checks** are in `tests/cli/run.sh`; accepted differences from `fprime-cli` are in `tests/cli/README.md`.
-||||||| 1ccafcbc
 
 ## Data products
 
@@ -302,3 +301,27 @@ Decisions taken while making `scripts/check.sh` pass on the merged tree.
 
 - Fixed, not deviations: `events`, `channels` and `command-send` print the lines of `fprime-cli` (`EventSeverity.X`, `None` for a missing description, `U32Type`, JSON as `json.dumps` writes it, time without zone, channel `display_text` typed as in Python and no `value` key); an unknown command prints the text of `fprime-cli` on the standard output with exit code 0 and the near names of `difflib.get_close_matches`; no command name, `-i abc` and an argument such as `-3.4e38` give the argparse error and exit code 2. `tests/cli/check.py` compares the output byte for byte.
 - Kept: `command-send --list --json` is JSON (finding 14: Python prints a `repr` that is not JSON); the readable time is UTC (Python: local time of the machine); a refused argument is one line, not a traceback (finding 6); the usage text of argparse is not printed. Reasons in `tests/cli/README.md`.
+
+### Remaining web findings
+
+- **Keep-alive (web finding 10, command line finding 1).** Fixed: `comm-tcp` writes the 12 bytes `sitting well` every `keepalive-interval` seconds (default 0.5, as `fprime_gds.common.communication.adapters.ip`; 0 turns it off), never inside a frame.
+- **Invalid-input messages (findings 12 to 14).** Fixed: the messages of the Python page, an empty string refused, a float in a number input.
+- **Command history (finding 15).** The argument text is that of the Python page (strings in double quotes, arguments separated by a comma, composites in brackets and braces). Kept: the columns (opcode, outcome, Load and Resend) and a float shown as the value that was sent (`-0.0010000000474974513` for an F32 typed `-0.001`) rather than the text typed: the history is the record of the bytes, and it is the same in every window.
+- **Charts and Sequences tabs (findings 16, 17).** Added. Charts: Chart.js 4.4.1 vendored, numeric scalar channels over flight time, several charts, pause; not built: lock scale, zoom, save and load of a layout file. Sequences: text, file name, uplink directory, Build (download) and Uplink through the files queue; the compiler is that of `fgds seqgen`. Not built: Run (the operator sends `CS_RUN` from Commanding), Open and Save As of local files.
+- **Uplink and Downlink tabs (findings 19, 21).** Start and end times are shown. Kept, layout only: a state in lower case, bytes next to the percentage, the queue controls, the second table of files on the Downlink tab, the destination without the directory (the directory is a setting of the run).
+- **Partial downlink (finding 20).** Fixed: fewer bytes than announced with a matching checksum is `finished` with the percentage received. More bytes than announced stays `failed`.
+- **Logs tab (finding 22).** Layout only: one log per record kind built from the record API, in the line format of the API; the lines hold the same events and values in the same order. There are no `comm.py.log` or `fprime-gds.log` because there are no such processes; the text log of `fgds` is the choice `gds`.
+- **Dictionaries tab (finding 23).** Descriptions are on one line as on the Python page (fixed). Kept: identifiers in hexadecimal as in the Events and Channels tables (numerically equal), argument and type columns, and the sections Parameters, Types and Telemetry packets, which the Python page does not have.
+- **Advanced tab (finding 24).** Different content by design: the Python page lists its polling intervals and buffer sizes, which do not exist here (the page is fed by a stream); `fgds` shows versions, link state, counters, plugins and tabs.
+- **Data Products tab (finding 25).** Extra, a requirement (DP-5).
+- **Reload and second window (findings 26, 27).** Intended, a requirement (UI-3): the history comes back; the Python page comes back empty.
+
+### Remaining command line findings
+
+- **`Ref.wasmSeq.FileOpenError` (finding 17).** Python is wrong; ours is kept. The event has a string then an I32. The string is `seqs/é/none.wasm`, 17 bytes for 16 characters; after it come `00 00 00 01`. The Python string type moves on by the number of characters, not bytes, so it reads the I32 one byte early: `6d 00 00 00`, the `m` of `wasm` and three bytes of the status, which is 1828716544 (0x6D000000). The value `Ref` sent is 1.
+- **Order of events (finding 22).** Records come out in the order the packets arrived (the ruling); Python sorts the two events by flight time.
+- **Imports of existing tests (finding 23).** Tests import `fgds_client` instead of `fprime_gds`; providing a package named `fprime_gds` would shadow the Python GDS where both are installed.
+- **`seqgen` (findings 27, 28).** Fixed: the two lines of `fprime-seqgen`, messages on the standard output.
+- **`dp decode` (findings 29 to 31).** The plugin follows `fprime-dp` of the `devel` branch (commit `de71b640`, the source of `fixtures/dp`), which prints `Decoding complete: <file>` and has `-r`; the verifier compared against the released 4.4.0 of the virtual environment, which prints `Decoding complete!` and has no `-r`. A corrupt product gives the message of Python without its traceback.
+- **`prm-decode`, `prm-write` (findings 32 to 34).** Output files and the lines printed are equal to the Python tools (fixed). A refused value is one line, without the traceback.
+- **File uplink (findings 35 to 38).** Fixed: sent at once, the pace of the Python uplinker, the source path `/tmp/<user>/fprime-uplink/<name>`, `Error: File not found at <path>`, `--url`.

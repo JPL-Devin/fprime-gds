@@ -1,6 +1,9 @@
 // The Dictionaries tab: what the dictionary of the run defines, with a search.
 import { LitElement, html } from "/ui/lit.js";
 
+// A description on one line, as the Python GDS page shows it (HTML folds the line breaks of the dictionary).
+const note = (text) => (text || "").replace(/\s+/g, " ").trim();
+
 // The name of a type as the dictionary writes it.
 const typeName = (type) => (type ? type.name || type.qualifiedName || type.kind : "");
 const params = (list) => (list || []).map((p) => `${p.name}: ${typeName(p.type)}`).join(", ");
@@ -9,29 +12,29 @@ const SECTIONS = [
   {
     id: "commands", title: "Commands", source: (d) => d.commands,
     columns: ["Opcode", "Name", "Arguments", "Description"],
-    row: (c, f) => [f.hexId(c.opcode), c.name, params(c.formalParams), c.annotation || ""],
+    row: (c, f) => [f.hexId(c.opcode), c.name, params(c.formalParams), note(c.annotation)],
   },
   {
     id: "events", title: "Events", source: (d) => d.events,
     columns: ["Id", "Name", "Severity", "Arguments", "Format", "Description"],
-    row: (e, f) => [f.hexId(e.id), e.name, e.severity, params(e.formalParams), e.format || "", e.annotation || ""],
+    row: (e, f) => [f.hexId(e.id), e.name, e.severity, params(e.formalParams), e.format || "", note(e.annotation)],
   },
   {
     id: "channels", title: "Channels", source: (d) => d.telemetryChannels,
     columns: ["Id", "Name", "Type", "Update", "Format", "Limits", "Description"],
     row: (c, f) => [f.hexId(c.id), c.name, typeName(c.type), c.telemetryUpdate || "", c.format || "",
-      c.limits ? f.value(c.limits) : "", c.annotation || ""],
+      c.limits ? f.value(c.limits) : "", note(c.annotation)],
   },
   {
     id: "parameters", title: "Parameters", source: (d) => d.parameters,
     columns: ["Id", "Name", "Type", "Default", "Description"],
     row: (p, f) => [f.hexId(p.id), p.name, typeName(p.type), p.default === undefined ? "" : f.value(p.default),
-      p.annotation || ""],
+      note(p.annotation)],
   },
   {
     id: "types", title: "Types", source: (d) => d.typeDefinitions,
     columns: ["Name", "Kind", "Definition", "Description"],
-    row: (t, f) => [t.qualifiedName, t.kind, definition(t, f), t.annotation || ""],
+    row: (t, f) => [t.qualifiedName, t.kind, definition(t, f), note(t.annotation)],
   },
   {
     id: "packets", title: "Telemetry packets",

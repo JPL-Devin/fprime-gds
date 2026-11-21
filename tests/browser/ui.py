@@ -8,9 +8,12 @@ The stock binary is what every check runs, except the one of a tab that fails: t
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 from playwright.sync_api import expect, sync_playwright
+
+import subprocess
 
 import harness
 from harness import rows, scenario, show, step
@@ -18,10 +21,12 @@ from harness import rows, scenario, show, step
 BINARY, BROKEN_BINARY, REF, DICTIONARY, OUT = sys.argv[1:6]
 os.makedirs(OUT, exist_ok=True)
 TABS = {"commands": "Commanding", "events": "Events", "channels": "Channels", "dictionary": "Dictionaries",
-        "logs": "Logs", "advanced": "Advanced", "uplink": "Uplink", "downlink": "Downlink", "data-products": "Data Products"}
+        "logs": "Logs", "advanced": "Advanced", "uplink": "Uplink", "downlink": "Downlink", "data-products": "Data Products",
+        "charts": "Charts", "sequences": "Sequences"}
 ELEMENTS = {"commands": "commands-tab", "events": "events-tab", "channels": "channels-tab",
             "dictionary": "dictionary-tab", "logs": "logs-tab", "advanced": "advanced-tab",
-            "uplink": "fgds-uplink", "downlink": "fgds-downlink", "data-products": "data-products-tab"}
+            "uplink": "fgds-uplink", "downlink": "fgds-downlink", "data-products": "data-products-tab",
+            "charts": "charts-tab", "sequences": "fgds-sequences"}
 HTML = '<img src=x onerror=injected=1><b>x</b>'  # within the 40 characters of the argument
 NO_OP_STRING = "CdhCore.cmdDisp.CMD_NO_OP_STRING"
 COUNTER = "CdhCore.cmdDisp.CommandsDispatched"
@@ -51,7 +56,8 @@ def stock(browser, gds):
     content = {"commands": "#command-select option", "events": "#events-table tbody tr",
                "channels": "#channels-table tbody tr", "dictionary": "#dictionary-table tbody tr",
                "logs": "#logs-select option", "advanced": "#advanced-plugins tbody tr",
-               "uplink": "#files", "downlink": "table", "data-products": "table.products"}
+               "uplink": "#files", "downlink": "table", "data-products": "table.products",
+               "charts": "#chart-channel option", "sequences": "#sequence-text"}
     for tab in TABS:
         show(page, tab)
         page.wait_for_selector(f"{ELEMENTS[tab]} {content[tab]}", state="attached")
@@ -122,13 +128,22 @@ def stock(browser, gds):
     step(f"CMD_TEST_CMD_1 with a text for an I32 and 300 for a U8 is refused in the page; "
          f"SET_EVENT_FILTER sent with enum inputs ({', '.join(options)})")
 
+    # An empty text and one too long are refused with the message of the Python GDS page.
+    choose(page, NO_OP_STRING)
+    for text in ("", "x" * 60):
+        page.fill("[data-arg=arg1]", text)
+        sent = len(rows(page, "#command-history"))
+        page.click("#command-send")
+        assert page.text_content("[data-error-for=arg1]") == "Supply general text of less than 40 characters", text
+        assert len(rows(page, "#command-history")) == sent, f"the string {text!r} was sent"
+    step("CMD_NO_OP_STRING: an empty text and 60 characters are refused, as in the Python GDS page")
     # A string that contains HTML is shown as text everywhere it appears.
     choose(page, NO_OP_STRING)
     page.fill("[data-arg=arg1]", HTML)
     page.click("#command-send")
     expect(page.locator("#command-message")).to_contain_text("CMD_NO_OP_STRING sent")
     history = rows(page, "#command-history")
-    assert history[0]["name"] == NO_OP_STRING and HTML in history[0]["args"], history[0]
+    assert history[0]["name"] == NO_OP_STRING and history[0]["args"] == f'"{HTML}"', history[0]
     show(page, "events")
     page.wait_for_function("""() => [...document.querySelectorAll('#events-table td[data-col=name]')]
         .some((cell) => cell.textContent.endsWith('NoOpStringReceived'))""")
@@ -191,6 +206,7 @@ def stock(browser, gds):
     step(f"every request of the page goes to the GDS itself; policy: {policy}")
 
     files_and_products(page, gds)
+    charts_and_sequences(page, gds, problems)
     stream_that_ends(browser, gds)
 
     for tab, title in TABS.items():
@@ -248,6 +264,62 @@ def files_and_products(page, gds):
     shown = products.locator(".panel").inner_text()
     step(f"Data Products tab: {product} downlinked by Ref appears in the watched directory; its detail opens, "
          f"decoded ({products.locator('.panel table.tree tr').count()} lines, {len(shown)} characters)")
+
+
+def charts_and_sequences(page, gds, problems):
+    """The Charts tab plots a channel as it arrives; the Sequences tab builds a sequence and sends it."""
+    show(page, "charts")
+    charts = page.locator("charts-tab")
+    charts.locator("#chart-channel").select_option(COUNTER)
+    charts.locator("#chart-add").click()
+    canvas = charts.locator("canvas")
+    expect(canvas).to_have_count(1)
+    points = lambda: int(canvas.get_attribute("data-points") or 0)
+    first = scenario.wait_for("points in the chart", points)
+    drawn = page.evaluate("""() => { const c = document.querySelector("charts-tab canvas");
+        const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n += 1; return n; }""")
+    assert drawn > 100, drawn
+    gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
+    scenario.wait_for("more points in the chart", lambda: points() > first)
+    samples = [r for r in gds.records("fprime.channel") if r["body"]["name"] == COUNTER]
+    scenario.wait_for("every sample in the chart", lambda: points() >= len(samples))
+    step(f"Charts tab: {COUNTER} plotted with the vendored Chart.js, {points()} points, the samples of the record API; "
+         "it grows while the page stays open")
+
+    show(page, "sequences")
+    tab = page.locator("fgds-sequences")
+    text = "; two commands\nR00:00:00 CdhCore.cmdDisp.CMD_NO_OP\nR00:00:01 CdhCore.cmdDisp.CMD_NO_OP_STRING \"from a sequence\"\n"
+    tab.locator("#sequence-name").fill("page.seq")
+    tab.locator("#sequence-directory").fill("")
+    tab.locator("#sequence-text").fill("R00:00:00 Not.a.COMMAND\n")
+    tab.locator("#sequence-uplink").click()
+    expect(tab.locator("#sequence-result.error")).to_contain_text("Not.a.COMMAND")
+    refused = tab.locator("#sequence-result").inner_text()
+    # The browser logs the refusal of the route; it is the one error expected in the console.
+    assert [p for p in problems if "422" not in p] == [], problems
+    problems.clear()
+    tab.locator("#sequence-text").fill(text)
+    tab.locator("#sequence-uplink").click()
+    expect(tab.locator("#sequence-result")).to_contain_text("added to the uplink queue")
+    with open(f"{gds.out}/page.seq", "w") as file:
+        file.write(text)
+    subprocess.run([BINARY, "seqgen", "--dictionary", DICTIONARY, f"{gds.out}/page.seq", f"{gds.out}/page.tool.bin"],
+                   check=True, capture_output=True)
+    built = open(f"{gds.out}/page.tool.bin", "rb").read()
+    scenario.wait_for("the sequence on the Ref side",
+                      lambda: os.path.exists(f"{gds.out}/ref/page.bin") and os.path.getsize(f"{gds.out}/ref/page.bin") == len(built))
+    assert open(f"{gds.out}/ref/page.bin", "rb").read() == built
+    scenario.wait_for("the uplink finished", lambda: [t for t in gds.get("/files/uplink")["files"]
+                                                     if t["name"] == "page.bin" and t["state"] == "finished"])
+    before = len(gds.records("fprime.event"))
+    gds.post("/commands", {"name": "Ref.cmdSeq.CS_RUN", "args": ["page.bin", "BLOCK"]})
+    scenario.wait_for("the sequence ran", lambda: [e for e in gds.records("fprime.event")[before:]
+                                                   if e["body"]["name"] == "Ref.cmdSeq.CS_SequenceComplete"])
+    ran = [e["body"]["name"].rsplit(".", 1)[1] for e in gds.records("fprime.event")[before:]]
+    assert "NoOpStringReceived" in ran, ran
+    step(f"Sequences tab: a sequence with an unknown command is refused ({refused.strip()[:60]!r}); a good one is built "
+         f"({len(built)} bytes, equal to `fgds seqgen`), uplinked, and run by Ref: {', '.join(ran)}")
 
 
 def stream_that_ends(browser, gds):
