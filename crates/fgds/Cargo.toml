@@ -15,6 +15,7 @@ channels = { workspace = true }
 commands = { workspace = true }
 comm-tcp = { workspace = true }
 events = { workspace = true }
+online = { path = "../../plugins/online" }
 framing-fprime = { workspace = true }
 storage-memory = { workspace = true }
 clap = { workspace = true }

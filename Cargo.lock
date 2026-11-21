@@ -350,6 +350,7 @@ dependencies = [
  "fgds-core",
  "fgds-shell",
  "framing-fprime",
+ "online",
  "storage-memory",
  "tokio",
  "tracing",
