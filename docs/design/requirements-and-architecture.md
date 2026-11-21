@@ -159,7 +159,7 @@ Table 3.4-A, UI capabilities (parity list):
 | STO-16 | The status shall report the database size and free disk space, with a warning below a configurable free-space threshold. | G6 | IT |
 | STO-7 | All clients shall see the same history, including records received before they connected. History and current-state requests shall default to the current run and shall accept a run; the UI shall show which run is displayed. State left unfinished by an earlier run (a transfer in progress) shall never be shown as current. | G6 | IT |
 | STO-8 | A project shall be able to replace the storage plugin. | G3 | IT (in-memory storage plugin used by tests) |
-| STO-9 | A storage commit that fails or does not finish within 2 s shall be reported in the log, the API status and the UI; decoding, live delivery to clients and commanding shall continue. Records accepted meanwhile shall be held in memory (default up to 100,000) and written with their original sequence numbers when storage recovers. Records dropped because that limit was exceeded shall be reported as a gap, with the first and last missing sequence numbers, in the status, in the database, and to any client whose replay crosses the gap. | G6 | IT (fault injection: failing and hanging storage) |
+| STO-9 | A storage commit that fails or does not finish within 2 s shall be reported in the log, the API status and the UI; decoding, live delivery to clients and commanding shall continue. Records accepted meanwhile shall be delivered to clients marked as not stored and shall not be written later. When storage accepts records again, the range lost shall be reported as a gap, with the first and last missing sequence numbers, in the status, in the database, and to any client whose replay crosses the gap. | G6 | IT (fault injection: failing and hanging storage) |
 | STO-14 | A sequence number shall never be used for two records, including after a restart that follows a storage failure. | G6 | IT |
 | STO-15 | A database file that fails to open or fails its integrity check shall cause a non-zero exit with a message naming the file; the GDS shall not repair or replace it. | G6 | UT |
 | STO-10 | A database file already opened for writing by another GDS shall cause a non-zero exit with a message naming the file. | G6 | IT |
@@ -314,9 +314,9 @@ Pipeline rule, in order, for every published record:
 So in normal operation a record is never live before it is stored, and `seq` is the same order in storage and on the stream. A subscriber gives a starting `seq`; the pipeline replays from storage, then continues live, with no gap and no repeat (API-5, SCR-4). Each subscriber has its own bounded queue (default 10,000 records). A WebSocket client that overflows is disconnected with its last `seq` (API-6). A handler that overflows is marked lagging in the status and resumes from storage at its last `seq`.
 
 Storage failure (STO-9). A commit that returns an error or does not finish in 2 s puts storage in state `failed`:
-- Waiting stops: records are held in a memory buffer (default 100,000) and broadcast at once with `stored = false`.
-- The pipeline retries the storage plugin with back-off. On recovery the buffer is written with the original sequence numbers, so later replays are complete, and a `gds.storage_recovered` record is published.
-- If the buffer overflows, the oldest held records are dropped and a `gds.storage_gap {first_seq, last_seq}` record is written on recovery. A replay that crosses a gap delivers the gap record in its place, so a client or handler is told what it missed.
+- Waiting stops: records are broadcast at once with `stored = false`. They are not held for a later write.
+- Every later batch is offered to storage again. When one is accepted, a `gds.storage_gap {first_seq, last_seq}` record (the range that was not stored) and a `gds.storage_recovered` record are written.
+- A replay that crosses a gap delivers the gap record in its place, so a client or handler is told what it missed.
 
 ### 4.3 Extension points
 
@@ -706,8 +706,9 @@ Taken by the author under the user's delegation and confirmed by the user on 202
 8. One link per GDS; new dashboard format; Web Components with Lit instead of Vue (strict Content Security Policy without a build step).
 9. TCP server and UDP adapters keep an explicit listen address option, defaulting to all interfaces as today, for boards on a bench network.
 10. Names: repository `fprime-gds-rs`, binary `fgds`, Python package `fgds_client`.
-11. Numbers chosen by the author: LNK-9 limits, STO-9 time-out and buffer, STO-11 loss bound, API-7 page sizes.
+11. Numbers chosen by the author: LNK-9 limits, STO-9 time-out, STO-11 loss bound, API-7 page sizes.
 12. Any program on the local machine can use the GDS, including sending commands, as today.
 13. When the link drops, the uplink queue pauses and waits for an operator to resume it.
 14. Extras beyond the request. Kept: containment of a crashing plugin, the OpenAPI description checked in CI, fuzzing of parsers. Deferred: the stall watchdog, the load test, project rules checked before a send (uplink guards), and all access control (decision 2).
 15. Adopted from the comparison with YAMCS, confirmed by the user: command dry run, the remote adapter recipe, the whole-message hint for framers, operator link disable and enable, one updatable item per sent command, packet metadata with decoder registration by metadata value. The comparison report lists the YAMCS ideas not adopted and why.
+16. Storage failure (STO-9), taken by the orchestrator while the user was away, to be confirmed: records accepted while storage is failed are delivered live with `stored = false` and are lost from the database; the lost range is reported as a gap on recovery. The buffer of 100,000 records written on recovery was dropped as not worth its complexity.
