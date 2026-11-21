@@ -378,6 +378,9 @@ impl Query {
         if self.limit == 0 {
             return Err(Error::Invalid("limit must be at least 1".into()));
         }
+        if let Some(unknown) = self.kinds.iter().find(|k| !kinds.iter().any(|spec| spec.id == **k)) {
+            return Err(Error::Invalid(format!("record kind \"{unknown}\" is not registered")));
+        }
         for filter in &self.filters {
             let declared = kinds
                 .iter()

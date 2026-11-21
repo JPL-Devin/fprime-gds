@@ -1,0 +1,5 @@
+body { font-family: sans-serif; margin: 0; }
+header { display: flex; gap: 1em; align-items: baseline; padding: 0 1em; background: #223; color: #fff; }
+nav { display: flex; gap: 0.5em; padding: 0.5em 1em; border-bottom: 1px solid #ccc; }
+nav button[aria-selected="true"] { font-weight: bold; }
+main { padding: 1em; }

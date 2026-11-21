@@ -247,7 +247,7 @@ impl Plugin for Doubles {
 
 /// A core running on the test doubles: the fake context of a plugin test.
 pub struct FakeGds {
-    pub core: Core,
+    pub core: Arc<Core>,
     /// The flight side of the link. Frames are `LengthFraming::frame(packet)`.
     pub link: ScriptHandle,
 }
@@ -266,7 +266,7 @@ impl FakeGds {
             framing: "length".into(),
             ..Default::default()
         };
-        let core = Core::start(registry, config, dictionary).await?;
+        let core = Arc::new(Core::start(registry, config, dictionary).await?);
         core.start_link();
         let gds = FakeGds { core, link };
         gds.wait_for_link("connected").await;
