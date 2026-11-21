@@ -31,6 +31,10 @@ parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds", h
 parser.add_argument("--venv-bin", required=True, help="bin directory of the fprime virtual environment")
 parser.add_argument("--out", required=True)
 args = parser.parse_args()
+for name in ("fgds", "ref", "dictionary", "venv_bin", "out"):
+    setattr(args, name, os.path.abspath(getattr(args, name)))
+os.makedirs(args.out, exist_ok=True)
+os.chdir(args.out)  # fprime-cli writes a `logs` directory where it runs
 failures = []
 PYTHON_CLI = os.path.join(args.venv_bin, "fprime-cli")
 PYTHON_GDS = os.path.join(args.venv_bin, "fprime-gds")
