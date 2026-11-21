@@ -104,6 +104,11 @@ impl StatusHandle {
         self.status.with(|d| f(d.plugins.entry(self.plugin.clone()).or_default()));
     }
 
+    /// The link state (`connected`, `disconnected`, `disabled`), for a plugin that acts on it (FIL-4).
+    pub fn link(&self) -> String {
+        self.status.link()
+    }
+
     pub fn set_state(&self, state: &str) {
         self.with(|p| p.state = state.to_string());
     }

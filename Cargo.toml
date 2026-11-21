@@ -45,3 +45,4 @@ storage-memory = { path = "plugins/storage-memory" }
 events = { path = "plugins/events" }
 channels = { path = "plugins/channels" }
 commands = { path = "plugins/commands" }
+files = { path = "plugins/files" }

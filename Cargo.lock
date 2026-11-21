@@ -349,6 +349,7 @@ dependencies = [
  "events",
  "fgds-core",
  "fgds-shell",
+ "files",
  "framing-fprime",
  "online",
  "storage-memory",
@@ -399,6 +400,17 @@ dependencies = [
  "tokio",
  "tokio-tungstenite",
  "tracing",
+]
+
+[[package]]
+name = "files"
+version = "0.1.0"
+dependencies = [
+ "fgds-core",
+ "fgds-shell",
+ "reqwest",
+ "serde",
+ "tokio",
 ]
 
 [[package]]
