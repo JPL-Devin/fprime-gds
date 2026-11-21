@@ -180,6 +180,7 @@ impl Subcommand for SeqgenCommand {
             )
     }
 
+    /// Messages go to the standard output, as with `fprime-seqgen`.
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let input = PathBuf::from(args.get_one::<String>("sequence").expect("required"));
         let timebase = match args.get_one::<String>("timebase") {
@@ -187,7 +188,7 @@ impl Subcommand for SeqgenCommand {
             Some(text) => match value::parse_int(text).and_then(|i| i.to_i128()).and_then(|i| u32::try_from(i).ok()) {
                 Some(timebase) => timebase,
                 None => {
-                    eprintln!("Could not parse time base {text}");
+                    println!("Could not parse time base {text}");
                     return Ok(ExitCode::FAILURE);
                 }
             },
@@ -200,16 +201,19 @@ impl Subcommand for SeqgenCommand {
         let binary = match result {
             Ok(binary) => binary,
             Err(message) => {
-                eprintln!("{message}");
+                println!("{message}");
                 return Ok(ExitCode::FAILURE);
             }
         };
         if let Err(e) = std::fs::write(&output, &binary) {
-            eprintln!("Encountered problem opening output file '{}': {e}", output.display());
+            println!("Encountered problem opening output file '{}': {e}", output.display());
             return Ok(ExitCode::FAILURE);
         }
         let shown = if timebase == TIMEBASE_ANY { "ANY".to_string() } else { format!("{timebase:#x}") };
-        println!("{}: {} bytes with timebase {shown}", output.display(), binary.len());
+        // As fprime-seqgen: the size without the 11-byte header and the checksum, which ends the file.
+        let (records, crc) = (binary.len() - 15, &binary[binary.len() - 4..]);
+        let crc = u32::from_be_bytes(crc.try_into().expect("four bytes"));
+        println!("Sequence is {records} bytes with timebase {shown}\nCRC: {crc} (0x{crc:04X})");
         Ok(ExitCode::SUCCESS)
     }
 }

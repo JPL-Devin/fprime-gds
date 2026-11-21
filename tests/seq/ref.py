@@ -127,6 +127,17 @@ TYPED = {
 }
 
 
+def said(tool, output, done):
+    """What a tool prints is the same for both tools, the name of its output file apart."""
+    key = str(output).replace(f".{tool}.", ".")
+    text = (done.stdout + done.stderr).replace(str(output), key)
+    if done.returncode == 0 and printed.setdefault(key, text) != text:
+        failures.append(f"printed for {key}:\n{printed[key]}and\n{text}")
+
+
+printed = {}
+
+
 def typed(args, dictionary):
     """Parameters of enum, array and struct type: the database, the sequence and the decoded JSON."""
     names = {p["name"] for p in dictionary["parameters"]}
@@ -141,6 +152,7 @@ def typed(args, dictionary):
         for tool, command in (("py", ["fprime-prm-write"]), ("rs", [args.fgds, "prm-write"])):
             output = args.out / f"typed.{tool}.{form}"
             done = run(*command, form, source, "--dictionary", args.dictionary, "-o", output)
+            said(tool, output, done)
             if done.returncode:
                 failures.append(f"typed prm-write {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
             outputs.append(output)
@@ -152,6 +164,7 @@ def typed(args, dictionary):
         output = args.out / f"typed.seq.{tool}.bin"
         output.unlink(missing_ok=True)
         done = run(*command, args.out / "typed.py.seq", output, "--dictionary", args.dictionary)
+        said(tool, output, done)
         message = (done.stdout + done.stderr).strip().split("\n")[-1]
         compiled.append((done.returncode != 0, message if done.returncode else output.read_bytes()))
     if compiled[0] != compiled[1]:
@@ -163,6 +176,7 @@ def typed(args, dictionary):
         for tool, command in (("py", ["fprime-prm-decode"]), ("rs", [args.fgds, "prm-decode"])):
             output = args.out / f"typed.decoded.{tool}.{form}"
             done = run(*command, args.out / "typed.py.dat", "--dictionary", args.dictionary, "-f", form, "-o", output)
+            said(tool, output, done)
             if done.returncode:
                 failures.append(f"typed prm-decode {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
             outputs.append(output)
@@ -180,6 +194,7 @@ def parameters(args, dictionary):
         for tool, command in (("py", ["fprime-prm-write"]), ("rs", [args.fgds, "prm-write"])):
             output = args.out / f"params{''.join(options)}.{tool}.{form}"
             done = run(*command, form, source, "--dictionary", args.dictionary, "--defaults", *options, "-o", output)
+            said(tool, output, done)
             if done.returncode:
                 failures.append(f"prm-write {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
             outputs.append(output)
@@ -198,6 +213,7 @@ def parameters(args, dictionary):
         for tool, command in (("py", ["fprime-prm-decode"]), ("rs", [args.fgds, "prm-decode"])):
             output = args.out / f"decoded.{tool}.{form}"
             done = run(*command, dat, "--dictionary", args.dictionary, "-f", form, "-o", output)
+            said(tool, output, done)
             if done.returncode:
                 failures.append(f"prm-decode {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
             outputs.append(output)
@@ -228,6 +244,7 @@ def parameters(args, dictionary):
             output = args.out / f"damaged.{tool}.json"
             output.unlink(missing_ok=True)
             done = run(*command, bad, "--dictionary", args.dictionary, "-o", output)
+            said(tool, output, done)
             results.append((done.returncode == 0, output.read_text() if done.returncode == 0 else ""))
             message = done.stderr
         # fprime-prm-decode reads the length of a string as U16 whatever FwSizeStoreType is in the

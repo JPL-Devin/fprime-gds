@@ -240,14 +240,15 @@ def corpus(fixtures, count, rng):
 def python_result(source, dictionary, cont):
     output = source.with_suffix(".py.bin")
     output.unlink(missing_ok=True)
+    printed = io.StringIO()
     try:
-        with contextlib.redirect_stdout(io.StringIO()):
+        with contextlib.redirect_stdout(printed):
             seqgen.generateSequence(str(source), str(output), str(dictionary), 0xFFFF, cont=cont)
     except seqgen.SeqGenException as exc:
         return "error", exc.getMsg()
     except Exception as exc:  # the Python tool crashes: any error will do
         return "crash", f"{type(exc).__name__}: {exc}"
-    return "binary", output.read_bytes()
+    return "binary", (output.read_bytes(), printed.getvalue())
 
 
 def fgds_result(fgds, source, dictionary, cont):
@@ -256,10 +257,10 @@ def fgds_result(fgds, source, dictionary, cont):
     command = [fgds, "seqgen", str(source), str(output), "--dictionary", str(dictionary)] + (["--all-errors"] if cont else [])
     done = subprocess.run(command, capture_output=True, text=True, timeout=60)
     if done.returncode == 0:
-        return "binary", output.read_bytes()
-    if done.returncode != 1 or "panicked" in done.stderr or output.exists():
+        return "binary", (output.read_bytes(), done.stdout)
+    if done.returncode != 1 or done.stderr or output.exists():
         return "crash", done.stderr
-    return "error", done.stderr.rstrip("\n")
+    return "error", done.stdout.rstrip("\n")
 
 
 NESTED = re.compile(r":\d+: (Encountered syntax error parsing timestamp: )?Error trying to process rule")

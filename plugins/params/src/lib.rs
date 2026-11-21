@@ -237,12 +237,9 @@ fn output_arg() -> Arg {
 }
 
 /// Print the message of a failed tool and fail, as the Python tools do.
-fn finish(result: std::result::Result<String, String>) -> Result<ExitCode> {
+fn finish(result: std::result::Result<(), String>) -> Result<ExitCode> {
     Ok(match result {
-        Ok(done) => {
-            println!("{done}");
-            ExitCode::SUCCESS
-        }
+        Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("{message}");
             ExitCode::FAILURE
@@ -250,9 +247,30 @@ fn finish(result: std::result::Result<String, String>) -> Result<ExitCode> {
     })
 }
 
-fn write_file(path: &Path, bytes: &[u8]) -> std::result::Result<String, String> {
-    std::fs::write(path, bytes).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(format!("Done, generated {}", path.display()))
+/// The checks of the Python tools before they start, with their lines on the standard output.
+fn begin(verb: &str, name: &str, input: &Path, dictionary: &Path, output: &Path, format: &str) -> Option<ExitCode> {
+    let refused = if !input.exists() {
+        format!("Unable to find {}", input.display())
+    } else if input.is_dir() {
+        format!("{name} is a dir {}", input.display())
+    } else if !dictionary.exists() {
+        format!("Unable to find {}", dictionary.display())
+    } else {
+        println!("{verb} {} to {} (format: .{format})", input.display(), output.display());
+        return None;
+    };
+    println!("{refused}");
+    Some(ExitCode::FAILURE)
+}
+
+/// `Done, writing to` and the resolved path, then the file, as the Python tools.
+fn write_file(path: &Path, bytes: &[u8]) -> std::result::Result<(), String> {
+    let failed = |e: std::io::Error| format!("{}: {e}", path.display());
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
+    std::fs::create_dir_all(parent).map_err(failed)?;
+    let resolved = parent.canonicalize().map_err(failed)?.join(path.file_name().unwrap_or_default());
+    println!("Done, writing to {}", resolved.display());
+    std::fs::write(path, bytes).map_err(failed)
 }
 
 struct WriteCommand;
@@ -287,6 +305,9 @@ impl Subcommand for WriteCommand {
         let input = PathBuf::from(args.get_one::<String>("json_file").expect("required"));
         let output = args.get_one::<String>("output").map_or_else(|| input.with_extension(format), PathBuf::from);
         let dictionary = fgds_offline::dictionary_path(env)?;
+        if let Some(refused) = begin("Converting", "json-file", &input, &dictionary, &output, format) {
+            return Ok(refused);
+        }
         finish((|| {
             let bytes = fgds_offline::read_file(&input)?;
             let file = serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", input.display()))?;
@@ -324,6 +345,9 @@ impl Subcommand for DecodeCommand {
         let format = args.get_one::<String>("format").expect("has a default").as_str();
         let output = args.get_one::<String>("output").map_or_else(|| input.with_extension(format), PathBuf::from);
         let dictionary = fgds_offline::dictionary_path(env)?;
+        if let Some(refused) = begin("Decoding", "dat-file", &input, &dictionary, &output, format) {
+            return Ok(refused);
+        }
         finish((|| {
             let bytes = fgds_offline::read_file(&input)?;
             let dict = ParamDictionary::load(&dictionary)?;
