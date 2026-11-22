@@ -64,7 +64,8 @@ NEW_PAGE = """(table) => {
     };
 }"""
 # Texts the two pages could show differently: an entity, two spaces, quotes, markup.
-TEXTS = [HTML, 'two  spaces &amp; &lt;i&gt; "q" \'s\'', '<span title="t">in a span</span><h7>']
+SPAN, HEADING = '<span title="t">in a span</span><h7>', "<h1>b</h1> after"
+TEXTS = [HTML, 'two  spaces &amp; &lt;i&gt; "q" \'s\'', SPAN, HEADING]
 
 FRAME_SIZE = scenario.tm_frame_size(DICTIONARY)
 
@@ -212,6 +213,14 @@ for tab in ("events", "channels"):
     if [h.lower() for h in new[tab]["header"]] != [h.lower() for h in old[tab]["header"]]:
         different.append(f"{tab} columns: Python GDS page {old[tab]['header']}, new page {new[tab]['header']}")
     ours, theirs = new[tab]["rows"], old[tab]["rows"]
+    if tab == "events":
+        # README.md: the Python GDS page makes elements of the headings and spans in a text; the new page shows the
+        # characters that were sent. The Python text of these two is set aside, the new one is checked below.
+        literal = [n for n, row in enumerate(ours) if SPAN in row[4] or HEADING in row[4]]
+        assert len(literal) == 2, literal
+        for n in literal:
+            assert "in a span<h7>" in theirs[n][4] or "b after" in theirs[n][4].replace("\n", " "), theirs[n]
+            theirs[n][4] = ours[n][4]
     if len(ours) != len(theirs):
         different.append(f"{tab}: {len(theirs)} rows in the Python GDS page, {len(ours)} in the new page")
     different += [f"{tab} row {n}: Python GDS page {b}, new page {a}" for n, (a, b) in enumerate(zip(ours, theirs)) if a != b]
@@ -221,7 +230,8 @@ assert not different, f"{len(different)} differences"
 events, channels = new["events"]["rows"], new["channels"]["rows"]
 texts = [e[4] for e in events]
 assert any(HTML in text for text in texts), "the HTML string is not in the events"
-assert any('two spaces & <i> "q" \'s\'' in text for text in texts) and any("=in a span<h7>" in text for text in texts), texts[-4:]
+assert any('two spaces & <i> "q" \'s\'' in text for text in texts) and any("=" + SPAN in text for text in texts) \
+    and any("=" + HEADING in text for text in texts), texts[-4:]
 assert all(len(e[0]) == 24 for e in events), "an event time is not to the millisecond"
 composite = [c for c in channels if c[3].startswith(("[ ", "{ "))]
 assert any(c[3] == '[ "inf", "-inf", "nan" ]' for c in composite), [c[3] for c in composite]

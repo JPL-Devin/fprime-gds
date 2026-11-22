@@ -108,6 +108,19 @@ pub fn base_name(name: &str) -> Result<&str, String> {
     Ok(base)
 }
 
+/// The path on the spacecraft of an uplinked file, by the rule of the Python GDS for every entry point:
+/// a destination is sent as given; without one it is `os.path.join(directory, name)`, where the directory is
+/// `/` unless given (`fprime-cli file-uplink SRC` sends `/SRC`; the page gives the text of its field, so an
+/// empty field sends the name alone and `.` sends `./name`).
+pub fn uplink_destination(destination: Option<&str>, directory: Option<&str>, name: &str) -> String {
+    match (destination.filter(|d| !d.is_empty()), directory.unwrap_or("/")) {
+        (Some(destination), _) => destination.to_string(),
+        (None, "") => name.to_string(),
+        (None, directory) if directory.ends_with('/') => format!("{directory}{name}"),
+        (None, directory) => format!("{directory}/{name}"),
+    }
+}
+
 /// The name on the ground of a file the flight software names `destination` (FIL-3):
 /// every `/` and `\` becomes `_`, as the Python GDS does, so that two files of two
 /// directories of the spacecraft keep two names and the result is one path component.
@@ -201,6 +214,8 @@ pub(crate) struct Shared {
     state: Mutex<State>,
     /// The uplink handler has something to look at.
     pub wake: Notify,
+    /// Sequence number of the next file packet of the uplink: the one a cancel packet sent by hand takes.
+    pub sequence: std::sync::atomic::AtomicU32,
     default_directory: Option<PathBuf>,
     /// Distinguishes the entities of this process from those of earlier runs.
     started: u128,
@@ -304,6 +319,7 @@ impl Plugin for FilesPlugin {
         let shared = Arc::new(Shared {
             state: Mutex::new(State::default()),
             wake: Notify::new(),
+            sequence: Default::default(),
             default_directory: self.directory.clone(),
             started,
         });
@@ -328,5 +344,26 @@ impl Plugin for FilesPlugin {
         })?;
         reg.add_subcommand(Arc::new(cli::FileUplink))?;
         reg.add_subcommand(Arc::new(cli::Files))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn destination_as_python() {
+        // (destination, directory, result): `os.path.join` of the Python uplinker.
+        for (destination, directory, expected) in [
+            (None, None, "/a.bin"),
+            (None, Some(""), "a.bin"),
+            (None, Some("."), "./a.bin"),
+            (None, Some("/"), "/a.bin"),
+            (None, Some("dir"), "dir/a.bin"),
+            (None, Some("dir/"), "dir/a.bin"),
+            (None, Some("dir//"), "dir//a.bin"),
+            (Some("x/y.bin"), Some("dir"), "x/y.bin"),
+            (Some(""), None, "/a.bin"),
+        ] {
+            assert_eq!(super::uplink_destination(destination, directory, "a.bin"), expected);
+        }
     }
 }

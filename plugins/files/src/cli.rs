@@ -159,7 +159,8 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
         println!("Error starting file uplink: {}", json["error"]["message"].as_str().unwrap_or("the request failed"));
         return Ok(ExitCode::FAILURE);
     }
-    let shown = destination.cloned().unwrap_or_else(|| format!("/{name}"));
+    // The path that is sent.
+    let shown = json["destination"].as_str().unwrap_or_default().to_string();
     println!("Queued '{}' for uplink to '{shown}'", file.display());
     if args.get_flag("no-wait") {
         return Ok(ExitCode::SUCCESS);

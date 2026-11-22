@@ -19,6 +19,7 @@ pub(crate) fn routes(shared: Arc<Shared>) -> Routes {
         .route("/uplink", get(queue).post(upload))
         .route("/uplink/pause", post(pause))
         .route("/uplink/resume", post(resume))
+        .route("/uplink/cancel-packet", post(cancel_packet))
         .route("/uplink/:id/cancel", post(cancel))
         .route("/downlink", get(downlinks))
         .route("/downlink/:name", get(download))
@@ -32,6 +33,7 @@ pub(crate) fn routes(shared: Arc<Shared>) -> Routes {
             access("POST", "/uplink", Access::Write),
             access("POST", "/uplink/pause", Access::Write),
             access("POST", "/uplink/resume", Access::Write),
+            access("POST", "/uplink/cancel-packet", Access::Write),
             access("POST", "/uplink/:id/cancel", Access::Write),
             access("GET", "/downlink", Access::Read),
             access("GET", "/downlink/:name", Access::Read),
@@ -61,8 +63,11 @@ async fn queue(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Json<Value> 
 struct Upload {
     /// Name of the file; reduced to its base name (FIL-3).
     name: String,
-    /// Path on the spacecraft, passed unchanged; the base name when absent.
+    /// Path on the spacecraft, passed unchanged.
     destination: Option<String>,
+    /// Without a destination: the directory on the spacecraft the base name is joined to, `/` when absent
+    /// (`uplink_destination`).
+    directory: Option<String>,
     /// Source path written in the start packet; the path of the staged copy when absent. A script
     /// gives the path of its own file, as the uplinker of the Python GDS sends it.
     source: Option<String>,
@@ -80,7 +85,7 @@ async fn upload(
     let name = base_name(&upload.name).map_err(invalid)?.to_string();
     let directory = options.uplink_dir();
     let path = path_inside(&directory, &name).map_err(invalid)?;
-    let destination = upload.destination.filter(|d| !d.is_empty()).unwrap_or_else(|| name.clone());
+    let destination = crate::uplink_destination(upload.destination.as_deref(), upload.directory.as_deref(), &name);
     if destination.len() > 255 {
         return Err(invalid("the destination path is longer than 255 bytes".into()));
     }
@@ -152,6 +157,21 @@ async fn resume(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Result<Json
     state.paused = false;
     shared.wake.notify_one();
     Ok(Json(queue_json(&ctx, &shared, &state)))
+}
+
+/// Send a cancel packet whatever the state of the queue, as `send_cancel_packet` of the Python uplinker: it
+/// takes the next sequence number, which then starts again at zero.
+async fn cancel_packet(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Result<Json<Value>, ApiError> {
+    let seq = shared.sequence.swap(0, std::sync::atomic::Ordering::Relaxed);
+    let bytes = crate::packet::encode(
+        crate::packet::descriptor_bytes(&ctx.dictionary),
+        seq,
+        &crate::packet::FilePacket::Cancel,
+    );
+    match ctx.uplink.send_packet(&bytes, &Default::default(), "files", false).await {
+        Ok(_) => Ok(Json(json!({ "sequence": seq }))),
+        Err(e) => Err(error(StatusCode::SERVICE_UNAVAILABLE, "link_down", e.to_string())),
+    }
 }
 
 /// Cancel the file being sent, or remove a queued file.

@@ -100,7 +100,7 @@ def sequence_counts(args, out, proxy):
             at += 6 + int.from_bytes(data[at + 4:at + 6], "big") + 1
     assert "UnexpectedSequenceCount" not in open(f"{out}/ref.log", errors="replace").read(), \
         f"{out}: Ref reported an unexpected sequence count"
-    return {"up": len(up), "down": down, "last": up[-1], "expected": (len(up) - 1 + down) % 16384}
+    return {"up": len(up), "down": down, "last": up[-1], "expected": (len(up) - 1 + down) % 16384, "counts": up}
 
 
 def results(args, out, proxy, down_dir, product, skip=0):
@@ -223,6 +223,7 @@ class Fgds:
         self.root = f"http://127.0.0.1:{http}"
         self.api = f"{self.root}/api/v1"
         self.binary, self.out = args.fgds, out
+        self.args = args
         self.process = scenario.start(
             [args.fgds, "run", "--framing", framing or args.framing, "--logs", f"{out}/logs", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
              "--comm-tcp-address", f"127.0.0.1:{self.link_port}", "--files-directory", store, *extra],
@@ -350,8 +351,9 @@ def rust_side(args, out, store):
         scenario.wait_for("the uplink of after.bin", lambda: gds.uplink("after.bin")["state"] == "finished", 60)
         time.sleep(1)
         found["sequence"] = sequence_counts(args, out, proxy)
+        found["early"] = early
         # After the packets compared with the Python GDS were taken.
-        file_uplink(gds, out)
+        file_uplink(gds, out, proxy)
 
         # The routes and `fgds files` give the same files.
         listing = gds.get("/files/downlink")
@@ -395,7 +397,7 @@ def rust_side(args, out, store):
         raise
 
 
-def file_uplink(gds, out):
+def file_uplink(gds, out, proxy=None):
     """`fgds file-uplink` and `fgds files upload`: the lines, the wait and the exit codes of `fprime-cli file-uplink`."""
     with open(f"{out}/local/waited.bin", "wb") as file:
         file.write(content("waited.bin", 5000))
@@ -414,7 +416,27 @@ def file_uplink(gds, out):
     quick = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "--no-wait", "local/waited.bin"],
                            capture_output=True, text=True, cwd=out, timeout=30)
     assert (quick.returncode, quick.stdout) == (0, "Queued 'local/waited.bin' for uplink to '/waited.bin'\n"), quick
-    scenario.wait_for("the file queued without waiting", lambda: gds.uplink("waited.bin")["state"] == "finished", 60)
+    scenario.wait_for("the file queued without waiting", lambda: gds.uplink("waited.bin")["state"] in ("finished", "failed"), 60)
+    # No destination: `/<name>` is announced and sent, as `fprime-cli file-uplink SRC`; Ref cannot write there.
+    with open(f"{out}/local/rooted.bin", "wb") as file:
+        file.write(content("rooted.bin", 50))
+    rooted = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "local/rooted.bin"],
+                            capture_output=True, text=True, cwd=out, timeout=60)
+    lines = re.sub(r"Uplinking 'rooted\.bin': \d+%\n", "", rooted.stdout).splitlines()
+    assert rooted.returncode == 1 and lines[0] == "Queued 'local/rooted.bin' for uplink to '/rooted.bin'" \
+        and lines[-1].startswith("Uplink failed on the flight side: ") \
+        and lines[-1].endswith("Could not open file /rooted.bin"), rooted
+    assert not os.path.exists(f"{out}/rooted.bin")
+    if proxy:
+        starts = [p for p in file_packets(proxy.uplink, gds.args.framing, scenario.spacecraft_id(gds.args.dictionary)) if p[2] == 0]
+        assert starts[-1].endswith(bytes([len("/rooted.bin")]) + b"/rooted.bin"), starts[-1].hex()
+    if proxy:
+        # "Send Cancel Packet" of the Uplink tab: a cancel packet with the next sequence number, whatever the state.
+        sent = gds.post("/files/uplink/cancel-packet", {})
+        packets = lambda: file_packets(proxy.uplink, gds.args.framing, scenario.spacecraft_id(gds.args.dictionary))
+        scenario.wait_for("the cancel packet", lambda: packets()[-1][2] == 3)
+        assert int.from_bytes(packets()[-1][3:7], "big") == sent["sequence"] == int.from_bytes(packets()[-2][3:7], "big") + 1
+        assert gds.post("/files/uplink/cancel-packet", {})["sequence"] == 0
     gds.cli("pause")
     late = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "-t", "2", "local/waited.bin", "late.bin"],
                           capture_output=True, text=True, cwd=out, timeout=30)
@@ -643,7 +665,17 @@ def main():
             for side, found in (("python", python), ("fgds", rust)):
                 counts = found["sequence"]
                 assert counts["down"] > 0 and counts["last"] == counts["expected"], (side, counts)
-            ok(f"sequence count of a file packet sent after files came down: python {python['sequence']['last']} "
+            # Every file packet sent up, one by one: its count is the number of file packets sent up before it, plus
+            # those that had come down by then (none, or all of them: the two sides downlink different files).
+            ahead = {}
+            for side, found in (("python", python), ("fgds", rust)):
+                counts, down = found["sequence"]["counts"], found["sequence"]["down"]
+                ahead[side] = [count - index for index, count in enumerate(counts)]
+                assert set(ahead[side]) == {0, down} and ahead[side] == sorted(ahead[side]), (side, ahead[side])
+            # fgds sent one file more before the first.
+            early = rust["early"]
+            assert [a > 0 for a in ahead["fgds"][early:]] == [a > 0 for a in ahead["python"]]
+            ok(f"sequence count of each of the {python['sequence']['up']} file packets sent up equal to the Python GDS; of one sent after files came down: python {python['sequence']['last']} "
                f"after {python['sequence']['up'] - 1} up and {python['sequence']['down']} down, fgds "
                f"{rust['sequence']['last']} after {rust['sequence']['up'] - 1} up and {rust['sequence']['down']} down; "
                "Ref reported no unexpected sequence count with either")

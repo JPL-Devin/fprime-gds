@@ -197,6 +197,26 @@ def refused(fgds):
             code != 0 and "3 arguments" in error and "arg2 (F32Type)" in error, error)
     code, _, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--arguments", "1", "x", "3"))
     require("a command with an argument of the wrong type is refused", code != 0 and "x" in error, error)
+    code, _, error = run(fgds.cli("events", "-t", "abc"))
+    require("a timeout that is no number: exit code 2 and the error of fprime-cli",
+            code == 2 and error.strip() == "fgds: error: argument -t/--timeout: invalid float value: 'abc'", error)
+    code, output, error = run(fgds.cli("events", "-t", "1", "-s", "no event holds this text"))
+    require("a timeout with nothing printed ends with exit code 0, as fprime-cli", code == 0 and output == "", f"{code} {error}")
+    endless = subprocess.Popen(fgds.cli("events", "-t", "-1", "-s", "no event holds this text"), env=ENV,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    try:
+        endless.wait(timeout=3)
+        require("a negative timeout follows without end, as fprime-cli", False, endless.stderr.read())
+    except subprocess.TimeoutExpired:
+        require("a negative timeout follows without end, as fprime-cli", True)
+    finally:
+        endless.kill()
+        endless.wait()
+    scalars = dict(i8=1, i16=2, i32=3, i64=4, u8="7", u16=6, u32=7, u64=8, f32=1.5, f64=2.5)
+    code, _, error = run(fgds.cli("command-send", "Ref.typeDemo.SEND_SCALARS", "--arguments", json.dumps(scalars)))
+    require("a text where the JSON argument holds a number is refused with the message of fprime-cli, nothing sent",
+            code == 1 and "Type <class 'int'> expected, type <class 'str'> found!" in error.splitlines()[0]
+            and fgds.get("/records?kind=fprime.command&limit=10000")["records"][-1]["body"]["outcome"] == "rejected", error)
     before = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])
     code, packet, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--dry-run", "--arguments", "1", "-2.5", "3"))
     after = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])

@@ -10,6 +10,7 @@ export const styles = css`
   .failed, .error { color: #b00020; }
   .controls { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
   progress { width: 8rem; }
+  label.button { border: 1px solid #888; border-radius: 3px; padding: 0.1rem 0.5rem; cursor: pointer; }
 `;
 
 // A tab that keeps `this.data` equal to one GET, refreshed when a record of `kind` arrives.

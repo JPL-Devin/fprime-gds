@@ -131,7 +131,7 @@ impl Subcommand for Records {
                     .short('t')
                     .long("timeout")
                     .value_name("SECONDS")
-                    .value_parser(fgds_core::clap::value_parser!(f64))
+                    .allow_negative_numbers(true)
                     .help("Wait at most this long for the next matching item, print it and exit [default: follow until interrupted]"),
             )
     }
@@ -143,7 +143,14 @@ impl Subcommand for Records {
             Err(error) => return Ok(refused(&error)),
         };
         let json = args.get_flag("json");
-        let timeout = args.get_one::<f64>("timeout").copied().filter(|t| *t > 0.0);
+        // As argparse `type=float`: its message for a text that is no number; zero and below mean no limit.
+        let timeout = match args.get_one::<String>("timeout").map(|text| (text, text.trim().parse::<f64>())) {
+            Some((text, Err(_))) => {
+                return Ok(refused(&format!("argument -t/--timeout: invalid float value: '{text}'")));
+            }
+            Some((_, Ok(seconds))) => Some(seconds).filter(|t| *t > 0.0),
+            None => None,
+        };
         runtime()?.block_on(async {
             api.check_version().await?;
             if args.get_flag("list") {
@@ -185,7 +192,8 @@ impl Subcommand for Records {
             };
             tokio::select! {
                 result = follow => result.map(|()| ExitCode::SUCCESS),
-                () = limit => Ok(ExitCode::FAILURE),
+                // `fprime-cli` ends with exit code 0 when nothing came in time.
+                () = limit => Ok(ExitCode::SUCCESS),
                 _ = tokio::signal::ctrl_c() => Ok(ExitCode::SUCCESS),
             }
         })

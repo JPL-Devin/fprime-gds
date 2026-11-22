@@ -104,6 +104,7 @@ class ChannelsTab extends LitElement {
           this.ground = e.target.checked;
           this.gds.settings.set("channels.ground", this.ground);
         }}>Ground time</label>
+        <button class="action secondary" id="channels-clear" @click=${() => { this.latest.clear(); this.version += 1; }}>Clear All</button>
         <span class="muted" id="channels-count">${rows.length} of ${this.definitions.length} channels</span>
       </div>
       <table class="gds ${this.ground ? "" : "no-ground"}" id="channels-table">

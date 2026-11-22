@@ -52,7 +52,40 @@ fn int_from_json(value: &Value) -> Option<i128> {
     match value {
         Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
         Value::String(s) => crate::input::python_int(s),
+        // Python: `bool` is an `int`.
+        Value::Bool(b) => Some(i128::from(*b)),
         _ => None,
+    }
+}
+
+/// The type rule of the Python GDS for the members of an array or a struct given as JSON text
+/// (`validate` of its types): a number where a number is expected, never its text; `true` and `false`
+/// are integers too, an integer is a float. The message is the one of `TypeMismatchException`.
+fn python_json_types(ty: &Type, value: &Value) -> Result<(), TypeError> {
+    let class = |value: &Value| match value {
+        Value::Null => "NoneType",
+        Value::Bool(_) => "bool",
+        Value::Number(n) if n.is_f64() => "float",
+        Value::Number(_) => "int",
+        Value::String(_) => "str",
+        Value::Array(_) => "list",
+        Value::Object(_) => "dict",
+    };
+    let expect = |name: &str, accepted: &[&str]| match accepted.contains(&class(value)) {
+        true => Ok(()),
+        false => fail(format!("Type <class '{name}'> expected, type <class '{}'> found!", class(value))),
+    };
+    match ty {
+        Type::Int { .. } => expect("int", &["int", "bool"]),
+        Type::Float { .. } => expect("float", &["float", "int", "bool"]),
+        Type::Bool => expect("bool", &["bool"]),
+        Type::String { .. } | Type::Enum { .. } => expect("str", &["str"]),
+        Type::Array { element, .. } => value.as_array().into_iter().flatten().try_for_each(|v| python_json_types(element, v)),
+        Type::Struct { members, .. } => members.iter().try_for_each(|m| match (value.get(&m.name), m.count) {
+            (Some(v), None) => python_json_types(&m.ty, v),
+            (Some(v), Some(_)) => v.as_array().into_iter().flatten().try_for_each(|v| python_json_types(&m.ty, v)),
+            (None, _) => Ok(()),
+        }),
     }
 }
 
@@ -157,6 +190,9 @@ impl Dictionary {
             (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => serde_json::from_str::<Value>(text).ok(),
             _ => None,
         };
+        if let Some(parsed) = &parsed {
+            python_json_types(ty, parsed)?;
+        }
         let value = parsed.as_ref().unwrap_or(value);
         match ty {
             Type::Int { bits, signed } => {
@@ -177,6 +213,7 @@ impl Dictionary {
                 let v = match value {
                     Value::Number(n) => n.as_f64(),
                     Value::String(s) => crate::input::python_float(s),
+                    Value::Bool(b) => Some(f64::from(u8::from(*b))),
                     _ => None,
                 };
                 match (v, bits) {

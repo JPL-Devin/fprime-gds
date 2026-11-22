@@ -71,6 +71,13 @@ class EventsTab extends LitElement {
     this.version += 1;
   }
 
+  // As "Clear All" of the Python GDS page: the events of the page are dropped; the GDS keeps its records.
+  clear() {
+    this.events.splice(0, this.events.length);
+    if (this.frozen) this.frozen = [];
+    this.version += 1;
+  }
+
   toggleSeverity(severity, on) {
     const next = new Set(this.severities);
     if (on) next.add(severity); else next.delete(severity);
@@ -109,6 +116,7 @@ class EventsTab extends LitElement {
         }}>Ground time</label>
         <button class="action secondary" id="events-pause" @click=${() => this.togglePause()}>
           ${this.paused ? `Resume (${this.events.length - this.frozen.length} new)` : "Pause"}</button>
+        <button class="action secondary" id="events-clear" @click=${() => this.clear()}>Clear All</button>
         <span class="muted" id="events-count">${shown.length} of ${matching.length} shown, ${source.length} received</span>
       </div>
       <table class="gds ${this.ground ? "" : "no-ground"}" id="events-table">

@@ -473,7 +473,7 @@ class TestApi:
         if packets is not None:
             raise NotImplementedError("fgds sends every packet of a file; a packet selection is not supported")
         entry = self.client.upload(file_path, destination)
-        self.__log(f"Queued {file_path} for uplink to {destination or os.path.basename(str(file_path))}")
+        self.__log(f"Queued {file_path} for uplink to {destination or '/' + os.path.basename(str(file_path))}")
         return entry
 
     def uplink_file_and_await_completion(self, file_path, destination=None, timeout=10, packets=None):

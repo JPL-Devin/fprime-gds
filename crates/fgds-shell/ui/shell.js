@@ -138,15 +138,13 @@ const format = {
   composite(value) {
     return typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : format.value(value);
   },
-  // A text of the flight software as the Python GDS page shows it. That page escapes `<` and
-  // `>`, puts headings and spans back and sets the result as HTML, so `&amp;` is shown as `&`.
-  // Here the same result is read from an inert template and shown as text: nothing runs.
+  // A text of the flight software. The Python GDS page escapes `<` and `>` and sets the result as HTML, so
+  // `&amp;` reads `&` there: the same is read here from an inert template, nothing runs. That page also puts
+  // headings and spans back as elements; here their tags stay visible as the characters that were sent.
   flightText(text) {
-    if (typeof text !== "string" || !/[&<]/.test(text)) return text;
+    if (typeof text !== "string" || !text.includes("&")) return text;
     const inert = document.createElement("template");
-    inert.innerHTML = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-      .replaceAll(/&lt;h([1-6])&gt;([^&]*)&lt;\/h[1-6]&gt;/g, "<h$1>$2</h$1>")
-      .replaceAll(/&lt;span( title="[^"]*")?&gt;([^&]*)&lt;\/span&gt;/g, "<span $1>$2</span>");
+    inert.innerHTML = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
     return inert.content.textContent;
   },
   groundTime(iso) { return iso || ""; },
@@ -351,8 +349,24 @@ function blame(error) {
   const tab = tabs.find((t) => stack.includes(`/ui/plugins/${t.id}/`));
   if (tab && !tab.error) fail(tab, error);
 }
-window.addEventListener("error", (event) => blame(event.error));
-window.addEventListener("unhandledrejection", (event) => blame(event.reason));
+// The counters of the Python GDS page: the events of these two severities the page received, and the
+// errors of the page itself; "99+" from 99 on.
+const counts = { WARNING_HI: 0, FATAL: 0, GDS_Errors: 0 };
+function showCounts() {
+  document.querySelector("#counters").replaceChildren(...Object.entries(counts).map(([name, count]) => {
+    const counter = document.createElement("span");
+    counter.dataset.counter = name;
+    counter.textContent = `${name.replace("_", " ")}: ${count >= 99 ? "99+" : count}`;
+    return counter;
+  }));
+}
+function pageError(error) {
+  counts.GDS_Errors += 1;
+  showCounts();
+  blame(error);
+}
+window.addEventListener("error", (event) => pageError(event.error));
+window.addEventListener("unhandledrejection", (event) => pageError(event.reason));
 
 async function start() {
   const nav = document.querySelector("#tabs");
@@ -363,6 +377,11 @@ async function start() {
     document.querySelector("#tab").append(errorPanel({ id: "shell", title: "GDS", module: "/api/v1" }, error));
     return;
   }
+  showCounts();
+  gds.records.follow({ kinds: ["fprime.event"] }, (records) => {
+    for (const record of records) if (record.body.severity in counts) counts[record.body.severity] += 1;
+    showCounts();
+  });
   status.refresh();
   setInterval(() => status.refresh(), 1000);
 

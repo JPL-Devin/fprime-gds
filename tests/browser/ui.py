@@ -162,7 +162,9 @@ def stock(browser, gds):
         assert raw is not None and raw.endswith(struct.pack(">ifB", expected["arg1"], 2.0, expected["arg3"])), \
             (name, text, raw and raw.hex())
     # A text that is not a number, in a float field: the field stays empty and nothing is sent.
-    for text in ("abc", "e", "1e", "--1"):
+    for text in ("abc", "e", "1e", "--1", "-Infinity", "1e400", "NaN", "-inf"):
+        # A valid command first: the message of the text before is gone.
+        assert typed({"arg1": "1", "arg2": "2", "arg3": "5"})[1] is not None and not page.query_selector("[data-error-for=arg2]")
         shown, raw = typed({"arg1": "1", "arg2": text, "arg3": "5"})
         assert raw is None, f"{text!r} was sent as {raw.hex()}"
         assert page.text_content("[data-error-for=arg2]") == "Supply floating point number", text
@@ -258,6 +260,27 @@ def stock(browser, gds):
     page.fill("#events-filter", "")
     step("Events tab: pause holds the table, resume shows the events that arrived, the filter narrows it")
 
+    # The counters of the top bar, and "Clear All": as the Python GDS page.
+    severities = [r["body"]["severity"] for r in gds.get("/records?kind=fprime.event&limit=10000")["records"]]
+    expected = [f"WARNING HI: {severities.count('WARNING_HI')}", f"FATAL: {severities.count('FATAL')}", "GDS Errors: 0"]
+    scenario.wait_for("the counters", lambda: page.locator("#counters span").all_text_contents() == expected)
+    page.click("#events-clear")
+    assert page.locator("#events-table tbody tr").count() == 0
+    gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
+    page.wait_for_function("() => document.querySelectorAll('#events-table tbody tr').length >= 2")
+    assert len(gds.get("/records?kind=fprime.event&limit=10000")["records"]) >= len(severities) + 2
+    show(page, "channels")
+    assert page.locator("#channels-table tbody tr").count() > 0
+    left = page.evaluate("""async () => {
+        document.querySelector('#channels-clear').click();
+        await document.querySelector('channels-tab').updateComplete;
+        return document.querySelectorAll('#channels-table tbody tr').length; }""")
+    assert left == 0, left
+    page.wait_for_function(f"""() => [...document.querySelectorAll('#channels-table td[data-col=name]')]
+        .some((cell) => cell.textContent === {COUNTER!r})""")
+    step(f"top bar: {', '.join(expected)}; Clear All empties the Events and Channels tables of the page, which then show "
+         "what arrives; the GDS keeps its records")
+
     # The page takes nothing from another origin.
     other = []
     late = browser.new_page()
@@ -292,9 +315,17 @@ def files_and_products(page, gds):
     show(page, "uplink")
     uplink = page.locator("fgds-uplink")
     expect(uplink).to_contain_text("link: connected")
+    # As the Python GDS page: a chosen file waits as NOT STARTED, nothing is sent before "Begin Uplink".
     uplink.locator("#files").set_input_files(f"{gds.out}/up.bin")
-    uplink.get_by_role("button", name="Add to queue").click()
+    expect(uplink.locator("tr.staged", has_text="up.bin")).to_contain_text("NOT STARTED")
+    page.wait_for_timeout(1000)
+    assert gds.get("/files/uplink")["files"] == [] and not os.path.exists(f"{gds.out}/ref/up.bin")
+    uplink.locator("tr.staged").get_by_role("button", name="Remove").click()
+    expect(uplink.locator("tr.staged")).to_have_count(0)
+    uplink.locator("#files").set_input_files(f"{gds.out}/up.bin")
+    uplink.get_by_role("button", name="Begin Uplink").click()
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("finished", timeout=30000)
+    expect(uplink.locator("tr.staged")).to_have_count(0)
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text(f"{len(content)} / {len(content)} bytes")
     received = scenario.wait_for("the file on the Ref side", lambda: os.path.getsize(f"{gds.out}/ref/up.bin") == len(content))
     assert received and open(f"{gds.out}/ref/up.bin", "rb").read() == content
@@ -314,7 +345,7 @@ def files_and_products(page, gds):
         shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/{name}")
         uplink.locator("#files").set_input_files(f"{gds.out}/{name}")
         uplink.locator("#directory").fill(directory)
-        uplink.get_by_role("button", name="Add to queue").click()
+        uplink.get_by_role("button", name="Begin Uplink").click()
         expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
         assert uplink.locator("tr", has_text=name).locator("td").all_text_contents()[4] == prefix + name, directory
         scenario.wait_for(f"Ref received {prefix}{name}", lambda: any(

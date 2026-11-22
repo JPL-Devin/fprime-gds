@@ -277,7 +277,7 @@ class CommandsTab extends LitElement {
               title=${c.annotation}>${c.name}</option>`)}
           </select>
         </div>
-        <form class="command-form" id="command-form" @submit=${(e) => { e.preventDefault(); if (command) this.send(); }}>
+        <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); if (command) this.send(); }}>
           ${command ? html`
             <h3 id="command-name">${command.name} <span class="muted mono">${format.hexId(command.opcode)}</span></h3>
             <div class="muted">${command.annotation}</div>
