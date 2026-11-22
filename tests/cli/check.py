@@ -228,6 +228,30 @@ def refused(fgds):
                                   json.dumps({**scalars, "u8": 7, "f64": 0}).replace('"f64": 0', '"f64": 18446744073709551616')))
     sent = fgds.get("/records?kind=fprime.command&limit=10000")["records"][-1]["body"]
     require("an integer beyond 64 bits is taken for a float member", "out of range" not in error and sent["args"]["scalar_input"]["f64"] == 2.0 ** 64, f"{error} {sent}")
+    # Command line round 5, N2 to N5. The table of every boundary against the Python GDS is in the tests of
+    # `fgds-dictionary` (`fixtures/command-args/json-table.json`); here the command line itself.
+    def scalars_with(member, literal):
+        text = json.dumps({**scalars, "u8": 7, member: 0}).replace(f'"{member}": 0', f'"{member}": {literal}')
+        code, _, error = run(fgds.cli("command-send", "Ref.typeDemo.SEND_SCALARS", "--arguments", text))
+        return code, error, fgds.get("/records?kind=fprime.command&limit=10000")["records"][-1]["body"]
+    code, error, sent = scalars_with("u64", '{"\\u0000int": "5"}')
+    require("an object is not an integer, whatever its member is called",
+            code == 1 and "Type <class 'int'> expected, type <class 'dict'> found!" in error.splitlines()[0]
+            and sent["outcome"] == "rejected", f"{error} {sent}")
+    for member, literal in (("f64", "1" + "0" * 400), ("f64", "-1" + "0" * 400), ("f64", str(2 ** 1024)), ("f32", "1" + "0" * 400)):
+        code, error, sent = scalars_with(member, literal)
+        require(f"an integer of {len(literal)} characters for {member} is refused, nothing sent",
+                code == 1 and sent["outcome"] == "rejected", f"{error} {sent}")
+    for literal, value in (("1e400", "Infinity"), ("-1e400", "-Infinity"), ("Infinity", "Infinity"), ("NaN", "NaN")):
+        code, error, sent = scalars_with("f64", literal)
+        # No Ref in this part: the argument is taken and only the link refuses.
+        require(f"the float literal {literal} is taken as {value}",
+                sent["args"]["scalar_input"]["f64"] == value and (code == 0 or sent.get("reason") == "link down"),
+                f"{error} {sent}")
+    for literal in (str(2 ** 128), str(-2 ** 127 - 1), "1" + "0" * 60):
+        code, error, sent = scalars_with("u64", literal)
+        require(f"the refusal of {literal} names the number as given",
+                code == 1 and f"{literal} is out of range for U64" in error.splitlines()[0], error)
     before = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])
     code, packet, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--dry-run", "--arguments", "1", "-2.5", "3"))
     after = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])

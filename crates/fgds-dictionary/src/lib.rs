@@ -7,6 +7,7 @@
 mod codec;
 mod input;
 mod load;
+mod pyjson;
 mod text;
 mod types;
 

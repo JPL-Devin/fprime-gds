@@ -356,9 +356,26 @@ Decisions taken while making `scripts/check.sh` pass on the merged tree.
   `Dictionary::encode_command`): Python `int(text, 0)`, `float(text)` and the boolean words of
   `CmdData.convert_arg_value`. `fixtures/command-args/table.json` (835 texts, made by `generate.py` from the Python
   GDS) is the test table: each text gives the same bytes or is refused.
+- An array or a struct given as JSON text is read as Python `json.loads` reads it (`fgds-dictionary`, `pyjson.rs`),
+  into a typed value of its own: an integer literal of any size is an integer (out of range for an integer member,
+  named as given in the refusal; `float(int)` for a float member, refused when beyond a double or beyond `F32`); a
+  float literal beyond a double is an infinity and is sent; `NaN`, `Infinity`, `-Infinity` are numbers; an object
+  is never a number (command line round 5, N2 to N5). `fixtures/command-args/json-table.json` (3500 rows, made by
+  `generate_json.py` from the Python GDS 4.4.0: integer and float literals around 2^7 to 2^128, 10^38, 10^39,
+  2^1023, 2^1024, 10^308, 10^309, 10^400, both signs, for each of the ten scalar members of `Ref.ScalarStruct` and
+  as the text of a scalar argument) is the test table: the same bytes, or refused. The wording of a refusal is the
+  one of row C6 (`18446744073709551616 is out of range for U64` against `Value 18446744073709551616 out of range!`).
 - The Commanding tab applies the stricter rules of the Python GDS page before sending (signed integers decimal only;
   unsigned binary, octal, decimal, hexadecimal; no surrounding spaces) and shows its messages; a float is a number
   input.
+- Every input that is empty or not valid gets its message in one press of the send button (web finding 36), also
+  the inputs nothing was typed in. `fixtures/command-messages/python-page.json` holds what the page of Python GDS
+  release 4.4.0 shows for 111 presses on 8 commands (integers of each width, floats, string, bool, enum, array,
+  struct, struct holding arrays; each input empty, with an invalid text, typed then emptied, alone and with the
+  others invalid), recorded by `tests/browser/messages.py record`; `messages.py check` replays them on the new page.
+  One difference is kept: where the Python page marks a field without a message of its own (a text typed then
+  removed, a boolean not chosen, `007`) and leaves the explanation to the bubble of the browser, the new page
+  writes `<command> was not sent: the marked fields are empty or not valid` under the form, so no refusal is silent.
 
 ### Command line output (command line findings 2, 3, 6, 7, 9 to 16, 21, 22, 35)
 

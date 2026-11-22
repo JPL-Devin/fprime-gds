@@ -1,3 +1,4 @@
+use crate::pyjson::{self, PyJson};
 use crate::types::{Time, Type};
 use crate::Dictionary;
 use serde_json::{json, Map, Value};
@@ -54,90 +55,67 @@ fn int_from_json(value: &Value) -> Option<i128> {
         Value::String(s) => crate::input::python_int(s),
         // Python: `bool` is an `int`.
         Value::Bool(b) => Some(i128::from(*b)),
-        Value::Object(_) => big_int(value).and_then(crate::input::python_int),
         _ => None,
     }
 }
 
-/// The member that holds the digits of an integer of JSON text beyond 64 bits (see `json_with_big_ints`).
-const BIG_INT: &str = "\u{0}int";
-
-fn big_int(value: &Value) -> Option<&str> {
-    value.as_object().filter(|o| o.len() == 1).and_then(|o| o.get(BIG_INT)).and_then(Value::as_str)
-}
-
-/// JSON text as Python reads it: an integer literal of any size is an integer. `serde_json` reads one
-/// beyond 64 bits as a float, so each is replaced by an object holding its digits before the text is read.
-fn json_with_big_ints(text: &str) -> Option<Value> {
-    let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        let start = i;
-        match bytes[i] {
-            b'"' => {
-                i += 1;
-                while i < bytes.len() && bytes[i] != b'"' {
-                    i += if bytes[i] == b'\\' { 2 } else { 1 };
-                }
-                i = (i + 1).min(bytes.len());
-                out.push_str(text.get(start..i)?);
-            }
-            b'-' | b'0'..=b'9' => {
-                while i < bytes.len() && matches!(bytes[i], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9') {
-                    i += 1;
-                }
-                let number = &text[start..i];
-                let integer = number.strip_prefix('-').unwrap_or(number).bytes().all(|b| b.is_ascii_digit());
-                if integer && number.parse::<i64>().is_err() && number.parse::<u64>().is_err() {
-                    out.push_str(&json!({ BIG_INT: number }).to_string());
-                } else {
-                    out.push_str(number);
-                }
-            }
-            _ => {
-                i += 1;
-                while !text.is_char_boundary(i) {
-                    i += 1;
-                }
-                out.push_str(&text[start..i]);
-            }
-        }
+/// A value of JSON text without regard to a type: for what the type rule has nothing to say about.
+fn untyped(value: &PyJson) -> Value {
+    match value {
+        PyJson::Null => Value::Null,
+        PyJson::Bool(b) => json!(b),
+        PyJson::Int(digits) => digits.parse::<i64>().map_or_else(|_| json!(digits), |v| json!(v)),
+        PyJson::Float(v) => float_to_json(*v),
+        PyJson::Str(s) => json!(s),
+        PyJson::List(items) => items.iter().map(untyped).collect(),
+        PyJson::Dict(members) => Value::Object(members.iter().map(|(n, v)| (n.clone(), untyped(v))).collect()),
     }
-    serde_json::from_str(&out).ok()
 }
 
 /// The type rule of the Python GDS for the members of an array or a struct given as JSON text
 /// (`validate` of its types): a number where a number is expected, never its text; `true` and `false`
-/// are integers too, an integer is a float. The message is the one of `TypeMismatchException`.
-fn python_json_types(ty: &Type, value: &Value) -> Result<(), TypeError> {
-    let class = |value: &Value| match value {
-        Value::Null => "NoneType",
-        Value::Bool(_) => "bool",
-        Value::Number(n) if n.is_f64() => "float",
-        Value::Number(_) => "int",
-        Value::String(_) => "str",
-        Value::Array(_) => "list",
-        Value::Object(_) if big_int(value).is_some() => "int",
-        Value::Object(_) => "dict",
-    };
-    let expect = |name: &str, accepted: &[&str]| match accepted.contains(&class(value)) {
-        true => Ok(()),
-        false => fail(format!("Type <class '{name}'> expected, type <class '{}'> found!", class(value))),
-    };
-    match ty {
-        Type::Int { .. } => expect("int", &["int", "bool"]),
-        Type::Float { .. } => expect("float", &["float", "int", "bool"]),
-        Type::Bool => expect("bool", &["bool"]),
-        Type::String { .. } | Type::Enum { .. } => expect("str", &["str"]),
-        Type::Array { element, .. } => {
-            value.as_array().into_iter().flatten().try_for_each(|v| python_json_types(element, v))
+/// are integers too, an integer is a float (`float(int)`, refused when beyond a double). The message is
+/// the one of `TypeMismatchException`. The result is the value `Dictionary::encode` takes for the type.
+fn python_json_value(ty: &Type, value: &PyJson) -> Result<Value, TypeError> {
+    let mismatch =
+        |name: &str| fail(format!("Type <class '{name}'> expected, type <class '{}'> found!", value.class()));
+    let list = |ty: &Type, value: &PyJson| match value {
+        PyJson::List(items) => {
+            items.iter().map(|v| python_json_value(ty, v)).collect::<Result<Vec<_>, _>>().map(Value::Array)
         }
-        Type::Struct { members, .. } => members.iter().try_for_each(|m| match (value.get(&m.name), m.count) {
-            (Some(v), None) => python_json_types(&m.ty, v),
-            (Some(v), Some(_)) => v.as_array().into_iter().flatten().try_for_each(|v| python_json_types(&m.ty, v)),
-            (None, _) => Ok(()),
-        }),
+        _ => fail(format!("Type <class 'list'> expected, type <class '{}'> found!", value.class())),
+    };
+    match (ty, value) {
+        (Type::Int { .. } | Type::Float { .. } | Type::Bool, PyJson::Bool(b)) => Ok(json!(b)),
+        // As text: `Dictionary::encode` reads it as Python `int`, whatever its size.
+        (Type::Int { .. }, PyJson::Int(digits)) => Ok(json!(digits)),
+        (Type::Int { .. }, _) => mismatch("int"),
+        (Type::Float { .. }, PyJson::Float(v)) if v.is_nan() => Ok(json!("nan")),
+        (Type::Float { .. }, PyJson::Float(v)) if v.is_infinite() => Ok(json!(if *v > 0.0 { "inf" } else { "-inf" })),
+        (Type::Float { .. }, PyJson::Float(v)) => Ok(json!(v)),
+        (Type::Float { .. }, PyJson::Int(digits)) => match digits.parse::<f64>() {
+            // An integer has no negative zero.
+            Ok(v) if v.is_finite() => Ok(json!(v + 0.0)),
+            _ => fail(format!("{digits} is too large an integer to convert to a float")),
+        },
+        (Type::Float { .. }, _) => mismatch("float"),
+        (Type::Bool, _) => mismatch("bool"),
+        (Type::String { .. } | Type::Enum { .. }, PyJson::Str(s)) => Ok(json!(s)),
+        (Type::String { .. } | Type::Enum { .. }, _) => mismatch("str"),
+        (Type::Array { element, .. }, _) => list(element, value),
+        (Type::Struct { members, .. }, PyJson::Dict(given)) => {
+            let mut out = Map::new();
+            for (name, v) in given {
+                let converted = match members.iter().find(|m| &m.name == name) {
+                    Some(m) if m.count.is_some() => list(&m.ty, v)?,
+                    Some(m) => python_json_value(&m.ty, v)?,
+                    None => untyped(v),
+                };
+                out.insert(name.clone(), converted);
+            }
+            Ok(Value::Object(out))
+        }
+        (Type::Struct { .. }, _) => mismatch("dict"),
     }
 }
 
@@ -239,12 +217,12 @@ impl Dictionary {
     pub fn encode(&self, ty: &Type, value: &Value, out: &mut Vec<u8>) -> Result<(), TypeError> {
         // An array or a struct given as text is JSON, as on the command line of the Python GDS.
         let parsed = match (ty, value) {
-            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => json_with_big_ints(text),
+            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => match pyjson::loads(text) {
+                Some(parsed) => Some(python_json_value(ty, &parsed)?),
+                None => None,
+            },
             _ => None,
         };
-        if let Some(parsed) = &parsed {
-            python_json_types(ty, parsed)?;
-        }
         let value = parsed.as_ref().unwrap_or(value);
         match ty {
             Type::Int { bits, signed } => {
@@ -257,7 +235,9 @@ impl Dictionary {
                     false => (0, (1i128 << bits) - 1),
                 };
                 if v < min || v > max {
-                    return fail(format!("{v} is out of range for {name}"));
+                    // The number as it was given, whatever its size.
+                    let given = value.as_str().map_or_else(|| v.to_string(), |text| text.trim().to_string());
+                    return fail(format!("{given} is out of range for {name}"));
                 }
                 put_uint(out, *bits, v as u64);
             }
@@ -266,7 +246,6 @@ impl Dictionary {
                     Value::Number(n) => n.as_f64(),
                     Value::String(s) => crate::input::python_float(s),
                     Value::Bool(b) => Some(f64::from(u8::from(*b))),
-                    Value::Object(_) => big_int(value).and_then(crate::input::python_float),
                     _ => None,
                 };
                 match (v, bits) {
@@ -399,24 +378,5 @@ impl Dictionary {
             sent.insert(param.name.clone(), decoded.unwrap_or_else(|_| value.clone()));
         }
         Ok(EncodedCommand { opcode: command.opcode, bytes, args: sent })
-    }
-}
-
-#[cfg(test)]
-mod big_int_tests {
-    use super::*;
-
-    #[test]
-    fn integers_beyond_64_bits_keep_their_digits() {
-        let value = json_with_big_ints(
-            r#"{"a": 18446744073709551616, "b": [-9223372036854775809, 1e30, 7], "c": "9 99999999999999999999 \" é"}"#,
-        )
-        .unwrap();
-        assert_eq!(big_int(&value["a"]), Some("18446744073709551616"));
-        assert_eq!(big_int(&value["b"][0]), Some("-9223372036854775809"));
-        assert!(value["b"][1].is_f64() && value["b"][2] == 7);
-        assert_eq!(value["c"], "9 99999999999999999999 \" é");
-        assert_eq!(int_from_json(&value["a"]), Some(18446744073709551616));
-        assert!(json_with_big_ints("{").is_none());
     }
 }

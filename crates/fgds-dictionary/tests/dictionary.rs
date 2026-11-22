@@ -399,6 +399,53 @@ fn argument_text_is_read_as_the_python_gds_reads_it() {
     assert!(checked > 800, "{checked} rows");
 }
 
+/// Every number of `fixtures/command-args/json-table.json`, written in the JSON text of a struct or given as
+/// the text of a scalar argument, gives the bytes the Python GDS sends, or is refused as it refuses it.
+#[test]
+fn json_numbers_are_read_as_the_python_gds_reads_them() {
+    let d = dict();
+    let scalar = |name: &str| match name {
+        "F32" => Type::Float { bits: 32 },
+        "F64" => Type::Float { bits: 64 },
+        _ => Type::Int { bits: name[1..].parse().unwrap(), signed: name.starts_with('I') },
+    };
+    let members = ["I8", "I16", "I32", "I64", "U8", "U16", "U32", "U64", "F32", "F64"].map(|name| Member {
+        name: name.to_lowercase(),
+        ty: scalar(name),
+        count: None,
+        format: None,
+        description: None,
+    });
+    let scalars = Type::Struct { name: "Ref.ScalarStruct".into(), members: members.to_vec() };
+    let (mut checked, mut refused) = (0, 0);
+    for line in include_str!("../../../fixtures/command-args/json-table.json").lines() {
+        let row: Value = serde_json::from_str(line).unwrap();
+        let ty = if row["member"].is_null() { scalar(row["type"].as_str().unwrap()) } else { scalars.clone() };
+        let mut out = Vec::new();
+        let ours = d
+            .encode(&ty, &row["text"], &mut out)
+            .ok()
+            .map(|_| out.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        assert_eq!(ours.as_deref(), row["bytes"].as_str(), "{} given {}", row["type"], row["text"]);
+        checked += 1;
+        refused += usize::from(ours.is_none());
+    }
+    assert!(checked == 3500 && refused > 1000, "{checked} rows, {refused} refused");
+}
+
+/// A refusal names the number as it was given, and no text is taken for an integer but an integer.
+#[test]
+fn json_integers_of_any_size_are_named_as_given() {
+    let d = dict();
+    let pair = &d.types["T.Pair"];
+    let answer = |text: &str| d.encode(pair, &json!(text), &mut Vec::new()).map_err(|e| e.0);
+    let huge = "340282366920938463463374607431768211456";
+    assert!(answer(&format!("[1, {huge}]")).unwrap_err().contains(&format!("{huge} is out of range")));
+    assert!(answer(&format!("[1, -{huge}0]")).unwrap_err().contains(&format!("-{huge}0 is out of range")));
+    let error = answer(r#"[1, {"\u0000int": "5"}]"#).unwrap_err();
+    assert!(error.ends_with("Type <class 'int'> expected, type <class 'dict'> found!"), "{error}");
+}
+
 /// Inside an array or a struct given as JSON text, the Python GDS takes a number only as a number.
 #[test]
 fn json_text_members_have_the_python_types() {
