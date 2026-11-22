@@ -11,7 +11,8 @@ class FgdsUplink extends FilesTab {
     const directory = this.renderRoot.querySelector("#directory").value;
     for (const file of input.files) {
       const query = new URLSearchParams({ name: file.name });
-      if (directory) query.set("destination", directory.replace(/\/+$/, "") + "/" + file.name);
+      // `os.path.join(directory, name)`, as the Python uplinker: the directory is kept as typed.
+      if (directory) query.set("destination", directory + (directory.endsWith("/") ? "" : "/") + file.name);
       // The body is the file itself: the shared `api.post` sends JSON only.
       const response = await fetch("/api/v1/files/uplink?" + query, { method: "POST", body: file });
       if (!response.ok) {
