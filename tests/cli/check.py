@@ -229,7 +229,9 @@ def refused(fgds):
     for subcommand in ("events", "channels"):
         code, _, error = run(["sh", "-c", script, "sh", *fgds.cli(subcommand)])
         require(f"{subcommand} started with SIGINT ignored keeps running after SIGINT, as fprime-cli", code == 0, f"{code} {error}")
-    interrupted = subprocess.Popen(fgds.cli("events"), env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    # "Normally": with the default action for SIGINT, whatever this check itself was started with.
+    interrupted = subprocess.Popen(fgds.cli("events"), env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                   preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
     time.sleep(2)
     interrupted.send_signal(signal.SIGINT)
     require("events started normally ends with exit code 0 on SIGINT", interrupted.wait(timeout=10) == 0)
