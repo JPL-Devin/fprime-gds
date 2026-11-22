@@ -271,13 +271,13 @@ def stock(browser, gds):
     page.fill("#command-string", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7")
     page.press("#command-string", "Tab")
     assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", page.input_value("#command-select")
-    page.click("#command-send")
-    expect(page.locator("#command-message")).to_contain_text("CMD_TEST_CMD_1 sent")
     commands = lambda: len(gds.get("/records?kind=fprime.command&limit=10000")["records"])
     dispatched = lambda: next(r["body"]["value"] for r in gds.get("/records/latest?kind=fprime.channel")["records"]
                               if r["body"].get("name") == COUNTER)
-    scenario.steady(dispatched)
-    held = (commands(), dispatched())
+    page.click("#command-send")
+    expect(page.locator("#command-message")).to_contain_text("CMD_TEST_CMD_1 sent")
+    # The counter of Ref comes with its telemetry, some time after the commands: wait until it is still for 5 s.
+    held = (commands(), scenario.steady(dispatched, quiet=5.0))
     for text in ("", "   ", 'CdhCore.cmdDisp.CMD_NO_OP_STRING, "unfinished', "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, , 7",
                  "Nope.cmd.DOES_NOT_EXIST", "CdhCore.cmdDisp.CMD_NO_OP_STRING", "FileHandling.fileManager.RemoveFile, a", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9"):
         choose(page, "CdhCore.cmdDisp.CMD_TEST_CMD_1")
@@ -288,8 +288,10 @@ def stock(browser, gds):
         assert page.locator("#command-send").count() == 1, f"{text!r}: no send button"
         page.click("#command-send")
         page.wait_for_timeout(1500)
-        assert (commands(), dispatched()) == held, f"{text!r} then the send button: a command went out"
+        assert commands() == held[0], f"{text!r} then the send button: a command went out"
         assert page.locator("#command-message.error-text, #command-string-error, #command-unknown").count(), f"{text!r}: refused in silence"
+    after = (commands(), scenario.steady(dispatched, quiet=5.0))
+    assert after == held, f"a command went out: {held} before, {after} after"
     step("Command String empty, of spaces, not of the form, of an unknown name, with too few arguments, then the send "
          "button: nothing is sent and the page says why")
     choose(page, "CdhCore.cmdDisp.CMD_NO_OP")
