@@ -216,7 +216,7 @@ def stock(browser, gds):
     page.click("#command-send")
     expect(page.locator("#command-message")).to_contain_text("CMD_NO_OP_STRING sent")
     history = rows(page, "#command-history")
-    assert history[0]["name"] == NO_OP_STRING and history[0]["args"] == f'"{HTML}"', history[0]
+    assert history[0]["string"] == f'{NO_OP_STRING}, "{HTML}"', history[0]
     show(page, "events")
     page.wait_for_function("""() => [...document.querySelectorAll('#events-table td[data-col=name]')]
         .some((cell) => cell.textContent.endsWith('NoOpStringReceived'))""")
@@ -247,8 +247,8 @@ def stock(browser, gds):
     page.click("#command-send")
     scenario.wait_for("the refused command in the history", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
     row = rows(page, "#command-history")[0]
-    assert row["name"] == refused and row["args"] == "1, 1e+39, 1" and row["outcome"].startswith("rejected"), row
-    step(f"a refused command ({refused} with 1e39 for an F32) has a history row with its name and arguments: {row['args']!r}")
+    assert row["string"] == f"{refused}, 1, 1e+39, 1" and row["outcome"].startswith("rejected"), row
+    step(f"a refused command ({refused} with 1e39 for an F32) has a history row with the text of the Python page: {row['string']!r}")
 
     # One U8 left empty and one holding 300: the message under each, in one press.
     choose(page, "Ref.typeDemo.CHOICES_WITH_FRIENDS")
@@ -321,10 +321,13 @@ def stock(browser, gds):
             received = column(table, key)
             page.click(f"#{table} th[data-col={key}]")
             up = column(table, key)
-            assert up == page.evaluate(ordered, received), f"{tab} {key}: not ascending"
+            # The Python page sorts the description and the value by what it holds, not by the text shown
+            # (a command name is an element, a structure an object): parity.py compares those orders with it.
+            held = key in ("text", "value")
+            assert held or up == page.evaluate(ordered, received), f"{tab} {key}: not ascending"
             page.click(f"#{table} th[data-col={key}]")
-            assert column(table, key) == up[::-1] or len(set(up)) < len(up), f"{tab} {key}: not descending"
-            assert sorted(column(table, key)) == sorted(up)
+            assert held or column(table, key) == up[::-1] or len(set(up)) < len(up), f"{tab} {key}: not descending"
+            assert tab == "channels" or sorted(column(table, key)) == sorted(up)  # channels keep arriving
             page.click(f"#{table} th[data-col={key}]")
             if tab == "events":
                 assert column(table, key) == received, f"{tab} {key}: the order received is not back"
@@ -492,6 +495,19 @@ def files_and_products(page, gds):
     # Newest first, as the Python page (its list is the uplinked files reversed).
     order = [row.locator("td").nth(3).text_content() for row in uplink.locator("tr:has(td)").all()]
     assert order == ["up7.bin", "./dir/up6.bin", "dir//up5.bin", "dir/up4.bin", "dir/up3.bin", "./up2.bin", "up.bin"], order
+    # The filter field and the sorting headers of the tables of the Python page.
+    destinations = lambda: [row.locator("td").nth(3).text_content() for row in uplink.locator("tr:has(td)").all()]
+    uplink.locator("#filter").fill("DIR/")
+    assert destinations() == ["./dir/up6.bin", "dir//up5.bin", "dir/up4.bin", "dir/up3.bin"], destinations()
+    uplink.locator("#filter").fill("")
+    uplink.locator("th", has_text="Destination").click()
+    ascending = page.evaluate("(texts) => texts.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))", order)
+    assert ascending != order and destinations() == ascending, destinations()
+    uplink.locator("th", has_text="Destination").click()
+    assert destinations() == ascending[::-1], destinations()
+    uplink.locator("th", has_text="Destination").click()
+    assert destinations() == order, destinations()
+    step("Uplink tab: the filter field keeps the rows holding the text; a click on a header sorts ascending, a second descending, a third as listed")
     step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes; "
          f"times as the Python page ({cells[0]}); destination shown and received by Ref as the Python page for the "
          f"directories {[d for d, _ in joined]}")
@@ -512,6 +528,17 @@ def files_and_products(page, gds):
     part = downlink.locator("tr", has_text="part.bin").first.locator("td").all_text_contents()
     assert http_date.match(part[0]) and http_date.match(part[1]) and part[4] == "finished" and part[5] == "Download" and part[7] == "", part
     assert re.search(r"\(\d+%\)", part[6]) and "(100%)" not in part[6], part
+    sources = lambda: downlink.locator("#transfers tr:has(td) td:nth-child(3)").all_text_contents()
+    listed = sources()
+    downlink.locator("#filter").fill("part")
+    assert sources() and all("part" in text for text in downlink.locator("#transfers tr:has(td)").all_text_contents()), sources()
+    downlink.locator("#filter").fill("")
+    downlink.locator("#transfers th", has_text="Source").click()
+    assert sorted(sources()) == sorted(listed) and sources()[0] == min(listed), sources()
+    for _ in range(2):
+        downlink.locator("#transfers th", has_text="Source").click()
+    assert sources() == listed, sources()
+    step("Downlink tab: the filter field and the sorting headers, as the Uplink tab")
     with page.expect_download() as download:
         downlink.locator("tr", has_text="down.bin").first.locator("td").nth(5).locator("a").click()
     assert open(download.value.path(), "rb").read() == open(f"{gds.out}/ref/down-source.bin", "rb").read()

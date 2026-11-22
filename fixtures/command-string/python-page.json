@@ -4,7 +4,8 @@
   "name": "CdhCore.cmdDisp.CMD_NO_OP",
   "inputs": [],
   "line": "CdhCore.cmdDisp.CMD_NO_OP",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"hello world\"",
@@ -13,7 +14,8 @@
    "hello world"
   ],
   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"hello world\"",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a, b: [c] {d}\"",
@@ -22,7 +24,8 @@
    "a, b: [c] {d}"
   ],
   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a, b: [c] {d}\"",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"say \\\"hi\\\"\"",
@@ -31,7 +34,8 @@
    "say \"hi\""
   ],
   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"say \\\"hi\\\"\"",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, bare_word",
@@ -40,7 +44,8 @@
    "bare_word"
   ],
   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"bare_word\"",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
@@ -51,7 +56,8 @@
    "3"
   ],
   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, -7, 1e3, 255",
@@ -62,7 +68,8 @@
    "3"
   ],
   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
-  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant."
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant.",
+  "messages": []
  },
  {
   "typed": "cdhcore.cmddisp.cmd_test_cmd_1, 4, -0.25, 6",
@@ -73,7 +80,8 @@
    "6"
   ],
   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 4, -0.25, 6",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1",
@@ -84,7 +92,8 @@
    "6"
   ],
   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, -0.25, 6",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "CdhCore.events.SET_EVENT_FILTER, WARNING_HI, ENABLED",
@@ -94,7 +103,8 @@
    "ENABLED"
   ],
   "line": "CdhCore.events.SET_EVENT_FILTER, WARNING_HI, ENABLED",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "FileHandling.fileManager.RemoveFile, \"/tmp/a file.txt\", true",
@@ -104,7 +114,8 @@
    "true"
   ],
   "line": "FileHandling.fileManager.RemoveFile, \"/tmp/a file.txt\", true",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "FileHandling.fileManager.MoveFile, \"/tmp/a\", \"/tmp/b\"",
@@ -114,7 +125,8 @@
    "/tmp/b"
   ],
   "line": "FileHandling.fileManager.MoveFile, \"/tmp/a\", \"/tmp/b\"",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "Ref.typeDemo.CHOICE, RED",
@@ -123,7 +135,8 @@
    "RED"
   ],
   "line": "Ref.typeDemo.CHOICE, RED",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
@@ -133,7 +146,8 @@
    "BLUE"
   ],
   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
@@ -143,7 +157,8 @@
    "BLUE"
   ],
   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 18446744073709551615, f32: 1.5, f64: -2.25}",
@@ -161,14 +176,16 @@
    "-2.25"
   ],
   "line": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 18446744073709551615, f32: 1.5, f64: -2.25}",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "Ref.typeDemo.DUMP_FLOATS",
   "name": "Ref.typeDemo.DUMP_FLOATS",
   "inputs": [],
   "line": "Ref.typeDemo.DUMP_FLOATS",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "Ref.typeDemo.CHOICES_PRM_PRM_SET, [BLUE, RED]",
@@ -178,28 +195,38 @@
    "RED"
   ],
   "line": "Ref.typeDemo.CHOICES_PRM_PRM_SET, [BLUE, RED]",
-  "error": ""
+  "error": "",
+  "messages": []
  },
  {
   "typed": "No.such.COMMAND, 1",
   "name": "No.such.COMMAND",
   "inputs": [],
   "line": "No.such.COMMAND",
-  "error": ""
+  "error": "",
+  "messages": [
+   "No.such.COMMAND is not a command."
+  ]
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"unfinished",
   "name": "No.such.COMMAND",
   "inputs": [],
   "line": "No.such.COMMAND",
-  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant."
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant.",
+  "messages": [
+   "No.such.COMMAND is not a command."
+  ]
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, , 3",
   "name": "No.such.COMMAND",
   "inputs": [],
   "line": "No.such.COMMAND",
-  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant."
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant.",
+  "messages": [
+   "No.such.COMMAND is not a command."
+  ]
  },
  {
   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3, 4",
@@ -210,6 +237,57 @@
    "3"
   ],
   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
-  "error": ""
+  "error": "",
+  "messages": []
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 1.5, 0x1F",
+  "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+  "inputs": [
+   "1",
+   "2.5",
+   "3"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant.",
+  "messages": []
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP",
+  "inputs": [],
+  "line": "CdhCore.cmdDisp.CMD_NO_OP",
+  "error": "",
+  "messages": []
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP",
+  "inputs": [],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9",
+  "error": "",
+  "messages": []
+ },
+ {
+  "typed": "CdhCore.version.VERSION, NOT_A_CONSTANT",
+  "name": "CdhCore.version.VERSION",
+  "inputs": [
+   "NOT_A_CONSTANT"
+  ],
+  "line": "CdhCore.version.VERSION, NOT_A_CONSTANT",
+  "error": "",
+  "messages": [
+   "Supply one of: PROJECT FRAMEWORK LIBRARY CUSTOM ALL"
+  ]
+ },
+ {
+  "typed": "NO_SUCH.COMMAND, 1",
+  "name": "NO_SUCH.COMMAND",
+  "inputs": [],
+  "line": "NO_SUCH.COMMAND",
+  "error": "",
+  "messages": [
+   "NO_SUCH.COMMAND is not a command."
+  ]
  }
 ]

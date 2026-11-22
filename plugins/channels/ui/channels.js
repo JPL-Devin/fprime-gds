@@ -106,7 +106,10 @@ class ChannelsTab extends LitElement {
       const r = this.latest.get(d.id);
       return ({
         time: r ? format.flightTime(r.flight_time) : "", ground: r ? format.groundTime(r.ground_time) : "",
-        id: format.hexId(d.id), name: d.name, value: r ? this.shown(r, d) : "",
+        id: format.hexId(d.id), name: d.name,
+        // The Python GDS page sorts by `String()` of the value: an array is its members joined by commas, a
+        // structure is `[object Object]`.
+        value: r ? (d.format ? r.body.display_text : r.body.display_members !== undefined ? r.body.display_members : r.body.value) : "",
       })[key];
     });
     return html`

@@ -1,5 +1,5 @@
 // The Downlink tab: the transfers of this run and the files that can be downloaded (FIL-2).
-import { FilesTab, html, styles, row } from "./common.js";
+import { FilesTab, html, styles, row, cells } from "./common.js";
 
 class FgdsDownlink extends FilesTab {
   static styles = styles;
@@ -12,9 +12,10 @@ class FgdsDownlink extends FilesTab {
     return html`
       <span class="error">${this.error}</span>
       <h3>Transfers</h3>
-      <table>
-        <tr><th>Start Time</th><th>End Time</th><th>Source</th><th>Destination</th><th>State</th><th>Control</th><th>Progress</th><th>Problems</th></tr>
-        ${data.transfers.map((t) => row(t, t.state === "finished" ? link(t.name) : "", t.problems || ""))}
+      <div class="controls">${this.filterField()}</div>
+      <table id="transfers">
+        ${this.head(["Start Time", "End Time", "Source", "Destination", "State", "Control", "Progress", "Problems"])}
+        ${this.arrange(data.transfers, (t) => [...cells(t), t.problems || ""]).map((t) => row(t, t.state === "finished" ? link(t.name) : "", t.problems || ""))}
       </table>
       <h3>Files</h3>
       <table>

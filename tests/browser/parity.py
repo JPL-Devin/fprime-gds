@@ -26,7 +26,7 @@ HTML = "<b>bold</b><img src=x onerror=x=1>"
 # The rows of the table of the Python GDS page that has this column, as the page shows them.
 PYTHON_PAGE = """(header) => {
     const table = [...document.querySelectorAll("table")].find((t) =>
-        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim() === header));
+        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
     const view = table.closest(".fp-flex-repeater");
     const button = (text) => [...view.querySelectorAll("button")].find((b) => b.textContent.trim() === text);
     // What the cell shows: an array or a structure is a nested table whose heading is the value.
@@ -47,8 +47,16 @@ PYTHON_PAGE = """(header) => {
 }"""
 PYTHON_CLICK = """([header, text]) => {
     const table = [...document.querySelectorAll("table")].find((t) =>
-        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim() === header));
+        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
     [...table.closest(".fp-flex-repeater").querySelectorAll("button")].find((b) => b.textContent.trim() === text).click();
+}"""
+
+
+# A click on the header of column `index` of that table: ascending, descending, then the order of arrival.
+PYTHON_SORT = """([header, index]) => {
+    const table = [...document.querySelectorAll("table")].find((t) =>
+        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
+    [...table.querySelectorAll(":scope > thead th")].filter((th) => th.innerText.trim())[index].click();
 }"""
 
 
@@ -143,6 +151,16 @@ def new_page_tables(browser, data):
             assert "Ground time" in page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["header"], f"{tab}: no ground time"
             page.uncheck(f"#{tab}-ground")
             tables[tab] = page.eval_on_selector(f"#{tab}-table", NEW_PAGE)
+        # Each column sorted: a first click ascending, a second descending, a third the order of arrival.
+        for tab, keys in (("events", ["time", "id", "name", "severity", "text"]), ("channels", ["time", "id", "name", "value"])):
+            show(page, tab)
+            tables[tab]["sorted"] = []
+            for key in keys:
+                for _ in range(2):
+                    page.click(f"#{tab}-table th[data-col={key}]")
+                    tables[tab]["sorted"].append(page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["rows"])
+                page.click(f"#{tab}-table th[data-col={key}]")
+            assert page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["rows"] == tables[tab]["rows"], f"{tab}: a third click does not restore the order"
         page.reload()
         page.wait_for_selector("body[data-ready=true]")
         show(page, "events")
@@ -207,6 +225,12 @@ def python_page_tables(browser, data, events_wanted):
             page.click(f"li.nav-link:has(#{tab.capitalize()})")
             page.wait_for_timeout(500)
             tables[tab] = {"rows": python_rows(page, header), "header": page.evaluate(PYTHON_PAGE, header)["header"]}
+            tables[tab]["sorted"] = []
+            for index in range(len(tables[tab]["header"])):
+                for _ in range(2):
+                    page.evaluate(PYTHON_SORT, [header, index])
+                    tables[tab]["sorted"].append(python_rows(page, header))
+                page.evaluate(PYTHON_SORT, [header, index])
         page.screenshot(path=f"{OUT}/python.png")
         return tables
     finally:
@@ -241,6 +265,14 @@ for tab in ("events", "channels"):
     if len(ours) != len(theirs):
         different.append(f"{tab}: {len(theirs)} rows in the Python GDS page, {len(ours)} in the new page")
     different += [f"{tab} row {n}: Python GDS page {b}, new page {a}" for n, (a, b) in enumerate(zip(ours, theirs)) if a != b]
+    # The order of the rows after a click and after two clicks on each header. Rows are compared by time,
+    # identifier and name: the text of the two events set aside above differs.
+    names = old[tab]["header"]
+    for n, (a, b) in enumerate(zip(new[tab]["sorted"], old[tab]["sorted"], strict=True)):
+        moved = sum(x[:3] != y[:3] for x, y in zip(a, b, strict=True))
+        if moved:
+            different.append(f"{tab} sorted by {names[n // 2]}, click {n % 2 + 1}: {moved} of {len(a)} rows at another position, first "
+                             f"{next((x, y) for x, y in zip(a, b, strict=True) if x[:3] != y[:3])}")
 for line in different[:40]:
     print(f"  DIFFERENT: {line}")
 assert not different, f"{len(different)} differences"
@@ -257,5 +289,6 @@ assert green, "no channel inside its limits is shown green"
 step(f"events: the same {len(events)} rows in the same order (time, identifier, name, severity, text, colour) in both pages")
 step(f"channels: the same {len(channels)} rows in the same order (last sample time, identifier, name, value, colour) in both pages; "
      f"{len(composite)} arrays and structures, {len(green)} green rows ({', '.join(green)})")
+step("events and channels: the same order as the Python GDS page after one click and after two clicks on each column header")
 step("the ground time column is hidden by its box and stays hidden after a reload; the other columns are those of the Python GDS page")
 print("browser parity: all checks passed")

@@ -35,6 +35,11 @@ LINES = [
     "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"unfinished",
     "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, , 3",
     "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3, 4",
+    "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 1.5, 0x1F",
+    "CdhCore.cmdDisp.CMD_NO_OP",
+    "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9",  # too few arguments for a command the form does not show
+    "CdhCore.version.VERSION, NOT_A_CONSTANT",
+    "NO_SUCH.COMMAND, 1",
 ]
 
 PYTHON_SHOWN = """() => ({
@@ -48,12 +53,16 @@ PYTHON_SHOWN = """() => ({
         const input = document.querySelector("input[name=command-text]");
         return input.classList.contains("is-invalid") ? input.parentElement.querySelector(".invalid-feedback").textContent.trim() : "";
     })(),
+    // The messages under the mnemonic and under the arguments.
+    messages: [...document.querySelectorAll(".command-input-form .invalid-feedback, .command-input-form .text-danger")]
+        .filter((e) => e.getClientRects().length).map((e) => e.textContent.trim()).filter((text) => text),
 })"""
 NEW_SHOWN = """() => ({
     name: (document.querySelector("#command-name") || {textContent: ""}).textContent.trim().split(" ")[0],
     inputs: [...document.querySelectorAll("#command-form [data-arg]")].map((e) => e.value),
     line: document.querySelector("#command-string").value,
     error: (document.querySelector("#command-string-error") || {textContent: ""}).textContent.trim(),
+    messages: [...document.querySelectorAll("#command-form .error-text")].map((e) => e.textContent.trim()).filter((text) => text),
 })"""
 
 
@@ -103,8 +112,17 @@ def check(binary, dictionary, fixture, out):
                 shown = page.evaluate(NEW_SHOWN)
                 wanted = {key: case[key] for key in shown}
                 wanted["inputs"], shown["inputs"] = plain(wanted["inputs"]), plain(shown["inputs"])
+                # A constant that does not exist: the Python input holds the text typed, the list of fgds cannot.
+                if any(text.startswith("Supply one of") for text in wanted["messages"]):
+                    wanted["inputs"] = shown["inputs"]
                 if shown != wanted:
                     different.append((case["typed"], wanted, shown))
+            # An empty field stays empty (the Python page: `undefined is not a command.`).
+            page.fill("#command-string", "")
+            page.press("#command-string", "Tab")
+            page.wait_for_timeout(100)
+            empty = page.evaluate(NEW_SHOWN)
+            assert empty["line"] == "" and empty["error"].startswith("Expected command string of the form"), empty
             assert not problems, problems
             browser.close()
     finally:
@@ -114,7 +132,7 @@ def check(binary, dictionary, fixture, out):
     assert not different, f"{len(different)} of {len(expected)} lines differ from the Python GDS page"
     quoted = sum('"' in line for line in LINES)
     harness.step(f"Command String: {len(expected)} lines typed ({quoted} with quoted strings; arrays, structs, enums, a name "
-                 "in lower case, too few and too many arguments, an unknown command, a line that is not of the form) "
+                 "in lower case, too few and too many arguments, an unknown command, a wrong constant, lines that are not of the form) "
                  "fill the form, show the line and the message as the Python GDS page")
 
 

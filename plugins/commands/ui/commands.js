@@ -126,7 +126,7 @@ function mistake(type, text) {
       const fits = bytes > 0 && (type.max === undefined || bytes <= type.max);
       return fits ? null : said(`Supply general text of less than ${type.max} characters`);
     }
-    case "enum": return type.constants.some((c) => c.name === text) ? null : said(`not a constant of ${type.name}`);
+    case "enum": return type.constants.some((c) => c.name === text) ? null : said(`Supply one of: ${type.constants.map((c) => c.name).join(" ")}`);
     default: return said(`type ${type.name} is not supported`);
   }
 }
@@ -182,12 +182,16 @@ class CommandsTab extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     const types = this.gds.types;
-    this.commands = (this.gds.dictionary.commands || [])
+    const listed = (this.gds.dictionary.commands || [])
       .map((c) => ({
         name: c.name, opcode: c.opcode, annotation: c.annotation || "",
         params: c.formalParams.map((p) => ({ name: p.name, annotation: p.annotation || "", type: types.resolve(p.type) })),
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      }));
+    this.commands = listed.slice().sort((a, b) => a.name.localeCompare(b.name));
+    // As the Python GDS page (command-input.js): the first command of the dictionary whose mnemonic starts
+    // with CMD_NO_OP is selected at start, or else the first command.
+    const first = listed.find((c) => c.name.split(".").pop().startsWith("CMD_NO_OP")) || listed[0];
+    if (first) this.choose(first.name);
     this.stop = this.gds.records.follow({ kinds: [KIND] }, (records) => {
       this.history.push(...records);
       this.version += 1;
@@ -224,11 +228,11 @@ class CommandsTab extends LitElement {
   // A line typed as `Command String`: the form is filled and its fields are checked, as the Python page.
   fromLine(text, input) {
     this.lineError = "";
-    // The input shows the line of the form again, whatever was typed.
-    this.updateComplete.then(() => { input.value = this.line; });
     let tokens;
     try { tokens = lineTokens(text); } catch (e) {
       this.lineError = `Expected command string of the form: ${COMMAND_FORMAT_SPEC}.`;
+      // The input shows the line of the form again; an input left empty stays empty.
+      if (text.trim() !== "") input.value = this.line;
       return;
     }
     const wanted = tokens[0].toLowerCase();
@@ -238,15 +242,22 @@ class CommandsTab extends LitElement {
       // As the Python page: the name is shown as an invalid command, with no argument.
       this.selected = null;
       this.unknown = tokens[0];
+      this.message = null;
+      this.updateComplete.then(() => { input.value = this.line; });
       return;
     }
+    // Fewer arguments than the command takes: the Python page stops while it fills the form. The command
+    // shown keeps the arguments given when it is this one, another command stays as it is; nothing is checked.
+    const missing = tokens.length - 1 < command.params.length;
+    if (missing && this.selected !== command) return;
+    this.updateComplete.then(() => { input.value = this.line; });
     // An argument the line does not give keeps what the form holds for this command.
     const held = this.selected === command ? this.values : {};
     this.choose(command.name, Object.fromEntries(command.params.map((p, i) => [p.name, tokens[i + 1]])
       .filter(([, value]) => value !== undefined)));
     this.values = { ...this.values, ...Object.fromEntries(command.params.slice(tokens.length - 1)
       .filter((p) => p.name in held).map((p) => [p.name, held[p.name]])) };
-    this.request();
+    if (!missing) this.request();
   }
 
   // Replace the value at `path` (argument name, then member names and indexes).
@@ -267,7 +278,8 @@ class CommandsTab extends LitElement {
     return mistakes.size ? null : { name: this.selected.name, args };
   }
 
-  async send(request = this.request()) {
+  async send(request = this.selected ? this.request() : null) {
+    if (!this.selected && !request) return;
     if (!request) {
       // As the Python GDS page: the fields are marked, with their messages. Where it has no message for a
       // marked field (and shows the one of the browser), a line under the form says why nothing is sent.
@@ -376,7 +388,7 @@ class CommandsTab extends LitElement {
               title=${c.annotation}>${c.name}</option>`)}
           </select>
         </div>
-        <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); if (command) this.send(); }}>
+        <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); this.send(); }}>
           ${command ? html`
             <h3 id="command-name">${command.name} <span class="muted mono">${format.hexId(command.opcode)}</span></h3>
             <div class="muted">${command.annotation}</div>
@@ -388,7 +400,9 @@ class CommandsTab extends LitElement {
             <div class="toolbar">
               <button class="action" id="command-send" type="submit" ?disabled=${this.sending}>Send command</button>
               <button class="action secondary" type="button" id="command-clear" @click=${() => this.choose(command.name)}>Clear</button>
-            </div>` : this.unknown ? html`<h3 id="command-name">${this.unknown}</h3><div class="error-text">Invalid command</div>`
+            </div>` : this.unknown ? html`<h3 id="command-name">${this.unknown}</h3>
+              <div class="error-text" id="command-unknown">${this.unknown} is not a command.</div>
+              <div class="toolbar"><button class="action" id="command-send" type="submit">Send command</button></div>`
               : html`<div class="muted">Choose a command.</div>`}
           ${this.message ? html`<div id="command-message" class=${this.message.error ? "error-text" : ""}>${this.message.text}</div>` : nothing}
         </form>
@@ -405,13 +419,12 @@ class CommandsTab extends LitElement {
         <span class="muted">${history.length} of ${this.history.length} commands; a row can be loaded into the form or sent again.</span>
       </div>
       <table class="gds" id="command-history">
-        <thead><tr><th>Ground time</th><th>Opcode</th><th>Command</th><th>Arguments</th><th>Outcome</th><th></th></tr></thead>
+        <thead><tr><th>Ground time</th><th>Opcode</th><th>Command String</th><th>Outcome</th><th></th></tr></thead>
         <tbody>
           ${history.map((r) => html`<tr class="outcome-${r.body.outcome}" data-seq=${r.seq}>
             <td class="nowrap mono" data-col="ground">${format.groundTime(r.ground_time)}</td>
             <td class="nowrap mono" data-col="opcode">${format.hexId(r.id ?? (this.commands.find((c) => c.name === r.body.name) || {}).opcode)}</td>
-            <td class="nowrap" data-col="name">${r.body.name}</td>
-            <td class="text" data-col="args">${this.argumentText(r)}</td>
+            <td class="text" data-col="string">${[r.body.name, this.argumentText(r)].filter((part) => part !== "").join(", ")}</td>
             <td data-col="outcome">${r.body.outcome}${r.body.reason ? `: ${r.body.reason}` : ""}</td>
             <td class="nowrap">
               <button class="action secondary" type="button" data-action="load"

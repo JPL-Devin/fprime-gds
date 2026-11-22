@@ -1,5 +1,5 @@
 // The Uplink tab: stage files, choose a destination, begin the uplink and control the queue (FIL-1, FIL-4).
-import { FilesTab, html, styles, row } from "./common.js";
+import { FilesTab, html, styles, row, cells } from "./common.js";
 
 class FgdsUplink extends FilesTab {
   static styles = styles;
@@ -82,19 +82,23 @@ class FgdsUplink extends FilesTab {
         <span class="error">${this.packetError}</span>
         <button id="packets-save" ?disabled=${this.packetError !== ""} @click=${() => this.savePackets()}>Save</button>
       </div>` : ""}
-      <table>
-        <tr><th>Start Time</th><th>End Time</th><th>Source</th><th>Destination</th><th>State</th><th>Control</th><th>Progress</th></tr>
-        ${this.staged.map((item, n) => html`<tr class="staged">
+      <div class="controls">${this.filterField()}</div>
+      <table id="transfers">
+        ${this.head(["Start Time", "End Time", "Source", "Destination", "State", "Control", "Progress"])}
+        ${this.arrange([
+          ...this.staged.map((item, n) => ({ item, n })),
+          ...data.files.slice().reverse().map((t) => ({ t })),
+        ], (entry) => (entry.t ? cells(entry.t) : ["", "", entry.item.file.name, entry.item.destination, "NOT STARTED", "", "0%"]))
+          .map(({ item, n, t }) => (item ? html`<tr class="staged">
           <td></td><td></td><td>${item.file.name}${item.packets.length ? ` [${item.packets.join(", ")}]` : ""}</td>
           <td>${item.destination}</td><td>NOT STARTED</td>
           <td><button @click=${() => { this.staged = this.staged.filter((_, i) => i !== n); }}>Remove</button>
             <button class="select-packets" @click=${() => { this.packetError = ""; this.editing = item; }}>Select Packets</button></td>
           <td>0%</td>
-        </tr>`)}
-        ${data.files.slice().reverse().map((t) => row(t, active(t)
+        </tr>` : row(t, active(t)
           ? html`<button @click=${post("/" + encodeURIComponent(t.id) + "/cancel")}>
               ${t.state === "queued" ? "Remove" : "Cancel"}</button>`
-          : ""))}
+          : "")))}
       </table>`;
   }
 }

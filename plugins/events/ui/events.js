@@ -96,7 +96,11 @@ class EventsTab extends LitElement {
     const components = [...new Set((this.gds.dictionary.events || []).map((e) => format.component(e.name)))].sort();
     const matching = source.filter((r) => this.accepts(r));
     const columns = this.columns;
-    const flat = (r) => this.parts(r).slice(0, 3).join("");
+    // The Python GDS page sorts by the text it hands to the cell, where a command name is a span element.
+    const flat = (r) => {
+      const [before, name, after, opcode] = this.parts(r);
+      return name === undefined ? before : `${before}<span title="${opcode}">${name}</span>${after}`;
+    };
     const sorted = columns.sort(matching, (r, key) => ({
       time: format.flightTime(r.flight_time), ground: format.groundTime(r.ground_time), id: format.hexId(r.id),
       name: r.body.name, severity: r.body.severity, text: flat(r),

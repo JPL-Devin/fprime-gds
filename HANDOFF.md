@@ -39,8 +39,8 @@ Section 7 of the design document.
 Access control, the stall watchdog, the load test, project rules checked before a send, `pip install` packaging, a dedicated repository.
 
 ## Open work on the page
-Controls of the Python page that fgds does not have (`docs/design/deviations.md`, "Controls of the Python page"). None changes data shown or bytes sent to `Ref`.
-- Paging buttons and scroll lock of the tables; sorting of the Commanding history and Dictionaries tables.
+Controls of the Python page that fgds does not have (`docs/design/deviations.md`, "Controls of the Python page"). None changes bytes sent to `Ref`.
+- Paging buttons (`First` `<` `>` `Last`), position field and scroll lock of the tables (Commanding history, Events, Channels, Uplink, Downlink, Dictionaries); sorting of the Commanding history and Dictionaries tables.
 - Light/dark switch.
 - Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse.
 - Sequences: `Build` panel, editor with completion.

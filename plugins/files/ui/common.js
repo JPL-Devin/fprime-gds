@@ -10,12 +10,43 @@ export const styles = css`
   .failed, .error { color: #b00020; }
   .controls { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; }
   progress { width: 8rem; }
+  th.sortable { cursor: pointer; }
   label.button { border: 1px solid #888; border-radius: 3px; padding: 0.1rem 0.5rem; cursor: pointer; }
 `;
 
 // A tab that keeps `this.data` equal to one GET, refreshed when a record of `kind` arrives.
 export class FilesTab extends LitElement {
-  static properties = { gds: {}, data: { state: true }, error: { state: true } };
+  static properties = { gds: {}, data: { state: true }, error: { state: true }, needle: { state: true }, order: { state: true } };
+
+  // The filter field of the table, as on the tables of the Python GDS page.
+  filterField() {
+    return html`<label>Filter <input type="search" id="filter" .value=${this.needle || ""}
+      @input=${(e) => { this.needle = e.target.value; }}></label>`;
+  }
+
+  // The header: a click sorts by the text of that column, ascending, then descending, then as listed.
+  head(titles) {
+    const order = this.order;
+    const click = (n) => {
+      this.order = !order || order.column !== n ? { column: n, ascending: true }
+        : order.ascending ? { column: n, ascending: false } : null;
+    };
+    return html`<tr>${titles.map((title, n) => html`<th class="sortable" @click=${() => click(n)}>${title}${
+      order && order.column === n ? (order.ascending ? " \u25BE" : " \u25B4") : ""}</th>`)}</tr>`;
+  }
+
+  // The rows the filter keeps, in the order asked for. `cells(item)` are the texts of the columns of an item.
+  arrange(items, cells) {
+    const needle = (this.needle || "").toLowerCase();
+    const kept = items.map((item) => ({ item, cells: cells(item).map(String) }))
+      .filter((row) => !needle || row.cells.some((cell) => cell.toLowerCase().includes(needle)));
+    const order = this.order;
+    if (order) {
+      kept.sort((a, b) => (order.ascending ? 1 : -1)
+        * a.cells[order.column].localeCompare(b.cells[order.column], undefined, { numeric: true }));
+    }
+    return kept.map((row) => row.item);
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -63,6 +94,11 @@ export function when(time) {
 export function progress(t) {
   return html`<progress max=${t.size || 1} value=${t.size ? t.done : (t.state === "finished" ? 1 : 0)}></progress>
       ${t.done} / ${t.size} bytes (${percent(t)}%)`;
+}
+
+// The texts of a transfer in those columns, for the filter and the order.
+export function cells(t) {
+  return [when(t.started), when(t.ended), t.source, t.destination, t.state, "", `${percent(t)}%`];
 }
 
 // A row in the columns of the Python GDS page: Start Time, End Time, Source, Destination, State, Control, Progress.
