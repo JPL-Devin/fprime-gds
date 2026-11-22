@@ -377,9 +377,13 @@ def stock(browser, gds):
             # The Python page sorts the description and the value by what it holds, not by the text shown
             # (a command name is an element, a structure an object): parity.py compares those orders with it.
             held = key in ("text", "value")
-            assert held or up == page.evaluate(ordered, received), f"{tab} {key}: not ascending"
+            # Channels keep arriving: the texts read after the click are compared with themselves in order.
+            assert held or up == page.evaluate(ordered, received if tab == "events" else up), f"{tab} {key}: not ascending"
             page.click(f"#{table} th[data-col={key}]")
-            assert held or column(table, key) == up[::-1] or len(set(up)) < len(up), f"{tab} {key}: not descending"
+            down = column(table, key)
+            if tab == "channels":
+                up = page.evaluate(ordered, down)
+            assert held or down == up[::-1] or len(set(up)) < len(up), f"{tab} {key}: not descending"
             assert tab == "channels" or sorted(column(table, key)) == sorted(up)  # channels keep arriving
             page.click(f"#{table} th[data-col={key}]")
             if tab == "events":
