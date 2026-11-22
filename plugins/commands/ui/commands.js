@@ -195,6 +195,14 @@ class CommandsTab extends LitElement {
     }
   }
 
+  // The line the Python GDS page writes under an array or struct: one sentence per member in error.
+  groupNote(key, children) {
+    const keys = [...this.mistakes.keys()];
+    const bad = children.filter(([, child]) => keys.some((k) => k === child || k.startsWith(child + ".") || k.startsWith(child + "[")));
+    const text = bad.map(([token]) => `Error in field/index: ${token}.`).join(" ");
+    return bad.length ? html`<div class="error-text" data-error-for=${key}>${text}</div>` : nothing;
+  }
+
   input(type, state, path, label) {
     const key = label;
     const problem = this.mistakes.has(key);
@@ -216,6 +224,7 @@ class CommandsTab extends LitElement {
         return html`<div class="arg-group" data-arg-group=${key}>
           ${state.map((item, i) => html`<div class="arg-row"><span class="arg-name mono">[${i}]</span>
             ${this.input(type.element, item, [...path, i], `${key}[${i}]`)}</div>`)}
+          ${this.groupNote(key, state.map((_, i) => [i, `${key}[${i}]`]))}
         </div>`;
       case "struct":
         return html`<div class="arg-group" data-arg-group=${key}>
@@ -223,8 +232,10 @@ class CommandsTab extends LitElement {
             ${m.count === null ? this.input(m.type, state[m.name], [...path, m.name], `${key}.${m.name}`)
               : html`<div class="arg-group">${state[m.name].map((item, i) => html`<div class="arg-row">
                   <span class="arg-name mono">[${i}]</span>
-                  ${this.input(m.type, item, [...path, m.name, i], `${key}.${m.name}[${i}]`)}</div>`)}</div>`}
+                  ${this.input(m.type, item, [...path, m.name, i], `${key}.${m.name}[${i}]`)}</div>`)}
+                  ${this.groupNote(`${key}.${m.name}`, state[m.name].map((_, i) => [i, `${key}.${m.name}[${i}]`]))}</div>`}
           </div>`)}
+          ${this.groupNote(key, type.members.map((m) => [m.name, `${key}.${m.name}`]))}
         </div>`;
       default:
         if (type.kind === "float") {

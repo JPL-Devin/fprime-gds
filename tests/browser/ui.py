@@ -172,6 +172,15 @@ def stock(browser, gds):
     shown, raw = typed({f"scalar_input.{name}": text for name, text in members.items()})
     assert raw is not None and raw.endswith(struct.pack(">bhiqBHIQfd", -8, -16, -32, -64, 8, 16, 32, 64, 25.0, -0.0025)), \
         raw and raw.hex()
+    # A member out of range: its own message, and the sentence the Python page writes under the struct.
+    shown, raw = typed({f"scalar_input.{name}": text for name, text in {**members, "u64": "18446744073709551616"}.items()})
+    assert raw is None, raw and raw.hex()
+    assert page.text_content("[data-error-for='scalar_input.u64']") == \
+        "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615"
+    assert page.text_content("[data-error-for=scalar_input]") == "Error in field/index: u64."
+    shown, raw = typed({"scalar_input.u64": "64", "scalar_input.i8": "200", "scalar_input.f32": "x"})
+    assert raw is None and page.text_content("[data-error-for=scalar_input]") == \
+        "Error in field/index: i8. Error in field/index: f32.", page.text_content("[data-error-for=scalar_input]")
     step(f"numbers typed key by key: {len(floats)} float texts (exponent, sign, leading dot), {len(integers)} integer "
          "texts (binary, octal, hexadecimal, decimal) and the ten members of SEND_SCALARS are sent with the bytes "
          "of the value; 4 texts that are not numbers are refused")
@@ -296,15 +305,25 @@ def files_and_products(page, gds):
     assert http_date.match(cells[0]) and http_date.match(cells[1]), cells
     assert parsedate_to_datetime(cells[0]) <= parsedate_to_datetime(cells[1]), cells
     assert cells[4] == "up.bin", cells
-    shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/up2.bin")
-    uplink.locator("#files").set_input_files(f"{gds.out}/up2.bin")
-    uplink.locator("#directory").fill(".")
-    uplink.get_by_role("button", name="Add to queue").click()
-    expect(uplink.locator("tr", has_text="up2.bin")).to_contain_text("finished", timeout=30000)
-    assert uplink.locator("tr", has_text="up2.bin").locator("td").all_text_contents()[4] == "./up2.bin"
+    # What the Python page shows and Ref receives for each text of its Destination Folder field
+    # (`os.path.join` in its uplinker), read from that page and from `Ref`'s FileReceived event.
+    os.makedirs(f"{gds.out}/ref/dir", exist_ok=True)
+    joined = [(".", "./"), ("dir", "dir/"), ("dir/", "dir/"), ("dir//", "dir//"), ("./dir", "./dir/"), ("", "")]
+    for index, (directory, prefix) in enumerate(joined):
+        name = f"up{index + 2}.bin"
+        shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/{name}")
+        uplink.locator("#files").set_input_files(f"{gds.out}/{name}")
+        uplink.locator("#directory").fill(directory)
+        uplink.get_by_role("button", name="Add to queue").click()
+        expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
+        assert uplink.locator("tr", has_text=name).locator("td").all_text_contents()[4] == prefix + name, directory
+        scenario.wait_for(f"Ref received {prefix}{name}", lambda: any(
+            r["body"]["display_text"] == f"Received file {prefix}{name}"
+            for r in gds.get("/records?kind=fprime.event&after_seq=0&limit=10000")["records"]))
     uplink.locator("#directory").fill("")
     step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes; "
-         f"times as the Python page ({cells[0]}), destination up.bin, and ./up2.bin with the directory '.'")
+         f"times as the Python page ({cells[0]}); destination shown and received by Ref as the Python page for the "
+         f"directories {[d for d, _ in joined]}")
 
     # A file and a data product come down: the Downlink tab lists both, the directory of
     # downlinked files is the watched directory of the data products.
