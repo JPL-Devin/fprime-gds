@@ -37,9 +37,8 @@ export class FilesTab extends LitElement {
 
   // The rows the filter keeps, in the order asked for. `cells(item)` are the texts of the columns of an item.
   arrange(items, cells) {
-    const needle = (this.needle || "").toLowerCase();
     const kept = items.map((item) => ({ item, cells: cells(item).map(String) }))
-      .filter((row) => !needle || row.cells.some((cell) => cell.toLowerCase().includes(needle)));
+      .filter((row) => this.gds.format.matches(row.cells, this.needle || ""));
     const order = this.order;
     if (order) {
       kept.sort((a, b) => (order.ascending ? 1 : -1)

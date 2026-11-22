@@ -54,7 +54,14 @@ class ChannelsTab extends LitElement {
 
   async start() {
     const accept = (records) => {
-      for (const record of records) this.latest.set(record.id, record);
+      // `channels_display_last_received` of the Advanced tab, as in the Python GDS page: set, a sample
+      // received replaces the value shown; unset, only a sample that is not older than the one shown does.
+      const always = this.gds.session.channels_display_last_received;
+      const micros = (r) => (r.flight_time ? BigInt(r.flight_time.seconds) * 1000000n + BigInt(r.flight_time.microseconds) : 0n);
+      for (const record of records) {
+        const shown = this.latest.get(record.id);
+        if (always || !shown || micros(record) >= micros(shown)) this.latest.set(record.id, record);
+      }
       this.version += 1;
     };
     // The stream starts after the newest record the latest values hold: a later sample
@@ -88,21 +95,10 @@ class ChannelsTab extends LitElement {
 
   render() {
     const format = this.gds.format;
-    const needle = this.text.toLowerCase();
     const packet = this.packets.find((p) => p.name === this.packet);
     const columns = this.columns;
-    const rows = columns.sort(this.definitions.filter((d) => {
-      const record = this.latest.get(d.id);
-      // "Edit View" of the Python GDS page: while editing every channel is listed; with a view, its channels
-      // are listed whether they have a value or not, and no others.
-      if (this.editing) { /* every channel */ }
-      else if (this.view.length) { if (!this.view.includes(d.name)) return false; }
-      else if (!record && !this.all) return false;
-      if (packet && !packet.members.has(d.name)) return false;
-      if (!needle) return true;
-      return [d.name, format.hexId(d.id), record ? this.shown(record, d) : ""]
-        .some((field) => String(field).toLowerCase().includes(needle));
-    }), (d, key) => {
+    // What the Python GDS page holds for each column of a channel: its filter and its sorting read these.
+    const held = (d, key) => {
       const r = this.latest.get(d.id);
       return ({
         time: r ? format.flightTime(r.flight_time) : "", ground: r ? format.groundTime(r.ground_time) : "",
@@ -111,7 +107,17 @@ class ChannelsTab extends LitElement {
         // structure is `[object Object]`.
         value: r ? (d.format ? r.body.display_text : r.body.display_members !== undefined ? r.body.display_members : r.body.value) : "",
       })[key];
-    });
+    };
+    const rows = columns.sort(this.definitions.filter((d) => {
+      const record = this.latest.get(d.id);
+      // "Edit View" of the Python GDS page: while editing every channel is listed; with a view, its channels
+      // are listed whether they have a value or not, and no others.
+      if (this.editing) { /* every channel */ }
+      else if (this.view.length) { if (!this.view.includes(d.name)) return false; }
+      else if (!record && !this.all) return false;
+      if (packet && !packet.members.has(d.name)) return false;
+      return format.matches(["time", "id", "name", "value"].map((key) => held(d, key)), this.text);
+    }), held);
     return html`
       <div class="toolbar">
         <label>Filter <input type="search" id="channels-filter" placeholder="name, id, value" .value=${this.text}

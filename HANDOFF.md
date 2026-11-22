@@ -42,11 +42,11 @@ Access control, the stall watchdog, the load test, project rules checked before 
 Controls of the Python page that fgds does not have (`docs/design/deviations.md`, "Controls of the Python page"). None changes bytes sent to `Ref`.
 - Paging buttons (`First` `<` `>` `Last`), position field and scroll lock of the tables (Commanding history, Events, Channels, Uplink, Downlink, Dictionaries); sorting of the Commanding history and Dictionaries tables.
 - Light/dark switch.
-- Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse.
+- Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse, resizable chart box.
 - Sequences: `Build` panel, editor with completion.
 - Composite channel values as an expandable table.
 - Dashboard tab (milestone M6).
-- Advanced tab: the settings of the Python page have no counterpart.
+- Advanced tab: polling intervals, `event_buffer_size`, `command_buffer_size`, `response_object_limit`, `compact_commanding`, the statistics tables and the error list with `Clear Errors` (`channels_display_last_received` is built).
 
 ## Next steps
 1. Review `docs/design/deviations.md` and update the design ("To change in the design").

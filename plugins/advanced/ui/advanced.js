@@ -61,6 +61,12 @@ class AdvancedTab extends LitElement {
         <button class="action secondary" id="link-disable" @click=${() => this.link(false)}>Disable link</button>
         <span id="advanced-message">${this.message}</span>
       </div>
+      <h3>Miscellaneous</h3>
+      <label title="When set, any channel received will update the displayed value. Otherwise only channels with newer timestamps update the displayed value.">
+        <input type="checkbox" id="channels-display-last-received"
+          .checked=${this.gds.session.channels_display_last_received}
+          @change=${(e) => { this.gds.session.channels_display_last_received = e.target.checked; }}>
+        channels_display_last_received</label>
       <h3>Statistics</h3>
       <table class="gds" id="advanced-counters">
         <thead><tr><th>Counter</th><th>Value</th></tr></thead>

@@ -112,9 +112,6 @@ def check(binary, dictionary, fixture, out):
                 shown = page.evaluate(NEW_SHOWN)
                 wanted = {key: case[key] for key in shown}
                 wanted["inputs"], shown["inputs"] = plain(wanted["inputs"]), plain(shown["inputs"])
-                # A constant that does not exist: the Python input holds the text typed, the list of fgds cannot.
-                if any(text.startswith("Supply one of") for text in wanted["messages"]):
-                    wanted["inputs"] = shown["inputs"]
                 if shown != wanted:
                     different.append((case["typed"], wanted, shown))
             # An empty field stays empty (the Python page: `undefined is not a command.`).
@@ -123,6 +120,29 @@ def check(binary, dictionary, fixture, out):
             page.wait_for_timeout(100)
             empty = page.evaluate(NEW_SHOWN)
             assert empty["line"] == "" and empty["error"].startswith("Expected command string of the form"), empty
+            # A line that is not a command, then the send button: nothing is sent. (The Python page sends the
+            # command its form still holds, CMD_NO_OP at the start: deviations.md.)
+            posted = []
+            page.on("request", lambda r: posted.append(r.url) if r.method == "POST" and r.url.endswith("/commands") else None)
+            for text in ("CdhCore.cmdDisp.CMD_NO_OP_STRING, \"unfinished", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 1.5, 0x1F",
+                         "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1", "No.such.COMMAND, 1", ""):
+                page.reload()
+                page.wait_for_selector("body[data-ready=true]")
+                harness.show(page, "commands")
+                assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_NO_OP", "CMD_NO_OP is not the command at the start"
+                page.fill("#command-string", text)
+                page.press("#command-string", "Tab")
+                page.click("#command-send")
+                page.wait_for_timeout(300)
+                assert not posted, f"{text!r} then the send button: a command was sent"
+            page.reload()
+            page.wait_for_selector("body[data-ready=true]")
+            harness.show(page, "commands")
+            page.click("#command-send")
+            page.wait_for_timeout(300)
+            assert len(posted) == 1, "the send button alone does not send CMD_NO_OP: the check above proves nothing"
+            # No Ref is connected: that command is answered 503, link down, which is not an error of the page.
+            problems[:] = [text for text in problems if "503" not in text]
             assert not problems, problems
             browser.close()
     finally:

@@ -216,6 +216,7 @@ class CommandsTab extends LitElement {
     const command = this.commands.find((c) => c.name === name);
     if (!command) return;
     this.selected = command;
+    this.lineRefused = false;
     this.unknown = "";
     this.values = Object.fromEntries(command.params.map((p) => [
       p.name, args && p.name in args ? fromRecord(p.type, args[p.name]) : initial(p.type),
@@ -228,6 +229,8 @@ class CommandsTab extends LitElement {
   // A line typed as `Command String`: the form is filled and its fields are checked, as the Python page.
   fromLine(text, input) {
     this.lineError = "";
+    // A line that is not taken: the send button sends nothing until the form is used again.
+    this.lineRefused = true;
     let tokens;
     try { tokens = lineTokens(text); } catch (e) {
       this.lineError = `Expected command string of the form: ${COMMAND_FORMAT_SPEC}.`;
@@ -257,7 +260,8 @@ class CommandsTab extends LitElement {
       .filter(([, value]) => value !== undefined)));
     this.values = { ...this.values, ...Object.fromEntries(command.params.slice(tokens.length - 1)
       .filter((p) => p.name in held).map((p) => [p.name, held[p.name]])) };
-    if (!missing) this.request();
+    if (missing) this.lineRefused = true;
+    else this.request();
   }
 
   // Replace the value at `path` (argument name, then member names and indexes).
@@ -278,8 +282,22 @@ class CommandsTab extends LitElement {
     return mistakes.size ? null : { name: this.selected.name, args };
   }
 
+  // As the Python GDS page while the form is filled: an input is checked when it changes, with the whole
+  // array or struct it is part of; the other arguments keep what they showed.
+  checkArgument(name) {
+    const parameter = this.selected.params.find((p) => p.name === name);
+    const mistakes = new Map([...this.mistakes]
+      .filter(([key]) => key !== name && !key.startsWith(`${name}.`) && !key.startsWith(`${name}[`)));
+    convert(parameter.type, this.values[name], name, mistakes);
+    this.mistakes = mistakes;
+  }
+
   async send(request = this.selected ? this.request() : null) {
     if (!this.selected && !request) return;
+    if (this.lineRefused) {
+      this.message = { error: true, text: "Nothing was sent: the Command String is not a command with its arguments" };
+      return;
+    }
     if (!request) {
       // As the Python GDS page: the fields are marked, with their messages. Where it has no message for a
       // marked field (and shows the one of the browser), a line under the form says why nothing is sent.
@@ -311,18 +329,21 @@ class CommandsTab extends LitElement {
     const key = label;
     const problem = this.mistakes.has(key);
     const text = problem ? this.mistakes.get(key).text : "";
-    const set = (e) => this.setAt(path, e.target.value);
+    const set = (e) => { this.lineRefused = false; this.setAt(path, e.target.value); this.checkArgument(path[0]); };
     const note = text ? html`<span class="error-text" data-error-for=${key}>${text}</span>` : nothing;
     switch (type.kind) {
       case "enum":
         return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
-          ${type.constants.map((c) => html`<option value=${c.name} ?selected=${c.name === state}>${c.name}</option>`)}
+          ${state !== undefined && state !== "" && !type.constants.some((c) => c.name === state)
+            // A text of the Command String that is no constant stays shown, as in the input of the Python page.
+            ? html`<option value=${state} .selected=${true}>${state}</option>` : nothing}
+          ${type.constants.map((c) => html`<option value=${c.name} .selected=${c.name === state}>${c.name}</option>`)}
         </select>${note}`;
       case "bool":
         return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
-          <option value="" ?selected=${!state}></option>
-          <option value="true" ?selected=${String(state).toLowerCase() === "true"}>true</option>
-          <option value="false" ?selected=${String(state).toLowerCase() === "false"}>false</option>
+          <option value="" .selected=${!state}></option>
+          <option value="true" .selected=${String(state).toLowerCase() === "true"}>True</option>
+          <option value="false" .selected=${String(state).toLowerCase() === "false"}>False</option>
         </select>${note}`;
       case "array":
         return html`<div class="arg-group" data-arg-group=${key}>
@@ -372,9 +393,9 @@ class CommandsTab extends LitElement {
       && (!needle || c.name.toLowerCase().includes(needle) || format.hexId(c.opcode).includes(needle)));
     const line = command ? [command.name, ...command.params.map((p) => lineText(p.type, this.values[p.name]))].join(", ") : this.unknown;
     this.line = line;
-    const wanted = this.historyFilter.toLowerCase();
     const history = this.history
-      .filter((r) => !wanted || `${r.body.name} ${format.value(r.body.args)} ${r.body.outcome}`.toLowerCase().includes(wanted))
+      .filter((r) => format.matches([format.groundTime(r.ground_time),
+        [r.body.name, this.argumentText(r)].filter((part) => part !== "").join(", ")], this.historyFilter))
       .slice().reverse();
     return html`
       <div class="commanding">
@@ -384,7 +405,7 @@ class CommandsTab extends LitElement {
           <label><input type="checkbox" id="show-parameter-commands" .checked=${this.parameters}
             @change=${(e) => { this.parameters = e.target.checked; }}>Show Parameter Commands</label>
           <select id="command-select" size="14" @change=${(e) => this.choose(e.target.value)}>
-            ${listed.map((c) => html`<option value=${c.name} ?selected=${command && c.name === command.name}
+            ${listed.map((c) => html`<option value=${c.name} .selected=${!!command && c.name === command.name}
               title=${c.annotation}>${c.name}</option>`)}
           </select>
         </div>

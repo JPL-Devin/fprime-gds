@@ -79,6 +79,21 @@ def stock(browser, gds):
         .some((cell) => cell.textContent === '{COUNTER}')""")
     before = counter(page)
 
+    # `channels_display_last_received` of the Advanced tab: ticked at first; cleared, a sample with a later time
+    # is still shown. (A sample with an earlier time is not sent by Ref: that part of the rule is not checked here.)
+    show(page, "advanced")
+    assert page.is_checked("#channels-display-last-received")
+    page.uncheck("#channels-display-last-received")
+    show(page, "channels")
+    newest = "Math.max(...[...document.querySelectorAll('#channels-table tbody tr')].map((row) => Number(row.dataset.seq)))"
+    seen = page.evaluate(newest)
+    page.wait_for_function(f"() => {newest} > {seen}")
+    show(page, "advanced")
+    page.check("#channels-display-last-received")
+    show(page, "channels")
+    before = counter(page)
+    step("Advanced: the channels_display_last_received box is ticked at first; cleared, a later sample is still shown")
+
     # A command with no argument, sent from the Commanding tab, produces its events.
     show(page, "commands")
     choose(page, "CdhCore.cmdDisp.CMD_NO_OP")
@@ -249,6 +264,42 @@ def stock(browser, gds):
     row = rows(page, "#command-history")[0]
     assert row["string"] == f"{refused}, 1, 1e+39, 1" and row["outcome"].startswith("rejected"), row
     step(f"a refused command ({refused} with 1e39 for an F32) has a history row with the text of the Python page: {row['string']!r}")
+
+    # A Command String that is not a command with its arguments, after a command was loaded and sent: the send
+    # button sends nothing (no command record in the GDS, no command counted by Ref), and the page says so.
+    # The history row loaded shows in the command list too.
+    page.fill("#command-string", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7")
+    page.press("#command-string", "Tab")
+    assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", page.input_value("#command-select")
+    page.click("#command-send")
+    expect(page.locator("#command-message")).to_contain_text("CMD_TEST_CMD_1 sent")
+    commands = lambda: len(gds.get("/records?kind=fprime.command&limit=10000")["records"])
+    dispatched = lambda: next(r["body"]["value"] for r in gds.get("/records/latest?kind=fprime.channel")["records"]
+                              if r["body"].get("name") == COUNTER)
+    scenario.steady(dispatched)
+    held = (commands(), dispatched())
+    for text in ("", "   ", 'CdhCore.cmdDisp.CMD_NO_OP_STRING, "unfinished', "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, , 7",
+                 "Nope.cmd.DOES_NOT_EXIST", "CdhCore.cmdDisp.CMD_NO_OP_STRING", "FileHandling.fileManager.RemoveFile, a", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9"):
+        choose(page, "CdhCore.cmdDisp.CMD_TEST_CMD_1")
+        for key, value in (("arg1", "5"), ("arg2", "1.5"), ("arg3", "7")):
+            page.fill(f"[data-arg={key}]", value)
+        page.fill("#command-string", text)
+        page.press("#command-string", "Tab")
+        assert page.locator("#command-send").count() == 1, f"{text!r}: no send button"
+        page.click("#command-send")
+        page.wait_for_timeout(1500)
+        assert (commands(), dispatched()) == held, f"{text!r} then the send button: a command went out"
+        assert page.locator("#command-message.error-text, #command-string-error, #command-unknown").count(), f"{text!r}: refused in silence"
+    step("Command String empty, of spaces, not of the form, of an unknown name, with too few arguments, then the send "
+         "button: nothing is sent and the page says why")
+    choose(page, "CdhCore.cmdDisp.CMD_NO_OP")
+    page.click("#command-history tbody tr:has-text('CMD_TEST_CMD_1') button[data-action=load] >> nth=0")
+    assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", "the list does not show the row loaded"
+    assert page.eval_on_selector_all("#command-form select[data-arg] option", "(all) => all.length") == 0
+    choose(page, "FileHandling.fileManager.RemoveFile")
+    options = page.eval_on_selector_all("#command-form select[data-arg] option", "(all) => all.map((o) => o.textContent)")
+    assert options == ["", "True", "False"], options
+    step("a history row loaded is the one selected in the command list; a boolean is chosen from True and False")
 
     # One U8 left empty and one holding 300: the message under each, in one press.
     choose(page, "Ref.typeDemo.CHOICES_WITH_FRIENDS")

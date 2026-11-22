@@ -50,10 +50,16 @@ class EventsTab extends LitElement {
     const body = record.body;
     if (!this.severities.has(body.severity)) return false;
     if (this.component && this.gds.format.component(body.name) !== this.component) return false;
-    if (!this.text) return true;
-    const needle = this.text.toLowerCase();
-    return [body.name, body.display_text, body.severity, this.gds.format.hexId(record.id)]
-      .some((field) => String(field).toLowerCase().includes(needle));
+    const format = this.gds.format;
+    return format.matches([format.flightTime(record.flight_time), format.hexId(record.id), body.name, body.severity,
+      this.flat(record)], this.text);
+  }
+
+  // The text the Python GDS page hands to the description cell, where a command name is a span element: its
+  // filter and its sorting read this text.
+  flat(r) {
+    const [before, name, after, opcode] = this.parts(r);
+    return name === undefined ? before : `${before}<span title="${opcode}">${name}</span>${after}`;
   }
 
   // The message, with the opcode of a command event followed by its mnemonic as the
@@ -96,11 +102,7 @@ class EventsTab extends LitElement {
     const components = [...new Set((this.gds.dictionary.events || []).map((e) => format.component(e.name)))].sort();
     const matching = source.filter((r) => this.accepts(r));
     const columns = this.columns;
-    // The Python GDS page sorts by the text it hands to the cell, where a command name is a span element.
-    const flat = (r) => {
-      const [before, name, after, opcode] = this.parts(r);
-      return name === undefined ? before : `${before}<span title="${opcode}">${name}</span>${after}`;
-    };
+    const flat = (r) => this.flat(r);
     const sorted = columns.sort(matching, (r, key) => ({
       time: format.flightTime(r.flight_time), ground: format.groundTime(r.ground_time), id: format.hexId(r.id),
       name: r.body.name, severity: r.body.severity, text: flat(r),

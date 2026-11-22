@@ -45,6 +45,13 @@ PYTHON_PAGE = """(header) => {
             .find((text) => /^[0-9]+ - [0-9]+$/.test(text)).split(" - ").map(Number),
     };
 }"""
+# The number of rows of that table after its filter, as its disabled field next to the pager shows it. The rows
+# are not read page by page here: with a filter the pager of the Python page does not follow (deviations.md).
+PYTHON_TOTAL = """(header) => {
+    const table = [...document.querySelectorAll("table")].find((t) =>
+        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
+    return table.closest(".fp-flex-repeater").querySelector("input[type=text][disabled]").value;
+}"""
 PYTHON_CLICK = """([header, text]) => {
     const table = [...document.querySelectorAll("table")].find((t) =>
         [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
@@ -58,6 +65,20 @@ PYTHON_SORT = """([header, index]) => {
         [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
     [...table.querySelectorAll(":scope > thead th")].filter((th) => th.innerText.trim())[index].click();
 }"""
+
+
+# A text typed in the filter field of that table.
+PYTHON_FILTER = """([header, text]) => {
+    const table = [...document.querySelectorAll("table")].find((t) =>
+        [...t.querySelectorAll(":scope > thead th")].some((th) => th.textContent.trim().startsWith(header)));
+    const field = table.closest(".fp-flex-repeater").querySelector("input[type=text]:not([disabled])");
+    field.value = text;
+    field.dispatchEvent(new Event("input"));
+}"""
+# Filter texts: one word, two words, another case, quotes, either of two words, a word of a command name
+# the Python page holds in an element, an identifier, a time, nothing but spaces, a text in no row.
+FILTERS = ["cmdDisp", "cmdDisp OpCodeCompleted", "CMDDISP opcodecompleted", '"cmdDisp"', '"cmdDisp OpCodeCompleted"',
+           "NoOp -or- Version", "typeDemo -or- systemResources 0x", "span", "title= CMD_NO_OP", "0x1", "T1", "  ", "inf", "no-such-text"]
 
 
 # The rows of a table of the new page as it shows them, top to bottom, with the row colour.
@@ -161,6 +182,11 @@ def new_page_tables(browser, data):
                     tables[tab]["sorted"].append(page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["rows"])
                 page.click(f"#{tab}-table th[data-col={key}]")
             assert page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["rows"] == tables[tab]["rows"], f"{tab}: a third click does not restore the order"
+            tables[tab]["filtered"] = []
+            for text in FILTERS:
+                page.fill(f"#{tab}-filter", text)
+                tables[tab]["filtered"].append(page.eval_on_selector(f"#{tab}-table", NEW_PAGE)["rows"])
+            page.fill(f"#{tab}-filter", "")
         page.reload()
         page.wait_for_selector("body[data-ready=true]")
         show(page, "events")
@@ -231,6 +257,13 @@ def python_page_tables(browser, data, events_wanted):
                     page.evaluate(PYTHON_SORT, [header, index])
                     tables[tab]["sorted"].append(python_rows(page, header))
                 page.evaluate(PYTHON_SORT, [header, index])
+            tables[tab]["filtered"] = []
+            for text in FILTERS:
+                page.evaluate(PYTHON_FILTER, [header, text])
+                page.wait_for_timeout(500)  # the page waits 300 ms after the last key
+                tables[tab]["filtered"].append(int(page.evaluate(PYTHON_TOTAL, header)))
+            page.evaluate(PYTHON_FILTER, [header, ""])
+            page.wait_for_timeout(500)
         page.screenshot(path=f"{OUT}/python.png")
         return tables
     finally:
@@ -249,7 +282,7 @@ with sync_playwright() as playwright:
 json.dump({"new": new, "python": old}, open(f"{OUT}/tables.json", "w"), indent=1)
 
 # The same cells, in the same order, with the same row colour: nothing is set aside.
-different = []
+different, kept = [], {}
 for tab in ("events", "channels"):
     if [h.lower() for h in new[tab]["header"]] != [h.lower() for h in old[tab]["header"]]:
         different.append(f"{tab} columns: Python GDS page {old[tab]['header']}, new page {new[tab]['header']}")
@@ -273,6 +306,10 @@ for tab in ("events", "channels"):
         if moved:
             different.append(f"{tab} sorted by {names[n // 2]}, click {n % 2 + 1}: {moved} of {len(a)} rows at another position, first "
                              f"{next((x, y) for x, y in zip(a, b, strict=True) if x[:3] != y[:3])}")
+    for text, a, b in zip(FILTERS, new[tab]["filtered"], old[tab]["filtered"], strict=True):
+        if len(a) != b:
+            different.append(f"{tab} filtered by {text!r}: {b} rows in the Python GDS page, {len(a)} in the new page")
+    kept[tab] = old[tab]["filtered"]
 for line in different[:40]:
     print(f"  DIFFERENT: {line}")
 assert not different, f"{len(different)} differences"
@@ -290,5 +327,8 @@ step(f"events: the same {len(events)} rows in the same order (time, identifier, 
 step(f"channels: the same {len(channels)} rows in the same order (last sample time, identifier, name, value, colour) in both pages; "
      f"{len(composite)} arrays and structures, {len(green)} green rows ({', '.join(green)})")
 step("events and channels: the same order as the Python GDS page after one click and after two clicks on each column header")
+assert all(any(kept[tab]) and not all(kept[tab]) for tab in kept), kept
+step(f"events and channels: the same rows as the Python GDS page for {len(FILTERS)} filter texts (rows kept of the events {kept['events']}, "
+     f"of the channels {kept['channels']})")
 step("the ground time column is hidden by its box and stays hidden after a reload; the other columns are those of the Python GDS page")
 print("browser parity: all checks passed")

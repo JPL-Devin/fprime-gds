@@ -122,6 +122,20 @@ const records = {
 const pad = (n, width) => String(n).padStart(width, "0");
 
 const format = {
+  // The filter of the tables of the Python GDS page (`filter` in its `utils.js`): the text is cut at spaces,
+  // every word must be in the column texts joined by spaces, case ignored; `a -or- b` takes either. Quotes
+  // are characters like any other.
+  matches(cells, text) {
+    const all = [];
+    let either = false;
+    for (const word of text.toLowerCase().split(" ")) {
+      if (word === "-or-") either = true;
+      else if (either && all.length) { all[all.length - 1].push(word); either = false; }
+      else { all.push([word]); either = false; }
+    }
+    const row = cells.map(String).join(" ").toLowerCase();
+    return all.every((words) => words.some((word) => row.includes(word)));
+  },
   // Flight time as the Python GDS shows it: a calendar time when the time base is the
   // workstation clock (2), `seconds.microseconds` otherwise. Microseconds are kept.
   // The text the Python GDS page writes: calendar time to the millisecond for the workstation
@@ -251,6 +265,9 @@ function renderStatus() {
 
 // ---- settings (kept in the browser) ---------------------------------------------------
 
+// Settings of the Advanced tab that last as long as the page, as those of the Python GDS page.
+const session = { channels_display_last_received: true };
+
 const settings = {
   get(name, fallback) {
     try {
@@ -299,7 +316,7 @@ function columns(name, titles, changed) {
   };
 }
 
-export const gds = { api, records, format, status, settings, columns, dictionary: null, types: null, version: null, tabs: [] };
+export const gds = { api, records, format, status, settings, session, columns, dictionary: null, types: null, version: null, tabs: [] };
 window.gds = gds;
 
 // ---- shared elements ------------------------------------------------------------------

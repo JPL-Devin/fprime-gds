@@ -72,9 +72,8 @@ class DictionaryTab extends LitElement {
     const dictionary = this.gds.dictionary;
     const meta = dictionary.metadata || {};
     const section = SECTIONS.find((s) => s.id === this.section);
-    const needle = this.text.toLowerCase();
     const all = (section.source(dictionary) || []).map((item) => section.row(item, this.gds.format));
-    const rows = all.filter((row) => !needle || row.some((cell) => String(cell).toLowerCase().includes(needle)));
+    const rows = all.filter((row) => this.gds.format.matches(row, this.text));
     return html`
       <dl class="facts" id="dictionary-version">
         <dt>Deployment</dt><dd>${meta.deploymentName || ""}</dd>

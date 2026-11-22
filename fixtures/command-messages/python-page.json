@@ -12,6 +12,14 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "Supply floating point number",
@@ -26,6 +34,14 @@
      "e",
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply floating point number",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "Supply floating point number",
@@ -40,6 +56,14 @@
      "1.5",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -54,6 +78,14 @@
      "1.5",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "",
@@ -68,6 +100,14 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "Supply floating point number",
@@ -82,6 +122,14 @@
      "1.5",
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -96,6 +144,14 @@
      "1.5",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "",
@@ -110,6 +166,14 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "Supply floating point number",
@@ -124,6 +188,14 @@
      "1.5",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -138,6 +210,14 @@
      "e",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "Supply floating point number",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "Supply floating point number",
@@ -152,6 +232,14 @@
      "e",
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "Supply floating point number",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "Supply floating point number",
@@ -166,6 +254,14 @@
      "",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "Supply floating point number",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "Supply floating point number",
@@ -180,6 +276,14 @@
      "1.5",
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -194,6 +298,14 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -2147483648 and 2147483647",
      "Supply floating point number",
@@ -208,6 +320,14 @@
      "1.5",
      ""
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -245,6 +365,21 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -275,6 +410,23 @@
      "e",
      "e"
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -305,6 +457,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -333,6 +500,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i8."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "",
@@ -363,6 +547,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i16."
+     ]
+    },
     "scalars": [
      "",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -393,6 +594,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -423,6 +641,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -453,6 +688,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u8."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -483,6 +735,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u16."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -513,6 +782,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -543,6 +829,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -573,6 +876,23 @@
      null,
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply floating point number",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: f32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -603,6 +923,23 @@
      "1.5",
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -633,6 +970,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i8."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "",
@@ -663,6 +1017,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -693,6 +1064,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -721,6 +1107,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i16."
+     ]
+    },
     "scalars": [
      "",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -751,6 +1154,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -781,6 +1201,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -809,6 +1244,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -839,6 +1291,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -869,6 +1338,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -897,6 +1381,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: i64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -927,6 +1428,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -957,6 +1475,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -985,6 +1518,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u8."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1015,6 +1565,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -1045,6 +1612,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1073,6 +1655,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u16."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1103,6 +1702,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -1133,6 +1749,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1161,6 +1792,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1191,6 +1839,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -1221,6 +1886,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1249,6 +1929,23 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: u64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1279,6 +1976,23 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -1309,6 +2023,21 @@
      "1.5",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1337,6 +2066,23 @@
      "e",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply floating point number",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: f32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1367,6 +2113,23 @@
      "e",
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -1397,6 +2160,23 @@
      "",
      "1.5"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply floating point number",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: f32."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1427,6 +2207,23 @@
      "1.5",
      "e"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1457,6 +2254,23 @@
      null,
      "e"
     ],
+    "before": {
+     "scalars": [
+      "Supply signed decimal integer  between -128 and 127",
+      "Supply signed decimal integer  between -32768 and 32767",
+      "Supply signed decimal integer  between -2147483648 and 2147483647",
+      "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+      "Supply floating point number",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: i8. Error in field/index: i16. Error in field/index: i32. Error in field/index: i64. Error in field/index: u8. Error in field/index: u16. Error in field/index: u32. Error in field/index: u64. Error in field/index: f32. Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "Supply signed decimal integer  between -128 and 127",
      "Supply signed decimal integer  between -32768 and 32767",
@@ -1487,6 +2301,23 @@
      "1.5",
      ""
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply floating point number"
+     ],
+     "groups": [
+      "Error in field/index: f64."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -1515,6 +2346,12 @@
     "inputs": [
      null
     ],
+    "before": {
+     "scalars": [
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 40 characters"
     ],
@@ -1525,6 +2362,12 @@
     "inputs": [
      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     ],
+    "before": {
+     "scalars": [
+      "Supply general text of less than 40 characters"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 40 characters"
     ],
@@ -1535,6 +2378,12 @@
     "inputs": [
      "a"
     ],
+    "before": {
+     "scalars": [
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      ""
     ],
@@ -1545,6 +2394,12 @@
     "inputs": [
      ""
     ],
+    "before": {
+     "scalars": [
+      "Supply general text of less than 40 characters"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 40 characters"
     ],
@@ -1564,6 +2419,13 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 240 characters",
      ""
@@ -1576,6 +2438,13 @@
      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply general text of less than 240 characters",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 240 characters",
      ""
@@ -1588,6 +2457,13 @@
      "a",
      "True"
     ],
+    "before": {
+     "scalars": [
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      ""
@@ -1600,6 +2476,13 @@
      null,
      "True"
     ],
+    "before": {
+     "scalars": [
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 240 characters",
      ""
@@ -1612,6 +2495,13 @@
      "a",
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      ""
@@ -1624,6 +2514,13 @@
      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
      "True"
     ],
+    "before": {
+     "scalars": [
+      "Supply general text of less than 240 characters",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 240 characters",
      ""
@@ -1636,6 +2533,13 @@
      "",
      "True"
     ],
+    "before": {
+     "scalars": [
+      "Supply general text of less than 240 characters",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply general text of less than 240 characters",
      ""
@@ -1656,6 +2560,13 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      ""
@@ -1680,6 +2591,15 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1696,6 +2616,15 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1712,6 +2641,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1728,6 +2666,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1744,6 +2691,15 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1760,6 +2716,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1776,6 +2741,15 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1792,6 +2766,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1808,6 +2791,15 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1824,6 +2816,15 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1840,6 +2841,15 @@
      null,
      ""
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1866,6 +2876,15 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1882,6 +2901,15 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1898,6 +2926,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1914,6 +2951,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1930,6 +2976,15 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1946,6 +3001,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1962,6 +3026,15 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -1978,6 +3051,15 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -1994,6 +3076,15 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2010,6 +3101,15 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2026,6 +3126,15 @@
      null,
      ""
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2066,6 +3175,22 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2099,6 +3224,25 @@
      "-1",
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": [
+      "Error in field/index: 0. Error in field/index: 1.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2132,6 +3276,22 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2162,6 +3322,22 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2192,6 +3368,25 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: 0.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -2225,6 +3420,25 @@
      null,
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: 1.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -2258,6 +3472,22 @@
      "1",
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2288,6 +3518,22 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2318,6 +3564,22 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2351,6 +3613,22 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2381,6 +3659,25 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: 0.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -2414,6 +3711,25 @@
      null,
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: 0. Error in field/index: 1.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2447,6 +3763,22 @@
      "1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2477,6 +3809,25 @@
      "-1",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: 1.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "",
      "",
@@ -2510,6 +3861,25 @@
      "-1",
      null
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+      ""
+     ],
+     "groups": [
+      "Error in field/index: 0. Error in field/index: 1.",
+      "Error in field/index: choiceAsMemberArray."
+     ]
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2543,6 +3913,22 @@
      "",
      "1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2573,6 +3959,22 @@
      "1",
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",
@@ -2603,6 +4005,22 @@
      null,
      "-1"
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+     ],
+     "groups": []
+    },
     "scalars": [
      "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
      "",
@@ -2636,6 +4054,22 @@
      "1",
      ""
     ],
+    "before": {
+     "scalars": [
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      ""
+     ],
+     "groups": []
+    },
     "scalars": [
      "",
      "",

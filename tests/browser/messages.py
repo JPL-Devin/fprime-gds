@@ -5,7 +5,7 @@ the Python GDS page.
     messages.py check FGDS DICTIONARY FIXTURE OUT    replays every case of the fixture on the new page
 
 A case is one press of the send button: what is done to each scalar input, in the order of the page, and
-what the page then shows (a message per scalar input, the lines under arrays and structs, sent or not).
+what the page shows before the press and after it (a message per scalar input, the lines under arrays and structs, sent or not).
 """
 import json
 import os
@@ -118,9 +118,10 @@ def record(url, fixture):
                 for i, text in enumerate(case):
                     field = fields.nth(i)
                     fill(page, field if kinds[i] == "bool" else field.locator("input.fprime-input"), kinds[i], text)
+                before = page.evaluate(PYTHON_SHOWN)
                 sent = press(page, "button:has-text('Send Command')",
                              lambda r: r.method == "PUT" and "/commands/" in r.url)
-                found[command]["cases"].append({"inputs": case, **page.evaluate(PYTHON_SHOWN), "sent": sent})
+                found[command]["cases"].append({"inputs": case, "before": before, **page.evaluate(PYTHON_SHOWN), "sent": sent})
         browser.close()
     with open(fixture, "w") as file:
         json.dump(found, file, indent=1)
@@ -155,8 +156,9 @@ def check(binary, dictionary, fixture, out):
                     for i, text in enumerate(case["inputs"]):
                         fill(page, fields.nth(i), kinds[i], text)
                     # No Ref is connected: a command the page sends is answered "link down", which is not an error of the page.
+                    before = page.evaluate(NEW_SHOWN)
                     sent = press(page, "#command-send", lambda r: r.method == "POST" and r.url.endswith("/commands"))
-                    shown = {**page.evaluate(NEW_SHOWN), "sent": sent}
+                    shown = {"before": before, **page.evaluate(NEW_SHOWN), "sent": sent}
                     count += 1
                     if shown != {key: case[key] for key in shown}:
                         different.append((command, case, shown))
