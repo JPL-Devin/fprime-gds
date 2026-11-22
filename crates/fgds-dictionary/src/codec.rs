@@ -80,7 +80,9 @@ fn python_json_types(ty: &Type, value: &Value) -> Result<(), TypeError> {
         Type::Float { .. } => expect("float", &["float", "int", "bool"]),
         Type::Bool => expect("bool", &["bool"]),
         Type::String { .. } | Type::Enum { .. } => expect("str", &["str"]),
-        Type::Array { element, .. } => value.as_array().into_iter().flatten().try_for_each(|v| python_json_types(element, v)),
+        Type::Array { element, .. } => {
+            value.as_array().into_iter().flatten().try_for_each(|v| python_json_types(element, v))
+        }
         Type::Struct { members, .. } => members.iter().try_for_each(|m| match (value.get(&m.name), m.count) {
             (Some(v), None) => python_json_types(&m.ty, v),
             (Some(v), Some(_)) => v.as_array().into_iter().flatten().try_for_each(|v| python_json_types(&m.ty, v)),

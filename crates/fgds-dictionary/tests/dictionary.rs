@@ -407,8 +407,13 @@ fn json_text_members_have_the_python_types() {
     let answer = |text: &str| d.encode(pair, &json!(text), &mut Vec::new()).map_err(|e| e.0);
     assert!(answer("[1, 2]").is_ok());
     assert!(answer("[true, 2]").is_ok());
-    for (text, found) in [(r#"[1, "2"]"#, "str"), ("[1, 2.0]", "float"), ("[1, null]", "NoneType"), ("[1, [2]]", "list")] {
+    for (text, found) in
+        [(r#"[1, "2"]"#, "str"), ("[1, 2.0]", "float"), ("[1, null]", "NoneType"), ("[1, [2]]", "list")]
+    {
         let error = answer(text).unwrap_err();
-        assert!(error.ends_with(&format!("Type <class 'int'> expected, type <class '{found}'> found!")), "{text}: {error}");
+        assert!(
+            error.ends_with(&format!("Type <class 'int'> expected, type <class '{found}'> found!")),
+            "{text}: {error}"
+        );
     }
 }
