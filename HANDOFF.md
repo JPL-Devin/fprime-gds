@@ -38,6 +38,16 @@ Section 7 of the design document.
 ## Deferred
 Access control, the stall watchdog, the load test, project rules checked before a send, `pip install` packaging, a dedicated repository.
 
+## Open work on the page
+Controls of the Python page that fgds does not have (`docs/design/deviations.md`, "Controls of the Python page"). None changes data shown or bytes sent to `Ref`.
+- Paging buttons and scroll lock of the tables; sorting of the Commanding history and Dictionaries tables.
+- Light/dark switch.
+- Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse.
+- Sequences: `Build` panel, editor with completion.
+- Composite channel values as an expandable table.
+- Dashboard tab (milestone M6).
+- Advanced tab: the settings of the Python page have no counterpart.
+
 ## Next steps
 1. Review `docs/design/deviations.md` and update the design ("To change in the design").
 2. Then one branch per plugin crate, per the milestones of section 6.3.
