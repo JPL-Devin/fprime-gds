@@ -54,8 +54,57 @@ fn int_from_json(value: &Value) -> Option<i128> {
         Value::String(s) => crate::input::python_int(s),
         // Python: `bool` is an `int`.
         Value::Bool(b) => Some(i128::from(*b)),
+        Value::Object(_) => big_int(value).and_then(crate::input::python_int),
         _ => None,
     }
+}
+
+/// The member that holds the digits of an integer of JSON text beyond 64 bits (see `json_with_big_ints`).
+const BIG_INT: &str = "\u{0}int";
+
+fn big_int(value: &Value) -> Option<&str> {
+    value.as_object().filter(|o| o.len() == 1).and_then(|o| o.get(BIG_INT)).and_then(Value::as_str)
+}
+
+/// JSON text as Python reads it: an integer literal of any size is an integer. `serde_json` reads one
+/// beyond 64 bits as a float, so each is replaced by an object holding its digits before the text is read.
+fn json_with_big_ints(text: &str) -> Option<Value> {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let start = i;
+        match bytes[i] {
+            b'"' => {
+                i += 1;
+                while i < bytes.len() && bytes[i] != b'"' {
+                    i += if bytes[i] == b'\\' { 2 } else { 1 };
+                }
+                i = (i + 1).min(bytes.len());
+                out.push_str(text.get(start..i)?);
+            }
+            b'-' | b'0'..=b'9' => {
+                while i < bytes.len() && matches!(bytes[i], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9') {
+                    i += 1;
+                }
+                let number = &text[start..i];
+                let integer = number.strip_prefix('-').unwrap_or(number).bytes().all(|b| b.is_ascii_digit());
+                if integer && number.parse::<i64>().is_err() && number.parse::<u64>().is_err() {
+                    out.push_str(&json!({ BIG_INT: number }).to_string());
+                } else {
+                    out.push_str(number);
+                }
+            }
+            _ => {
+                i += 1;
+                while !text.is_char_boundary(i) {
+                    i += 1;
+                }
+                out.push_str(&text[start..i]);
+            }
+        }
+    }
+    serde_json::from_str(&out).ok()
 }
 
 /// The type rule of the Python GDS for the members of an array or a struct given as JSON text
@@ -69,6 +118,7 @@ fn python_json_types(ty: &Type, value: &Value) -> Result<(), TypeError> {
         Value::Number(_) => "int",
         Value::String(_) => "str",
         Value::Array(_) => "list",
+        Value::Object(_) if big_int(value).is_some() => "int",
         Value::Object(_) => "dict",
     };
     let expect = |name: &str, accepted: &[&str]| match accepted.contains(&class(value)) {
@@ -189,7 +239,7 @@ impl Dictionary {
     pub fn encode(&self, ty: &Type, value: &Value, out: &mut Vec<u8>) -> Result<(), TypeError> {
         // An array or a struct given as text is JSON, as on the command line of the Python GDS.
         let parsed = match (ty, value) {
-            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => serde_json::from_str::<Value>(text).ok(),
+            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => json_with_big_ints(text),
             _ => None,
         };
         if let Some(parsed) = &parsed {
@@ -216,6 +266,7 @@ impl Dictionary {
                     Value::Number(n) => n.as_f64(),
                     Value::String(s) => crate::input::python_float(s),
                     Value::Bool(b) => Some(f64::from(u8::from(*b))),
+                    Value::Object(_) => big_int(value).and_then(crate::input::python_float),
                     _ => None,
                 };
                 match (v, bits) {
@@ -348,5 +399,21 @@ impl Dictionary {
             sent.insert(param.name.clone(), decoded.unwrap_or_else(|_| value.clone()));
         }
         Ok(EncodedCommand { opcode: command.opcode, bytes, args: sent })
+    }
+}
+
+#[cfg(test)]
+mod big_int_tests {
+    use super::*;
+
+    #[test]
+    fn integers_beyond_64_bits_keep_their_digits() {
+        let value = json_with_big_ints(r#"{"a": 18446744073709551616, "b": [-9223372036854775809, 1e30, 7], "c": "9 99999999999999999999 \" é"}"#).unwrap();
+        assert_eq!(big_int(&value["a"]), Some("18446744073709551616"));
+        assert_eq!(big_int(&value["b"][0]), Some("-9223372036854775809"));
+        assert!(value["b"][1].is_f64() && value["b"][2] == 7);
+        assert_eq!(value["c"], "9 99999999999999999999 \" é");
+        assert_eq!(int_from_json(&value["a"]), Some(18446744073709551616));
+        assert!(json_with_big_ints("{").is_none());
     }
 }

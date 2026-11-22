@@ -217,6 +217,17 @@ def refused(fgds):
     require("a text where the JSON argument holds a number is refused with the message of fprime-cli, nothing sent",
             code == 1 and "Type <class 'int'> expected, type <class 'str'> found!" in error.splitlines()[0]
             and fgds.get("/records?kind=fprime.command&limit=10000")["records"][-1]["body"]["outcome"] == "rejected", error)
+    # An integer literal beyond 64 bits is an integer in Python: out of range, not a float.
+    for member, literal in (("u64", "18446744073709551616"), ("i64", "-9223372036854775809"), ("u8", "1" + "0" * 40)):
+        text = json.dumps({**scalars, "u8": 7, member: 0}).replace(f'"{member}": 0', f'"{member}": {literal}')
+        code, _, error = run(fgds.cli("command-send", "Ref.typeDemo.SEND_SCALARS", "--arguments", text))
+        require(f"{member} {literal} in a JSON argument is refused as out of range, nothing sent",
+                code == 1 and "out of range" in error.splitlines()[0] and "expected, type" not in error
+                and fgds.get("/records?kind=fprime.command&limit=10000")["records"][-1]["body"]["outcome"] == "rejected", error)
+    code, _, error = run(fgds.cli("command-send", "Ref.typeDemo.SEND_SCALARS", "--arguments",
+                                  json.dumps({**scalars, "u8": 7, "f64": 0}).replace('"f64": 0', '"f64": 18446744073709551616')))
+    sent = fgds.get("/records?kind=fprime.command&limit=10000")["records"][-1]["body"]
+    require("an integer beyond 64 bits is taken for a float member", "out of range" not in error and sent["args"]["scalar_input"]["f64"] == 2.0 ** 64, f"{error} {sent}")
     before = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])
     code, packet, error = run(fgds.cli("command-send", "CdhCore.cmdDisp.CMD_TEST_CMD_1", "--dry-run", "--arguments", "1", "-2.5", "3"))
     after = len(fgds.get("/records?kind=fprime.command&limit=10000")["records"])
