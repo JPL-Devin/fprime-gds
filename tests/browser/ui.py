@@ -316,8 +316,17 @@ def files_and_products(page, gds):
     uplink = page.locator("fgds-uplink")
     expect(uplink).to_contain_text("link: connected")
     # As the Python GDS page: a chosen file waits as NOT STARTED, nothing is sent before "Begin Uplink".
+    # The staged row and the pause button as the Python page: the Destination Folder text of the moment the file
+    # was added, `0%`, and `Unpause` as long as the GDS has no file.
+    uplink.locator("#directory").fill(" some/dir ")
     uplink.locator("#files").set_input_files(f"{gds.out}/up.bin")
     expect(uplink.locator("tr.staged", has_text="up.bin")).to_contain_text("NOT STARTED")
+    assert uplink.locator("th").all_text_contents() == [
+        "Start Time", "End Time", "Source", "Destination", "State", "Control", "Progress"]
+    staged_cells = [c.strip() for c in uplink.locator("tr.staged td").all_text_contents()]
+    assert staged_cells == ["", "", "up.bin", "some/dir", "NOT STARTED", "Remove", "0%"], staged_cells
+    assert uplink.locator("#unpause").count() == 1 and uplink.locator("#pause").count() == 0
+    uplink.locator("#directory").fill("")
     page.wait_for_timeout(1000)
     assert gds.get("/files/uplink")["files"] == [] and not os.path.exists(f"{gds.out}/ref/up.bin")
     uplink.locator("tr.staged").get_by_role("button", name="Remove").click()
@@ -327,6 +336,7 @@ def files_and_products(page, gds):
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("finished", timeout=30000)
     expect(uplink.locator("tr.staged")).to_have_count(0)
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text(f"{len(content)} / {len(content)} bytes")
+    expect(uplink.locator("#pause")).to_have_count(1)
     received = scenario.wait_for("the file on the Ref side", lambda: os.path.getsize(f"{gds.out}/ref/up.bin") == len(content))
     assert received and open(f"{gds.out}/ref/up.bin", "rb").read() == content
     # Times and destination as the Python GDS page writes them: "Sat, 21 Nov 2026 22:53:23 GMT"; the name alone
@@ -335,7 +345,7 @@ def files_and_products(page, gds):
     http_date = re.compile(r"^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} [A-Z][a-z]{2} \d{4} \d{2}:\d{2}:\d{2} GMT$")
     assert http_date.match(cells[0]) and http_date.match(cells[1]), cells
     assert parsedate_to_datetime(cells[0]) <= parsedate_to_datetime(cells[1]), cells
-    assert cells[4] == "up.bin", cells
+    assert cells[3] == "up.bin", cells
     # What the Python page shows and Ref receives for each text of its Destination Folder field
     # (`os.path.join` in its uplinker), read from that page and from `Ref`'s FileReceived event.
     os.makedirs(f"{gds.out}/ref/dir", exist_ok=True)
@@ -347,11 +357,14 @@ def files_and_products(page, gds):
         uplink.locator("#directory").fill(directory)
         uplink.get_by_role("button", name="Begin Uplink").click()
         expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
-        assert uplink.locator("tr", has_text=name).locator("td").all_text_contents()[4] == prefix + name, directory
+        assert uplink.locator("tr", has_text=name).locator("td").all_text_contents()[3] == prefix + name, directory
         scenario.wait_for(f"Ref received {prefix}{name}", lambda: any(
             r["body"]["display_text"] == f"Received file {prefix}{name}"
             for r in gds.get("/records?kind=fprime.event&after_seq=0&limit=10000")["records"]))
     uplink.locator("#directory").fill("")
+    # Newest first, as the Python page (its list is the uplinked files reversed).
+    order = [row.locator("td").nth(3).text_content() for row in uplink.locator("tr:has(td)").all()]
+    assert order == ["up7.bin", "./dir/up6.bin", "dir//up5.bin", "dir/up4.bin", "dir/up3.bin", "./up2.bin", "up.bin"], order
     step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes; "
          f"times as the Python page ({cells[0]}); destination shown and received by Ref as the Python page for the "
          f"directories {[d for d, _ in joined]}")

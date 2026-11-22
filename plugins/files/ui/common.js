@@ -60,6 +60,11 @@ export function when(time) {
   return time ? new Date(time).toUTCString() : "";
 }
 
+export function progress(t) {
+  return html`<progress max=${t.size || 1} value=${t.size ? t.done : (t.state === "finished" ? 1 : 0)}></progress>
+      ${t.done} / ${t.size} bytes (${percent(t)}%)`;
+}
+
 export function row(t, extra) {
   return html`<tr>
     <td>${when(t.started)}</td>
@@ -68,8 +73,7 @@ export function row(t, extra) {
     <td>${t.source}</td>
     <td>${t.destination}</td>
     <td class=${t.state}>${t.state}${t.reason ? ": " + t.reason : ""}</td>
-    <td><progress max=${t.size || 1} value=${t.size ? t.done : (t.state === "finished" ? 1 : 0)}></progress>
-      ${t.done} / ${t.size} bytes (${percent(t)}%)</td>
+    <td>${progress(t)}</td>
     <td>${extra}</td>
   </tr>`;
 }

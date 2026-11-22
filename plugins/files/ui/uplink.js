@@ -1,5 +1,5 @@
 // The Uplink tab: stage files, choose a destination, begin the uplink and control the queue (FIL-1, FIL-4).
-import { FilesTab, html, styles, row } from "./common.js";
+import { FilesTab, html, styles, when, progress } from "./common.js";
 
 class FgdsUplink extends FilesTab {
   static styles = styles;
@@ -13,16 +13,18 @@ class FgdsUplink extends FilesTab {
     this.staged = []; // files chosen and not yet sent to the GDS: `NOT STARTED`, as in the Python GDS page
   }
 
+  // As the Python page: the row keeps the Destination Folder text of the moment the file was added.
   stage(input) {
-    this.staged = [...this.staged, ...input.files];
+    const destination = this.renderRoot.querySelector("#directory").value.trim();
+    this.staged = [...this.staged, ...Array.from(input.files, (file) => ({ file, destination }))];
     input.value = "";
   }
 
   // "Begin Uplink": every staged file goes to the queue of the GDS, which sends at once.
   async upload() {
-    const directory = this.renderRoot.querySelector("#directory").value;
+    const directory = this.renderRoot.querySelector("#directory").value.trim();
     while (this.staged.length) {
-      const file = this.staged[0];
+      const file = this.staged[0].file;
       const query = new URLSearchParams({ name: file.name });
       // The destination is the name joined to the directory as typed (`uplink_destination`).
       query.set("directory", directory);
@@ -46,7 +48,7 @@ class FgdsUplink extends FilesTab {
         <label class="button">Add Files
           <input id="files" type="file" multiple hidden @change=${(e) => this.stage(e.target)}></label>
         <button id="begin" @click=${() => this.act(() => this.upload())}>Begin Uplink</button>
-        ${data.paused
+        ${data.paused || !data.files.length
           ? html`<button id="unpause" ?disabled=${data.link !== "connected"} @click=${post("/resume")}>Unpause</button>`
           : html`<button id="pause" @click=${post("/pause")}>Pause</button>`}
         <button id="cancel-packet" @click=${post("/cancel-packet")}>Send Cancel Packet</button>
@@ -56,15 +58,20 @@ class FgdsUplink extends FilesTab {
         <span class="error">${this.error}</span>
       </div>
       <table>
-        <tr><th>Start time</th><th>End time</th><th>File</th><th>Source</th><th>Destination</th><th>State</th><th>Progress</th><th></th></tr>
-        ${data.files.map((t) => row(t, active(t)
-          ? html`<button @click=${post("/" + encodeURIComponent(t.id) + "/cancel")}>
-              ${t.state === "queued" ? "Remove" : "Cancel"}</button>`
-          : ""))}
-        ${this.staged.map((file, n) => html`<tr class="staged">
-          <td></td><td></td><td>${file.name}</td><td>${file.name}</td><td></td><td>NOT STARTED</td>
-          <td>0 / ${file.size} bytes (0%)</td>
+        <tr><th>Start Time</th><th>End Time</th><th>Source</th><th>Destination</th><th>State</th><th>Control</th><th>Progress</th></tr>
+        ${this.staged.map(({ file, destination }, n) => html`<tr class="staged">
+          <td></td><td></td><td>${file.name}</td><td>${destination}</td><td>NOT STARTED</td>
           <td><button @click=${() => { this.staged = this.staged.filter((_, i) => i !== n); }}>Remove</button></td>
+          <td>0%</td>
+        </tr>`)}
+        ${data.files.slice().reverse().map((t) => html`<tr>
+          <td>${when(t.started)}</td><td>${when(t.ended)}</td><td>${t.source}</td><td>${t.destination}</td>
+          <td class=${t.state}>${t.state}${t.reason ? ": " + t.reason : ""}</td>
+          <td>${active(t)
+            ? html`<button @click=${post("/" + encodeURIComponent(t.id) + "/cancel")}>
+                ${t.state === "queued" ? "Remove" : "Cancel"}</button>`
+            : ""}</td>
+          <td>${progress(t)}</td>
         </tr>`)}
       </table>`;
   }
