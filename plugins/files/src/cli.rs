@@ -1,9 +1,10 @@
 //! `fgds files`: the file routes of a running GDS from the command line.
 
-use fgds_core::clap::{Arg, ArgMatches, Command};
+use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::serde_json::Value;
 use fgds_core::{CliEnv, Error, Result, Subcommand};
 use std::process::ExitCode;
+use std::time::Duration;
 
 pub(crate) struct Files;
 
@@ -21,9 +22,10 @@ impl Subcommand for Files {
             )
             .subcommand(
                 Command::new("upload")
-                    .about("Queue a file for uplink")
+                    .about("Uplink a file and wait for the flight software to confirm it, as `fprime-cli file-uplink`")
                     .arg(Arg::new("file").required(true).help("File on this machine"))
-                    .arg(Arg::new("destination").short('d').long("destination").help("Path on the spacecraft")),
+                    .arg(Arg::new("destination").short('d').long("destination").help("Path on the spacecraft"))
+                    .args(wait_args()),
             )
             .subcommand(Command::new("queue").about("Show the uplink queue"))
             .subcommand(Command::new("pause").about("Pause the uplink queue; the file being sent is canceled"))
@@ -43,22 +45,187 @@ impl Subcommand for Files {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        let base = match args.get_one::<String>("url") {
-            Some(url) => {
-                let url = url.trim_end_matches('/');
-                let url = if url.contains("://") { url.to_string() } else { format!("http://{url}") };
-                if url.ends_with("/api/v1") {
-                    url
-                } else {
-                    format!("{url}/api/v1")
-                }
-            }
-            None => (env.client)()?.base_url,
-        };
-        let base = format!("{base}/files");
+        let base = base(args, env)?;
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
         runtime.block_on(run(args, &base))
     }
+}
+
+/// The waiting options of `fprime-cli file-uplink`.
+fn wait_args() -> [Arg; 2] {
+    [
+        Arg::new("timeout")
+            .short('t')
+            .long("timeout")
+            .value_name("SECONDS")
+            .value_parser(fgds_core::clap::value_parser!(f64))
+            .default_value("60")
+            .help("Maximum time to wait for the uplink to complete"),
+        Arg::new("no-wait")
+            .long("no-wait")
+            .action(ArgAction::SetTrue)
+            .help("Queue the file for uplink and return at once"),
+    ]
+}
+
+/// `fgds file-uplink`: the arguments, lines and exit codes of `fprime-cli file-uplink`.
+pub(crate) struct FileUplink;
+
+impl Subcommand for FileUplink {
+    fn command(&self) -> Command {
+        Command::new("file-uplink")
+            .about("Uplink a file through a running GDS and wait for the flight software to confirm it")
+            .arg(
+                Arg::new("url")
+                    .long("url")
+                    .value_name("URL")
+                    .help("Address of the running GDS [default: the configured --bind]"),
+            )
+            .arg(Arg::new("file").value_name("file-path").required(true).help("Path to the local file to uplink"))
+            .arg(Arg::new("destination").help("Destination path on the spacecraft"))
+            .args(wait_args())
+    }
+
+    fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
+        let base = base(args, env)?;
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
+        runtime.block_on(upload(args, &base))
+    }
+}
+
+/// The address of the file routes: `--url` when given, the configured one otherwise.
+fn base(args: &ArgMatches, env: &CliEnv) -> Result<String> {
+    let base = match args.get_one::<String>("url") {
+        Some(url) => {
+            let url = url.trim_end_matches('/');
+            let url = if url.contains("://") { url.to_string() } else { format!("http://{url}") };
+            if url.ends_with("/api/v1") {
+                url
+            } else {
+                format!("{url}/api/v1")
+            }
+        }
+        None => (env.client)()?.base_url,
+    };
+    Ok(format!("{base}/files"))
+}
+
+/// Flight events that end the wait of `fprime-cli file-uplink` with a failure.
+const FLIGHT_FAILURES: [&str; 7] = [
+    "FileOpenError",
+    "FileWriteError",
+    "PacketOutOfBounds",
+    "PacketOutOfOrder",
+    "UplinkCanceled",
+    "DecodeError",
+    "InvalidReceiveMode",
+];
+
+/// What `fprime-cli file-uplink` does and prints: queue the file, wait until every packet is
+/// sent, then for the event of the flight software that confirms or refuses the file.
+async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
+    let http = reqwest::Client::new();
+    let failed = |e: reqwest::Error| Error::other(format!("the GDS at {base} did not answer: {e}"));
+    let get = |url: String| {
+        let http = &http;
+        async move {
+            let response = http.get(url).send().await.map_err(failed)?;
+            response.json::<Value>().await.map_err(failed)
+        }
+    };
+    let file = std::path::Path::new(text(args, "file"));
+    if !file.is_file() {
+        println!("Error: File not found at {}", file.display());
+        return Ok(ExitCode::FAILURE);
+    }
+    let content = std::fs::read(file).map_err(|e| Error::other(format!("{}: {e}", file.display())))?;
+    let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let records = base.strip_suffix("/files").unwrap_or(base);
+    // Read before the file is queued: the events of this uplink come after it.
+    let cursor = get(format!("{records}/cursor")).await?;
+    let mut after = cursor["seq"].as_str().unwrap_or("0").to_string();
+    let seconds = args.get_one::<f64>("timeout").copied().unwrap_or(60.0);
+    let deadline = tokio::time::Instant::now() + Duration::try_from_secs_f64(seconds).unwrap_or(Duration::ZERO);
+
+    let mut url = format!("{base}/uplink?name={}", encode(&name));
+    let destination = args.get_one::<String>("destination");
+    if let Some(destination) = destination {
+        url += &format!("&destination={}", encode(destination));
+    }
+    let response = http.post(url).body(content).send().await.map_err(failed)?;
+    let ok = response.status().is_success();
+    let json: Value = response.json().await.unwrap_or(Value::Null);
+    if !ok {
+        println!("Error starting file uplink: {}", json["error"]["message"].as_str().unwrap_or("the request failed"));
+        return Ok(ExitCode::FAILURE);
+    }
+    let shown = destination.cloned().unwrap_or_else(|| format!("/{name}"));
+    println!("Queued '{}' for uplink to '{shown}'", file.display());
+    if args.get_flag("no-wait") {
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let id = json["id"].as_str().unwrap_or_default().to_string();
+    let mut last = None;
+    loop {
+        if tokio::time::Instant::now() >= deadline {
+            println!("Error: uplink of '{name}' did not complete within {seconds:?} seconds");
+            return Ok(ExitCode::FAILURE);
+        }
+        let queue = get(format!("{base}/uplink")).await?;
+        let Some(entry) = queue["files"].as_array().into_iter().flatten().find(|t| t["id"] == id.as_str()) else {
+            println!("Error: '{name}' is no longer tracked by the uplinker");
+            return Ok(ExitCode::FAILURE);
+        };
+        let percent = entry["done"].as_u64().unwrap_or(0) * 100 / entry["size"].as_u64().unwrap_or(0).max(1);
+        match entry["state"].as_str().unwrap_or_default() {
+            "transferring" if last != Some(percent) => {
+                println!("Uplinking '{name}': {percent}%");
+                last = Some(percent);
+            }
+            "finished" => {
+                println!("All uplink packets sent for '{name}' to '{}'", entry["destination"].as_str().unwrap_or("-"));
+                break;
+            }
+            // The names of the Python uplinker for these states.
+            state @ ("failed" | "canceled") => {
+                let state = if state == "failed" { "TIMEOUT" } else { "CANCELED" };
+                println!("Uplink of '{name}' failed with state {state}");
+                return Ok(ExitCode::FAILURE);
+            }
+            _ => {}
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+
+    let ends = |record: &Value, names: &[&str]| {
+        let name = record["body"]["name"].as_str().unwrap_or_default();
+        names.iter().any(|n| name.ends_with(&format!(".{n}")))
+    };
+    // At least one second is given to the event, as `fprime-cli` does.
+    let deadline = deadline.max(tokio::time::Instant::now() + Duration::from_secs(1));
+    loop {
+        let page = get(format!("{records}/records?kind=fprime.event&after_seq={after}")).await?;
+        for record in page["records"].as_array().into_iter().flatten() {
+            let line = || fgds_core::python_event_record_line(record);
+            if ends(record, &["FileReceived"]) {
+                println!("Flight software confirmed receipt: {}", line());
+                return Ok(ExitCode::SUCCESS);
+            }
+            if ends(record, &FLIGHT_FAILURES) {
+                println!("Uplink failed on the flight side: {}", line());
+                return Ok(ExitCode::FAILURE);
+            }
+            after = record["seq"].as_str().unwrap_or(&after).to_string();
+        }
+        match page["next"].as_str() {
+            Some(next) => after = next.to_string(),
+            None if tokio::time::Instant::now() >= deadline => break,
+            None => tokio::time::sleep(Duration::from_millis(100)).await,
+        }
+    }
+    println!("Error: no 'FileReceived' event received before the timeout; uplink unconfirmed");
+    Ok(ExitCode::FAILURE)
 }
 
 fn text<'a>(args: &'a ArgMatches, name: &str) -> &'a str {
@@ -82,22 +249,10 @@ fn encode(value: &str) -> String {
 async fn run(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let http = reqwest::Client::new();
     let (name, sub) = args.subcommand().expect("a subcommand is required");
+    if name == "upload" {
+        return upload(sub, base).await;
+    }
     let request = match name {
-        "upload" => {
-            let file = std::path::Path::new(text(sub, "file"));
-            if !file.is_file() {
-                // The line and exit code of `fprime-cli file-uplink`.
-                println!("Error: File not found at {}", file.display());
-                return Ok(ExitCode::FAILURE);
-            }
-            let content = std::fs::read(file).map_err(|e| Error::other(format!("{}: {e}", file.display())))?;
-            let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-            let mut url = format!("{base}/uplink?name={}", encode(&name));
-            if let Some(destination) = sub.get_one::<String>("destination") {
-                url += &format!("&destination={}", encode(destination));
-            }
-            http.post(url).body(content)
-        }
         "queue" => http.get(format!("{base}/uplink")),
         "pause" | "resume" => http.post(format!("{base}/uplink/{name}")),
         "cancel" => http.post(format!("{base}/uplink/{}/cancel", encode(text(sub, "id")))),
@@ -138,9 +293,6 @@ async fn run(args: &ArgMatches, base: &str) -> Result<ExitCode> {
         }
     };
     match name {
-        "upload" => {
-            println!("{} queued as {}", json["name"].as_str().unwrap_or("-"), json["id"].as_str().unwrap_or("-"))
-        }
         "list" => {
             rows(&json["transfers"]);
             for file in json["files"].as_array().into_iter().flatten() {

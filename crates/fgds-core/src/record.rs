@@ -463,3 +463,55 @@ impl Query {
             && self.text.as_ref().is_none_or(text_ok)
     }
 }
+
+/// A flight time, readable and raw, as the Python GDS prints them. Workstation time is printed in
+/// UTC without a zone; the Python GDS prints the local time of the machine, also without a zone.
+pub fn python_times(base: u64, context: u64, seconds: u64, microseconds: u64) -> (String, String) {
+    const WORKSTATION: u64 = 2;
+    let raw = format!("({base}({context})-{seconds}:{microseconds})");
+    let date = (base == WORKSTATION).then(|| time::OffsetDateTime::from_unix_timestamp(seconds as i64).ok()).flatten();
+    let readable = match date {
+        Some(t) => format!(
+            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{microseconds:06}",
+            t.year(),
+            u8::from(t.month()),
+            t.day(),
+            t.hour(),
+            t.minute(),
+            t.second()
+        ),
+        None => {
+            let base = match base {
+                0 => "TB_NONE".to_string(),
+                1 => "TB_PROC_TIME".to_string(),
+                WORKSTATION => "TB_WORKSTATION_TIME".to_string(),
+                3 => "TB_SC_TIME".to_string(),
+                0xffff => "TB_DONT_CARE".to_string(),
+                other => format!("TB_{other}"),
+            };
+            format!("{base}: {seconds}.{microseconds:06}s, context={context}")
+        }
+    };
+    (readable, raw)
+}
+
+/// The line `fprime-cli` prints for an event, from the two texts of `python_times`.
+/// `severity` is as Python prints it (`EventSeverity.COMMAND`).
+pub fn python_event_line(time: &str, name: &str, id: u64, raw: &str, severity: &str, text: Option<&str>) -> String {
+    format!("{time}: {name} ({id}) {raw} {severity} : {}", text.unwrap_or("None"))
+}
+
+/// `python_event_line` for a record of kind `fprime.event` as the API gives it.
+pub fn python_event_record_line(record: &serde_json::Value) -> String {
+    let field = |name: &str| record["flight_time"][name].as_u64().unwrap_or(0);
+    let (time, raw) = python_times(field("base"), field("context"), field("seconds"), field("microseconds"));
+    let body = &record["body"];
+    python_event_line(
+        &time,
+        body["name"].as_str().unwrap_or("?"),
+        record["id"].as_u64().unwrap_or(0),
+        &raw,
+        &format!("EventSeverity.{}", body["severity"].as_str().unwrap_or("?")),
+        Some(body["display_text"].as_str().unwrap_or("")),
+    )
+}

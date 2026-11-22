@@ -326,6 +326,7 @@ impl Plugin for FilesPlugin {
             module: "downlink.js",
             files: &UI,
         })?;
+        reg.add_subcommand(Arc::new(cli::FileUplink))?;
         reg.add_subcommand(Arc::new(cli::Files))
     }
 }

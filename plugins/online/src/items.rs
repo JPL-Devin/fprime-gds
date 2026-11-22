@@ -3,6 +3,7 @@
 //! the Python GDS), apart from what docs/design/deviations.md lists.
 
 use fgds_core::clap::ArgMatches;
+use fgds_core::python_times as times;
 use fgds_core::serde_json::{json, Value};
 
 /// One printed item.
@@ -72,7 +73,7 @@ fn event(id: u64, name: String, severity: &str, time: &str, raw: &str, args: &Va
     let severity = format!("EventSeverity.{severity}");
     Item {
         id,
-        text: format!("{time}: {name} ({id}) {raw} {severity} : {}", or_none(text)),
+        text: fgds_core::python_event_line(time, &name, id, raw, &severity, text),
         json: object(&[
             ("time", dumps(&json!(time))),
             ("raw_time", dumps(&json!(raw))),
@@ -109,37 +110,6 @@ pub fn plain_channels(dictionary: &Value) -> std::collections::HashMap<u64, Stri
             (c["id"].as_u64().unwrap_or(0), text(of, "kind").to_string())
         })
         .collect()
-}
-
-/// A flight time, readable and raw, as the Python GDS prints them. Workstation time is printed in
-/// UTC without a zone; the Python GDS prints the local time of the machine, also without a zone.
-fn times(base: u64, context: u64, seconds: u64, microseconds: u64) -> (String, String) {
-    const WORKSTATION: u64 = 2;
-    let raw = format!("({base}({context})-{seconds}:{microseconds})");
-    let date = (base == WORKSTATION).then(|| time::OffsetDateTime::from_unix_timestamp(seconds as i64).ok()).flatten();
-    let readable = match date {
-        Some(t) => format!(
-            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{microseconds:06}",
-            t.year(),
-            u8::from(t.month()),
-            t.day(),
-            t.hour(),
-            t.minute(),
-            t.second()
-        ),
-        None => {
-            let base = match base {
-                0 => "TB_NONE".to_string(),
-                1 => "TB_PROC_TIME".to_string(),
-                WORKSTATION => "TB_WORKSTATION_TIME".to_string(),
-                3 => "TB_SC_TIME".to_string(),
-                0xffff => "TB_DONT_CARE".to_string(),
-                other => format!("TB_{other}"),
-            };
-            format!("{base}: {seconds}.{microseconds:06}s, context={context}")
-        }
-    };
-    (readable, raw)
 }
 
 fn sorted(mut items: Vec<Item>) -> Vec<Item> {

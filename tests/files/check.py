@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import shutil
 import signal
 import socket
@@ -219,6 +220,9 @@ class Fgds:
 
     def cli(self, *arguments, check=True):
         """`fgds files ...` against this GDS."""
+        # An upload returns at once here; `file_uplink` below is the waiting form.
+        if arguments[0] == "upload":
+            arguments = (*arguments, "--no-wait")
         done = subprocess.run([self.binary, "files", "--url", self.root, *arguments],
                               capture_output=True, text=True, cwd=self.out, timeout=60)
         if check:
@@ -297,6 +301,8 @@ def rust_side(args, out, store):
         gds.post("/commands", {"name": "DataProducts.dpCat.START_XMIT_CATALOG", "args": ["NO_WAIT", False]})
         scenario.wait_for("the downlink of the data product", lambda: gds.downlink(ground_name(product)), 60)
         found = results(args, out, proxy, f"{store}/downlink", product, skip=early)
+        # After the packets compared with the Python GDS were taken.
+        file_uplink(gds, out)
 
         # The routes and `fgds files` give the same files.
         listing = gds.get("/files/downlink")
@@ -338,6 +344,39 @@ def rust_side(args, out, store):
             if process:
                 scenario.stop(process)
         raise
+
+
+def file_uplink(gds, out):
+    """`fgds file-uplink` and `fgds files upload`: the lines, the wait and the exit codes of `fprime-cli file-uplink`."""
+    with open(f"{out}/local/waited.bin", "wb") as file:
+        file.write(content("waited.bin", 5000))
+    receipt = (r"Flight software confirmed receipt: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}: "
+               r"FileHandling\.fileUplink\.FileReceived \(83886082\) \(2\(0\)-\d+:\d+\) EventSeverity\.ACTIVITY_HI : Received file %s\n")
+    for command, name in ((["file-uplink", "--url", gds.root, "local/waited.bin", "waited-1.bin"], "waited-1.bin"),
+                          (["files", "--url", gds.root, "upload", "local/waited.bin", "-d", "waited-2.bin"], "waited-2.bin")):
+        done = subprocess.run([gds.binary, *command], capture_output=True, text=True, cwd=out, timeout=90)
+        assert (done.returncode, done.stderr) == (0, ""), done
+        lines = re.sub(r"Uplinking 'waited\.bin': \d+%\n", "", done.stdout)
+        expected = (re.escape(f"Queued 'local/waited.bin' for uplink to '{name}'\n"
+                              f"All uplink packets sent for 'waited.bin' to '{name}'\n") + receipt % re.escape(name))
+        assert re.fullmatch(expected, lines), done.stdout
+        # It returned after the flight side had the file.
+        assert read(f"{out}/{name}") == content("waited.bin", 5000)
+    quick = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "--no-wait", "local/waited.bin"],
+                           capture_output=True, text=True, cwd=out, timeout=30)
+    assert (quick.returncode, quick.stdout) == (0, "Queued 'local/waited.bin' for uplink to '/waited.bin'\n"), quick
+    scenario.wait_for("the file queued without waiting", lambda: gds.uplink("waited.bin")["state"] == "finished", 60)
+    gds.cli("pause")
+    late = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "-t", "2", "local/waited.bin", "late.bin"],
+                          capture_output=True, text=True, cwd=out, timeout=30)
+    assert (late.returncode, late.stdout) == (1, "Queued 'local/waited.bin' for uplink to 'late.bin'\n"
+                                              "Error: uplink of 'waited.bin' did not complete within 2.0 seconds\n"), late
+    gds.cli("resume")
+    scenario.wait_for("the file that was held", lambda: os.path.exists(f"{out}/late.bin") and read(f"{out}/late.bin") == content("waited.bin", 5000), 60)
+    missing = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "local/none.bin"], capture_output=True, text=True, cwd=out)
+    assert (missing.returncode, missing.stdout, missing.stderr) == (1, "Error: File not found at local/none.bin\n", ""), missing
+    ok("fgds file-uplink and fgds files upload print the lines of fprime-cli file-uplink (queued, all packets sent, the "
+       "FileReceived event) and return once the flight side has the file; --no-wait returns at once; a timeout gives exit code 1")
 
 
 def link_loss(gds, ref, out):
