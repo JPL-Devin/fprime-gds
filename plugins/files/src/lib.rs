@@ -214,8 +214,6 @@ pub(crate) struct Shared {
     state: Mutex<State>,
     /// The uplink handler has something to look at.
     pub wake: Notify,
-    /// Sequence number of the next file packet of the uplink: the one a cancel packet sent by hand takes.
-    pub sequence: std::sync::atomic::AtomicU32,
     default_directory: Option<PathBuf>,
     /// Distinguishes the entities of this process from those of earlier runs.
     started: u128,
@@ -319,7 +317,6 @@ impl Plugin for FilesPlugin {
         let shared = Arc::new(Shared {
             state: Mutex::new(State::default()),
             wake: Notify::new(),
-            sequence: Default::default(),
             default_directory: self.directory.clone(),
             started,
         });

@@ -159,17 +159,18 @@ async fn resume(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Result<Json
     Ok(Json(queue_json(&ctx, &shared, &state)))
 }
 
-/// Send a cancel packet whatever the state of the queue, as `send_cancel_packet` of the Python uplinker: it
-/// takes the next sequence number, which then starts again at zero.
+/// Send a cancel packet by hand. Its packet index is 0, as `send_cancel_packet` of the Python uplinker gives when
+/// no file is being sent (the index starts again at zero at the end of each file). While a file is being sent
+/// it is refused: the flight side would drop the rest of the file, and the Python page disables its button then.
 async fn cancel_packet(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Result<Json<Value>, ApiError> {
-    let seq = shared.sequence.swap(0, std::sync::atomic::Ordering::Relaxed);
-    let bytes = crate::packet::encode(
-        crate::packet::descriptor_bytes(&ctx.dictionary),
-        seq,
-        &crate::packet::FilePacket::Cancel,
-    );
+    if shared.state().uplinks.iter().any(|t| t.state == "transferring") {
+        let message = "a file is being sent: cancel that uplink instead";
+        return Err(error(StatusCode::CONFLICT, "conflict", message));
+    }
+    let bytes =
+        crate::packet::encode(crate::packet::descriptor_bytes(&ctx.dictionary), 0, &crate::packet::FilePacket::Cancel);
     match ctx.uplink.send_packet(&bytes, &Default::default(), "files", false).await {
-        Ok(_) => Ok(Json(json!({ "sequence": seq }))),
+        Ok(_) => Ok(Json(json!({ "sequence": 0 }))),
         Err(e) => Err(error(StatusCode::SERVICE_UNAVAILABLE, "link_down", e.to_string())),
     }
 }

@@ -121,7 +121,6 @@ impl UplinkHandler {
     async fn send(&self, ctx: &Context, seq: &mut u32, file_packet: FilePacket) -> Result<(), Stop> {
         let bytes = packet::encode(packet::descriptor_bytes(&ctx.dictionary), *seq, &file_packet);
         *seq = seq.wrapping_add(1);
-        self.shared.sequence.store(*seq, std::sync::atomic::Ordering::Relaxed);
         let meta = PacketMeta::default();
         let sending = ctx.uplink.send_packet(&bytes, &meta, "files", false);
         match tokio::time::timeout(self.options.timeout, sending).await {

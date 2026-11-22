@@ -431,12 +431,15 @@ def file_uplink(gds, out, proxy=None):
         starts = [p for p in file_packets(proxy.uplink, gds.args.framing, scenario.spacecraft_id(gds.args.dictionary)) if p[2] == 0]
         assert starts[-1].endswith(bytes([len("/rooted.bin")]) + b"/rooted.bin"), starts[-1].hex()
     if proxy:
-        # "Send Cancel Packet" of the Uplink tab: a cancel packet with the next sequence number, whatever the state.
-        sent = gds.post("/files/uplink/cancel-packet", {})
+        # "Send Cancel Packet" with no file being sent: packet index 0, the bytes of the Python GDS (its frame
+        # after a 400000-byte file: 20440413001003c61d0006 0003 03 00000000 3571; its index starts again at
+        # zero at the end of each file).
         packets = lambda: file_packets(proxy.uplink, gds.args.framing, scenario.spacecraft_id(gds.args.dictionary))
-        scenario.wait_for("the cancel packet", lambda: packets()[-1][2] == 3)
-        assert int.from_bytes(packets()[-1][3:7], "big") == sent["sequence"] == int.from_bytes(packets()[-2][3:7], "big") + 1
-        assert gds.post("/files/uplink/cancel-packet", {})["sequence"] == 0
+        for _ in range(2):
+            before = len(packets())
+            assert gds.post("/files/uplink/cancel-packet", {})["sequence"] == 0
+            scenario.wait_for("the cancel packet", lambda: len(packets()) == before + 1)
+            assert packets()[-1] == bytes.fromhex("00030300000000"), packets()[-1].hex()
     gds.cli("pause")
     late = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "-t", "2", "local/waited.bin", "late.bin"],
                           capture_output=True, text=True, cwd=out, timeout=30)
@@ -610,6 +613,14 @@ def cancel_and_pause(args, out):
             except OSError:
                 pass
         threading.Thread(target=pump, daemon=True).start()
+        cancels = lambda: [int.from_bytes(p[3:7], "big") for p in file_packets(received) if p[2] == 3]
+
+        def by_hand(when, count):
+            assert gds.post("/files/uplink/cancel-packet", {})["sequence"] == 0
+            scenario.wait_for(f"the cancel packet {when}", lambda: len(cancels()) == count)
+            assert cancels()[-1] == 0, (when, cancels())
+        scenario.wait_for("the link state", lambda: gds.get("/files/uplink")["link"] == "connected")
+        by_hand("before any file", 1)
         os.makedirs(f"{out}/local")
         for name in ("a.bin", "b.bin", "c.bin"):
             with open(f"{out}/local/{name}", "wb") as file:
@@ -618,6 +629,8 @@ def cancel_and_pause(args, out):
         scenario.wait_for("the link state", lambda: gds.get("/files/uplink")["link"] == "connected")
         gds.cli("resume")
         scenario.wait_for("a.bin to start", lambda: gds.uplink("a.bin")["done"] > 0)
+        # Refused while a file is being sent: the flight side would drop the rest of it.
+        assert gds.status_of("/files/uplink/cancel-packet", b"{}") == 409 and len(cancels()) == 1
         gds.cli("cancel", gds.uplink("a.bin")["id"])
         scenario.wait_for("a.bin to be canceled", lambda: gds.uplink("a.bin")["state"] == "canceled")
         scenario.wait_for("b.bin to start", lambda: gds.uplink("b.bin")["done"] > 0)
@@ -625,15 +638,20 @@ def cancel_and_pause(args, out):
         scenario.wait_for("b.bin to be canceled", lambda: gds.uplink("b.bin")["state"] == "canceled")
         time.sleep(0.5)
         assert gds.uplink("c.bin")["state"] == "queued" and gds.get("/files/uplink")["paused"]
+        assert len(cancels()) == 3 and cancels()[1:] != [0, 0], cancels()
+        by_hand("after a canceled file", 4)
         gds.cli("resume")
         scenario.wait_for("c.bin to finish", lambda: gds.uplink("c.bin")["state"] == "finished")
         time.sleep(0.3)
         kinds = [p[2] for p in file_packets(received)]
         sequences = [int.from_bytes(p[3:7], "big") for p in file_packets(received)]
-        assert kinds.count(0) == 3 and kinds.count(3) == 2 and kinds.count(2) == 1, kinds
+        assert kinds.count(0) == 3 and kinds.count(3) == 4 and kinds.count(2) == 1, kinds
         assert kinds[-5:] == [0, 1, 1, 1, 2] and sequences[-5:] == [0, 1, 2, 3, 4], (kinds[-5:], sequences[-5:])
         chunks = [len(p) - 13 for p in file_packets(received) if p[2] == 1]
         assert set(chunks[:-1]) <= {256, 88} and chunks[-3:] == [256, 256, 88], chunks[-3:]
+        by_hand("after a finished file", 5)
+        ok("a cancel packet sent by hand has packet index 0 before any file, after a canceled file and after a "
+           "finished file, as the Python GDS; it is refused (409) while a file is being sent")
         ok(f"FIL-1: cancel and pause each end the active uplink with a cancel packet on the link; "
            f"after resume the next file is sent ({len(kinds)} file packets, {kinds.count(3)} cancel)")
         gds.healthy(f"{out}/fgds.log")

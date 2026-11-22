@@ -336,8 +336,12 @@ def files_and_products(page, gds):
     uplink.locator("tr.staged").get_by_role("button", name="Remove").click()
     expect(uplink.locator("tr.staged")).to_have_count(0)
     uplink.locator("#files").set_input_files(f"{gds.out}/up.bin")
+    expect(uplink.locator("#cancel-packet")).to_be_enabled()
     uplink.get_by_role("button", name="Begin Uplink").click()
+    # As the Python page: "Send Cancel Packet" is disabled while a file is being sent.
+    expect(uplink.locator("#cancel-packet")).to_be_disabled(timeout=10000)
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text("finished", timeout=30000)
+    expect(uplink.locator("#cancel-packet")).to_be_enabled()
     expect(uplink.locator("tr.staged")).to_have_count(0)
     expect(uplink.locator("tr", has_text="up.bin")).to_contain_text(f"{len(content)} / {len(content)} bytes")
     expect(uplink.locator("#pause")).to_have_count(1)

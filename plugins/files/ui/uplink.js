@@ -51,7 +51,7 @@ class FgdsUplink extends FilesTab {
         ${data.paused || !data.files.length
           ? html`<button id="unpause" ?disabled=${data.link !== "connected"} @click=${post("/resume")}>Unpause</button>`
           : html`<button id="pause" @click=${post("/pause")}>Pause</button>`}
-        <button id="cancel-packet" @click=${post("/cancel-packet")}>Send Cancel Packet</button>
+        <button id="cancel-packet" ?disabled=${data.files.some((t) => t.state === "transferring")} @click=${post("/cancel-packet")}>Send Cancel Packet</button>
       </div>
       <div class="controls">
         <span>Queue: <b>${data.paused ? "paused" : "running"}</b>, link: ${data.link}</span>
