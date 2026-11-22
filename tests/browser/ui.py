@@ -7,6 +7,7 @@ The stock binary is what every check runs, except the one of a tab that fails: t
 """
 import base64
 import json
+import urllib.parse
 import os
 import re
 import shutil
@@ -237,6 +238,48 @@ def stock(browser, gds):
     page.wait_for_function(f"() => document.querySelectorAll('#command-history tbody tr').length === {len(history) + 1}")
     step("command history: a row loads into the form and is sent again")
 
+    # A command the GDS refuses (a float beyond F32) has a row with its name and its arguments, as the Python page.
+    refused = "CdhCore.cmdDisp.CMD_TEST_CMD_1"
+    page.fill("#command-string", f"{refused}, 1, 2.5, 1")
+    page.press("#command-string", "Tab")
+    page.fill("[data-arg=arg2]", "1e39")
+    sent = len(rows(page, "#command-history"))
+    page.click("#command-send")
+    scenario.wait_for("the refused command in the history", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
+    row = rows(page, "#command-history")[0]
+    assert row["name"] == refused and row["args"] == "1, 1e+39, 1" and row["outcome"].startswith("rejected"), row
+    step(f"a refused command ({refused} with 1e39 for an F32) has a history row with its name and arguments: {row['args']!r}")
+
+    # One U8 left empty and one holding 300: the message under each, in one press.
+    choose(page, "Ref.typeDemo.CHOICES_WITH_FRIENDS")
+    fields = page.locator("#command-form [data-arg]")
+    kinds = fields.evaluate_all("(all) => all.map((e) => e.tagName)")
+    numbers = [i for i, kind in enumerate(kinds) if kind == "INPUT"]
+    assert len(numbers) == 2, kinds
+    fields.nth(numbers[1]).fill("300")
+    page.click("#command-send")
+    said = page.eval_on_selector_all("#command-form span[data-error-for]", "(all) => all.map((e) => e.textContent.trim())")
+    u8 = "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+    assert said == [u8, u8], said
+    step("CHOICES_WITH_FRIENDS with one U8 empty and the other 300: the message of the Python GDS page under both")
+
+    # "Show Parameter Commands": ticked at start; without it the _PRM_SET and _PRM_SAVE commands leave the list,
+    # but for the one selected.
+    listed = lambda: page.eval_on_selector_all("#command-select option", "(all) => all.map((o) => o.value)")
+    parameter = lambda names: [n for n in names if n.endswith("_PRM_SET") or n.endswith("_PRM_SAVE")]
+    assert page.is_checked("#show-parameter-commands")
+    everything = listed()
+    assert len(parameter(everything)) >= 2, everything
+    choose(page, parameter(everything)[0])
+    page.uncheck("#show-parameter-commands")
+    assert listed() == [n for n in everything if n not in parameter(everything)[1:]], listed()
+    choose(page, NO_OP_STRING)
+    assert parameter(listed()) == [] and len(listed()) == len(everything) - len(parameter(everything))
+    page.check("#show-parameter-commands")
+    assert listed() == everything
+    step(f"Show Parameter Commands: ticked at start; unticked, the {len(parameter(everything))} _PRM_SET and _PRM_SAVE "
+         "commands leave the list, but for the one selected")
+
     # Channel values update without a reload.
     show(page, "channels")
     page.wait_for_function(f"""() => [...document.querySelectorAll('#channels-table tbody tr')].some((row) =>
@@ -264,10 +307,72 @@ def stock(browser, gds):
     page.fill("#events-filter", "")
     step("Events tab: pause holds the table, resume shows the events that arrived, the filter narrows it")
 
+    # As the tables of the Python GDS page: a click on a header sorts by the text of that column, ascending,
+    # then descending, then as received; each column has a box that hides it.
+    def column(table, key):
+        return page.eval_on_selector_all(f"#{table} tbody td[data-col={key}]", "(all) => all.map((c) => c.textContent)")
+    ordered = "(texts) => texts.slice().sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))"
+    for tab, table, keys in (("events", "events-table", ["time", "ground", "id", "name", "severity", "text"]),
+                             ("channels", "channels-table", ["time", "ground", "id", "name", "value"])):
+        show(page, tab)
+        if tab == "events":
+            page.click("#events-pause")
+        for key in keys:
+            received = column(table, key)
+            page.click(f"#{table} th[data-col={key}]")
+            up = column(table, key)
+            assert up == page.evaluate(ordered, received), f"{tab} {key}: not ascending"
+            page.click(f"#{table} th[data-col={key}]")
+            assert column(table, key) == up[::-1] or len(set(up)) < len(up), f"{tab} {key}: not descending"
+            assert sorted(column(table, key)) == sorted(up)
+            page.click(f"#{table} th[data-col={key}]")
+            if tab == "events":
+                assert column(table, key) == received, f"{tab} {key}: the order received is not back"
+            page.uncheck(f"#{tab}-{key}")
+            assert not page.locator(f"#{table} th[data-col={key}]").is_visible()
+            assert not page.locator(f"#{table} tbody td[data-col={key}]").first.is_visible()
+            page.check(f"#{tab}-{key}")
+            assert page.locator(f"#{table} th[data-col={key}]").is_visible()
+        if tab == "events":
+            page.click("#events-pause")
+    step("Events and Channels tables: each column sorts by a click on its header (ascending, descending, as received) "
+         "and is hidden and shown by its box")
+
+    # "Edit View" of the Channels tab, as the Python page: a box per channel, Clear, Save, Load, Done; with a view,
+    # only its channels are listed.
+    show(page, "channels")
+    every = page.locator("#channels-table tbody tr").count()
+    page.click("#view-edit")
+    assert page.locator("#channels-table tbody .in-view").count() > every  # channels without a value too
+    assert [page.locator(f"#{i}").count() for i in ("view-clear", "view-save", "view-load", "view-done")] == [1] * 4
+    page.fill("#channels-filter", "CommandsDispatched")
+    page.locator("#channels-table tbody .in-view").first.check()
+    page.fill("#channels-filter", "BD_Cycles")
+    page.check("#view-all")
+    assert page.get_attribute("#view-save", "href").endswith(
+        urllib.parse.quote("CdhCore.cmdDisp.CommandsDispatched\nRef.blockDrv.BD_Cycles", safe=""))
+    page.click("#view-done")
+    assert [r["name"] for r in rows(page, "#channels-table")] == ["CdhCore.cmdDisp.CommandsDispatched", "Ref.blockDrv.BD_Cycles"]
+    page.click("#view-edit")
+    page.click("#view-clear")
+    page.click("#view-done")
+    assert page.locator("#channels-table tbody tr").count() >= every
+    step("Channels tab, Edit View: two channels ticked (one by the box of the header) are the only rows after Done; "
+         "Save holds their names; Clear brings every channel back")
+
+    # The top bar: the data-flow indicator is on while events or channels arrive; the new-window button opens the page again.
+    expect(page.locator("#data-flow")).to_have_attribute("data-flow", "on", timeout=10000)
+    with page.context.expect_page() as opened:
+        page.click("#new-window")
+    assert opened.value.url == page.url, opened.value.url
+    opened.value.close()
+    step("top bar: the data-flow indicator is on while Ref sends; the new-window button opens the page in a new window")
+
     # The counters of the top bar, and "Clear All": as the Python GDS page.
     severities = [r["body"]["severity"] for r in gds.get("/records?kind=fprime.event&limit=10000")["records"]]
     expected = [f"WARNING HI: {severities.count('WARNING_HI')}", f"FATAL: {severities.count('FATAL')}", "GDS Errors: 0"]
     scenario.wait_for("the counters", lambda: page.locator("#counters span").all_text_contents() == expected)
+    show(page, "events")
     page.click("#events-clear")
     assert page.locator("#events-table tbody tr").count() == 0
     gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
@@ -328,7 +433,21 @@ def files_and_products(page, gds):
     assert uplink.locator("th").all_text_contents() == [
         "Start Time", "End Time", "Source", "Destination", "State", "Control", "Progress"]
     staged_cells = [c.strip() for c in uplink.locator("tr.staged td").all_text_contents()]
-    assert staged_cells == ["", "", "up.bin", "some/dir", "NOT STARTED", "Remove", "0%"], staged_cells
+    assert [" ".join(c.split()) for c in staged_cells] == [
+        "", "", "up.bin", "some/dir", "NOT STARTED", "Remove Select Packets", "0%"], staged_cells
+    # "Select Packets", as the Python page: a list of packet numbers from 1, with its message for anything else.
+    uplink.locator("tr.staged .select-packets").click()
+    expect(uplink.locator("#packet-selection h3")).to_have_text("Uplink File Packet List")
+    uplink.locator("#packetList").fill("1, 0")
+    expect(uplink.locator("#packet-selection .error")).to_have_text("Specify packet numbers as comma-separated list")
+    assert uplink.locator("#packets-save").is_disabled()
+    uplink.locator("#packetList").fill("2, 1")
+    uplink.locator("#packets-save").click()
+    expect(uplink.locator("tr.staged td").nth(2)).to_have_text("up.bin [2, 1]")
+    uplink.locator("tr.staged .select-packets").click()
+    uplink.locator("#packetList").fill("")
+    uplink.locator("#packets-save").click()
+    expect(uplink.locator("tr.staged td").nth(2)).to_have_text("up.bin")
     assert uplink.locator("#unpause").count() == 1 and uplink.locator("#pause").count() == 0
     uplink.locator("#directory").fill("")
     page.wait_for_timeout(1000)

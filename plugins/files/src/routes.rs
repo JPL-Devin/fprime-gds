@@ -71,6 +71,8 @@ struct Upload {
     /// Source path written in the start packet; the path of the staged copy when absent. A script
     /// gives the path of its own file, as the uplinker of the Python GDS sends it.
     source: Option<String>,
+    /// Data packets to send, numbered from 1 and separated by commas; every packet when absent or empty.
+    packets: Option<String>,
 }
 
 /// The request body is the content of the file.
@@ -101,6 +103,16 @@ async fn upload(
     // Python GDS; a path too long for the packet is replaced by the name.
     let source = upload.source.filter(|s| !s.is_empty()).unwrap_or_else(|| path.to_string_lossy().into_owned());
     let source = if source.len() > 255 { name.clone() } else { source };
+    // As `TransmitFile` of the Python GDS: sorted, each number once; an empty list is the whole file.
+    let mut packets = Vec::new();
+    for token in upload.packets.iter().flat_map(|list| list.split(',')).map(str::trim).filter(|t| !t.is_empty()) {
+        match token.parse::<u64>() {
+            Ok(number) if number > 0 => packets.push(number),
+            _ => return Err(invalid("Specify packet numbers as comma-separated list".into())),
+        }
+    }
+    packets.sort_unstable();
+    packets.dedup();
     let mut transfer = Transfer {
         id: shared.new_id("up"),
         name,
@@ -114,6 +126,7 @@ async fn upload(
         cancel: false,
         started: None,
         ended: None,
+        packets: (!packets.is_empty()).then_some(packets),
     };
     {
         // Reserved under the lock: two uploads of one name cannot share the staged copy.

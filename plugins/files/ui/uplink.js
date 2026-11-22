@@ -6,7 +6,7 @@ class FgdsUplink extends FilesTab {
   kind = "fprime.file.uplink";
   path = "/files/uplink";
 
-  static properties = { ...FilesTab.properties, staged: { state: true } };
+  static properties = { ...FilesTab.properties, staged: { state: true }, editing: { state: true }, packetError: { state: true } };
 
   constructor() {
     super();
@@ -16,8 +16,23 @@ class FgdsUplink extends FilesTab {
   // As the Python page: the row keeps the Destination Folder text of the moment the file was added.
   stage(input) {
     const destination = this.renderRoot.querySelector("#directory").value.trim();
-    this.staged = [...this.staged, ...Array.from(input.files, (file) => ({ file, destination }))];
+    this.staged = [...this.staged, ...Array.from(input.files, (file) => ({ file, destination, packets: [] }))];
     input.value = "";
+  }
+
+  // The packet numbers typed in "Uplink File Packet List", or null with the message of the Python GDS page.
+  packetNumbers(text) {
+    const tokens = text.split(",").map((token) => token.trim()).filter(Boolean);
+    const valid = tokens.every((token) => /^[1-9]\d*$/.test(token));
+    this.packetError = valid ? "" : "Specify packet numbers as comma-separated list";
+    return valid ? tokens.map((token) => parseInt(token, 10)) : null;
+  }
+
+  savePackets() {
+    const numbers = this.packetNumbers(this.renderRoot.querySelector("#packetList").value);
+    if (numbers === null) return;
+    this.editing.packets = numbers;
+    this.editing = null;
   }
 
   // "Begin Uplink": every staged file goes to the queue of the GDS, which sends at once.
@@ -28,6 +43,7 @@ class FgdsUplink extends FilesTab {
       const query = new URLSearchParams({ name: file.name });
       // The destination is the name joined to the directory as typed (`uplink_destination`).
       query.set("directory", directory);
+      if (this.staged[0].packets.length) query.set("packets", this.staged[0].packets.join(","));
       // The body is the file itself: the shared `api.post` sends JSON only.
       const response = await fetch("/api/v1/files/uplink?" + query, { method: "POST", body: file });
       if (!response.ok) {
@@ -57,11 +73,22 @@ class FgdsUplink extends FilesTab {
         <span>Queue: <b>${data.paused ? "paused" : "running"}</b>, link: ${data.link}</span>
         <span class="error">${this.error}</span>
       </div>
+      ${this.editing ? html`<div class="packets" id="packet-selection">
+        <h3>Uplink File Packet List</h3>
+        <h4>Selecting Packets for: ${this.editing.file.name}</h4>
+        <label for="packetList">Enumerate specific file packets to uplink in a comma-separated list</label>
+        <textarea id="packetList" placeholder="List specific packets to uplink: 1, 5, 9..." .value=${this.editing.packets.join(", ")}
+          @input=${(e) => this.packetNumbers(e.target.value)}></textarea>
+        <span class="error">${this.packetError}</span>
+        <button id="packets-save" ?disabled=${this.packetError !== ""} @click=${() => this.savePackets()}>Save</button>
+      </div>` : ""}
       <table>
         <tr><th>Start Time</th><th>End Time</th><th>Source</th><th>Destination</th><th>State</th><th>Control</th><th>Progress</th></tr>
-        ${this.staged.map(({ file, destination }, n) => html`<tr class="staged">
-          <td></td><td></td><td>${file.name}</td><td>${destination}</td><td>NOT STARTED</td>
-          <td><button @click=${() => { this.staged = this.staged.filter((_, i) => i !== n); }}>Remove</button></td>
+        ${this.staged.map((item, n) => html`<tr class="staged">
+          <td></td><td></td><td>${item.file.name}${item.packets.length ? ` [${item.packets.join(", ")}]` : ""}</td>
+          <td>${item.destination}</td><td>NOT STARTED</td>
+          <td><button @click=${() => { this.staged = this.staged.filter((_, i) => i !== n); }}>Remove</button>
+            <button class="select-packets" @click=${() => { this.packetError = ""; this.editing = item; }}>Select Packets</button></td>
           <td>0%</td>
         </tr>`)}
         ${data.files.slice().reverse().map((t) => row(t, active(t)

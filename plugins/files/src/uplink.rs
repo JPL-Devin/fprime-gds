@@ -3,7 +3,7 @@
 use crate::packet::{self, Checksum, FilePacket};
 use crate::{publish, Options, Shared, Transfer, KIND_UPLINK};
 use fgds_core::{async_trait, Context, Filter, Handler, PacketMeta, Record, RecordStream, Result, SendError};
-use std::io::Read;
+use std::io::{Read, Seek};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -168,6 +168,11 @@ impl UplinkHandler {
         self.send(ctx, &mut seq, start).await?;
         let (mut checksum, mut offset, mut percent) = (Checksum::default(), 0u64, 0);
         let mut chunk = vec![0; self.options.chunk];
+        // With a list of packets (`Select Packets`), as `TransmitFile.read` of the Python GDS: packet `n` is the
+        // chunk at `(n - 1) * chunk size`; the file ends after the last of the list, or at the first one that
+        // lies beyond the end of the file.
+        let mut listed = transfer.packets.as_ref().map(|list| list.iter());
+        let mut sent = 0u64;
         loop {
             tokio::time::sleep(self.options.cooldown).await;
             let (cancel, paused) = {
@@ -187,9 +192,17 @@ impl UplinkHandler {
                 self.send(ctx, &mut seq, FilePacket::Cancel).await?;
                 return Err(Stop::Canceled);
             }
-            let length = read_chunk(&mut file, &mut chunk).map_err(|e| Stop::Failed(e.to_string()))?;
+            let length = match listed.as_mut().map(Iterator::next) {
+                Some(None) => 0,
+                Some(Some(number)) => {
+                    offset = (number - 1).saturating_mul(self.options.chunk as u64);
+                    file.seek(std::io::SeekFrom::Start(offset)).map_err(|e| Stop::Failed(e.to_string()))?;
+                    read_chunk(&mut file, &mut chunk).map_err(|e| Stop::Failed(e.to_string()))?
+                }
+                None => read_chunk(&mut file, &mut chunk).map_err(|e| Stop::Failed(e.to_string()))?,
+            };
             // The size is in the start packet: never send more, even if the file grew.
-            let length = length.min((transfer.size - offset) as usize);
+            let length = length.min(transfer.size.saturating_sub(offset) as usize);
             if length == 0 {
                 self.send(ctx, &mut seq, FilePacket::End { checksum: checksum.0 }).await?;
                 return self.confirm(ctx, transfer, records).await;
@@ -198,9 +211,15 @@ impl UplinkHandler {
             self.send(ctx, &mut seq, FilePacket::Data { offset: offset as u32, data: chunk[..length].to_vec() })
                 .await?;
             offset += length as u64;
-            let progress = self.update(&transfer.id, |t| t.done = offset);
+            sent += 1;
+            // Of a list of packets, the part of the list that is sent, as the Python GDS.
+            let done = match &transfer.packets {
+                Some(list) => transfer.size * sent / list.len() as u64,
+                None => offset,
+            };
+            let progress = self.update(&transfer.id, |t| t.done = done);
             // One record per percent, not one per packet.
-            let now = offset * 100 / transfer.size.max(1);
+            let now = done * 100 / transfer.size.max(1);
             if now != percent {
                 percent = now;
                 publish(ctx, progress.record(KIND_UPLINK)).await;

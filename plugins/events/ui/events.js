@@ -10,7 +10,7 @@ const KEEP = 200000; // events kept in the page; older ones stay in the record A
 class EventsTab extends LitElement {
   static properties = {
     text: { state: true }, severities: { state: true }, component: { state: true },
-    paused: { state: true }, ground: { state: true }, limit: { state: true }, version: { state: true },
+    paused: { state: true }, limit: { state: true }, version: { state: true },
   };
 
   constructor() {
@@ -30,7 +30,8 @@ class EventsTab extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.limit = this.gds.settings.get("events.rows", 500);
-    this.ground = this.gds.settings.get("events.ground", true);
+    this.columns = this.gds.columns("events", [["time", "Event Time"], ["ground", "Ground time"], ["id", "Event Id"],
+      ["name", "Event Name"], ["severity", "Event Severity"], ["text", "Event Description"]], () => { this.version += 1; });
     this.commands = new Map((this.gds.dictionary.commands || []).map((c) => [c.opcode, c.name]));
     this.stop = this.gds.records.follow({ kinds: [KIND] }, (records) => {
       this.events.push(...records);
@@ -57,12 +58,17 @@ class EventsTab extends LitElement {
 
   // The message, with the opcode of a command event followed by its mnemonic as the
   // Python GDS shows it. Everything is text: nothing from the link is parsed as HTML.
-  message(record) {
+  parts(record) {
     const text = this.gds.format.flightText(record.body.display_text);
     const found = record.body.severity === "COMMAND" ? text.match(OPCODE) : null;
-    if (!found) return text;
+    if (!found) return [text];
     const name = this.commands.get(parseInt(found[1], 16)) || "UNKNOWN";
-    return html`${text.slice(0, found.index)}<span title=${found[0]}>${name}</span>${text.slice(found.index + found[0].length)}`;
+    return [text.slice(0, found.index), name, text.slice(found.index + found[0].length), found[0]];
+  }
+
+  message(record) {
+    const [before, name, after, opcode] = this.parts(record);
+    return name === undefined ? before : html`${before}<span title=${opcode}>${name}</span>${after}`;
   }
 
   togglePause() {
@@ -89,7 +95,13 @@ class EventsTab extends LitElement {
     const source = this.frozen || this.events;
     const components = [...new Set((this.gds.dictionary.events || []).map((e) => format.component(e.name)))].sort();
     const matching = source.filter((r) => this.accepts(r));
-    const shown = this.limit ? matching.slice(-this.limit) : matching;
+    const columns = this.columns;
+    const flat = (r) => this.parts(r).slice(0, 3).join("");
+    const sorted = columns.sort(matching, (r, key) => ({
+      time: format.flightTime(r.flight_time), ground: format.groundTime(r.ground_time), id: format.hexId(r.id),
+      name: r.body.name, severity: r.body.severity, text: flat(r),
+    })[key]);
+    const shown = this.limit ? (columns.sorted() ? sorted.slice(0, this.limit) : sorted.slice(-this.limit)) : sorted;
     return html`
       <div class="toolbar">
         <label>Filter <input type="search" id="events-filter" placeholder="name, text, id" .value=${this.text}
@@ -110,28 +122,24 @@ class EventsTab extends LitElement {
             ${[100, 500, 5000, 0].map((n) => html`<option value=${n} ?selected=${n === this.limit}>${n || "all"}</option>`)}
           </select>
         </label>
-        <label><input type="checkbox" id="events-ground" .checked=${this.ground} @change=${(e) => {
-          this.ground = e.target.checked;
-          this.gds.settings.set("events.ground", this.ground);
-        }}>Ground time</label>
+        ${columns.chooser()}
         <button class="action secondary" id="events-pause" @click=${() => this.togglePause()}>
           ${this.paused ? `Resume (${this.events.length - this.frozen.length} new)` : "Pause"}</button>
         <button class="action secondary" id="events-clear" @click=${() => this.clear()}>Clear All</button>
         <span class="muted" id="events-count">${shown.length} of ${matching.length} shown, ${source.length} received</span>
       </div>
-      <table class="gds ${this.ground ? "" : "no-ground"}" id="events-table">
-        <thead><tr><th>Event Time</th><th class="ground">Ground time</th><th>Event Id</th><th>Event Name</th><th>Event Severity</th>
-          <th>Event Description</th></tr></thead>
+      <table class="gds" id="events-table">
+        <thead>${columns.head()}</thead>
         <tbody>
           ${shown.map((r) => html`<tr class="sev-${r.body.severity}" data-seq=${r.seq}>
-            <td class="nowrap mono" data-col="time" data-seconds=${r.flight_time ? r.flight_time.seconds : ""}
+            <td class="nowrap mono" data-col="time" ?hidden=${!columns.shows("time")} data-seconds=${r.flight_time ? r.flight_time.seconds : ""}
               data-microseconds=${r.flight_time ? r.flight_time.microseconds : ""}
               data-base=${r.flight_time ? r.flight_time.base : ""}>${format.flightTime(r.flight_time)}</td>
-            <td class="nowrap mono" data-col="ground">${format.groundTime(r.ground_time)}</td>
-            <td class="nowrap mono" data-col="id">${format.hexId(r.id)}</td>
-            <td class="nowrap" data-col="name">${r.body.name}</td>
-            <td class="nowrap" data-col="severity">${r.body.severity}</td>
-            <td class="text" data-col="text" title=${format.value(r.body.args)}>${this.message(r)}</td>
+            <td class="nowrap mono" data-col="ground" ?hidden=${!columns.shows("ground")}>${format.groundTime(r.ground_time)}</td>
+            <td class="nowrap mono" data-col="id" ?hidden=${!columns.shows("id")}>${format.hexId(r.id)}</td>
+            <td class="nowrap" data-col="name" ?hidden=${!columns.shows("name")}>${r.body.name}</td>
+            <td class="nowrap" data-col="severity" ?hidden=${!columns.shows("severity")}>${r.body.severity}</td>
+            <td class="text" data-col="text" ?hidden=${!columns.shows("text")} title=${format.value(r.body.args)}>${this.message(r)}</td>
           </tr>`)}
         </tbody>
       </table>`;

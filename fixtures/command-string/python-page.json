@@ -1,0 +1,215 @@
+[
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP",
+  "inputs": [],
+  "line": "CdhCore.cmdDisp.CMD_NO_OP",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"hello world\"",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+  "inputs": [
+   "hello world"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"hello world\"",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a, b: [c] {d}\"",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+  "inputs": [
+   "a, b: [c] {d}"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a, b: [c] {d}\"",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"say \\\"hi\\\"\"",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+  "inputs": [
+   "say \"hi\""
+  ],
+  "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"say \\\"hi\\\"\"",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, bare_word",
+  "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+  "inputs": [
+   "bare_word"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"bare_word\"",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+  "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+  "inputs": [
+   "1",
+   "2.5",
+   "3"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, -7, 1e3, 255",
+  "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+  "inputs": [
+   "1",
+   "2.5",
+   "3"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant."
+ },
+ {
+  "typed": "cdhcore.cmddisp.cmd_test_cmd_1, 4, -0.25, 6",
+  "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+  "inputs": [
+   "4",
+   "-0.25",
+   "6"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 4, -0.25, 6",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1",
+  "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+  "inputs": [
+   "1",
+   "-0.25",
+   "6"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, -0.25, 6",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.events.SET_EVENT_FILTER, WARNING_HI, ENABLED",
+  "name": "CdhCore.events.SET_EVENT_FILTER",
+  "inputs": [
+   "WARNING_HI",
+   "ENABLED"
+  ],
+  "line": "CdhCore.events.SET_EVENT_FILTER, WARNING_HI, ENABLED",
+  "error": ""
+ },
+ {
+  "typed": "FileHandling.fileManager.RemoveFile, \"/tmp/a file.txt\", true",
+  "name": "FileHandling.fileManager.RemoveFile",
+  "inputs": [
+   "/tmp/a file.txt",
+   "true"
+  ],
+  "line": "FileHandling.fileManager.RemoveFile, \"/tmp/a file.txt\", true",
+  "error": ""
+ },
+ {
+  "typed": "FileHandling.fileManager.MoveFile, \"/tmp/a\", \"/tmp/b\"",
+  "name": "FileHandling.fileManager.MoveFile",
+  "inputs": [
+   "/tmp/a",
+   "/tmp/b"
+  ],
+  "line": "FileHandling.fileManager.MoveFile, \"/tmp/a\", \"/tmp/b\"",
+  "error": ""
+ },
+ {
+  "typed": "Ref.typeDemo.CHOICE, RED",
+  "name": "Ref.typeDemo.CHOICE",
+  "inputs": [
+   "RED"
+  ],
+  "line": "Ref.typeDemo.CHOICE, RED",
+  "error": ""
+ },
+ {
+  "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+  "name": "Ref.typeDemo.CHOICES",
+  "inputs": [
+   "RED",
+   "BLUE"
+  ],
+  "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+  "error": ""
+ },
+ {
+  "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+  "name": "Ref.typeDemo.CHOICE_PAIR",
+  "inputs": [
+   "RED",
+   "BLUE"
+  ],
+  "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+  "error": ""
+ },
+ {
+  "typed": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 18446744073709551615, f32: 1.5, f64: -2.25}",
+  "name": "Ref.typeDemo.SEND_SCALARS",
+  "inputs": [
+   "-1",
+   "2",
+   "-3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "18446744073709551615",
+   "1.5",
+   "-2.25"
+  ],
+  "line": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 18446744073709551615, f32: 1.5, f64: -2.25}",
+  "error": ""
+ },
+ {
+  "typed": "Ref.typeDemo.DUMP_FLOATS",
+  "name": "Ref.typeDemo.DUMP_FLOATS",
+  "inputs": [],
+  "line": "Ref.typeDemo.DUMP_FLOATS",
+  "error": ""
+ },
+ {
+  "typed": "Ref.typeDemo.CHOICES_PRM_PRM_SET, [BLUE, RED]",
+  "name": "Ref.typeDemo.CHOICES_PRM_PRM_SET",
+  "inputs": [
+   "BLUE",
+   "RED"
+  ],
+  "line": "Ref.typeDemo.CHOICES_PRM_PRM_SET, [BLUE, RED]",
+  "error": ""
+ },
+ {
+  "typed": "No.such.COMMAND, 1",
+  "name": "No.such.COMMAND",
+  "inputs": [],
+  "line": "No.such.COMMAND",
+  "error": ""
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"unfinished",
+  "name": "No.such.COMMAND",
+  "inputs": [],
+  "line": "No.such.COMMAND",
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant."
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, , 3",
+  "name": "No.such.COMMAND",
+  "inputs": [],
+  "line": "No.such.COMMAND",
+  "error": "Expected command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant."
+ },
+ {
+  "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3, 4",
+  "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+  "inputs": [
+   "1",
+   "2.5",
+   "3"
+  ],
+  "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+  "error": ""
+ }
+]

@@ -91,7 +91,13 @@ impl Uplink {
         };
         let mut body = match &encoded {
             Some(encoded) => encoded.body.clone(),
-            None => json!({"request": request}),
+            // Refused before encoding: the record still names what was asked (for a command, its name and
+            // its arguments as given), next to the whole request.
+            None => {
+                let mut body = request.as_object().cloned().unwrap_or_default();
+                body.insert("request".into(), request.clone());
+                Value::Object(body)
+            }
         };
         body["client"] = json!(client);
         match &result {

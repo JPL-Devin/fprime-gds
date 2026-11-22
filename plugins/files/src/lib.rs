@@ -161,6 +161,9 @@ pub(crate) struct Transfer {
     /// Ground time when the first packet was sent or received, and when the transfer ended.
     pub started: Option<String>,
     pub ended: Option<String>,
+    /// Uplink only: the data packets to send, numbered from 1 (`Select Packets` of the Python GDS page);
+    /// every packet of the file when absent.
+    pub packets: Option<Vec<u64>>,
 }
 
 impl Transfer {
@@ -169,6 +172,7 @@ impl Transfer {
             "id": self.id, "name": self.name, "source": self.source, "destination": self.destination,
             "size": self.size, "done": self.done, "state": self.state, "reason": self.reason,
             "problems": self.problems, "started": self.started, "ended": self.ended,
+            "packets": self.packets.clone().unwrap_or_default(),
         })
     }
 

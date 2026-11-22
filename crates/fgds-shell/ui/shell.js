@@ -263,7 +263,43 @@ const settings = {
   },
 };
 
-export const gds = { api, records, format, status, settings, dictionary: null, types: null, version: null, tabs: [] };
+// The columns of a table, as the tables of the Python GDS page: a click on a header sorts by the text of that
+// column (ascending, then descending, then the order of arrival again), and each column can be hidden (kept in
+// the browser). `titles` is a list of [key, title]; `changed` is called when the table must be drawn again.
+function columns(name, titles, changed) {
+  const hidden = new Set(settings.get(`${name}.hidden`, settings.get(`${name}.ground`, true) ? [] : ["ground"]));
+  const sort = { key: null, ascending: true };
+  const shows = (key) => !hidden.has(key);
+  const click = (key) => {
+    if (sort.key !== key) Object.assign(sort, { key, ascending: true });
+    else if (sort.ascending) sort.ascending = false;
+    else Object.assign(sort, { key: null, ascending: true });
+    changed();
+  };
+  const toggle = (key, on) => {
+    if (on) hidden.delete(key); else hidden.add(key);
+    settings.set(`${name}.hidden`, [...hidden]);
+    changed();
+  };
+  return {
+    shows,
+    sorted: () => sort.key,
+    // One box per column.
+    chooser: () => html`<span class="columns" id="${name}-columns">Columns ${titles.map(([key, title]) => html`<label>
+      <input type="checkbox" id="${name}-${key}" .checked=${shows(key)} @change=${(e) => toggle(key, e.target.checked)}>${title}</label>`)}</span>`,
+    head: (first = "") => html`<tr>${first}${titles.map(([key, title]) => html`<th class="sortable" data-col=${key} ?hidden=${!shows(key)}
+      @click=${() => click(key)}>${title}${sort.key === key ? html` <span class="sort">${sort.ascending ? "\u25BE" : "\u25B4"}</span>` : ""}</th>`)}</tr>`,
+    // `rows` in the order asked for; `text(row, key)` is what the column shows.
+    sort: (rows, text) => {
+      if (sort.key === null) return rows;
+      const keyed = rows.map((row) => ({ row, key: String(text(row, sort.key)) }));
+      keyed.sort((a, b) => (sort.ascending ? 1 : -1) * a.key.localeCompare(b.key, undefined, { numeric: true }));
+      return keyed.map((k) => k.row);
+    },
+  };
+}
+
+export const gds = { api, records, format, status, settings, columns, dictionary: null, types: null, version: null, tabs: [] };
 window.gds = gds;
 
 // ---- shared elements ------------------------------------------------------------------
@@ -378,6 +414,18 @@ async function start() {
     return;
   }
   showCounts();
+  // As the Python GDS page: a button that opens the page in a new window, and an indicator that is on while
+  // events or channels arrive and goes off 5 s after the last of them.
+  document.querySelector("#new-window").onclick = () => window.open(window.location);
+  const flow = document.querySelector("#data-flow");
+  let quiet = null;
+  gds.records.follow({ kinds: ["fprime.event", "fprime.channel"], afterSeq: (await api.get("/status")).cursor }, (records) => {
+    if (!records.length) return;
+    flow.dataset.flow = "on";
+    flow.title = "Data is arriving";
+    clearTimeout(quiet);
+    quiet = setTimeout(() => { flow.dataset.flow = "off"; flow.title = "No data for 5 seconds"; }, 5000);
+  });
   gds.records.follow({ kinds: ["fprime.event"] }, (records) => {
     for (const record of records) if (record.body.severity in counts) counts[record.body.severity] += 1;
     showCounts();

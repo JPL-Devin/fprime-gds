@@ -650,6 +650,34 @@ def cancel_and_pause(args, out):
         chunks = [len(p) - 13 for p in file_packets(received) if p[2] == 1]
         assert set(chunks[:-1]) <= {256, 88} and chunks[-3:] == [256, 256, 88], chunks[-3:]
         by_hand("after a finished file", 5)
+        # `Select Packets` of the Python GDS page: a list of data packets, numbered from 1. What is sent is what
+        # `TransmitFile.read` and the uplinker of the Python GDS give for the same file and list.
+        from fprime_gds.common.files.helpers import TransmitFile, TransmitFileState
+        selected = content("s.bin", 2000)
+        with open(f"{out}/local/s.bin", "wb") as file:
+            file.write(selected)
+        for number, (packets, typed) in enumerate((([1, 3, 8], "8, 1,3,3"), ([2, 9, 3], "2,9,3"), ([8], "8"))):
+            before = len(file_packets(received))
+            query = urllib.parse.urlencode({"name": "s.bin", "destination": f"/flight/s{number}.bin", "packets": typed})
+            gds.request(f"/files/uplink?{query}", selected, method="POST")
+            scenario.wait_for("s.bin to finish", lambda: gds.uplink("s.bin")["state"] == "finished")
+            time.sleep(0.3)
+            sent = file_packets(received)[before:]
+            source = TransmitFile(f"{out}/local/s.bin", "", packets=packets)
+            source.open(TransmitFileState.READ)
+            wanted = []
+            while chunk := source.read(256):
+                source.checksum.update(chunk, source.seek)
+                wanted.append((source.seek, chunk))
+            source.close()
+            assert [p[2] for p in sent] == [0] + [1] * len(wanted) + [2], (typed, [p[2] for p in sent])
+            assert [int.from_bytes(p[3:7], "big") for p in sent] == list(range(len(wanted) + 2)), typed
+            assert [(int.from_bytes(p[7:11], "big"), bytes(p[13:])) for p in sent[1:-1]] == wanted, typed
+            assert int.from_bytes(sent[-1][7:11], "big") == source.checksum.value, typed
+            assert gds.uplink("s.bin")["packets"] == sorted(set(packets))
+        assert gds.status_of("/files/uplink?name=s.bin&packets=1,x", selected) == 422
+        ok("an uplink with a list of packets (1, 3, 8; 2, 9, 3 where 9 is beyond the end; 8): the data packets, their "
+           "offsets and the checksum of the end packet are those of TransmitFile of the Python GDS")
         ok("a cancel packet sent by hand has packet index 0 before any file, after a canceled file and after a "
            "finished file, as the Python GDS; it is refused (409) while a file is being sent")
         ok(f"FIL-1: cancel and pause each end the active uplink with a cancel packet on the link; "

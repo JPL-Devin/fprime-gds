@@ -24,21 +24,69 @@ function initial(type) {
 function fromRecord(type, value) {
   if (value === null || value === undefined) return initial(type);
   switch (type.kind) {
-    case "array": return Array.from({ length: type.size }, (_, i) => fromRecord(type.element, (value || [])[i]));
+    case "array": return Array.from({ length: type.size }, (_, i) => fromRecord(type.element, Array.isArray(value) ? value[i] : null));
     case "struct":
       return Object.fromEntries(type.members.map((m) => {
         const v = value[m.name];
         return [m.name, m.count === null ? fromRecord(m.type, v)
           : Array.from({ length: m.count }, (_, i) => fromRecord(m.type, (v || [])[i]))];
       }));
-    default: return String(value);
+    case "bool": {
+      const text = String(value).toLowerCase();
+      return text === "yes" ? "true" : text === "no" ? "false" : text;
+    }
+    default: return value === FILL_NEEDED && type.kind !== "string" ? null : String(value);
   }
+}
+
+// The `Command String` of the Python GDS page (command-string.js): the command of the form as one line,
+// `NAME, ARG1, ARG2`, a string in double quotes, an array in brackets, a struct in braces, and
+// `<FILL-VALUE>` where nothing is typed yet. A line typed there fills the form; it does not send.
+const FILL_NEEDED = "<FILL-VALUE>";
+const COMMAND_FORMAT_SPEC = "FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant";
+// The expression of the Python page, as its template string leaves it: names get quotes, then the line is JSON.
+const STRING_PREPROCESSOR = /(?:"((?:[^"]|")*)")|([a-zA-Z_][a-zA-Z_0-9.]*)|(<FILL-VALUE>)/g;
+
+function lineText(type, state) {
+  switch (type.kind) {
+    case "array": return `[${state.map((item) => lineText(type.element, item)).join(", ")}]`;
+    case "struct":
+      return `{${type.members.map((m) => `${m.name}: ${m.count === null ? lineText(m.type, state[m.name])
+        : `[${state[m.name].map((item) => lineText(m.type, item)).join(", ")}]`}`).join(", ")}}`;
+    case "string": return `"${String(state ?? "").replace(/"/g, '\\"')}"`;
+  }
+  if (state === null || state === "") return FILL_NEEDED;
+  try {
+    if (type.kind === "float") return String(parseFloat(state));
+    if (type.kind !== "integer") return String(state);
+    if (type.bits === 64) return String(BigInt(state));
+    if (type.signed) return String(parseInt(state, 10));
+    const radix = { "0x": 16, "0b": 2, "0o": 8 }[state.slice(0, 2)];
+    return String(radix === 16 ? parseInt(state, 16) : radix ? parseInt(state.slice(2), radix) : parseInt(state, 10));
+  } catch (e) { return FILL_NEEDED; }
+}
+
+// The tokens of a line: its name and its arguments, a number as the text the Python page gives its input
+// (an integer of any size in full, any other number as JavaScript writes it).
+function lineTokens(text) {
+  const tokens = JSON.parse(`[${text.replace(STRING_PREPROCESSOR, '"$1$2$3"')}]`, (key, value, context) => {
+    if (typeof value !== "number") return value;
+    const source = context && context.source;
+    return source && /^-?\d+$/.test(source) && !Number.isSafeInteger(value) ? source : String(value);
+  });
+  if (typeof tokens[0] !== "string") throw new SyntaxError("no command name");
+  return tokens;
 }
 
 // An argument of a command record as the history of the Python GDS page writes it: an array in
 // brackets, a struct in braces with its member names, a string in double quotes.
 function shown(type, value) {
   if (value === null || value === undefined) return "";
+  // A refused command holds its arguments as typed: the page of the Python GDS writes the number read.
+  if (typeof value === "string" && type && type.kind === "float" && !Number.isNaN(parseFloat(value))) return String(parseFloat(value));
+  if (typeof value === "string" && type && type.kind === "integer") {
+    try { return String(BigInt(value)); } catch (e) { return value; }
+  }
   switch (type && type.kind) {
     case "array": return `[${value.map((item) => shown(type.element, item)).join(", ")}]`;
     case "struct":
@@ -94,6 +142,8 @@ function convert(type, state, path, mistakes) {
           : state[m.name].map((item, i) => convert(m.type, item, `${path}.${m.name}[${i}]`, mistakes)),
       ]));
     default: {
+      // A line typed as `Command String` can give an array or a struct where one value is taken.
+      if (state !== null && typeof state === "object") state = String(state);
       const problem = mistake(type, state);
       if (problem !== null) mistakes.set(path, problem);
       if (type.kind === "bool") return state === "true";
@@ -107,12 +157,17 @@ class CommandsTab extends LitElement {
   static properties = {
     filter: { state: true }, selected: { state: true }, values: { state: true }, mistakes: { state: true },
     message: { state: true }, sending: { state: true }, version: { state: true }, historyFilter: { state: true },
+    parameters: { state: true }, lineError: { state: true }, unknown: { state: true },
   };
 
   constructor() {
     super();
     this.filter = "";
     this.historyFilter = "";
+    this.parameters = true; // "Show Parameter Commands" of the Python GDS page, ticked at start
+    this.lineError = "";
+    this.unknown = "";
+    this.line = "";
     this.selected = null;
     this.values = {};
     this.mistakes = new Map();
@@ -149,7 +204,7 @@ class CommandsTab extends LitElement {
   argumentText(record) {
     const command = this.commands.find((c) => c.name === record.body.name);
     const args = record.body.args || {};
-    if (!command) return this.gds.format.value(Object.values(args));
+    if (!command || Array.isArray(args)) return this.gds.format.value(Object.values(args));
     return command.params.map((p) => shown(p.type, args[p.name])).join(", ");
   }
 
@@ -157,12 +212,41 @@ class CommandsTab extends LitElement {
     const command = this.commands.find((c) => c.name === name);
     if (!command) return;
     this.selected = command;
+    this.unknown = "";
     this.values = Object.fromEntries(command.params.map((p) => [
       p.name, args && p.name in args ? fromRecord(p.type, args[p.name]) : initial(p.type),
     ]));
     this.mistakes = new Map();
     this.message = null;
     this.cleared = true;
+  }
+
+  // A line typed as `Command String`: the form is filled and its fields are checked, as the Python page.
+  fromLine(text, input) {
+    this.lineError = "";
+    // The input shows the line of the form again, whatever was typed.
+    this.updateComplete.then(() => { input.value = this.line; });
+    let tokens;
+    try { tokens = lineTokens(text); } catch (e) {
+      this.lineError = `Expected command string of the form: ${COMMAND_FORMAT_SPEC}.`;
+      return;
+    }
+    const wanted = tokens[0].toLowerCase();
+    const found = this.commands.filter((c) => c.name.toLowerCase() === wanted);
+    const command = this.commands.find((c) => c.name === tokens[0]) || (found.length === 1 ? found[0] : null);
+    if (!command) {
+      // As the Python page: the name is shown as an invalid command, with no argument.
+      this.selected = null;
+      this.unknown = tokens[0];
+      return;
+    }
+    // An argument the line does not give keeps what the form holds for this command.
+    const held = this.selected === command ? this.values : {};
+    this.choose(command.name, Object.fromEntries(command.params.map((p, i) => [p.name, tokens[i + 1]])
+      .filter(([, value]) => value !== undefined)));
+    this.values = { ...this.values, ...Object.fromEntries(command.params.slice(tokens.length - 1)
+      .filter((p) => p.name in held).map((p) => [p.name, held[p.name]])) };
+    this.request();
   }
 
   // Replace the value at `path` (argument name, then member names and indexes).
@@ -268,9 +352,14 @@ class CommandsTab extends LitElement {
   render() {
     const format = this.gds.format;
     const needle = this.filter.toLowerCase();
-    const listed = this.commands.filter((c) => !needle || c.name.toLowerCase().includes(needle)
-      || format.hexId(c.opcode).includes(needle));
     const command = this.selected;
+    // As the Python page: without the box, the commands that set and save parameters are left out, but for
+    // the one that is selected.
+    const parameter = (c) => /_PRM_(SET|SAVE)$/.test(c.name) && !(command && c.name === command.name);
+    const listed = this.commands.filter((c) => (this.parameters || !parameter(c))
+      && (!needle || c.name.toLowerCase().includes(needle) || format.hexId(c.opcode).includes(needle)));
+    const line = command ? [command.name, ...command.params.map((p) => lineText(p.type, this.values[p.name]))].join(", ") : this.unknown;
+    this.line = line;
     const wanted = this.historyFilter.toLowerCase();
     const history = this.history
       .filter((r) => !wanted || `${r.body.name} ${format.value(r.body.args)} ${r.body.outcome}`.toLowerCase().includes(wanted))
@@ -280,6 +369,8 @@ class CommandsTab extends LitElement {
         <div class="command-list">
           <input type="search" id="command-filter" placeholder="Filter commands" .value=${this.filter}
             @input=${(e) => { this.filter = e.target.value; }}>
+          <label><input type="checkbox" id="show-parameter-commands" .checked=${this.parameters}
+            @change=${(e) => { this.parameters = e.target.checked; }}>Show Parameter Commands</label>
           <select id="command-select" size="14" @change=${(e) => this.choose(e.target.value)}>
             ${listed.map((c) => html`<option value=${c.name} ?selected=${command && c.name === command.name}
               title=${c.annotation}>${c.name}</option>`)}
@@ -297,10 +388,16 @@ class CommandsTab extends LitElement {
             <div class="toolbar">
               <button class="action" id="command-send" type="submit" ?disabled=${this.sending}>Send command</button>
               <button class="action secondary" type="button" id="command-clear" @click=${() => this.choose(command.name)}>Clear</button>
-            </div>` : html`<div class="muted">Choose a command.</div>`}
+            </div>` : this.unknown ? html`<h3 id="command-name">${this.unknown}</h3><div class="error-text">Invalid command</div>`
+              : html`<div class="muted">Choose a command.</div>`}
           ${this.message ? html`<div id="command-message" class=${this.message.error ? "error-text" : ""}>${this.message.text}</div>` : nothing}
         </form>
       </div>
+      <h3>Command String</h3>
+      <input type="text" id="command-string" class=${this.lineError ? "invalid" : ""} .value=${line}
+        placeholder="Command string of the form: ${COMMAND_FORMAT_SPEC}"
+        @focus=${() => { this.lineError = ""; }} @change=${(e) => this.fromLine(e.target.value, e.target)}>
+      ${this.lineError ? html`<div class="error-text" id="command-string-error">${this.lineError}</div>` : nothing}
       <h3>Command history</h3>
       <div class="toolbar">
         <label>Filter <input type="search" id="history-filter" .value=${this.historyFilter}
@@ -312,7 +409,7 @@ class CommandsTab extends LitElement {
         <tbody>
           ${history.map((r) => html`<tr class="outcome-${r.body.outcome}" data-seq=${r.seq}>
             <td class="nowrap mono" data-col="ground">${format.groundTime(r.ground_time)}</td>
-            <td class="nowrap mono" data-col="opcode">${format.hexId(r.id)}</td>
+            <td class="nowrap mono" data-col="opcode">${format.hexId(r.id ?? (this.commands.find((c) => c.name === r.body.name) || {}).opcode)}</td>
             <td class="nowrap" data-col="name">${r.body.name}</td>
             <td class="text" data-col="args">${this.argumentText(r)}</td>
             <td data-col="outcome">${r.body.outcome}${r.body.reason ? `: ${r.body.reason}` : ""}</td>

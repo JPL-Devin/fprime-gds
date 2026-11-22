@@ -70,7 +70,7 @@ export function row(t, control, extra) {
   return html`<tr>
     <td>${when(t.started)}</td>
     <td>${when(t.ended)}</td>
-    <td>${t.source}</td>
+    <td>${t.source}${t.packets && t.packets.length ? ` [${t.packets.join(", ")}]` : ""}</td>
     <td>${t.destination}</td>
     <td class=${t.state}>${t.state}${t.reason ? ": " + t.reason : ""}</td>
     <td>${control}</td>
