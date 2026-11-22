@@ -47,6 +47,7 @@ two seeds and from a second clone with a new virtual environment).
 | `dictionary/RefTopologyDictionary.json` | `loaders/resources/` | Ref dictionary |
 | `dictionary/RefTopologyDictionary.expected.json` | generated | what the Python loaders build from it |
 | `vectors/` | generated | byte vectors (below) |
+| `command-messages/python-page.json` | recorded | messages of the Commanding tab of the Python GDS page (release 4.4.0, Ref dictionary) for empty and invalid arguments; `tests/browser/messages.py record URL FILE` against a running `fprime-gds -g html` |
 
 ### Data products (`dp/`)
 

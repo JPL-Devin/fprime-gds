@@ -123,10 +123,14 @@ def stock(browser, gds):
         if message is None:
             scenario.wait_for(f"{name}={text!r} sent", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
         else:
-            assert page.text_content(f"[data-error-for={name}]") == message, (name, text)
             assert "invalid" in page.get_attribute(f"[data-arg={name}]", "class"), (name, text)
-            assert page.locator("#command-message").count() == 0 or not page.text_content("#command-message"), \
-                "a line under the form, which the Python GDS page does not have"
+            if message:
+                assert page.text_content(f"[data-error-for={name}]") == message, (name, text)
+                assert page.locator("#command-message").count() == 0, "a line under the form and a message"
+            else:
+                # No message in the Python GDS page (the browser explains): a line under the form, never silence.
+                assert page.locator(f"[data-error-for={name}]").count() == 0, (name, text)
+                assert "was not sent" in page.text_content("#command-message"), (name, text)
             assert len(rows(page, "#command-history")) == sent, f"{name}={text!r} was sent"
     step(f"command inputs: {len(cases)} integer texts taken or refused as in the Python GDS page, with its messages; "
          "a negative float is sent")

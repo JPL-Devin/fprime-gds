@@ -18,4 +18,5 @@ fi
 cargo build --quiet -p browser-gds
 
 "$tools/bin/python" "$here/ui.py" "$FGDS" "$PWD/target/debug/browser-gds" "$REF_BIN" "$DICTIONARY" "$OUT/ui"
+"$tools/bin/python" "$here/messages.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-messages/python-page.json" "$OUT/messages"
 PATH="$VENV/bin:$PATH" "$tools/bin/python" "$here/parity.py" "$FGDS" "$REF_BIN" "$DICTIONARY" "$VENV/bin/fprime-gds" "$OUT/parity"

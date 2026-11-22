@@ -4,17 +4,19 @@ import { LitElement, html, nothing } from "/ui/lit.js";
 
 const KIND = "fprime.command";
 
-// The value an input of `type` starts with. Scalars start empty, so nothing is sent by accident.
+// The value an input of `type` starts with. Scalars start empty, so nothing is sent by accident: null until
+// something is typed, as in the Python GDS page, which tells it from a text typed and removed ("").
 function initial(type) {
   switch (type.kind) {
     case "enum": return type.constants.some((c) => c.name === type.default) ? type.default : type.constants[0].name;
-    case "bool": return "";
+    case "bool": return null;
     case "array": return Array.from({ length: type.size }, () => initial(type.element));
     case "struct":
       return Object.fromEntries(type.members.map((m) => [
         m.name, m.count === null ? initial(m.type) : Array.from({ length: m.count }, () => initial(m.type)),
       ]));
-    default: return "";
+    case "string": return "";
+    default: return null;
   }
 }
 
@@ -47,8 +49,10 @@ function shown(type, value) {
   }
 }
 
-// The mistake in a scalar input, or null.
+// The mistake in a scalar input, or null: the message under the input ("" when the Python GDS page refuses
+// without one), and whether the array or struct that holds the input names it in its own line.
 function mistake(type, text) {
+  const said = (message) => ({ text: message, counted: true });
   switch (type.kind) {
     // Integers and floats: the rules and the messages of the Python GDS page (validate.js).
     case "integer": {
@@ -57,24 +61,25 @@ function mistake(type, text) {
       const min = type.signed ? -(1n << BigInt(type.bits - 1)) : 0n;
       const max = type.signed ? (1n << BigInt(type.bits - 1)) - 1n : (1n << BigInt(type.bits)) - 1n;
       const kind = type.signed ? "signed decimal integer" : "binary, octal, decimal, or hexadecimal unsigned integer";
-      // validate.js reads the text with BigInt (which takes " 4 ", "007", "0x10" and ""): a message only when
-      // that fails or the value is out of range. The pattern and `required` of the input then refuse the
-      // rest without a message.
+      // validate.js reads the text with BigInt (which takes " 4 ", "007", "0x10" and ""): a message when
+      // nothing was typed, when that fails or when the value is out of range. The pattern and `required` of
+      // the input then refuse the rest without a message.
       let value = null;
-      try { value = BigInt(text); } catch (e) { /* not an integer */ }
-      if (value === null || value < min || value > max) return `Supply ${kind}  between ${min} and ${max}`;
-      return pattern.test(text) ? null : "";
+      try { value = text === null ? null : BigInt(text); } catch (e) { /* not an integer */ }
+      if (value === null || value < min || value > max) return said(`Supply ${kind}  between ${min} and ${max}`);
+      return pattern.test(text) ? null : { text: "", counted: false };
     }
-    case "float": return Number.isNaN(parseFloat(text)) ? "Supply floating point number" : null;
-    case "bool": return text === "true" || text === "false" ? null : "choose true or false";
+    case "float": return Number.isNaN(parseFloat(text)) ? said("Supply floating point number") : null;
+    // validate.js has no message for a bool that is not chosen.
+    case "bool": return text === "true" || text === "false" ? null : said("");
     case "string": {
       const bytes = new TextEncoder().encode(text).length;
       // The Python GDS page refuses an empty text and one longer than the type holds.
       const fits = bytes > 0 && (type.max === undefined || bytes <= type.max);
-      return fits ? null : `Supply general text of less than ${type.max} characters`;
+      return fits ? null : said(`Supply general text of less than ${type.max} characters`);
     }
-    case "enum": return type.constants.some((c) => c.name === text) ? null : `not a constant of ${type.name}`;
-    default: return `type ${type.name} is not supported`;
+    case "enum": return type.constants.some((c) => c.name === text) ? null : said(`not a constant of ${type.name}`);
+    default: return said(`type ${type.name} is not supported`);
   }
 }
 
@@ -180,8 +185,11 @@ class CommandsTab extends LitElement {
 
   async send(request = this.request()) {
     if (!request) {
-      // As the Python GDS page: the fields are marked, with their messages; no line under the form.
-      this.message = null;
+      // As the Python GDS page: the fields are marked, with their messages. Where it has no message for a
+      // marked field (and shows the one of the browser), a line under the form says why nothing is sent.
+      const silent = [...this.mistakes.values()].every((m) => m.text === "");
+      this.message = silent
+        ? { error: true, text: `${this.selected.name} was not sent: the marked fields are empty or not valid` } : null;
       return;
     }
     this.sending = true;
@@ -197,7 +205,7 @@ class CommandsTab extends LitElement {
 
   // The line the Python GDS page writes under an array or struct: one sentence per member in error.
   groupNote(key, children) {
-    const keys = [...this.mistakes.keys()];
+    const keys = [...this.mistakes].filter(([, m]) => m.counted).map(([k]) => k);
     const bad = children.filter(([, child]) => keys.some((k) => k === child || k.startsWith(child + ".") || k.startsWith(child + "[")));
     const text = bad.map(([token]) => `Error in field/index: ${token}.`).join(" ");
     return bad.length ? html`<div class="error-text" data-error-for=${key}>${text}</div>` : nothing;
@@ -206,9 +214,9 @@ class CommandsTab extends LitElement {
   input(type, state, path, label) {
     const key = label;
     const problem = this.mistakes.has(key);
-    const text = this.mistakes.get(key);
+    const text = problem ? this.mistakes.get(key).text : "";
     const set = (e) => this.setAt(path, e.target.value);
-    const note = problem ? html`<span class="error-text" data-error-for=${key}>${text}</span>` : nothing;
+    const note = text ? html`<span class="error-text" data-error-for=${key}>${text}</span>` : nothing;
     switch (type.kind) {
       case "enum":
         return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
@@ -216,7 +224,7 @@ class CommandsTab extends LitElement {
         </select>${note}`;
       case "bool":
         return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
-          <option value="" ?selected=${state === ""}></option>
+          <option value="" ?selected=${!state}></option>
           <option value="true" ?selected=${String(state).toLowerCase() === "true"}>true</option>
           <option value="false" ?selected=${String(state).toLowerCase() === "false"}>false</option>
         </select>${note}`;
@@ -242,10 +250,10 @@ class CommandsTab extends LitElement {
           // A number input, as in the Python GDS page. While the text is not yet a number ("1e", "-") the
           // input reports an empty value: `updated` then leaves the field alone, so the typing goes on.
           return html`<input type="number" step="any" data-arg=${key} class=${problem ? "invalid" : ""}
-            .wanted=${state} placeholder=${type.name} @input=${set}>${note}`;
+            .wanted=${state ?? ""} placeholder=${type.name} @input=${set}>${note}`;
         }
         return html`<input type="text" data-arg=${key}
-          class=${problem ? "invalid" : ""} .value=${state} placeholder=${type.name} @input=${set}>${note}`;
+          class=${problem ? "invalid" : ""} .value=${state ?? ""} placeholder=${type.name} @input=${set}>${note}`;
     }
   }
 
