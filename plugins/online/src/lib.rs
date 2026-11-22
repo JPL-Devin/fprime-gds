@@ -194,7 +194,7 @@ impl Subcommand for Records {
                 result = follow => result.map(|()| ExitCode::SUCCESS),
                 // `fprime-cli` ends with exit code 0 when nothing came in time.
                 () = limit => Ok(ExitCode::SUCCESS),
-                _ = tokio::signal::ctrl_c() => Ok(ExitCode::SUCCESS),
+                () = fgds_core::interrupt() => Ok(ExitCode::SUCCESS),
             }
         })
     }
@@ -265,6 +265,10 @@ impl Subcommand for CommandSend {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
+        // argparse of fprime-cli reads `-inf` as `-i nf` and refuses the identifier.
+        if let Err(error) = Filter::from(args) {
+            return Ok(refused(&error));
+        }
         if args.get_flag("list") {
             return Commands.run(args, env);
         }

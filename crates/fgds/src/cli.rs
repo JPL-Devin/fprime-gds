@@ -232,11 +232,11 @@ async fn interrupted() {
         use tokio::signal::unix::{signal, SignalKind};
         if let Ok(mut terminate) = signal(SignalKind::terminate()) {
             tokio::select! {
-                _ = tokio::signal::ctrl_c() => {}
+                () = fgds_core::interrupt() => {}
                 _ = terminate.recv() => {}
             }
             return;
         }
     }
-    let _ = tokio::signal::ctrl_c().await;
+    fgds_core::interrupt().await;
 }

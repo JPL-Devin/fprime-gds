@@ -212,6 +212,27 @@ def refused(fgds):
     finally:
         endless.kill()
         endless.wait()
+    for argument, message in (
+        ("-inf", "argument -i/--ids: invalid int value: 'nf'"),
+        ("-infinity", "argument -i/--ids: invalid int value: 'nfinity'"),
+    ):
+        for name in ("Ref.sendBuffComp.PARAMETER3_PRM_SET", "Ref.sendBuffComp.PARAMETER4_PRM_SET"):
+            code, _, error = run(fgds.cli("command-send", name, "--arguments", argument))
+            require(f"{name} {argument}: read as `-i`, exit code 2 and the error of fprime-cli",
+                    code == 2 and error.strip() == f"fgds: error: {message}", f"{code} {error}")
+    # fprime-cli: exit code 2 and `fprime-cli: error: unrecognized arguments: <argument>`.
+    for argument in ("-Infinity", "-NaN", "-1e-400", "-1e308"):
+        code, _, error = run(fgds.cli("command-send", "Ref.sendBuffComp.PARAMETER3_PRM_SET", "--arguments", argument))
+        require(f"PARAMETER3_PRM_SET {argument}: exit code 2", code == 2, f"{code} {error}")
+    # A background job of a shell script without job control has SIGINT ignored: fprime-cli keeps running.
+    script = 'trap "" INT; "$@" & pid=$!; sleep 2; kill -INT $pid; sleep 2; kill -0 $pid; alive=$?; kill -KILL $pid; exit $alive'
+    for subcommand in ("events", "channels"):
+        code, _, error = run(["sh", "-c", script, "sh", *fgds.cli(subcommand)])
+        require(f"{subcommand} started with SIGINT ignored keeps running after SIGINT, as fprime-cli", code == 0, f"{code} {error}")
+    interrupted = subprocess.Popen(fgds.cli("events"), env=ENV, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(2)
+    interrupted.send_signal(signal.SIGINT)
+    require("events started normally ends with exit code 0 on SIGINT", interrupted.wait(timeout=10) == 0)
     scalars = dict(i8=1, i16=2, i32=3, i64=4, u8="7", u16=6, u32=7, u64=8, f32=1.5, f64=2.5)
     code, _, error = run(fgds.cli("command-send", "Ref.typeDemo.SEND_SCALARS", "--arguments", json.dumps(scalars)))
     require("a text where the JSON argument holds a number is refused with the message of fprime-cli, nothing sent",

@@ -41,3 +41,17 @@ pub use {axum, bytes, clap, serde_json};
 
 /// Version of the extension-point interface and of the stock GDS.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Completes on Ctrl-C. Never completes when the process was started with SIGINT ignored (a
+/// background job of a shell script): installing a handler would undo that, and `fprime-cli`
+/// keeps running there. Read from `/proc/self/status`, so on Linux only.
+pub async fn interrupt() {
+    let ignored = std::fs::read_to_string("/proc/self/status").ok().and_then(|status| {
+        let mask = status.lines().find_map(|line| line.strip_prefix("SigIgn:"))?;
+        u64::from_str_radix(mask.trim(), 16).ok()
+    });
+    if ignored.is_some_and(|mask| mask & 0b10 != 0) {
+        return std::future::pending().await;
+    }
+    let _ = tokio::signal::ctrl_c().await;
+}
