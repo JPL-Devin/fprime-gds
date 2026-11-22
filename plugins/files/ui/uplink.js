@@ -1,5 +1,5 @@
 // The Uplink tab: stage files, choose a destination, begin the uplink and control the queue (FIL-1, FIL-4).
-import { FilesTab, html, styles, when, progress } from "./common.js";
+import { FilesTab, html, styles, row } from "./common.js";
 
 class FgdsUplink extends FilesTab {
   static styles = styles;
@@ -64,15 +64,10 @@ class FgdsUplink extends FilesTab {
           <td><button @click=${() => { this.staged = this.staged.filter((_, i) => i !== n); }}>Remove</button></td>
           <td>0%</td>
         </tr>`)}
-        ${data.files.slice().reverse().map((t) => html`<tr>
-          <td>${when(t.started)}</td><td>${when(t.ended)}</td><td>${t.source}</td><td>${t.destination}</td>
-          <td class=${t.state}>${t.state}${t.reason ? ": " + t.reason : ""}</td>
-          <td>${active(t)
-            ? html`<button @click=${post("/" + encodeURIComponent(t.id) + "/cancel")}>
-                ${t.state === "queued" ? "Remove" : "Cancel"}</button>`
-            : ""}</td>
-          <td>${progress(t)}</td>
-        </tr>`)}
+        ${data.files.slice().reverse().map((t) => row(t, active(t)
+          ? html`<button @click=${post("/" + encodeURIComponent(t.id) + "/cancel")}>
+              ${t.state === "queued" ? "Remove" : "Cancel"}</button>`
+          : ""))}
       </table>`;
   }
 }

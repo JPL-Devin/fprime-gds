@@ -65,15 +65,16 @@ export function progress(t) {
       ${t.done} / ${t.size} bytes (${percent(t)}%)`;
 }
 
-export function row(t, extra) {
+// A row in the columns of the Python GDS page: Start Time, End Time, Source, Destination, State, Control, Progress.
+export function row(t, control, extra) {
   return html`<tr>
     <td>${when(t.started)}</td>
     <td>${when(t.ended)}</td>
-    <td>${t.name}</td>
     <td>${t.source}</td>
     <td>${t.destination}</td>
     <td class=${t.state}>${t.state}${t.reason ? ": " + t.reason : ""}</td>
+    <td>${control}</td>
     <td>${progress(t)}</td>
-    <td>${extra}</td>
+    ${extra === undefined ? "" : html`<td>${extra}</td>`}
   </tr>`;
 }

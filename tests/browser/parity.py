@@ -80,7 +80,9 @@ def capture():
         proxy = scenario.Proxy(gds.link_port)
         ref = scenario.start_ref(REF, proxy, out)
         scenario.wait_for("telemetry", lambda: gds.get("/records?kind=fprime.channel&limit=1")["records"])
-        for name, arguments in [*scenario.COMMANDS, *(("CdhCore.cmdDisp.CMD_NO_OP_STRING", [text]) for text in TEXTS)]:
+        # `DUMP_FILTER_STATE` gives events that name a severity in their text and are of another one.
+        for name, arguments in [*scenario.COMMANDS, ("CdhCore.events.DUMP_FILTER_STATE", []),
+                                *(("CdhCore.cmdDisp.CMD_NO_OP_STRING", [text]) for text in TEXTS)]:
             gds.post("/commands", {"name": name, "args": arguments})
             time.sleep(scenario.GAP)
         time.sleep(scenario.SETTLE)
@@ -92,6 +94,18 @@ def capture():
     data = scenario.whole_frames(bytes(proxy.downlink), FRAMING, FRAME_SIZE)
     open(f"{OUT}/downlink.bin", "wb").write(data)
     return data
+
+
+def counters_equal_rows(page, when):
+    """The counters of the top bar are the numbers of rows of these severities in the Events table. An event
+    of another severity whose text names one (`Severity WARNING_HI ... ENABLED`) is not counted."""
+    severities = page.eval_on_selector_all("#events-table td[data-col=severity]", "(cells) => cells.map((c) => c.textContent)")
+    texts = page.eval_on_selector_all("#events-table td[data-col=text]", "(cells) => cells.map((c) => c.textContent)")
+    assert severities.count("WARNING_HI") >= 2, severities
+    assert any("WARNING_HI" in text for text, severity in zip(texts, severities) if severity != "WARNING_HI"), texts
+    expected = [f"WARNING HI: {severities.count('WARNING_HI')}", f"FATAL: {severities.count('FATAL')}", "GDS Errors: 0"]
+    scenario.wait_for(f"the counters {expected} {when}", lambda: page.locator("#counters span").all_text_contents() == expected)
+    step(f"new page, {when}: {', '.join(expected)}, the numbers of rows of these severities in the Events table")
 
 
 def new_page_tables(browser, data):
@@ -117,6 +131,7 @@ def new_page_tables(browser, data):
         scenario.steady(lambda: gds.get("/status")["counters"].get("packets_received", 0))
         count = len(gds.get("/records?kind=fprime.event&limit=10000")["records"])
         page.wait_for_function(f"() => document.querySelectorAll('#events-table tbody tr').length === {count}")
+        counters_equal_rows(page, "half from the history, half from the stream")
         newest = max(int(r["seq"]) for r in gds.get("/records/latest?kind=fprime.channel")["records"])
         show(page, "channels")
         page.wait_for_function(f"""() => Math.max(...[...document.querySelectorAll('#channels-table tbody tr')]
@@ -131,6 +146,8 @@ def new_page_tables(browser, data):
         page.reload()
         page.wait_for_selector("body[data-ready=true]")
         show(page, "events")
+        page.wait_for_function(f"() => document.querySelectorAll('#events-table tbody tr').length === {count}")
+        counters_equal_rows(page, "after a reload")
         assert "Ground time" not in page.eval_on_selector("#events-table", NEW_PAGE)["header"], "the hidden column is back after a reload"
         show(page, "channels")
         page.screenshot(path=f"{OUT}/new-channels.png")

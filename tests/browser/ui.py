@@ -375,15 +375,18 @@ def files_and_products(page, gds):
     downlink = page.locator("fgds-downlink")
     gds.post("/commands", {"name": "FileHandling.fileDownlink.SendFile", "args": ["down-source.bin", "down.bin"]})
     expect(downlink.locator("tr", has_text="down.bin").first).to_contain_text("finished", timeout=30000)
-    expect(downlink.locator("a[download='down.bin']")).to_have_count(1)
+    # One link in the Control column of the row, as the Python page, and one in the table of files.
+    expect(downlink.locator("a[download='down.bin']")).to_have_count(2)
+    assert downlink.locator("table").first.locator("th").all_text_contents() == [
+        "Start Time", "End Time", "Source", "Destination", "State", "Control", "Progress", "Problems"]
     # A part of a file ends as finished with its percentage and no problem counted, as on the Python GDS page.
     gds.post("/commands", {"name": "FileHandling.fileDownlink.SendPartial", "args": ["down-source.bin", "part.bin", 100, 500]})
     expect(downlink.locator("tr", has_text="part.bin").first).to_contain_text("finished", timeout=30000)
     part = downlink.locator("tr", has_text="part.bin").first.locator("td").all_text_contents()
-    assert http_date.match(part[0]) and http_date.match(part[1]) and part[5] == "finished" and part[7] == "", part
+    assert http_date.match(part[0]) and http_date.match(part[1]) and part[4] == "finished" and part[5] == "Download" and part[7] == "", part
     assert re.search(r"\(\d+%\)", part[6]) and "(100%)" not in part[6], part
     with page.expect_download() as download:
-        downlink.locator("a[download='down.bin']").click()
+        downlink.locator("tr", has_text="down.bin").first.locator("td").nth(5).locator("a").click()
     assert open(download.value.path(), "rb").read() == open(f"{gds.out}/ref/down-source.bin", "rb").read()
     step("Downlink tab: down.bin sent by Ref is listed as finished, and the file downloaded from the page is the one Ref sent")
 
