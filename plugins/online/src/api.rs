@@ -88,7 +88,8 @@ impl Api {
         }
     }
 
-    /// Stored records of `kind` after `*after`, up to `until` when given; `*after` moves along.
+    /// Stored records of `kind` after `*after`, up to `until` when given, in the order of their
+    /// flight times (see `by_flight_time`); `*after` moves along.
     pub async fn history(
         &self,
         kind: &str,
@@ -96,28 +97,35 @@ impl Api {
         until: Option<u64>,
         on_record: &mut impl FnMut(&Value) -> bool,
     ) -> Result<()> {
-        loop {
+        let mut held = Vec::new();
+        'pages: loop {
             let from = after.to_string();
             let page = self.get("/records", &[("kind", kind), ("after_seq", &from), ("limit", PAGE)]).await?;
             for record in page["records"].as_array().into_iter().flatten() {
                 let Some(at) = seq(&record["seq"]) else { continue };
                 if until.is_some_and(|until| at > until) {
-                    return Ok(());
+                    break 'pages;
                 }
                 *after = at;
-                on_record(record);
+                held.push(record.clone());
             }
             match seq(&page["next"]) {
                 Some(next) => *after = (*after).max(next),
-                None => return Ok(()),
+                None => break,
             }
         }
+        by_flight_time(&mut held);
+        held.iter().for_each(|record| {
+            on_record(record);
+        });
+        Ok(())
     }
 
     /// Records of `kind` after `*after`, stored ones first and then live ones, each
-    /// once and in order (API-6). Returns after the first accepted record when
-    /// `first_only`; otherwise only on an error. Reconnects where it stopped when the
-    /// GDS drops this client for being slow.
+    /// once (API-6). The stored ones, and the live ones that arrive within `HOLD` of each
+    /// other, are given in the order of their flight times (see `by_flight_time`). Returns
+    /// after the first accepted record when `first_only`; otherwise only on an error.
+    /// Reconnects where it stopped when the GDS drops this client for being slow.
     pub async fn follow(
         &self,
         kind: &str,
@@ -130,37 +138,72 @@ impl Api {
             let url = format!("{base}/stream?kind={kind}&after_seq={after}");
             let (mut socket, _) =
                 tokio_tungstenite::connect_async(&url).await.map_err(|e| failed(&format!("no stream at {url}"), e))?;
+            let mut held: Vec<Value> = Vec::new();
+            // Stored records are held until the stream says it is live; live ones for `HOLD`.
+            let (mut live, mut due) = (false, None);
             loop {
-                let text = match socket.next().await {
-                    Some(Ok(Message::Text(text))) => text,
-                    Some(Ok(Message::Close(_))) | None => return Err(Error::Other("the GDS closed the stream".into())),
-                    Some(Ok(_)) => continue,
-                    Some(Err(e)) => return Err(failed("the stream failed", e)),
+                let next = async {
+                    match due {
+                        Some(due) if live => tokio::time::timeout_at(due, socket.next()).await.ok(),
+                        _ => Some(socket.next().await),
+                    }
                 };
-                let message: Value =
-                    fgds_core::serde_json::from_str(&text).map_err(|e| failed("the stream sent no JSON", e))?;
-                match message["type"].as_str() {
-                    Some("record") => {
-                        let record = &message["record"];
-                        // A record seen before a reconnection is not printed twice.
-                        match seq(&record["seq"]) {
-                            Some(at) if at > *after => *after = at,
-                            _ => continue,
+                let mut flush = false;
+                let mut lagged = false;
+                match next.await {
+                    None => flush = true,
+                    Some(Some(Ok(Message::Text(text)))) => {
+                        let mut message: Value =
+                            fgds_core::serde_json::from_str(&text).map_err(|e| failed("the stream sent no JSON", e))?;
+                        match message["type"].as_str() {
+                            Some("record") => {
+                                let record = message["record"].take();
+                                // A record seen before a reconnection is not printed twice.
+                                if seq(&record["seq"]).is_some_and(|at| at > *after) {
+                                    *after = seq(&record["seq"]).unwrap_or(*after);
+                                    due = due.or(Some(tokio::time::Instant::now() + HOLD));
+                                    held.push(record);
+                                }
+                            }
+                            Some("live") => (live, flush) = (true, true),
+                            Some("lagged") => {
+                                *after = seq(&message["last_seq"]).map_or(*after, |last| last.max(*after));
+                                (flush, lagged) = (true, true);
+                            }
+                            _ => {}
                         }
-                        if on_record(record) && first_only {
+                    }
+                    Some(Some(Ok(Message::Close(_))) | None) => {
+                        return Err(Error::Other("the GDS closed the stream".into()))
+                    }
+                    Some(Some(Ok(_))) => {}
+                    Some(Some(Err(e))) => return Err(failed("the stream failed", e)),
+                }
+                if flush {
+                    by_flight_time(&mut held);
+                    for record in held.drain(..) {
+                        if on_record(&record) && first_only {
                             return Ok(());
                         }
                     }
-                    Some("lagged") => {
-                        *after = seq(&message["last_seq"]).map_or(*after, |last| last.max(*after));
-                        break;
-                    }
-                    // Other notices (such as the end of the replay) need no action here.
-                    _ => {}
+                    due = None;
+                }
+                if lagged {
+                    break;
                 }
             }
         }
     }
+}
+
+/// How long `follow` holds a live record for others to put in order with it.
+const HOLD: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// The order `fprime-cli` prints in: by flight time (its history is kept sorted by time), and
+/// by arrival where the times are equal. Stored records and the API keep the order of arrival.
+fn by_flight_time(records: &mut [Value]) {
+    let field = |record: &Value, name: &str| record["flight_time"][name].as_u64().unwrap_or(0);
+    records.sort_by_key(|record| (field(record, "seconds"), field(record, "microseconds")));
 }
 
 #[cfg(test)]
@@ -181,5 +224,20 @@ mod tests {
         assert_eq!(seq(&json!("18446744073709551615")), Some(u64::MAX));
         assert_eq!(seq(&json!(7)), Some(7));
         assert_eq!(seq(&json!(null)), None);
+    }
+
+    #[test]
+    fn records_are_ordered_by_flight_time_then_arrival() {
+        let record = |seq: u64, seconds: u64, microseconds: u64| json!({"seq": seq, "flight_time": {"seconds": seconds, "microseconds": microseconds}});
+        // The pair of the verifier's capture: the later event arrived first.
+        let mut records = vec![
+            record(1, 1795286019, 21047),
+            record(2, 1795286019, 21040),
+            record(3, 1795286019, 21047),
+            record(4, 5, 0),
+        ];
+        by_flight_time(&mut records);
+        let order: Vec<u64> = records.iter().map(|r| r["seq"].as_u64().unwrap()).collect();
+        assert_eq!(order, [4, 2, 1, 3]);
     }
 }

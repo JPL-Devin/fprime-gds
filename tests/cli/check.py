@@ -286,7 +286,10 @@ def main():
         scenario.stop(python.process)
         for subcommand, shape in (("events", received_event), ("channels", received_channel)):
             require(f"fgds {subcommand}: following printed the {len(history[subcommand])} items that --history lists afterwards",
-                    rust[subcommand] == history[subcommand] and rust[subcommand])
+                    sorted(map(json.dumps, rust[subcommand])) == sorted(map(json.dumps, history[subcommand])) and rust[subcommand])
+            # The order of fprime-cli: by flight time (README.md, 2).
+            times = [tuple(map(int, re.fullmatch(r"\(\d+\(\d+\)-(\d+):(\d+)\)", i["raw_time"]).groups())) for i in history[subcommand]]
+            require(f"fgds {subcommand} --history: the {len(times)} items are in the order of their flight times", times == sorted(times))
             subset(subcommand, [shape(i) for i in followed[subcommand]], [shape(i) for i in rust[subcommand]])
     finally:
         for gds in (fgds, python):

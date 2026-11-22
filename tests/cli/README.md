@@ -44,7 +44,8 @@ following printed exactly what `--history` lists.
    samples in a run). For the same reason it sometimes prints an item twice (seen with CCSDS framing, where
    a frame carries packets of two seconds: three samples were printed twice in one run). `fgds` prints
    every record once. The check requires each item of `fprime-cli` to be among those of `fgds`, not equality.
-2. **Order when following.** `fprime-cli` orders by time, `fgds` by arrival. The order is not compared.
+2. **Order.** Both print by flight time, and by arrival where the times are equal (`fgds`: the stored records
+   at once; when following, records that arrive within 100 ms of each other).
 3. **`fprime-cli events --json` stops on an event with an enumeration argument** (`not JSON serializable`).
    `patch/sitecustomize.py` is put on its path so that argument values are written by their value; without it
    no event after `PrmFileReadError` could be compared.
@@ -61,4 +62,4 @@ following printed exactly what `--history` lists.
    the dictionary and ZeroMQ options, `--history`/`--no-follow`, and `--dry-run`. Without `-t`, `fgds` follows
    until interrupted, as `fprime-cli -t 0` does.
 
-Not covered: sending raw bytes and file uplink from the command line (no `fprime-cli` counterpart was built).
+Not covered here: sending raw bytes. File uplink from the command line (`fgds file-uplink`) is checked in `tests/files`.
