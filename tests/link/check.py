@@ -85,7 +85,45 @@ def one(out):
         scenario.stop(gds)
 
 
+def restart(out):
+    """fgds killed (SIGKILL) with Ref connected listens on the same port again at once."""
+    os.makedirs(out)
+    link, http = scenario.free_port(), scenario.free_port()
+    api = f"http://127.0.0.1:{http}/api/v1"
+    command = [FGDS, "run", "--dictionary", DICTIONARY, "--bind", f"127.0.0.1:{http}", "--logs", f"{out}/logs",
+               "--database", f"{out}/gds.db", "--comm-tcp-address", f"0.0.0.0:{link}"]
+    gds = scenario.start(command, open(f"{out}/fgds.log", "w"), cwd=out)
+    ref = None
+    try:
+        scenario.wait_for("fgds", lambda: get(f"{api}/version"))
+        ref = scenario.start([REF, "-a", "127.0.0.1", "-p", str(link)], open(f"{out}/ref.log", "w"), cwd=out)
+        scenario.wait_for("the link", lambda: get(f"{api}/records?kind=fprime.channel&limit=1")["records"])
+        gds.kill()
+        gds.wait()
+        began = time.monotonic()
+        gds = scenario.start(command, open(f"{out}/fgds.log", "a"), cwd=out)
+        before = len(get_when_up(api))
+
+        def again():
+            assert gds.poll() is None, open(f"{out}/fgds.log").read()[-400:]
+            return len(get(f"{api}/records?kind=fprime.channel&after_seq=0&limit=10000")["records"]) > before
+        scenario.wait_for("telemetry after the restart", again, 5)
+        took = time.monotonic() - began
+        assert took < 5 and "Address already in use" not in open(f"{out}/fgds.log").read(), took
+        return took
+    finally:
+        for process in (ref, gds):
+            if process:
+                scenario.stop(process)
+
+
+def get_when_up(api):
+    return scenario.wait_for("fgds again", lambda: get(f"{api}/records?kind=fprime.channel&after_seq=0&limit=10000"), 5)["records"]
+
+
 shutil.rmtree(OUT, ignore_errors=True)
+print(f"  ok: fgds killed with Ref connected and started again: listening on the same port and receiving telemetry "
+      f"from Ref after {restart(f'{OUT}/restart'):.1f} s")
 results = [one(f"{OUT}/{index}") for index in range(STARTS)]
 without = sum(1 for _, _, version in results if not version)
 print(f"  ok: {STARTS} starts of Ref through a proxy: the raw log is the {sum(r[0] for r in results)} bytes Ref wrote, "

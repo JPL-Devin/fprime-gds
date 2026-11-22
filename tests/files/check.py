@@ -69,6 +69,40 @@ def prepare(out):
         file.write(content("down", DOWN_SIZE))
 
 
+class Capture:
+    """The uplink bytes of a proxy up to now."""
+
+    def __init__(self, proxy):
+        self.uplink = bytes(proxy.uplink)
+
+
+def sequence_counts(args, out, proxy):
+    """The Space Packet sequence count of the file packets sent, after files went both ways.
+
+    The Python GDS and `Ref` each keep one count per application identifier for both directions: the count of
+    a file packet sent up is the number of file packets that went up or down before it. `Ref` reports a count
+    it does not expect as `UnexpectedSequenceCount`.
+    """
+    if args.framing != "ccsds":
+        return None
+    size, down = scenario.tm_frame_size(args.dictionary), 0
+    for frame in scenario.frames(bytes(proxy.downlink), "ccsds", size):
+        at = 6
+        while at + 6 <= size - 2 and (apid := int.from_bytes(frame[at:at + 2], "big") & 0x7FF) != 0x7FF:
+            down += apid == FILE_PACKET
+            at += 6 + int.from_bytes(frame[at + 4:at + 6], "big") + 1
+    up = []
+    for frame in scenario.tc_frames(bytes(proxy.uplink), scenario.spacecraft_id(args.dictionary)):
+        data, at = frame[5:-2], 0
+        while at + 6 <= len(data):
+            if int.from_bytes(data[at:at + 2], "big") & 0x7FF == FILE_PACKET:
+                up.append(int.from_bytes(data[at + 2:at + 4], "big") & 0x3FFF)
+            at += 6 + int.from_bytes(data[at + 4:at + 6], "big") + 1
+    assert "UnexpectedSequenceCount" not in open(f"{out}/ref.log", errors="replace").read(), \
+        f"{out}: Ref reported an unexpected sequence count"
+    return {"up": len(up), "down": down, "last": up[-1], "expected": (len(up) - 1 + down) % 16384}
+
+
 def results(args, out, proxy, down_dir, product, skip=0):
     """What is compared: the file packets sent, the files on the Ref side, the files downlinked."""
     return {
@@ -157,7 +191,15 @@ def python_once(args, out, staging):
         pipeline.send_command("DataProducts.dpCat.START_XMIT_CATALOG", ["NO_WAIT", "false"])
         scenario.wait_for("the downlink of the data product", lambda: downlinked(ground_name(product)), 60)
         time.sleep(0.5)
-        return results(args, out, proxy, f"{out}/files/fprime-downlink", product)
+        found = results(args, out, Capture(proxy), f"{out}/files/fprime-downlink", product)
+        with open(f"{staging}/after.bin", "wb") as file:
+            file.write(content("after.bin", 300))
+        uplinker.enqueue(f"{staging}/after.bin", "after.bin")
+        scenario.wait_for("the uplink of after.bin", lambda: [
+            f for f in uplinker.current_files() if f["destination"] == "after.bin" and f["state"] == "FINISHED"], 60)
+        time.sleep(1)
+        found["sequence"] = sequence_counts(args, out, proxy)
+        return found
     finally:
         try:
             if pipeline:
@@ -301,6 +343,13 @@ def rust_side(args, out, store):
         gds.post("/commands", {"name": "DataProducts.dpCat.START_XMIT_CATALOG", "args": ["NO_WAIT", False]})
         scenario.wait_for("the downlink of the data product", lambda: gds.downlink(ground_name(product)), 60)
         found = results(args, out, proxy, f"{store}/downlink", product, skip=early)
+        # A file sent up after files came down: the sequence count goes on from both.
+        with open(f"{out}/local/after.bin", "wb") as file:
+            file.write(content("after.bin", 300))
+        gds.cli("upload", "local/after.bin", "--destination", "after.bin")
+        scenario.wait_for("the uplink of after.bin", lambda: gds.uplink("after.bin")["state"] == "finished", 60)
+        time.sleep(1)
+        found["sequence"] = sequence_counts(args, out, proxy)
         # After the packets compared with the Python GDS were taken.
         file_uplink(gds, out)
 
@@ -590,6 +639,14 @@ def main():
             assert p == r, f"file packet {index} differs:\n python {p}\n fgds   {r}"
         ok(f"uplink: {len(rust['uplink_packets'])} file packets on the link, byte-identical to the Python GDS "
            f"({sum(len(p) // 2 for p in rust['uplink_packets'])} bytes)")
+        if args.framing == "ccsds":
+            for side, found in (("python", python), ("fgds", rust)):
+                counts = found["sequence"]
+                assert counts["down"] > 0 and counts["last"] == counts["expected"], (side, counts)
+            ok(f"sequence count of a file packet sent after files came down: python {python['sequence']['last']} "
+               f"after {python['sequence']['up'] - 1} up and {python['sequence']['down']} down, fgds "
+               f"{rust['sequence']['last']} after {rust['sequence']['up'] - 1} up and {rust['sequence']['down']} down; "
+               "Ref reported no unexpected sequence count with either")
         expected = {name: digest(content(name, size)) for name, size in UPLINKS}
         assert python["ref_files"] == rust["ref_files"] == expected
         ok(f"uplink: the {len(UPLINKS)} files on the Ref side are identical with both and equal to the originals "

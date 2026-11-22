@@ -60,9 +60,9 @@ impl Plugin for CcsdsFramingPlugin {
         reg.add_framing_layer("ccsds-tm-tc", Arc::new(SpaceDataLinkLayer::default()))?;
         reg.add_framing_layer(
             "ccsds-space-packet",
-            Arc::new(SpacePacketLayer { stream: false, apids: Apids::default() }),
+            Arc::new(SpacePacketLayer { stream: false, apids: Apids::default(), counts: Default::default() }),
         )?;
-        let stream = SpacePacketLayer { stream: true, apids: Apids::default() };
+        let stream = SpacePacketLayer { stream: true, apids: Apids::default(), counts: Default::default() };
         reg.add_framing_layer("ccsds-space-packet-stream", Arc::new(stream))?;
         // Outermost first.
         reg.add_framing_profile("ccsds", &["ccsds-tm-tc", "ccsds-space-packet"])?;
@@ -173,11 +173,16 @@ pub struct SpacePacketLayer {
     /// False when an outer layer delivers whole packets: what is left over is discarded.
     stream: bool,
     apids: Apids,
+    /// One count for the framers and deframers of the run, as the Python GDS.
+    counts: stage::SequenceCounts,
 }
 
 impl SpacePacketLayer {
     fn stage(&self) -> Box<SpacePacketFraming> {
-        Box::new(SpacePacketFraming { stream: self.stream, packet: SpacePacket::new(self.apids.clone()) })
+        Box::new(SpacePacketFraming {
+            stream: self.stream,
+            packet: SpacePacket::sharing(self.apids.clone(), self.counts.clone()),
+        })
     }
 }
 
@@ -197,7 +202,7 @@ impl FramingLayer for SpacePacketLayer {
                 _ => Apids::default(),
             },
         };
-        Some(Arc::new(SpacePacketLayer { stream: self.stream, apids }))
+        Some(Arc::new(SpacePacketLayer { stream: self.stream, apids, counts: self.counts.clone() }))
     }
     fn deframer(&self, _: &PluginConfig, _: &PeerInfo) -> Box<dyn Deframe> {
         self.stage()

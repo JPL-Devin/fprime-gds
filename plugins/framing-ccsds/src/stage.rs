@@ -86,12 +86,15 @@ impl Default for Apids {
     }
 }
 
+/// The next sequence count of each application identifier.
+pub type SequenceCounts = std::sync::Arc<std::sync::Mutex<HashMap<u16, u32>>>;
+
 /// `SpacePacketFramerDeframer`: wraps a packet in a telecommand Space Packet; takes the
 /// payload out of exactly one whole telemetry Space Packet.
 #[derive(Debug, Default)]
 pub struct SpacePacket {
     apids: Apids,
-    sequence_counts: HashMap<u16, u32>,
+    sequence_counts: SequenceCounts,
     /// Header of the packet the last `deframe` returned.
     pub last: Option<SpacePacketHeader>,
 }
@@ -101,9 +104,17 @@ impl SpacePacket {
         SpacePacket { apids, ..Default::default() }
     }
 
+    /// A stage that counts with others: the Python GDS has one `SpacePacketFramerDeframer` for both
+    /// directions, so a packet received on an identifier advances the count of the next one sent on it
+    /// (`Ref`'s `ApidManager` expects that).
+    pub fn sharing(apids: Apids, sequence_counts: SequenceCounts) -> Self {
+        SpacePacket { apids, sequence_counts, last: None }
+    }
+
     /// The count expected next for `apid`, which then advances.
     fn sequence_count(&mut self, apid: u16) -> u32 {
-        let count = self.sequence_counts.entry(apid).or_insert(0);
+        let mut counts = self.sequence_counts.lock().unwrap_or_else(|e| e.into_inner());
+        let count = counts.entry(apid).or_insert(0);
         let current = *count;
         *count = (current + 1) % SEQUENCE_COUNT_MAXIMUM;
         current
@@ -150,7 +161,8 @@ impl Stage for SpacePacket {
                 "APID {} received sequence count: {} (expected: {expected})",
                 header.apid, header.seq_count
             ));
-            self.sequence_counts.insert(header.apid, u32::from(header.seq_count) + 1);
+            let mut counts = self.sequence_counts.lock().unwrap_or_else(|e| e.into_inner());
+            counts.insert(header.apid, u32::from(header.seq_count) + 1);
         }
         self.last = Some(header);
         Step { packet: Some(data[SPACE_PACKET_HEADER..].to_vec()), consumed: data.len(), discarded: Vec::new() }
