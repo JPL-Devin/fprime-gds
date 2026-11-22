@@ -408,7 +408,10 @@ mod big_int_tests {
 
     #[test]
     fn integers_beyond_64_bits_keep_their_digits() {
-        let value = json_with_big_ints(r#"{"a": 18446744073709551616, "b": [-9223372036854775809, 1e30, 7], "c": "9 99999999999999999999 \" é"}"#).unwrap();
+        let value = json_with_big_ints(
+            r#"{"a": 18446744073709551616, "b": [-9223372036854775809, 1e30, 7], "c": "9 99999999999999999999 \" é"}"#,
+        )
+        .unwrap();
         assert_eq!(big_int(&value["a"]), Some("18446744073709551616"));
         assert_eq!(big_int(&value["b"][0]), Some("-9223372036854775809"));
         assert!(value["b"][1].is_f64() && value["b"][2] == 7);
