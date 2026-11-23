@@ -3,9 +3,12 @@
 // files plugin), then run it with the CS_RUN command of the dictionary.
 import { LitElement, html } from "/ui/lit.js";
 
+// As the name field of the Python GDS page (`pattern`).
+const NAME = /^[^;\\/]+\.seq$/;
+
 class SequencesTab extends LitElement {
   static properties = {
-    output: { state: true }, error: { state: true }, active: { state: true }, uplinked: { state: true },
+    output: { state: true }, error: { state: true }, active: { state: true }, uplinked: { state: true }, named: { state: true },
   };
 
   constructor() {
@@ -13,6 +16,7 @@ class SequencesTab extends LitElement {
     this.output = ""; // what the compiler says, as the Python GDS page shows it
     this.error = ""; // what is wrong with the request itself, shown under the name
     this.active = false;
+    this.named = false; // whether the name field holds a name ending in .seq: marked with its message when not
     this.uplinked = null; // path, on the flight side, of the last sequence uplinked
   }
 
@@ -24,8 +28,7 @@ class SequencesTab extends LitElement {
     const name = this.field("sequence-name").value.trim();
     this.output = "";
     this.error = "";
-    if (!/^[^;\\/]+\.seq$/.test(name)) {
-      this.error = "Supply filename with .seq suffix";
+    if (!NAME.test(name)) {
       return;
     }
     this.active = true;
@@ -86,6 +89,7 @@ class SequencesTab extends LitElement {
     if (!file) return;
     this.field("sequence-text").value = await file.text();
     this.field("sequence-name").value = file.name;
+    this.named = NAME.test(file.name);
     event.target.value = "";
   }
 
@@ -99,7 +103,9 @@ class SequencesTab extends LitElement {
     return html`
       <h2>Command Sequencer</h2>
       <div class="toolbar">
-        <input id="sequence-name" type="text" placeholder="Sequence name ending in .seq" ?disabled=${this.active}>
+        <span><input id="sequence-name" type="text" placeholder="Sequence name ending in .seq" ?disabled=${this.active}
+          class=${this.named ? "" : "invalid"} @input=${(e) => { this.named = NAME.test(e.target.value); }}>
+          ${this.named ? "" : html`<div id="sequence-name-error" class="error-text">Supply filename ending with .seq</div>`}</span>
         <label><input id="sequence-directory" type="text" placeholder="/seq" value="/seq"
           title="Remote directory for sequence uplink" ?disabled=${this.active}> Uplink Directory</label>
         <button id="sequence-uplink" ?disabled=${this.active} @click=${() => this.uplink()}>Uplink</button>

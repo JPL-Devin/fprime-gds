@@ -140,7 +140,7 @@ class ChartsTab extends LitElement {
       if (!chart.selected || this.drawn.has(chart.id)) continue;
       const canvas = this.querySelector(`canvas[data-chart="${chart.id}"]`);
       // Set through the style object: the content security policy of the page allows no style attribute.
-      Object.assign(canvas.parentElement.style, { height: "16rem", position: "relative" });
+      Object.assign(canvas.parentElement.style, { height: "16rem", position: "relative", resize: "both", overflow: "hidden" });
       const data = this.data.get(chart.id) || [];
       this.data.set(chart.id, data);
       const clock = (ms) => new Date(ms).toLocaleTimeString();
@@ -202,6 +202,7 @@ class ChartsTab extends LitElement {
         <button id="chart-help" @click=${() => { this.help = !this.help; }}>Help</button>
       </div>
       ${this.help ? html`<div id="chart-help-text" class="note">
+        <p><b>Change size</b> by clicking and dragging the icon at the bottom right of the chart box</p>
         <p><b>Time Modes:</b></p>
         <p><b>Realtime</b> - Chart scrolls and displays data using channel timestamps (scrolling based off of workstation time)</p>
         <p><b>Realtime (anchored)</b> - No scrolling, chart redraws and centers around all data points using channel timestamp</p>
@@ -212,10 +213,12 @@ class ChartsTab extends LitElement {
           <div class="toolbar">
             <select class="chart-channel" .value=${chart.selected}
               @change=${(e) => this.change(chart, { selected: e.target.value })}>
-              <option value="">Select channel</option>${options}
+              <option value="">Select a Channel</option>${options}
             </select>
-            <label>Data Window (S) <input class="chart-span" type="number" min="1" .value=${String(chart.span)}
-              @change=${(e) => this.change(chart, { span: Number(e.target.value) || 3600 })}></label>
+            <label for="chart-span-${chart.id}">Data Window:</label>
+            <input class="chart-span" id="chart-span-${chart.id}" type="number" min="1" .value=${String(chart.span)}
+              @change=${(e) => this.change(chart, { span: Number(e.target.value) || 3600 })}>
+            <label for="chart-span-${chart.id}">(S)</label>
             <label>Time: <select class="chart-mode" .value=${chart.mode}
               @change=${(e) => this.change(chart, { mode: e.target.value })}>
               ${MODES.map(([mode, title]) => html`<option value=${mode}>${title}</option>`)}

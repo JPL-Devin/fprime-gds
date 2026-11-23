@@ -155,6 +155,12 @@ function validate(type, holder, key, path, errors, groups = true) {
   }
 }
 
+// The name the Python GDS gives the type of a member that is several values (`Array_U8Type_2`): its class name.
+function pythonName(type) {
+  if (type.kind === "integer" || type.kind === "float") return `${type.name}Type`;
+  return type.kind === "bool" ? "BoolType" : type.name;
+}
+
 // Whether the browser refuses the input of a scalar: `required`, and the pattern of an integer.
 function refused(type, state) {
   if (type.kind === "enum" || type.kind === "bool") return false;
@@ -467,7 +473,7 @@ class CommandsTab extends LitElement {
     return text ? html`<div class="error-text" data-error-for=${key}>${text}</div>` : nothing;
   }
 
-  input(type, state, path, label) {
+  input(type, state, path, label, description = "") {
     const key = label;
     const text = this.errors.get(key) || "";
     const scalar = type.kind !== "array" && type.kind !== "struct";
@@ -475,48 +481,51 @@ class CommandsTab extends LitElement {
     const problem = scalar && (text !== "" || (this.was && refused(type, state)));
     const set = (e) => { this.lineRefused = false; this.setAt(path, e.target.value); this.checkArgument(path[0]); };
     const note = text ? html`<span class="error-text" data-error-for=${key}>${text}</span>` : nothing;
+    // As the Python page: the name, with the index or the member, then the description.
+    const row = (field) => html`<div class="arg-row top"><label class="arg-name">${`${key}: ${description}`.trim()}</label>${field}${note}</div>`;
     switch (type.kind) {
       case "enum":
-        return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
+        return row(html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
           ${state !== undefined && state !== "" && !type.constants.some((c) => c.name === state)
             // A text of the Command String that is no constant stays shown, as in the input of the Python page.
             ? html`<option value=${state} .selected=${true}>${state}</option>` : nothing}
           ${type.constants.map((c) => html`<option value=${c.name} .selected=${c.name === state}>${c.name}</option>`)}
-        </select>${note}`;
+        </select>`);
       case "bool":
-        return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
+        return row(html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
           ${state === "true" || state === "false" ? nothing
             // Nothing chosen (after `Clear Arguments`), or a text of the Command String that is neither.
             : html`<option value=${state ?? ""} .selected=${true}>${state ?? ""}</option>`}
           <option value="true" .selected=${state === "true"}>True</option>
           <option value="false" .selected=${state === "false"}>False</option>
-        </select>${note}`;
+        </select>`);
       case "array":
-        return html`<div class="arg-group" data-arg-group=${key}>
-          ${state.map((item, i) => html`<div class="arg-row"><span class="arg-name mono">[${i}]</span>
-            ${this.input(type.element, item, [...path, i], `${key}[${i}]`)}</div>`)}
+        // As the Python page: the name with the type, then each element under the name with its index.
+        return html`<fieldset class="arg-group" data-arg-group=${key}>
+          <legend>${key} (${type.name})</legend>
+          ${state.map((item, i) => this.input(type.element, item, [...path, i], `${key}[${i}]`, description ? `${description}[${i}]` : ""))}
           ${this.groupNote(key)}
-        </div>`;
+        </fieldset>`;
       case "struct":
-        return html`<div class="arg-group" data-arg-group=${key}>
-          ${type.members.map((m) => html`<div class="arg-row"><span class="arg-name mono">${m.name}</span>
-            ${m.count === null ? this.input(m.type, state[m.name], [...path, m.name], `${key}.${m.name}`)
-              : html`<div class="arg-group">${state[m.name].map((item, i) => html`<div class="arg-row">
-                  <span class="arg-name mono">[${i}]</span>
-                  ${this.input(m.type, item, [...path, m.name, i], `${key}.${m.name}[${i}]`)}</div>`)}
-                  ${this.groupNote(`${key}.${m.name}`)}</div>`}
-          </div>`)}
+        return html`<fieldset class="arg-group" data-arg-group=${key}>
+          <legend>${key} (${type.name})</legend>
+          ${description ? html`<div><span class="arg-description">Description:</span> ${description}</div>` : nothing}
+          ${type.members.map((m) => (m.count === null
+            ? this.input(m.type, state[m.name], [...path, m.name], `${key}.${m.name}`, m.annotation || description)
+            // A member that is several values: an array, named as the Python GDS names its type.
+            : this.input({ kind: "array", name: `Array_${pythonName(m.type)}_${m.count}`, element: m.type }, state[m.name],
+              [...path, m.name], `${key}.${m.name}`, m.annotation || description)))}
           ${this.groupNote(key)}
-        </div>`;
+        </fieldset>`;
       default:
         if (type.kind === "float") {
           // A number input, as in the Python GDS page. While the text is not yet a number ("1e", "-") the
           // input reports an empty value: `updated` then leaves the field alone, so the typing goes on.
-          return html`<input type="number" step="any" data-arg=${key} class=${problem ? "invalid" : ""}
-            .wanted=${state ?? ""} placeholder=${type.name} @input=${set}>${note}`;
+          return row(html`<input type="number" step="any" data-arg=${key} class=${problem ? "invalid" : ""}
+            .wanted=${state ?? ""} placeholder=${key} @input=${set}>`);
         }
-        return html`<input type="text" data-arg=${key}
-          class=${problem ? "invalid" : ""} .value=${state ?? ""} placeholder=${type.name} @input=${set}>${note}`;
+        return row(html`<input type="text" data-arg=${key}
+          class=${problem ? "invalid" : ""} .value=${state ?? ""} placeholder=${key} @input=${set}>`);
     }
   }
 
@@ -562,12 +571,9 @@ class CommandsTab extends LitElement {
         <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); this.send(); }}>
           ${command ? html`
             <h2>Sending Command: <span id="command-name">${command.name}</span></h2>
-            <div class="muted"><label>Description:</label> ${command.annotation} <span class="mono">${format.hexId(command.opcode)}</span></div>
-            ${command.params.length ? nothing : html`<div class="muted">No arguments.</div>`}
-            ${command.params.map((p) => html`<div class="arg-row top" data-param=${p.name}>
-              <span class="arg-name" title=${p.annotation}>${p.name}<br><span class="muted mono">${p.type.name}</span></span>
-              ${this.input(p.type, this.values[p.name], [p.name], p.name)}
-            </div>`)}
+            <div class="muted"><label>Description:</label> ${command.annotation}</div>
+            ${command.params.length ? html`<div><label>Arguments</label></div>` : nothing}
+            ${command.params.map((p) => this.input(p.type, this.values[p.name], [p.name], p.name, p.annotation))}
             <div class="toolbar">
               <button class="action" id="command-send" type="submit" ?disabled=${this.sending}>Send Command</button>
               <button class="action secondary" type="button" id="command-clear" @click=${() => this.clear()}>Clear Arguments</button>

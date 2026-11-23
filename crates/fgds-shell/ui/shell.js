@@ -212,7 +212,7 @@ function typeResolver(dictionary) {
           kind: "struct", name: type.qualifiedName, default: type.default,
           members: Object.entries(type.members)
             .sort((a, b) => a[1].index - b[1].index)
-            .map(([name, m]) => ({ name, type: resolve(m.type, depth + 1), count: m.size ?? null })),
+            .map(([name, m]) => ({ name, type: resolve(m.type, depth + 1), count: m.size ?? null, annotation: m.annotation || "" })),
         };
       default: return { kind: "unknown", name: type.name || type.kind };
     }
@@ -251,6 +251,8 @@ function renderStatus() {
   const item = (label, value) => html`<span><span class="label">${label}</span> ${value}</span>`;
   const errors = (counters["kind.gds.decode_error"] || 0) + (counters["kind.gds.unknown_packet"] || 0)
     + (counters["kind.raw.discarded"] || 0) + (counters["kind.gds.plugin_fault"] || 0);
+  // As the line at the foot of the Python GDS page.
+  const metadata = (gds.dictionary && gds.dictionary.metadata) || {};
   render(html`
     ${item("GDS", badge(status.error ? "unreachable" : "running", !status.error))}
     ${item("Link", html`<span id="link-state">${badge(link, link === "connected")}</span> ${s && s.link.peer ? s.link.peer : ""}`)}
@@ -259,7 +261,7 @@ function renderStatus() {
     ${item("Records", s ? s.cursor : "")}
     ${item("Received", `${counters.bytes_received || 0} B / ${counters.packets_received || 0} packets`)}
     ${item("Decode problems", errors ? badge(errors, false) : "0")}
-    ${item("Dictionary", gds.version ? gds.version.dictionary : "")}
+    <span id="dictionary-versions">${`Dictionary Version: ${metadata.projectVersion || ""} Dictionary Schema: ${metadata.frameworkVersion || ""}`}</span>
   `, document.querySelector("#status"));
 }
 

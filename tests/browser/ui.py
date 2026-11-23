@@ -725,6 +725,15 @@ def charts_and_sequences(page, gds, problems):
     assert drawn > 100, drawn
     depth = lambda: [r for r in gds.records("fprime.channel") if r["body"]["name"] == "ComCcsds.comQueue.comQueueDepth"]
     known = len(depth())
+    # The chart box changes size when its bottom right corner is dragged, as the Help text says.
+    box = canvas.first.bounding_box()
+    page.mouse.move(box["x"] + box["width"] - 3, box["y"] + box["height"] - 3)
+    page.mouse.down()
+    page.mouse.move(box["x"] + box["width"] - 103, box["y"] + box["height"] + 77, steps=5)
+    page.mouse.up()
+    scenario.wait_for("the chart drawn in its new size", lambda: (
+        abs(canvas.first.bounding_box()["height"] - box["height"] - 80) < 12
+        and abs(canvas.first.bounding_box()["width"] - box["width"] + 100) < 12))
     charts.locator("#chart-add").click()
     charts.locator(".chart-channel").nth(1).select_option("ComCcsds.comQueue.comQueueDepth.1")
     expect(canvas).to_have_count(2)
@@ -743,7 +752,7 @@ def charts_and_sequences(page, gds, problems):
     assert tab.locator("#sequence-text").input_value() == "" and not tab.locator("#sequence-run").is_enabled()
     staged = gds.get("/files/uplink")["directory"]
     tab.locator("#sequence-uplink").click()
-    expect(tab.locator("#sequence-error")).to_have_text("Supply filename with .seq suffix")
+    expect(tab.locator("#sequence-name-error")).to_have_text("Supply filename ending with .seq")
     tab.locator("#sequence-name").fill("page.seq")
     # A directory of the flight side; `Ref` runs in a directory of this check, and a command takes 40 characters.
     tab.locator("#sequence-directory").fill(".")

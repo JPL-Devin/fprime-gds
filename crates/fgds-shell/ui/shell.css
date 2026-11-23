@@ -98,9 +98,10 @@ pre.log { margin: 0; padding: 8px; border: 1px solid var(--border); background: 
 .command-form h3 { margin-top: 0; }
 .arg-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 .arg-row.top { align-items: flex-start; }
-.arg-name { min-width: 130px; }
-.arg-group { border-left: 2px solid var(--border); padding-left: 8px; }
-.arg-group .arg-name { min-width: 60px; }
+.arg-name { min-width: 260px; max-width: 420px; }
+.arg-name, .arg-description { font-weight: bold; }
+.arg-group { border: 0; border-left: 2px solid var(--border); margin: 4px 0; padding: 0 0 0 8px; }
+.arg-group legend { font-weight: bold; padding: 0; }
 dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0 0 10px; }
 dl.facts dt { color: var(--muted); }
 dl.facts dd { margin: 0; }

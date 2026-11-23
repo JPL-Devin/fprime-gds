@@ -42,7 +42,7 @@ Access control, the stall watchdog, the load test, project rules checked before 
 Controls of the Python page that fgds does not have (`docs/design/deviations.md`, "Controls of the Python page"). None changes bytes sent to `Ref`.
 - Paging buttons (`First` `<` `>` `Last`), position field and scroll lock of the tables (Commanding history, Events, Channels, Uplink, Downlink, Dictionaries); sorting of the Commanding history and Dictionaries tables.
 - Light/dark switch.
-- Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse, resizable chart box.
+- Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse.
 - Sequences: `Build` panel, editor with completion.
 - Composite channel values as an expandable table.
 - Dashboard tab (milestone M6).
@@ -52,7 +52,7 @@ Controls of the Python page that fgds does not have (`docs/design/deviations.md`
 `tests/browser/run.sh` (part of `scripts/check.sh`) compares with texts and frames recorded from the Python GDS 4.4.0 page, under `fixtures/`:
 - `command-messages`: the messages of the argument fields when a form is shown, before and after `Send Command` (`messages.py`).
 - `command-string`: lines typed in `Command String` (`line.py`), lines that give part of the values a form holds (`held.py`), refused then taken lines each followed by the send button, with the frames (`refused.py`: 13 sequences; a line that leaves arguments out is applied only to the command the form shows and then sent as Python sends it, such a line for another command sends nothing and leaves that command's form alone; the send button clicked with no Enter; enum constants in another case; boolean texts; a name alone).
-- `page-texts`: buttons, headers, placeholders, labels and hover texts (`title`) of each tab as it opens, with the listed differences (`texts.py`).
+- `page-texts`: buttons, headers, placeholders, labels, hover texts, other texts and the window title in 34 states (each tab without and with `Ref`, the top bar, eight command forms, a send with no `Ref`, Charts with help, a chart and a channel); each one-sided text is under a row T1 to T17 of `docs/design/deviations.md` (`texts.py`; `texts.py record` reads the Python page again).
 - `parity.py` runs both pages on the same bytes: rows, sorting, filters, `channels_display_last_received`.
 Each script has a `record` mode to write its fixture again from a running Python page.
 The address of the page names the tab as the Python page does (`#Channels`).
