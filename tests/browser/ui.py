@@ -751,8 +751,10 @@ def charts_and_sequences(page, gds, problems):
     text = "; two commands\nR00:00:00 CdhCore.cmdDisp.CMD_NO_OP\nR00:00:01 CdhCore.cmdDisp.CMD_NO_OP_STRING \"from a sequence\"\n"
     assert tab.locator("#sequence-text").input_value() == "" and not tab.locator("#sequence-run").is_enabled()
     staged = gds.get("/files/uplink")["directory"]
-    tab.locator("#sequence-uplink").click()
     expect(tab.locator("#sequence-name-error")).to_have_text("Supply filename ending with .seq")
+    tab.locator("#sequence-uplink").click()
+    # As the Python page: the answer to the request takes the place of the message of the field.
+    expect(tab.locator("#sequence-name-error")).to_have_text("Supply filename with .seq suffix")
     tab.locator("#sequence-name").fill("page.seq")
     # A directory of the flight side; `Ref` runs in a directory of this check, and a command takes 40 characters.
     tab.locator("#sequence-directory").fill(".")

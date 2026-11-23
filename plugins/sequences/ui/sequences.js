@@ -29,6 +29,8 @@ class SequencesTab extends LitElement {
     this.output = "";
     this.error = "";
     if (!NAME.test(name)) {
+      // The answer of the Python GDS to such a name; it takes the place of the message of the field.
+      this.error = "Supply filename with .seq suffix";
       return;
     }
     this.active = true;
@@ -105,7 +107,7 @@ class SequencesTab extends LitElement {
       <div class="toolbar">
         <span><input id="sequence-name" type="text" placeholder="Sequence name ending in .seq" ?disabled=${this.active}
           class=${this.named ? "" : "invalid"} @input=${(e) => { this.named = NAME.test(e.target.value); }}>
-          ${this.named ? "" : html`<div id="sequence-name-error" class="error-text">Supply filename ending with .seq</div>`}</span>
+          ${this.named ? "" : html`<div id="sequence-name-error" class="error-text">${this.error || "Supply filename ending with .seq"}</div>`}</span>
         <label><input id="sequence-directory" type="text" placeholder="/seq" value="/seq"
           title="Remote directory for sequence uplink" ?disabled=${this.active}> Uplink Directory</label>
         <button id="sequence-uplink" ?disabled=${this.active} @click=${() => this.uplink()}>Uplink</button>
@@ -115,7 +117,7 @@ class SequencesTab extends LitElement {
         <button id="sequence-open" @click=${() => this.field("sequence-file").click()}>Open</button>
         <input id="sequence-file" type="file" accept=".seq" hidden @change=${(e) => this.open(e)}>
       </div>
-      <div id="sequence-error" class="error-text">${this.error}</div>
+      <div id="sequence-error" class="error-text">${this.named ? this.error : ""}</div>
       <textarea id="sequence-text" rows="20" spellcheck="false"></textarea>
       <textarea id="sequence-result" rows="5" readonly .value=${this.output}></textarea>
       <small>Sequence compilation output</small>`;
