@@ -338,7 +338,10 @@ class CommandsTab extends LitElement {
     }
     this.show(command);
     // The Python page writes the messages of the fields only, not those of an array or a structure.
+    const assigned = JSON.stringify(form.values);
     this.validate(false);
+    // An enum constant given in another case is now the constant.
+    this.rewrote = JSON.stringify(form.values) !== assigned;
     return true;
   }
 
@@ -390,13 +393,14 @@ class CommandsTab extends LitElement {
     const shown = this.selected;
     const form = this.form(command);
     const held = JSON.stringify(form.values);
+    this.rewrote = false;
     const taken = this.load(command, tokens.slice(1));
     if (!taken && shown !== command) {
       form.values = JSON.parse(held);
       return;
     }
     this.lineRefused = false;
-    if ((!taken && tokens.length > 1) || this.selected !== shown || JSON.stringify(form.values) !== held) {
+    if ((!taken && tokens.length > 1) || this.selected !== shown || this.rewrote || JSON.stringify(form.values) !== held) {
       this.updateComplete.then(() => { input.value = this.line; });
     }
   }
@@ -432,6 +436,22 @@ class CommandsTab extends LitElement {
     const parameter = this.selected.params.find((p) => p.name === name);
     validate(parameter.type, this.values, name, name, this.errors);
     this.requestUpdate();
+  }
+
+  // The send button pressed: the command shown then. The press takes the focus from the `Command String`
+  // input, which reads a line typed there before the click arrives.
+  pressed() {
+    this.shownAtPress = this.selected;
+    this.pressedSend = true;
+    addEventListener("mouseup", () => setTimeout(() => { this.pressedSend = false; }), { once: true, capture: true });
+  }
+
+  // The click of the send button. A click that itself made the page read a line of another command sends
+  // nothing: the form of that command is shown, and the next click sends it.
+  submitted() {
+    const changed = this.pressedSend && this.shownAtPress !== this.selected;
+    this.pressedSend = false;
+    if (!changed || this.lineRefused) this.send();
   }
 
   async send(request = this.selected ? this.request() : null) {
@@ -568,18 +588,18 @@ class CommandsTab extends LitElement {
           </select>
           ${listed.length ? nothing : html`<div class="muted" id="command-none">Sorry, no matching options.</div>`}
         </div>
-        <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); this.send(); }}>
+        <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); this.submitted(); }}>
           ${command ? html`
             <h2>Sending Command: <span id="command-name">${command.name}</span></h2>
             <div class="muted"><label>Description:</label> ${command.annotation}</div>
             ${command.params.length ? html`<div><label>Arguments</label></div>` : nothing}
             ${command.params.map((p) => this.input(p.type, this.values[p.name], [p.name], p.name, p.annotation))}
             <div class="toolbar">
-              <button class="action" id="command-send" type="submit" ?disabled=${this.sending}>Send Command</button>
+              <button class="action" id="command-send" type="submit" ?disabled=${this.sending} @mousedown=${() => this.pressed()}>Send Command</button>
               <button class="action secondary" type="button" id="command-clear" @click=${() => this.clear()}>Clear Arguments</button>
             </div>` : this.unknown ? html`<h2>Sending Command: <span id="command-name">${this.unknown}</span></h2>
               <div class="error-text" id="command-unknown">${this.unknown} is not a command.</div>
-              <div class="toolbar"><button class="action" id="command-send" type="submit">Send Command</button></div>`
+              <div class="toolbar"><button class="action" id="command-send" type="submit" @mousedown=${() => this.pressed()}>Send Command</button></div>`
               : html`<div class="muted">Choose a command.</div>`}
           ${this.message ? html`<div id="command-message" class=${this.message.error ? "error-text" : ""}>${this.message.text}</div>` : nothing}
         </form>

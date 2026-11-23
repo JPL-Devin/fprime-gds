@@ -325,6 +325,11 @@ def stock(browser, gds):
     # The search of the command list reads the names only, and its text goes when a command is shown (finding 50).
     page.fill("#command-filter", "0x1000000")
     assert page.inner_text("#command-none") == "Sorry, no matching options.", "an opcode is searched"
+    box = page.locator("#command-none").bounding_box()
+    assert page.is_visible("#command-none") and box["width"] > 50 and box["height"] > 8, f"the text is not on screen: {box}"
+    assert page.evaluate("""(b) => document.elementFromPoint(b.x + 5, b.y + b.height / 2).closest('#command-none') !== null""", box), \
+        "the text is covered"
+    page.screenshot(path=f"{gds.out}/no-matching-options.png")
     assert page.eval_on_selector_all("#command-select option", "(all) => all.length") == 0
     page.fill("#command-filter", "zzz")
     page.click("#command-history tbody tr:has-text('CMD_TEST_CMD_1') button[data-action=load] >> nth=0")

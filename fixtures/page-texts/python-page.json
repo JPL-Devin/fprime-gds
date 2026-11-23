@@ -319,8 +319,8 @@
    "realtime delay",
    "N S",
    "command_history",
-   "logdata",
    "upfiles",
+   "logdata",
    "downfiles",
    "stats",
    "Dictionary Version: <version> Dictionary Schema: <version>"
@@ -940,7 +940,9 @@
    "Event Severity",
    "Event Description"
   ],
-  "titles": [],
+  "titles": [
+   "<inside a table cell>"
+  ],
   "placeholders": [],
   "labels": [
    "Events",
@@ -1232,8 +1234,8 @@
    "N S",
    "Chart N",
    "command_history",
-   "logdata",
    "upfiles",
+   "logdata",
    "downfiles",
    "stats",
    "Dictionary Version: <version> Dictionary Schema: <version>"

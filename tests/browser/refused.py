@@ -58,6 +58,14 @@ SEQUENCES = [
     # A name alone, of the command shown and of another (finding 49).
     [(STRING, True), ("CdhCore.cmdDisp.CMD_NO_OP_STRING", HELD), (NO_OP, True), ("CdhCore.cmdDisp.CMD_NO_OP_STRING", False),
      (TEST, True), (NO_OP, True), (ONE, False), (NO_OP, True)],
+    # The click on the send button with no Enter, after a whole line of another command than the one shown: an
+    # enum, a boolean, a string, numbers, an array, no argument (round 8, finding 51). The same command again sends.
+    [(STRING, True), (VERSION + ", all", True, CLICK), (VERSION + ", ALL", True, CLICK), ("Ref.typeDemo.CHOICE, ONE", True, CLICK),
+     (REMOVE + ", true", True, CLICK), (STRING, True, CLICK), (TEST, True, CLICK), ("Ref.typeDemo.CHOICES, [ONE, TWO]", True, CLICK),
+     (TEST, True, CLICK), (NO_OP, True, CLICK), (VERSION + ", project", True, CLICK), ("Ref.typeDemo.CHOICE, ONE", True, CLICK),
+     (STRING, True, CLICK), (REMOVE + ", true", True, CLICK)],
+    # An enum constant in another case that changes no value of the form shown (finding 52).
+    [(VERSION + ", PROJECT", True), (VERSION + ", project", True), (VERSION + ", Project", True, CLICK)],
 ]
 
 
@@ -125,7 +133,7 @@ def check(binary, dictionary, fixture, out):
     def last():
         return gds.get("/records?kind=fprime.command&limit=10000")["records"][-1:]
 
-    different, sent, held, nothing = [], 0, 0, 0
+    different, sent, held, nothing, switched, moved = [], 0, 0, 0, 0, 0
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
@@ -140,6 +148,8 @@ def check(binary, dictionary, fixture, out):
                         continue
                     where = ([s["typed"] for s in case], step["typed"])
                     click, before = step.get("click"), last()
+                    # A click that makes the page read a line of another command than the one shown.
+                    other = click and step["whole"] is True and page.evaluate(line.NEW_SHOWN)["name"] != step["name"]
                     enter(page, "#command-string", step["typed"], not click)
                     if click:
                         page.click("#command-send")
@@ -166,7 +176,14 @@ def check(binary, dictionary, fixture, out):
                         raw = base64.b64decode(last()[0]["raw"]).hex()
                     except TimeoutError:
                         raw = None
-                    if step["whole"] and not step["frame"].replace(ALIVE, ""):
+                    if other:
+                        # The Python page sends when its send button stays under the pointer as the form of the
+                        # other command is drawn; the new page never sends (deviations.md).
+                        switched += 1
+                        moved += bool(step["frame"].replace(ALIVE, ""))
+                        if raw is not None:
+                            different.append((*where, f"a click that changes the command shown sent {raw}"))
+                    elif step["whole"] and not step["frame"].replace(ALIVE, ""):
                         nothing += 1
                         if raw is not None:
                             different.append((*where, f"the Python GDS page sent nothing, the new page {raw}"))
@@ -199,6 +216,8 @@ def check(binary, dictionary, fixture, out):
     print(f"  ok: {len(cases)} sequences of refused and taken Command String lines, each then the send button: {sent} "
           f"lines send the command packet of the Python GDS page's frame ({held} of them give part of the arguments of the "
           f"command shown), {nothing} such lines send nothing on either page, the lines not taken send nothing; "
+          f"{switched} clicks that make the page read a whole line of another command send nothing ({moved} of them send "
+          "on the Python GDS page, whose send button stayed under the pointer); "
           "such a line for a command that is not shown leaves the form of that command as it was")
 
 

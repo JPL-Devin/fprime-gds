@@ -34,6 +34,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -594,6 +597,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -650,6 +656,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -706,6 +715,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -762,6 +774,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -818,6 +833,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -874,6 +892,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -930,6 +951,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -986,6 +1010,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -1046,6 +1073,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -1255,6 +1285,9 @@
   "titles": {
    "python": {
     "Search for option": "T3"
+   },
+   "fgds": {
+    "<an entry of a list>": "T18"
    }
   },
   "texts": {
@@ -1342,6 +1375,14 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
+   }
+  },
+  "titles": {
+   "fgds": {
+    "<a table cell>": "T19"
+   },
+   "python": {
+    "<inside a table cell>": "T17"
    }
   }
  },

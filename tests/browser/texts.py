@@ -54,7 +54,11 @@ SHOWN = """({bar, rows}) => {
         buttons: bar ? [] : all(button, (e) => text(e) || e.title || e.getAttribute("aria-label") || ""),
         headers: all("th", text),
         // The hover text of anything, and the text that stands for an image.
-        titles: all("[title]:not(option), [alt], [aria-label]", (e) => clean(e.title || e.getAttribute("alt") || e.getAttribute("aria-label") || "")),
+        // That of an entry of a list or of a table cell is data: its kind stands for it.
+        titles: [...new Set(under(document).filter((e) => Boolean(e.closest(top)) === bar && seen(e.closest("option") ? e.closest("select") : e)
+            && e.matches("[title], [alt], [aria-label]")).map((e) => (e.matches("option") ? "<an entry of a list>"
+            : e.closest("tbody") ? (e.matches("td") ? "<a table cell>" : "<inside a table cell>")
+            : clean(e.title || e.getAttribute("alt") || e.getAttribute("aria-label") || ""))).filter((t) => t))],
         // What a field shows while it is empty; for a list, its entry with no value.
         placeholders: all("input[placeholder], textarea[placeholder], select", (e) => (e.tagName !== "SELECT" ? e.placeholder.trim()
             : clean(e.selectedOptions.length && e.selectedOptions[0].value === "" ? e.selectedOptions[0].textContent : ""))),
