@@ -6,6 +6,7 @@ mod api;
 mod items;
 
 use api::Api;
+use fgds_core::argparse::{Kind, Nargs, Opt, Parser};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::serde_json::{json, Value};
 use fgds_core::{CliEnv, Error, Manifest, Plugin, Registry, Result, Subcommand};
@@ -47,6 +48,7 @@ fn filter_args() -> [Arg; 4] {
             .long("ids")
             .value_name("ID")
             .num_args(1..)
+            .action(ArgAction::Append)
             .allow_negative_numbers(true)
             .help("Only items with one of these identifiers"),
         Arg::new("components")
@@ -54,6 +56,7 @@ fn filter_args() -> [Arg; 4] {
             .long("components")
             .value_name("COMP")
             .num_args(1..)
+            .action(ArgAction::Append)
             .help("Only items of one of these components (the name without its last part)"),
         Arg::new("search")
             .short('s')
@@ -233,10 +236,53 @@ impl Subcommand for Commands {
 /// `fgds command-send`.
 struct CommandSend;
 
+/// The options of `fprime-cli command-send` (fprime-gds 4.4.0), in the order of its parser, and the two
+/// `fgds` adds. Those that set up the Python GDS itself are read and have no effect here.
+fn command_send_options() -> Vec<Opt> {
+    use Kind::{Float, Int, Str};
+    use Nargs::{Exactly, Flag, One, OneOrMore, ZeroOrMore};
+    const LEVELS: Kind = Kind::Choice(&["DEBUG", "INFO", "WARNING", "ERROR"]);
+    vec![
+        Opt::new(&["-h", "--help"], Flag, Str),
+        Opt::new(&["--no-zmq"], Flag, Str).ignored(),
+        Opt::new(&["--zmq-transport"], Exactly(2), Str).ignored(),
+        Opt::new(&["--tts-port"], One, Int).ignored(),
+        Opt::new(&["--tts-addr"], One, Str).ignored(),
+        Opt::new(&["-l", "--logs"], One, Str),
+        Opt::new(&["--log-directly"], Flag, Str).ignored(),
+        Opt::new(&["--log-to-stdout"], Flag, Str).ignored(),
+        Opt::new(&["--log-level-gds"], One, LEVELS).ignored(),
+        Opt::new(&["--disable-data-logging"], Flag, Str).ignored(),
+        Opt::new(&["--log-prefix"], One, Str).ignored(),
+        Opt::new(&["--no-clear-history"], Flag, Str).ignored(),
+        Opt::new(&["-d", "--deployment"], One, Str).ignored(),
+        Opt::new(&["--dictionary"], One, Str),
+        Opt::new(&["--packet-spec"], One, Str).ignored(),
+        Opt::new(&["--packet-set-name"], One, Str).ignored(),
+        Opt::new(&["--hash-file"], One, Str).ignored(),
+        Opt::new(&["--file-storage-directory"], One, Str).ignored(),
+        Opt::new(&["--file-uplink-cooldown"], One, Float).ignored(),
+        Opt::new(&["--file-uplink-chunk-size"], One, Int).ignored(),
+        Opt::new(&["--arguments"], ZeroOrMore, Str),
+        Opt::new(&["--list"], Flag, Str),
+        Opt::new(&["-i", "--ids"], OneOrMore, Int),
+        Opt::new(&["-c", "--components"], OneOrMore, Str),
+        Opt::new(&["-s", "--search"], One, Str),
+        Opt::new(&["-j", "--json"], Flag, Str),
+        Opt::new(&["--url"], One, Str).exact(),
+        Opt::new(&["--dry-run"], Flag, Str).exact(),
+    ]
+}
+
 impl Subcommand for CommandSend {
     fn command(&self) -> Command {
         Command::new("command-send")
             .about("Send a command through a running GDS")
+            .after_help(
+                "The command line is read as `fprime-cli command-send` reads it: its options are accepted \
+                 with the same spelling, also shortened (`--arg`, `-i5`, `-l LOGS`), and those that set up \
+                 the Python GDS have no effect.",
+            )
             .arg(url_arg())
             .arg(Arg::new("command-name").help("Full name of the command, \"<component>.<name>\""))
             .arg(
@@ -244,19 +290,17 @@ impl Subcommand for CommandSend {
                     .long("arguments")
                     .value_name("ARGUMENT")
                     .num_args(0..)
-                    .allow_negative_numbers(true)
+                    .action(ArgAction::Append)
                     .help("The arguments of the command, in order"),
             )
             .arg(
                 Arg::new("dry-run")
-                    .short('n')
                     .long("dry-run")
                     .action(ArgAction::SetTrue)
                     .help("Check and encode the command, print its packet in hexadecimal, send nothing"),
             )
             .arg(
                 Arg::new("list")
-                    .short('l')
                     .long("list")
                     .action(ArgAction::SetTrue)
                     .help("List the commands instead (same as `commands`)"),
@@ -264,11 +308,11 @@ impl Subcommand for CommandSend {
             .args(filter_args())
     }
 
+    fn argparse(&self) -> Option<Parser> {
+        Some(Parser { options: command_send_options(), positionals: vec![(Nargs::Optional, "command-name")] })
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        // argparse of fprime-cli reads `-inf` as `-i nf` and refuses the identifier.
-        if let Err(error) = Filter::from(args) {
-            return Ok(refused(&error));
-        }
         if args.get_flag("list") {
             return Commands.run(args, env);
         }
@@ -279,25 +323,13 @@ impl Subcommand for CommandSend {
         };
         let arguments: Vec<&String> = args.get_many::<String>("arguments").map(Iterator::collect).unwrap_or_default();
         let dry_run = args.get_flag("dry-run");
-        // argparse of fprime-cli: an argument that starts with `-` is taken as an argument only when it
-        // is a negative number written with digits (`-5`, `-0.5`), so `-3.4e38` ends the command line.
-        let number = |text: &str| {
-            let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
-            match text.split_once('.') {
-                Some((whole, fraction)) => (whole.is_empty() || digits(whole)) && digits(fraction),
-                None => digits(text),
-            }
-        };
-        if let Some(first) = arguments.iter().position(|a| a.strip_prefix('-').is_some_and(|rest| !number(rest))) {
-            let rest: Vec<&str> = arguments[first..].iter().map(|a| a.as_str()).collect();
-            return Ok(refused(&format!("unrecognized arguments: {}", rest.join(" "))));
-        }
         runtime()?.block_on(async {
             api.check_version().await?;
             let body = json!({"name": name, "args": arguments});
             let query: &[(&str, &str)] = if dry_run { &[("dry_run", "true")] } else { &[] };
             match api.post("/commands", query, &body).await {
-                Ok(answer) if json => println!("{answer}"),
+                // `fprime-cli command-send -j` prints nothing for a command that is sent.
+                Ok(answer) if json && dry_run => println!("{answer}"),
                 Ok(answer) if dry_run => println!("{}", api::hex(answer["packet"].as_str().unwrap_or_default())?),
                 Ok(_) => {}
                 Err(error) => {
@@ -320,5 +352,68 @@ impl Subcommand for CommandSend {
             }
             Ok(ExitCode::SUCCESS)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `fixtures/command-line/table.json`: what argparse of `fprime-cli command-send` makes of each
+    /// command line, its message when it refuses.
+    #[test]
+    fn command_send_reads_its_command_line_as_argparse() {
+        let table: Vec<Value> =
+            fgds_core::serde_json::from_str(include_str!("../../../fixtures/command-line/table.json")).unwrap();
+        let mut parser = CommandSend.argparse().unwrap();
+        parser.options.retain(|option| option.abbreviated);
+        assert!(table.len() > 6000);
+        let mut wrong = Vec::new();
+        for row in &table {
+            let tokens: Vec<String> =
+                row["tokens"].as_array().unwrap().iter().map(|t| t.as_str().unwrap().to_string()).collect();
+            let expected = if let Some(error) = row["error"].as_str() {
+                Err(error.to_string())
+            } else if row["help"] == true {
+                Ok(vec!["--help".to_string()])
+            } else {
+                let values = &row["values"];
+                let mut out = Vec::new();
+                let texts = |value: &Value| match value {
+                    Value::Array(all) => {
+                        all.iter().map(|v| v.as_str().map(str::to_string).unwrap_or(v.to_string())).collect()
+                    }
+                    Value::String(text) => vec![text.clone()],
+                    _ => Vec::new(),
+                };
+                for (name, field) in [("logs", "logs"), ("dictionary", "dictionary"), ("arguments", "arguments")] {
+                    out.extend(texts(&values[field]).iter().map(|v| format!("--{name}={v}")));
+                }
+                if values["is_printing_list"] == true {
+                    out.push("--list".to_string());
+                }
+                for name in ["ids", "components", "search"] {
+                    out.extend(texts(&values[name]).iter().map(|v| format!("--{name}={v}")));
+                }
+                if values["json"] == true {
+                    out.push("--json".to_string());
+                }
+                if let Some(name) = values["command_name"].as_str() {
+                    out.extend(["--".to_string(), name.to_string()]);
+                }
+                Ok(out)
+            };
+            let got = parser.canonical(&tokens);
+            if got != expected {
+                wrong.push(format!("{tokens:?}\n  argparse {expected:?}\n  fgds     {got:?}"));
+            }
+        }
+        assert!(
+            wrong.is_empty(),
+            "{} of {} differ:\n{}",
+            wrong.len(),
+            table.len(),
+            wrong[..wrong.len().min(25)].join("\n")
+        );
     }
 }

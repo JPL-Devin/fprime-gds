@@ -227,6 +227,11 @@ pub struct UiBundle {
 
 pub trait Subcommand: Send + Sync {
     fn command(&self) -> clap::Command;
+    /// For a subcommand that stands for a command of `fprime-cli`: its options as argparse has them.
+    /// Its command line is then read by `argparse::Parser::canonical` before clap sees it.
+    fn argparse(&self) -> Option<crate::argparse::Parser> {
+        None
+    }
     fn run(&self, args: &clap::ArgMatches, env: &CliEnv) -> Result<ExitCode>;
 }
 

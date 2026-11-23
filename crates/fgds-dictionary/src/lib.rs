@@ -12,6 +12,7 @@ mod text;
 mod types;
 
 pub use codec::{EncodedCommand, Reader, TypeError};
+pub use input::{is_decimal_digit, python_decimal, python_float};
 pub use load::DictError;
 pub use types::{Channel, Command, Event, Member, Param, Time, Type};
 

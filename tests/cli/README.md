@@ -30,6 +30,7 @@ too); `ref_int.py` prints how many and the first one. Any other failure stands.
 | --- | --- | --- | --- |
 | Definitions | `events --list`, `channels --list`, `command-send --list`, text and `--json`, each with no filter, `-i`, `-c`, `-s`, filters that match nothing, `-c` and `-s`; `-i abc` | the same subcommands and filters | the exit code and the printed text are equal, byte for byte (for `-i abc`: the last line after the program name) |
 | Live | `command-send` of the commands of `tests/compare/scenario.py`, to `Ref` | the same | the command packets on the link are equal byte for byte |
+| Dash matrix | `command-send` with the command lines of `DASHES` in `check.py` (tokens that start with `-`: negative numbers, `-`, `--`, `--arguments=VALUE`, shortened long options, `-i5`, options given twice, options after positionals), to `Ref` | the same | exit code, standard output, the message after `error: ` and the command packets are equal; `-h` and the two lines of `COUNT` are the listed differences |
 | Replay | `events -t 0 --json`, `channels -t 0 --json` while the bytes captured from `Ref` are fed to the Python GDS | `events --json`, `channels --json`, the same bytes fed to `fgds` | every item `fprime-cli` printed is printed by `fgds` with the same identifier, name, severity, time, arguments and text (channels: identifier, name, time, text of the value) |
 
 Also checked for `fgds`: an unknown command gives the text and exit code 0 of `fprime-cli` with the near names of

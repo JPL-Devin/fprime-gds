@@ -184,6 +184,104 @@ def live(name, gds, out):
             scenario.stop(ref)
 
 
+# 2b. The dash matrix: command lines whose tokens start with `-`, through both command lines against Ref.
+# Each is read by argparse of `fprime-cli command-send`; fgds reads it by the same rule (`fgds_core::argparse`,
+# checked row by row against `fixtures/command-line/table.json`). Here the end: exit code, standard output,
+# the message after `error: ` and the command packets on the link.
+
+F32, I8, TEXT, THREE = ("Ref.sendBuffComp.PARAMETER4_PRM_SET", "Ref.sendBuffComp.PARAMETER3_PRM_SET",
+                        "CdhCore.cmdDisp.CMD_NO_OP_STRING", "CdhCore.cmdDisp.CMD_TEST_CMD_1")
+DASHES = [
+    # Round 7, P1: a negative number is `^-\d+$|^-\d*\.\d+$`, with the digits of any script.
+    [F32, "--arguments", "-.5"], [F32, "--arguments", "-\u0665"], [F32, "--arguments", "-\u0665.\u0665"],
+    [TEXT, "--arguments", "-\u0665"], [F32, "--arguments", "-5."], [I8, "--arguments", "-5"], [THREE, "--arguments", "-1", "-2.5", "3"],
+    # P2: `-` alone, and a token with a space.
+    [TEXT, "--arguments", "-"], [TEXT, "--arguments", "- 5"], [TEXT, "--arguments", "-x y"], [TEXT, "--arguments", ""],
+    # P3: the value written with `=`.
+    [F32, "--arguments=-inf"], [F32, "--arguments=-Infinity"], [F32, "--arguments=-NaN"], [F32, "--arguments=-1e-400"],
+    [F32, "--arguments=-x"], [TEXT, "--arguments=a=b"], [TEXT, "--arguments="], [F32, "--arg=-1.5"],
+    # P4: `--`.
+    [I8, "--arguments", "--"], [F32, "--arguments", "--", "-inf"], [F32, "--arguments", "1.5", "--"], [F32, "--", "--arguments", "1.5"],
+    [TEXT, "--arguments", "---"],
+    # P5: an option of the parser where an argument is meant.
+    [I8, "--arguments", "-l"], [I8, "--arguments", "-s"], [I8, "--arguments", "-i"], [I8, "--arguments", "-c"], [I8, "--arguments", "-d"],
+    [I8, "--arguments", "-j"], [I8, "--arguments", "-h"],
+    # P6: `-j` with a command that is sent.
+    [F32, "-j", "--arguments", "1.5"], [F32, "--arguments", "1.5", "--json"],
+    # Round 6 and the M2 row: what the parser refuses or reads as an option.
+    *[[F32, "--arguments", text] for text in (
+        "-inf", "-infinity", "-Infinity", "-NaN", "-nan", "-1e-400", "-1e308", "-0x10", "-1_0", "-1e+5", "-x", "--bogus", "-1e",
+        "-1-2", "-1,5", "-a", "-t", "-I", "-N", "-+1", "--inf", "-5\n")],
+    [THREE, "--arguments", "-2147483648", "-3.4e38", "255"],
+    # Long options shortened.
+    [F32, "--arg", "1.5"], [F32, "--a", "2.5"], [F32, "--arguments", "1.5", "--js"], [F32, "--arguments", "1.5", "--j"],
+    [F32, "--arguments", "1.5", "--d"], [F32, "--arguments", "1.5", "--no"], [F32, "--arguments", "1.5", "--l"],
+    [F32, "--arguments", "1.5", "--se", "x"], [F32, "--arguments", "1.5", "--comp", "x", "y"], [F32, "--arguments", "1.5", "--id", "5"],
+    [F32, "--arguments", "1.5", "--id=x"], [F32, "--arguments", "1.5", "--log-level-gds", "x"], [F32, "--arguments", "1.5", "--log-level-gds=INFO"],
+    [F32, "--arguments", "1.5", "--file-uplink-cooldown", "x"], [F32, "--arguments", "1.5", "--zmq-transport", "a"],
+    # A value attached to a short option, short options together.
+    [F32, "-i5", "--arguments", "1.5"], [F32, "--arguments", "1.5", "-i5"], [F32, "--arguments", "1.5", "-i5", "6"],
+    [F32, "--arguments", "1.5", "-i=5"], [F32, "--arguments", "1.5", "-i5.5"], [F32, "--arguments", "1.5", "-i-5"],
+    [F32, "--arguments", "1.5", "-i", "-5"], [F32, "--arguments", "1.5", "-sx"], [F32, "--arguments", "1.5", "-s=x"],
+    [F32, "--arguments", "1.5", "-cx", "y"], [F32, "--arguments", "1.5", "-jsx"], [F32, "--arguments", "1.5", "-ji5"],
+    [F32, "--arguments", "1.5", "-jj"], [F32, "--arguments", "1.5", "-j5"], [F32, "--arguments", "1.5", "-j=5"], [F32, "--arguments", "1.5", "-jx"],
+    # Options given again.
+    [F32, "--arguments", "1.5", "--arguments", "2.5"], [THREE, "--arguments", "1", "2", "--arguments", "3", "-4.5", "5"],
+    [F32, "--arguments", "1.5", "--arguments"], [F32, "--arguments", "1.5", "-j", "-j"], [F32, "-i", "1", "-i", "2", "--arguments", "3.5"],
+    [F32, "-s", "a", "--arguments", "3.5", "-s", "b"],
+    # Options after and between positionals.
+    ["--arguments", "1.5", F32], ["--arguments", "1.5", "-j", F32], ["-j", F32, "--arguments", "1.5"], ["--arguments", "1.5", "--", F32],
+    [F32, "x", "--arguments", "1.5"], [F32, "--arguments", "1.5", "-j", "2.5"], [F32, "-5", "--arguments", "1.5"], ["-5", "--arguments", "1.5"],
+    ["-j"], [],
+]
+
+
+def dashes(name, gds, out):
+    """Each command line of DASHES: exit code, standard output, the message, the command packets it put on the link."""
+    ref, results, scid = None, [], scenario.spacecraft_id(args.dictionary)
+    try:
+        proxy = scenario.Proxy(gds.link_port)
+        ref = scenario.start_ref(args.ref, proxy, out)
+        code, sample, error = run(gds.cli("channels", "-t", "30", "--json"))
+        assert json_lines(sample), f"{name}: no telemetry within 30 s: {code} {error}"
+        time.sleep(scenario.GAP)
+        for tokens in DASHES:
+            before = len(scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid))
+            code, output, error = run(gds.cli("command-send", *tokens))
+            time.sleep(scenario.GAP)
+            packets = [p.hex() for p in scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)[before:]]
+            message = error.split(": error: ", 1)[1].strip() if code == 2 and ": error: " in error else ""
+            if message.startswith("ambiguous option: "):  # the order of the matches of fprime-cli changes from run to run
+                message = message.split(" could match ")[0] + " could match " + ", ".join(sorted(message.split(" could match ")[1].split(", ")))
+            results.append({"exit": code, "stdout": output, "message": message, "packets": packets})
+        return results
+    finally:
+        if ref:
+            scenario.stop(ref)
+
+
+# The two differences of docs/design/deviations.md that the matrix meets.
+HELP = [[I8, "--arguments", "-h"]]  # both print their own help text
+COUNT = [[I8, "--arguments", "-j"], [F32, "--arguments", "1.5", "--arguments"]]  # C4: no argument left for a command that takes one
+
+
+def compare_dashes(python, rust):
+    for tokens, expected, got in zip(DASHES, python, rust):
+        what = f"command-send {json.dumps(tokens, ensure_ascii=True)}"
+        if tokens in HELP:
+            require(f"{what}: both print a help text, exit code 0, nothing sent",
+                    all(r["exit"] == 0 and r["stdout"] and not r["packets"] for r in (expected, got)), f"{expected} {got}")
+        elif tokens in COUNT:
+            require(f"{what}: fprime-cli sends the command without its argument, fgds refuses it with exit code 1 (C4)",
+                    expected["exit"] == 0 and len(expected["packets"]) == 1 and got == {"exit": 1, "stdout": "", "message": "", "packets": []},
+                    f"{expected} {got}")
+        else:
+            check(f"{what}: exit {expected['exit']}, {len(expected['packets'])} packet(s)", expected, got)
+    sent = sum(1 for result in python if result["packets"])
+    require(f"the dash matrix has command lines that send and command lines that do not: {sent} of {len(python)} sent",
+            20 <= sent <= len(python) - 20)
+
+
 def refused(fgds):
     """What fgds answers to commands that cannot be sent, and its dry run."""
     code, _, error = run(fgds.cli("command-send"))
@@ -346,6 +444,13 @@ def main():
         scenario.stop(fgds.process)
         python = PythonGds(f"{args.out}/python")
         python_uplink, _ = live("fprime-cli", python, f"{args.out}/python")
+        scenario.stop(python.process)
+        print(f"dash matrix: {len(DASHES)} command lines of command-send through both against Ref")
+        fgds = Fgds(f"{args.out}/rust-dashes")
+        rust_dashes = dashes("fgds", fgds, f"{args.out}/rust-dashes")
+        scenario.stop(fgds.process)
+        python = PythonGds(f"{args.out}/python-dashes")
+        compare_dashes(dashes("fprime-cli", python, f"{args.out}/python-dashes"), rust_dashes)
         scenario.stop(python.process)
         open(f"{args.out}/downlink.bin", "wb").write(capture)
         scid = scenario.spacecraft_id(args.dictionary)

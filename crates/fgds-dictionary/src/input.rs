@@ -65,6 +65,24 @@ pub fn python_int(text: &str) -> Option<i128> {
     Some(if negative { -value } else { value })
 }
 
+/// Whether Python `\d` matches the character: a decimal digit of any script.
+pub fn is_decimal_digit(c: char) -> bool {
+    let code = c as u32;
+    let zero = DIGIT_ZEROS.partition_point(|zero| *zero <= code).checked_sub(1).map(|at| DIGIT_ZEROS[at]);
+    c.is_ascii_digit() || zero.is_some_and(|zero| code - zero < 10)
+}
+
+/// Python `int(text)`: a sign, then decimal digits (leading zeros allowed) with single underscores between them.
+pub fn python_decimal(text: &str) -> Option<i128> {
+    let text = ascii(text);
+    let (negative, rest) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, text.strip_prefix('+').unwrap_or(&text)),
+    };
+    let value: i128 = digits(rest, 10, false)?.parse().unwrap_or(i128::MAX);
+    Some(if negative { -value } else { value })
+}
+
 /// Python `float(text)`: a decimal number, or `inf`, `infinity`, `nan` in any case, with a sign.
 pub fn python_float(text: &str) -> Option<f64> {
     let text = ascii(text);
