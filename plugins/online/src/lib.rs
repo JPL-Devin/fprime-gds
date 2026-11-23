@@ -269,8 +269,8 @@ fn gds_options_hold(
     if let (Some(name), Some(dictionary)) = (given("packet-set-name"), &dictionary) {
         has_packet_set(dictionary, name)?;
     }
-    // An empty text is no hash file to `fprime-cli`.
-    if let Some(path) = given("hash-file").filter(|path| !path.is_empty() && !Path::new(path).exists()) {
+    // `fprime-cli` takes an empty text as no hash file; here it names a file that is not there.
+    if let Some(path) = given("hash-file").filter(|path| !Path::new(path).exists()) {
         return Err((255, format!("hash file location {path} does not exist")));
     }
     if let Some(path) = given("file-storage-directory") {

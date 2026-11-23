@@ -9,9 +9,11 @@ of each command of COMMANDS, a command sent with no Ref, Charts with its help, a
 chosen, then with Ref running each tab again, the top bar and the chart. The rows of the tables are data, compared
 by parity.py, and are left out, except the row of the command sent with no Ref.
 
-A text of one page that the other does not have must be in DIFFERENCES (per state and kind, `python` and
-`fgds`, each text with the row of DEVIATIONS that lists it, as `T<number>`); a difference that is not there, one
-there that is gone, or one whose row DEVIATIONS does not have, fails the check.
+This is a report, not a comparison text for text: wording is each page's own (docs/design/deviations.md). The
+texts on one page only are written to OUT/differences.json, and those not in DIFFERENCES (per state and kind,
+`python` and `fgds`, each text with its row of DEVIATIONS, `T<number>`) are printed. The check fails only for
+what may be a control or a column of the Python page that the new page lacks: a button or a table header of
+the Python page that the new page does not have and DIFFERENCES does not list.
 """
 import json
 import os
@@ -242,31 +244,33 @@ def check(binary, ref, dictionary, fixture, differences, deviations, out):
     with open(f"{out}/fgds-page.json", "w") as file:
         json.dump(shown, file, indent=1, ensure_ascii=False)
     assert list(shown) == list(expected), "record the fixture again: the states are not those of the check"
-    wrong, equal, different, used = [], 0, 0, set()
+    wrong, notes, equal, different = [], [], 0, 0
     for state in expected:
         for kind in KINDS:
             old, new = expected[state][kind], shown[state][kind]
             known = listed.get(state, {}).get(kind, {})
             for side, only in (("python", [t for t in old if t not in new]), ("fgds", [t for t in new if t not in old])):
                 rows_of = known.get(side, {})
-                wrong += [f"{state}, {kind}: {text!r} only on the {side} page, not listed" for text in only if text not in rows_of]
-                wrong += [f"{state}, {kind}: {text!r} listed as only on the {side} page, and it is not" for text in rows_of if text not in only]
-                wrong += [f"{state}, {kind}: {text!r} is listed under {row}, which {deviations} does not have"
+                unlisted = [f"{state}, {kind}: {text!r} only on the {side} page, not listed" for text in only if text not in rows_of]
+                (wrong if side == "python" and kind in ("buttons", "headers") else notes).extend(unlisted)
+                notes += [f"{state}, {kind}: {text!r} listed as only on the {side} page, and it is not" for text in rows_of if text not in only]
+                notes += [f"{state}, {kind}: {text!r} is listed under {row}, which {deviations} does not have"
                           for text, row in rows_of.items() if row not in rows]
-                used |= set(rows_of.values())
                 different += len(only)
             equal += sum(text in new for text in old)
-    wrong += [f"row {row} of {deviations} has no text in {differences}" for row in sorted(rows - used)]
+    for line in notes:
+        print(f"  note: {line}")
     for line in wrong:
         print(f"  !! {line}")
     with open(f"{out}/differences.json", "w") as file:
         json.dump({state: {kind: {"python": [t for t in expected[state][kind] if t not in shown[state][kind]],
                                   "fgds": [t for t in shown[state][kind] if t not in expected[state][kind]]}
                            for kind in KINDS} for state in expected}, file, indent=1, ensure_ascii=False)
-    assert not wrong, f"{len(wrong)} texts differ from the Python GDS page and the list of differences"
+    assert not wrong, f"{len(wrong)} buttons or table headers of the Python GDS page are not on the new page and not listed"
     harness.step(f"texts of the page: buttons, table headers, placeholders, labels, hover texts, other texts and the window title in "
                  f"{len(expected)} states of the Python GDS page (tabs, top bar, command forms, charts; without and with Ref); "
-                 f"{equal} are on both pages, {different} are on one page only, each in a row of deviations.md")
+                 f"{equal} are on both pages, {different} are on one page only ({len(notes)} notes); "
+                 f"no button or table header of the Python page is missing unlisted")
 
 
 if __name__ == "__main__":

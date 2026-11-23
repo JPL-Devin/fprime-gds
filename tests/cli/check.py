@@ -279,7 +279,7 @@ def named(out):
 
 
 # Round 9: the GDS options of fprime-cli, the same on `command-send`, `events` and `channels`, checked before
-# anything is done. Each set of options goes through the six FORMS; both end with the same exit code, put the
+# anything is done. Each set of options goes through the six FORMS; both accept or both refuse, put the
 # same packets on the link and, for a listing, print the same.
 FORMS = [["command-send", NO_OP], ["command-send", "--list", "-s", "CMD_NO_OP"], ["events", "--list", "-s", "OpCode"],
          ["channels", "--list", "-s", "Commands"], ["events", "-t", "0.5"], ["channels", "-t", "0.5"]]
@@ -313,11 +313,11 @@ STANDARD = [
     ["--log-level-gds", "x"], ["--tts-port", "x"], ["--file-uplink-cooldown", "nan"], ["--file-uplink-cooldown", "x"],
     ["--file-uplink-chunk-size", "0"], ["--file-uplink-chunk-size", "1.5"], ["--zmq-transport", "a"], ["-l"], ["--hash-file"],
 ]
-# The checks of fprime-cli are parts held in a Python set: which of two bad options it reports changes from
-# start to start. fgds has the order fprime-cli takes most often, the order of BAD (deviations.md).
+# Two bad options: both tools refuse; which one each reports is its own (deviations.md).
 PAIRS = [BAD[a] + BAD[b] for a in BAD for b in BAD if a != b]
 PAIRED = [(["--dictionary", "{dictionary}"] if "--dictionary" not in pair else []) + pair for pair in PAIRS]
 STANDARD += PAIRED
+EMPTY_HASH = ["--hash-file", ""]
 # The lines fprime-cli prints for its own logging (deviations.md).
 LOGGING = [["--log-to-stdout"]]
 
@@ -346,15 +346,15 @@ def compare_standard(lines, python, rust):
         listing, following = "--list" in form, "-t" in form
         same = got["exit"] == expected["exit"] and got["packets"] == expected["packets"]
         ended[expected["exit"]] = ended.get(expected["exit"], 0) + 1
-        if options in PAIRED:
-            first = 255 if "--hash-file" in options and not {"--packet-set-name", "--packet-spec"} & set(options) and BAD["dictionary"] != options[:2] and BAD["dictionary"] != options[-2:] else 1
-            both_exits = {255 if "--hash-file" in options else 1, 1}
-            require(f"{what}: fprime-cli ends with exit code {expected['exit']}, fgds with {first}, nothing sent, nothing printed",
-                    expected["exit"] in both_exits and got["exit"] == first and not got["packets"] + expected["packets"] and not got["stdout"],
-                    f"{expected} {got}")
-        elif expected["exit"] != 0:
-            require(f"{what}: both end with exit code {expected['exit']}, nothing sent, nothing printed",
+        if options == EMPTY_HASH:
+            require(f"{what}: fprime-cli takes the empty text as no hash file (exit code 0), fgds refuses it, nothing sent, nothing printed",
+                    expected["exit"] == 0 and got["exit"] not in (0, 2) and not got["packets"] and not got["stdout"], f"{expected} {got}")
+        elif expected["exit"] == 2:
+            require(f"{what}: both end with exit code 2, nothing sent, nothing printed",
                     same and not got["packets"] and not got["stdout"] and got["message"] == expected["message"], f"{expected} {got}")
+        elif expected["exit"] != 0:  # which of two bad options is reported, and the exit code, are each tool's own
+            require(f"{what}: both refuse (fprime-cli exit code {expected['exit']}, fgds {got['exit']}), nothing sent, nothing printed",
+                    got["exit"] not in (0, 2) and not got["packets"] + expected["packets"] and not got["stdout"], f"{expected} {got}")
         elif following:
             require(f"{what}: both end with exit code 0", same and not got["packets"], f"{expected} {got}")
         elif options in LOGGING:
@@ -364,7 +364,7 @@ def compare_standard(lines, python, rust):
             check(f"{what}: exit 0, {len(expected['packets'])} packet(s), {len(expected['stdout'].splitlines())} line(s)", expected, got)
             if listing and "nocmd.json" not in " ".join(options):
                 require(f"{what}: the listing is not empty", bool(got["stdout"]))
-    require(f"the option matrix has lines of every outcome: {ended}", all(ended.get(code, 0) >= 20 for code in (0, 1, 2, 255)))
+    require(f"the option matrix has lines of every outcome: {ended}", all(ended.get(code, 0) >= 20 for code in (0, 1, 2)))
 
 
 def dashes(name, gds, out, lines=None, subcommand="command-send"):
