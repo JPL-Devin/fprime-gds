@@ -207,7 +207,7 @@ impl Parser {
         match kind {
             Kind::Str => Ok(text.to_string()),
             Kind::Int => python_decimal(text).map(|v| v.to_string()).ok_or(format!("invalid int value: {quoted}")),
-            Kind::Float => python_float(text).map(|_| text.to_string()).ok_or(format!("invalid float value: {quoted}")),
+            Kind::Float => python_float(text).map(|v| v.to_string()).ok_or(format!("invalid float value: {quoted}")),
             Kind::Choice(choices) if choices.contains(&text) => Ok(text.to_string()),
             Kind::Choice(choices) => Err(format!("invalid choice: {quoted} (choose from {})", choices.join(", "))),
         }

@@ -31,6 +31,7 @@ too); `ref_int.py` prints how many and the first one. Any other failure stands.
 | Definitions | `events --list`, `channels --list`, `command-send --list`, text and `--json`, each with no filter, `-i`, `-c`, `-s`, filters that match nothing, `-c` and `-s`; `-i abc` | the same subcommands and filters | the exit code and the printed text are equal, byte for byte (for `-i abc`: the last line after the program name) |
 | Live | `command-send` of the commands of `tests/compare/scenario.py`, to `Ref` | the same | the command packets on the link are equal byte for byte |
 | Dash matrix | `command-send` with the command lines of `DASHES` in `check.py` (tokens that start with `-`: negative numbers, `-`, `--`, `--arguments=VALUE`, shortened long options, `-i5`, options given twice, options after positionals), to `Ref` | the same | exit code, standard output, the message after `error: ` and the command packets are equal; `-h` and the two lines of `COUNT` are the listed differences |
+| Option matrix | `command-send`, `command-send --list`, `events --list`, `channels --list`, `events -t`, `channels -t`, each with the sets of GDS options of `STANDARD` in `check.py` (every option that names a dictionary, a file or a directory with a thing that is absent, not writable, empty, and valid; the options without a use in `fgds`; pairs of bad options), to `Ref` | the same | exit code, standard output, the message of exit code 2 and the command packets are equal; for a pair of bad options `fgds` ends with the exit code of its fixed order, `fprime-cli` with one of the two (`docs/design/deviations.md`) |
 | Replay | `events -t 0 --json`, `channels -t 0 --json` while the bytes captured from `Ref` are fed to the Python GDS | `events --json`, `channels --json`, the same bytes fed to `fgds` | every item `fprime-cli` printed is printed by `fgds` with the same identifier, name, severity, time, arguments and text (channels: identifier, name, time, text of the value) |
 
 Also checked for `fgds`: an unknown command gives the text and exit code 0 of `fprime-cli` with the near names of
@@ -59,8 +60,8 @@ following printed exactly what `--history` lists.
    against `fprime-cli events: error: ...`), with the same exit code; the usage text before it is not printed.
    An argument that both refuse (out of range, wrong type) gives exit code 1 on both: a Python traceback there,
    one line here.
-7. **Layout and options.** `fgds` has `commands` (in `fprime-cli`: `command-send --list`), `--url` instead of
-   the dictionary and ZeroMQ options, `--history`/`--no-follow`, and `--dry-run`. Without `-t`, `fgds` follows
+7. **Layout and options.** `fgds` has `commands` (in `fprime-cli`: `command-send --list`), `--url` to reach the GDS
+   (the GDS options of `fprime-cli` are read and checked as it checks them; `-l` is `--logs`), `--history`/`--no-follow`, and `--dry-run`. Without `-t`, `fgds` follows
    until interrupted, as `fprime-cli -t 0` does.
 
 Not covered here: sending raw bytes. File uplink from the command line (`fgds file-uplink`) is checked in `tests/files`.

@@ -278,7 +278,96 @@ def named(out):
     return [[NO_OP, *(token.format(out=out, dictionary=args.dictionary) for token in options)] for options in MISSING + THERE]
 
 
-def dashes(name, gds, out, lines=None):
+# Round 9: the GDS options of fprime-cli, the same on `command-send`, `events` and `channels`, checked before
+# anything is done. Each set of options goes through the six FORMS; both end with the same exit code, put the
+# same packets on the link and, for a listing, print the same.
+FORMS = [["command-send", NO_OP], ["command-send", "--list", "-s", "CMD_NO_OP"], ["events", "--list", "-s", "OpCode"],
+         ["channels", "--list", "-s", "Commands"], ["events", "-t", "0.5"], ["channels", "-t", "0.5"]]
+BAD = {  # one of each check, for the pairs: with two bad options the first check of fprime-cli decides
+    "dictionary": ["--dictionary", "/nonexistent/x"], "set": ["--packet-set-name", "x"], "spec": ["--packet-spec", "/nonexistent/x"],
+    "hash": ["--hash-file", "/nonexistent/x"], "files": ["--file-storage-directory", "/etc"], "logs": ["-l", "/etc"],
+    "prefix": ["--log-prefix", "{out}/ro/p"],
+}
+STANDARD = [
+    [],
+    # absent, not readable, empty, valid
+    ["--dictionary", "/nonexistent/x"], ["--dictionary", "{out}"], ["--dictionary", "{out}/unreadable.json"], ["--dictionary", ""],
+    ["--dictionary", "{out}/not-json"], ["--dictionary", "{out}/list.json"], ["--dictionary", "{out}/empty.json"],
+    ["--dictionary", "{out}/nocmd.json"], ["--dictionary", "/nonexistent/x", "--dictionary", "{dictionary}"],
+    ["--packet-spec", "/nonexistent/x"], ["--packet-spec", "{out}"], ["--packet-spec", ""], ["--packet-spec", "{out}/not-json"],
+    ["--packet-spec", "{out}/p.xml"],
+    ["--packet-set-name", "x"], ["--packet-set-name", ""], ["--packet-set-name", "RefPackets"],
+    ["--hash-file", "/nonexistent/x"], ["--hash-file", "{out}/ro/h"], ["--hash-file", ""], ["--hash-file", "{out}"], ["--hash-file", "{out}/not-json"],
+    ["--file-storage-directory", "/nonexistent/x"], ["--file-storage-directory", "{out}/not-json"], ["--file-storage-directory", "{out}/ro"],
+    ["--file-storage-directory", "{out}/ro/sub"], ["--file-storage-directory", "/etc"], ["--file-storage-directory", ""],
+    ["--file-storage-directory", "{out}/files"],
+    ["-l", "/nonexistent/x"], ["-l", "{out}/not-json"], ["-l", "{out}/ro"], ["-l", "{out}/ro/sub"], ["-l", "/etc"], ["-l", ""],
+    ["-l", "{out}/logs"], ["-l", "/nonexistent/x", "-l", "{out}/logs"], ["-l", "{out}/ro", "--log-directly"], ["-l", "{out}/logs", "--log-directly"],
+    ["-l", "", "--log-directly"],
+    ["--log-prefix", "/nonexistent/x"], ["--log-prefix", "{out}/ro/p"], ["--log-prefix", "/etc/hostname"], ["--log-prefix", ""], ["--log-prefix", "p"],
+    ["--log-prefix", "p/"],
+    # with `--dictionary` a deployment is not looked at; without, both end with 255 (main)
+    ["--dictionary", "{dictionary}", "-d", "/nonexistent/x"], ["-d", ""], ["--dictionary", "{dictionary}", "-d", "{out}"],
+    # options without a use in fgds, with values argparse accepts and refuses
+    ["--log-to-stdout"], ["--log-directly"], ["--disable-data-logging"], ["--no-clear-history"], ["--log-level-gds", "DEBUG"],
+    ["--log-level-gds", "x"], ["--tts-port", "x"], ["--file-uplink-cooldown", "nan"], ["--file-uplink-cooldown", "x"],
+    ["--file-uplink-chunk-size", "0"], ["--file-uplink-chunk-size", "1.5"], ["--zmq-transport", "a"], ["-l"], ["--hash-file"],
+]
+# The checks of fprime-cli are parts held in a Python set: which of two bad options it reports changes from
+# start to start. fgds has the order fprime-cli takes most often, the order of BAD (deviations.md).
+PAIRS = [BAD[a] + BAD[b] for a in BAD for b in BAD if a != b]
+PAIRED = [(["--dictionary", "{dictionary}"] if "--dictionary" not in pair else []) + pair for pair in PAIRS]
+STANDARD += PAIRED
+# The lines fprime-cli prints for its own logging (deviations.md).
+LOGGING = [["--log-to-stdout"]]
+
+
+def standard(out):
+    """STANDARD through FORMS as command lines [subcommand, token...], the things they name made."""
+    os.makedirs(f"{out}/ro", exist_ok=True)
+    os.chmod(f"{out}/ro", 0o555)
+    for name, text in (("not-json", "x\n"), ("empty.json", "{}\n"), ("list.json", "[1, 2]\n"), ("unreadable.json", "{}\n"),
+                       ("p.xml", "<packets name='x' namespace='y' size='100'></packets>\n")):
+        if not os.path.exists(f"{out}/{name}"):
+            open(f"{out}/{name}", "w").write(text)
+    os.chmod(f"{out}/unreadable.json", 0)
+    dictionary = json.load(open(args.dictionary))
+    dictionary["commands"] = [c for c in dictionary["commands"] if c["name"] != NO_OP]
+    dictionary["events"], dictionary["telemetryChannels"] = dictionary["events"][1:], dictionary["telemetryChannels"][1:]
+    json.dump(dictionary, open(f"{out}/nocmd.json", "w"))
+    return [(form + [token.format(out=out, dictionary=args.dictionary) for token in options], options, form)
+            for options in STANDARD for form in (FORMS[::2] if options in PAIRED else FORMS)]
+
+
+def compare_standard(lines, python, rust):
+    ended = {}
+    for (tokens, options, form), expected, got in zip(lines, python, rust):
+        what = f"{' '.join(form)} {' '.join(options)}"
+        listing, following = "--list" in form, "-t" in form
+        same = got["exit"] == expected["exit"] and got["packets"] == expected["packets"]
+        ended[expected["exit"]] = ended.get(expected["exit"], 0) + 1
+        if options in PAIRED:
+            first = 255 if "--hash-file" in options and not {"--packet-set-name", "--packet-spec"} & set(options) and BAD["dictionary"] != options[:2] and BAD["dictionary"] != options[-2:] else 1
+            both_exits = {255 if "--hash-file" in options else 1, 1}
+            require(f"{what}: fprime-cli ends with exit code {expected['exit']}, fgds with {first}, nothing sent, nothing printed",
+                    expected["exit"] in both_exits and got["exit"] == first and not got["packets"] + expected["packets"] and not got["stdout"],
+                    f"{expected} {got}")
+        elif expected["exit"] != 0:
+            require(f"{what}: both end with exit code {expected['exit']}, nothing sent, nothing printed",
+                    same and not got["packets"] and not got["stdout"] and got["message"] == expected["message"], f"{expected} {got}")
+        elif following:
+            require(f"{what}: both end with exit code 0", same and not got["packets"], f"{expected} {got}")
+        elif options in LOGGING:
+            require(f"{what}: exit code 0, the same packets; fprime-cli also prints the lines of its logging",
+                    same and "Logging system initialized!" in expected["stdout"] and got["stdout"] in expected["stdout"], f"{expected} {got}")
+        else:
+            check(f"{what}: exit 0, {len(expected['packets'])} packet(s), {len(expected['stdout'].splitlines())} line(s)", expected, got)
+            if listing and "nocmd.json" not in " ".join(options):
+                require(f"{what}: the listing is not empty", bool(got["stdout"]))
+    require(f"the option matrix has lines of every outcome: {ended}", all(ended.get(code, 0) >= 20 for code in (0, 1, 2, 255)))
+
+
+def dashes(name, gds, out, lines=None, subcommand="command-send"):
     """Each command line of DASHES: exit code, standard output, the message, the command packets it put on the link."""
     lines = DASHES if lines is None else lines
     ref, results, scid = None, [], scenario.spacecraft_id(args.dictionary)
@@ -290,8 +379,9 @@ def dashes(name, gds, out, lines=None):
         time.sleep(scenario.GAP)
         for tokens in lines:
             before = len(scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid))
-            code, output, error = run(gds.cli("command-send", *tokens))
-            time.sleep(scenario.GAP)
+            code, output, error = run(gds.cli(*([subcommand] if subcommand else []), *tokens))
+            if subcommand or tokens[:2] == ["command-send", NO_OP]:  # a packet of another line would be counted with the next one
+                time.sleep(scenario.GAP)
             packets = [p.hex() for p in scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)[before:]]
             message = error.split(": error: ", 1)[1].strip() if code == 2 and ": error: " in error else ""
             if message.startswith("ambiguous option: ") and tokens[-1] in VARYING:
@@ -519,6 +609,15 @@ def main():
         scenario.stop(fgds.process)
         python = PythonGds(f"{args.out}/python-named")
         compare_named(lines, dashes("fprime-cli", python, f"{args.out}/python-named", lines), rust_named)
+        scenario.stop(python.process)
+        lines = standard(f"{args.out}/standard")
+        print(f"the GDS options of fprime-cli: {len(STANDARD)} sets of options through {len(FORMS)} forms of command-send, events and channels, through both against Ref")
+        tokens = [line[0] for line in lines]
+        fgds = Fgds(f"{args.out}/rust-standard")
+        rust_standard = dashes("fgds", fgds, f"{args.out}/rust-standard", tokens, None)
+        scenario.stop(fgds.process)
+        python = PythonGds(f"{args.out}/python-standard")
+        compare_standard(lines, dashes("fprime-cli", python, f"{args.out}/python-standard", tokens, None), rust_standard)
         scenario.stop(python.process)
         # Without `--dictionary`, so without the options every other fprime-cli line of this check has: no GDS is asked.
         for options in (["-d", "/nonexistent"], ["--deployment", f"{args.out}/named"]):

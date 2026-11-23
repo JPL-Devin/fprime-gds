@@ -1,8 +1,9 @@
-"""Records how argparse of `fprime-cli command-send` reads command lines: `table.json`.
+"""Records how argparse of `fprime-cli` reads command lines: `table.json` for `command-send`, `records.json`
+for `events` (`channels` has the same parser: asserted).
 
 Run with the Python of the fprime virtual environment (fprime-gds installed):
     python fixtures/command-line/generate.py
-Each row: the tokens after `command-send`, then either `error` (the message after `error: `, exit code 2),
+Each row: the tokens after the subcommand, then either `error` (the message after `error: `, exit code 2),
 `help`, or the values argparse took.
 """
 import contextlib
@@ -27,6 +28,12 @@ POOL = [
     "--no", "--no-zmq=1", "--packet", "--packet-spec", "--p", "--hash-file", "-V", "-t", "-n", "5", "abc", "-5", NAME,
 ]
 FIELDS = ["command_name", "arguments", "is_printing_list", "ids", "components", "search", "json", "logs", "dictionary"]
+# For `events` and `channels`: no command name and no arguments; a time limit.
+RECORDS_POOL = [token for token in POOL if token != NAME] + [
+    "-t", "-t5", "-t=5", "-t-5", "-tx", "-t1e400", "-tnan", "-t 5", "-t1_0", "--timeout", "--timeout=1.5", "--timeout=-inf", "--ti",
+    "--t", "-jt5", "-lt", "--list",
+]
+RECORDS_FIELDS = ["is_printing_list", "ids", "components", "search", "json", "timeout", "logs", "dictionary"]
 DEFAULT_LOGS = create_parser().parse_args(["command-send"]).logs
 
 
@@ -38,11 +45,11 @@ DEFAULT_LOGS = create_parser().parse_args(["command-send"]).logs
 USUAL = ["--hash-file", "--file-storage-directory", "--no-zmq", "-l", "--no-clear-history", "-d"]
 
 
-def usual_parser():
+def usual_parser(subcommand="command-send", after="--arguments"):
     parser = create_parser()
-    strings = parser._subparsers._group_actions[0].choices["command-send"]._option_string_actions
+    strings = parser._subparsers._group_actions[0].choices[subcommand]._option_string_actions
     names = list(strings)
-    end = names.index("--arguments")
+    end = names.index(after)
     assert names[:2] == ["-h", "--help"] and set(USUAL) < set(names[2:end])
     groups = {}
     for name in names[2:end]:
@@ -59,19 +66,20 @@ def usual_parser():
 PARSER = usual_parser()
 
 
-def read(tokens):
-    parser = PARSER
+def read(tokens, parser=PARSER, subcommand="command-send", fields=FIELDS):
     out, err = io.StringIO(), io.StringIO()
     try:
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            args = parser.parse_args(["command-send", *tokens])
+            args = parser.parse_args([subcommand, *tokens])
     except SystemExit as stop:
         if stop.code == 0:
             return {"help": True}
         assert stop.code == 2, stop.code
         error = err.getvalue().split(": error: ", 1)[1].removesuffix("\n")
         return {"error": error}
-    values = {field: getattr(args, field) for field in FIELDS}
+    values = {field: getattr(args, field) for field in fields}
+    if "timeout" in values:  # as text: JSON has no infinity
+        values["timeout"] = repr(values["timeout"])
     if values["logs"] == DEFAULT_LOGS:
         values["logs"] = None
     return {"values": values}
@@ -90,6 +98,20 @@ def main():
     path = pathlib.Path(__file__).with_name("table.json")
     path.write_text(json.dumps(table, ensure_ascii=True, indent=0) + "\n")
     print(f"{len(table)} rows: {sum('error' in row for row in table)} refused, {sum('help' in row for row in table)} help")
+    events, channels = usual_parser("events", "--list"), usual_parser("channels", "--list")
+    rows = [[]] + [[token] for token in RECORDS_POOL] + [["--list", token] for token in RECORDS_POOL]
+    rows += [[chance.choice(RECORDS_POOL) for _ in range(chance.randint(2, 6))] for _ in range(6000)]
+    seen, table = set(), []
+    for tokens in rows:
+        if tuple(tokens) not in seen:
+            seen.add(tuple(tokens))
+            row = read(tokens, events, "events", RECORDS_FIELDS)
+            other = read(tokens, channels, "channels", RECORDS_FIELDS)
+            assert row == {key: value.replace("fprime-cli channels", "fprime-cli events") if key == "error" else value
+                           for key, value in other.items()}, (tokens, row, other)
+            table.append({"tokens": tokens, **row})
+    path.with_name("records.json").write_text(json.dumps(table, ensure_ascii=True, indent=0) + "\n")
+    print(f"events, channels: {len(table)} rows: {sum('error' in row for row in table)} refused, {sum('help' in row for row in table)} help")
 
 
 main()

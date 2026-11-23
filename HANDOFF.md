@@ -19,6 +19,7 @@
 - `plugins/storage-sqlite` is the default storage: every run in one file with its own dictionary, reopening, sequence numbers never reused, read-only and `fgds run --replay <database>`, raw link bytes in `logs/<start time>/`. `storage-memory` stays for tests and as the example of a replaced storage.
 - `tests/storage/run.sh` (run by `scripts/check.sh`) kills the GDS during a `Ref` run and reopens, restarts with a changed dictionary, and replays the file read-only.
 - `fgds_core::testing::conformance` has `storage_conformance_with` and `persistence_conformance` for a storage that outlives the process.
+- `plugins/online`: `command-send`, `events` and `channels` read their command line with `fgds_core::argparse` and one table of the GDS options of `fprime-cli` (`gds_options`); `gds_options_hold` checks what those options name before anything is done, a `--list` included, and gives the dictionary that `--dictionary` or `-d` names, in which names are looked up and from which the listings are made. `tests/cli/check.py` has the option matrix through both command lines against `Ref`; the rows are in `docs/design/deviations.md`.
 - `fixtures/vectors/format_strings.json` holds 16 formatter vectors recorded from the Python GDS (`origin: recorded`) beside the 25 asserted ones.
 
 ## Known gaps
