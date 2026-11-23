@@ -12,6 +12,7 @@
    "Command Time",
    "Command String"
   ],
+  "titles": [],
   "placeholders": [
    "Command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant"
   ],
@@ -40,6 +41,7 @@
    "Event Severity",
    "Event Description"
   ],
+  "titles": [],
   "placeholders": [],
   "labels": [
    "Events",
@@ -62,6 +64,7 @@
    "Channel Name",
    "Channel Value"
   ],
+  "titles": [],
   "placeholders": [],
   "labels": [
    "Channels",
@@ -87,6 +90,13 @@
    "State",
    "Control",
    "Progress"
+  ],
+  "titles": [
+   "Destination folder path on the spacecraft where files will be uploaded",
+   "Select files to upload",
+   "Begin uplinking all uploaded files",
+   "Resume file uplink",
+   "Send a cancel packet to FSW"
   ],
   "placeholders": [
    "/path/to/destination/folder"
@@ -115,6 +125,7 @@
    "Control",
    "Progress"
   ],
+  "titles": [],
   "placeholders": [],
   "labels": [
    "File Downlink",
@@ -134,6 +145,7 @@
    "Name",
    "Description"
   ],
+  "titles": [],
   "placeholders": [],
   "labels": [
    "Commands Dictionary",
@@ -149,6 +161,7 @@
    "Help"
   ],
   "headers": [],
+  "titles": [],
   "placeholders": [
    "Select a Channel"
   ],
@@ -163,6 +176,7 @@
  "Logs": {
   "buttons": [],
   "headers": [],
+  "titles": [],
   "placeholders": [],
   "labels": [
    "Available Logs",
@@ -177,6 +191,10 @@
    "Save As"
   ],
   "headers": [],
+  "titles": [
+   "Remote directory for sequence uplink",
+   "Run the last uplinked sequence via cmdSeq.CS_RUN"
+  ],
   "placeholders": [
    "Sequence name ending in .seq",
    "/seq"
@@ -196,6 +214,7 @@
    "Value",
    "Clear Errors"
   ],
+  "titles": [],
   "placeholders": [],
   "labels": [
    "Advanced GDS Settings and Statistics",

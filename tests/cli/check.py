@@ -207,7 +207,7 @@ DASHES = [
     [I8, "--arguments", "-l"], [I8, "--arguments", "-s"], [I8, "--arguments", "-i"], [I8, "--arguments", "-c"], [I8, "--arguments", "-d"],
     [I8, "--arguments", "-j"], [I8, "--arguments", "-h"],
     # Round 7 web, N4: `-inf` with a value after it, and the name after `--`.
-    [THREE, "--arguments", "5", "-inf", "7"], [THREE, "--arguments", "5", "1.5", "-inf"], ["--arguments", "5", "-inf", "7", "--", THREE],
+    [THREE, "--arguments", "5", "-inf", "7"], [THREE, "--arguments", "-inf", "-inf"], [THREE, "--arguments", "1", "-inf", "-inf"], [THREE, "--arguments", "5", "1.5", "-inf"], ["--arguments", "5", "-inf", "7", "--", THREE],
     [THREE, "--arguments", "5", "-i", "7"],
     # P6: `-j` with a command that is sent.
     [F32, "-j", "--arguments", "1.5"], [F32, "--arguments", "1.5", "--json"],

@@ -295,6 +295,11 @@
     "Record kinds": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
     "Runs": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows"
    }
+  },
+  "titles": {
+   "fgds": {
+    "When set, any channel received will update the displayed value. Otherwise only channels with newer timestamps update the displayed value.": "the Python page writes this description in a table cell beside the setting; fgds has it as the hover text of the setting's label"
+   }
   }
  }
 }

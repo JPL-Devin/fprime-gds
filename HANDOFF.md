@@ -51,8 +51,8 @@ Controls of the Python page that fgds does not have (`docs/design/deviations.md`
 ## Checks of the page against the Python page
 `tests/browser/run.sh` (part of `scripts/check.sh`) compares with texts and frames recorded from the Python GDS 4.4.0 page, under `fixtures/`:
 - `command-messages`: the messages of the argument fields when a form is shown, before and after `Send Command` (`messages.py`).
-- `command-string`: lines typed in `Command String` (`line.py`), lines that give part of the values a form holds (`held.py`), refused then taken lines each followed by the send button, with the frames (`refused.py`).
-- `page-texts`: buttons, headers, placeholders and labels of each tab as it opens, with the listed differences (`texts.py`).
+- `command-string`: lines typed in `Command String` (`line.py`), lines that give part of the values a form holds (`held.py`), refused then taken lines each followed by the send button, with the frames (`refused.py`: 13 sequences; a line that leaves arguments out is applied only to the command the form shows and then sent as Python sends it, such a line for another command sends nothing and leaves that command's form alone; the send button clicked with no Enter; enum constants in another case; boolean texts; a name alone).
+- `page-texts`: buttons, headers, placeholders, labels and hover texts (`title`) of each tab as it opens, with the listed differences (`texts.py`).
 - `parity.py` runs both pages on the same bytes: rows, sorting, filters, `channels_display_last_received`.
 Each script has a `record` mode to write its fixture again from a running Python page.
 The address of the page names the tab as the Python page does (`#Channels`).

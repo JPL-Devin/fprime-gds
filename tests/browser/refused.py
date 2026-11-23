@@ -5,8 +5,13 @@
     refused.py check FGDS DICTIONARY FIXTURE OUT     types them in the new page
 
 Each line is typed over the one before (select all, delete, type, Enter). A line that is a command with all its
-arguments must send the command packet inside the frame the Python GDS page sent; after any other line the Python
-page sends the command its form still holds (deviations.md, R6-3) and the new page must send nothing.
+arguments (True), and a line that leaves arguments out but names the command the form shows (HELD), must do as
+the Python GDS page: send the command packet inside the frame that page sent, or nothing when it sent nothing.
+After any other line (False) the Python page sends the command its form still holds (deviations.md, R6-3) and
+the new page must send nothing. CLEAR is the `Clear Arguments` button, not a line. A line with CLICK is typed
+with no Enter: the click on the send button is what makes the page read it.
+For a HELD line that gives a value the input of the new page shows the line of its form (a name alone stays); the Python page shows it only when a value
+changed (deviations.md), so that text is compared with the values of the form, not with the Python page.
 """
 import base64
 import json
@@ -22,24 +27,48 @@ import line
 import scenario
 
 NO_OP, TEST, STRING = "CdhCore.cmdDisp.CMD_NO_OP", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7", 'CdhCore.cmdDisp.CMD_NO_OP_STRING, "a"'
-# (line, whether it is a command with all its arguments)
+ONE = "CdhCore.cmdDisp.CMD_TEST_CMD_1"
+VERSION, REMOVE = "CdhCore.version.VERSION", 'FileHandling.fileManager.RemoveFile, "x7.bin"'
+HELD, CLEAR, CLICK, ALIVE = "held", "<Clear Arguments>", "click", b"sitting well".hex()
+# (line, True: a command with all its arguments; HELD: part of the arguments of the command shown; False: any other)
 SEQUENCES = [
     [(NO_OP, True), (",", False), (NO_OP, True), (NO_OP, True), (NO_OP + " ", True)],
-    [(TEST, True), (",", False), (TEST, True), ("CdhCore.cmdDisp.CMD_TEST_CMD_1, 5", False), (TEST, True), (", ,", False), (TEST, True)],
-    [(TEST, True), (",", False), ("CdhCore.cmdDisp.CMD_TEST_CMD_1, 5", False), (TEST, True)],
+    [(TEST, True), (",", False), (TEST, True), (ONE + ", 5", HELD), (TEST, True), (", ,", False), (TEST, True)],
+    [(TEST, True), (",", False), (ONE + ", 5", HELD), (TEST, True)],
     [(STRING, True), (";", False), (STRING, True), (NO_OP, True), ('CdhCore.cmdDisp.CMD_NO_OP_STRING, "unfinished', False), (NO_OP, True)],
     [(TEST, True), ("Nope.cmd.DOES_NOT_EXIST", False), (TEST, True), ("CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1e3, 7", False), (TEST, True),
-     ("CdhCore.cmdDisp.CMD_TEST_CMD_1, 6", False), ("CdhCore.cmdDisp.CMD_TEST_CMD_1, 6, 1.5, 7", True)],
+     (ONE + ", 6", HELD), (ONE + ", 6, 1.5, 7", True)],
+    # Part of the arguments of the command shown: the form sends what it holds, or marks what it cannot send.
+    [(TEST, True), (ONE + ", 6", HELD), (ONE + ", 8, 2.5", HELD), (ONE, HELD), (ONE + ", 9, 1e3", False), (ONE + ", , 3.5", False),
+     (ONE + ", 300", HELD), (ONE + ", 4", HELD)],
+    [(TEST, True), (CLEAR, None), (ONE + ", 5", HELD), (ONE + ", 5, 1.5", HELD), (ONE + ", 5, 1.5, 7", True)],
+    [(TEST, True), (NO_OP, True), (ONE + ", 6", False), (TEST, True), (STRING, True), (ONE, False), ("CdhCore.cmdDisp.CMD_NO_OP_STRING", HELD)],
+    # The click on the send button with no Enter before.
+    [(TEST, True), (ONE + ", 6", HELD, CLICK), (ONE + ", 5", HELD, CLICK), (ONE + ", 5", HELD, CLICK), (TEST, True, CLICK),
+     (ONE + ", 8, 2.5, 9", True, CLICK), (",", False, CLICK), (ONE, HELD, CLICK), (NO_OP, True, CLICK), (ONE + ", 6", False, CLICK)],
+    [('Ref.typeDemo.CHOICES, [ONE, TWO]', True), ('Ref.typeDemo.CHOICES, [RED]', HELD), ('Ref.typeDemo.CHOICES', HELD),
+     ('FileHandling.fileManager.RemoveFile, "a.bin", false', True), ('FileHandling.fileManager.RemoveFile, "b.bin"', HELD)],
+    # An enum constant in another case, part of one, with its type, as a number (round 7, finding 47).
+    [(VERSION + ", all", True), (VERSION + ", Project", True), (VERSION + ", aLL", True), (VERSION + ", AL", True), (VERSION + ", 4", True),
+     (VERSION + ", VersionType.ALL", True), (VERSION + ", Svc.VersionType.ALL", True), (VERSION + ", CUSTOM", True), (VERSION, HELD),
+     ("Ref.typeDemo.CHOICE, red", True), ("Ref.typeDemo.CHOICES, [one, Two]", True), ("Ref.typeDemo.CHOICE, 2", True)],
+    # The texts of a boolean (finding 49).
+    [(REMOVE + ", 1", True), (REMOVE + ", TRUE", True), (REMOVE + ", yes", True), (REMOVE + ", No", True), (REMOVE + ", FALSE", True),
+     (REMOVE + ", 0", True), (REMOVE + ", true", True), (REMOVE + ", on", True), (REMOVE + ", False", True), (REMOVE, HELD)],
+    # A name alone, of the command shown and of another (finding 49).
+    [(STRING, True), ("CdhCore.cmdDisp.CMD_NO_OP_STRING", HELD), (NO_OP, True), ("CdhCore.cmdDisp.CMD_NO_OP_STRING", False),
+     (TEST, True), (NO_OP, True), (ONE, False), (NO_OP, True)],
 ]
 
 
-def enter(page, selector, text):
+def enter(page, selector, text, key=True):
     page.click(selector)
     page.keyboard.press("Control+a")
     page.keyboard.press("Delete")
     page.keyboard.type(text)
-    page.keyboard.press("Enter")
-    page.wait_for_timeout(300)
+    if key:
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(300)
 
 
 def record(url, port, fixture):
@@ -65,11 +94,19 @@ def record(url, port, fixture):
             page.wait_for_selector(".command-input-form")
             frames()
             case = []
-            for typed, whole in sequence:
-                enter(page, "input[name=command-text]", typed)
-                shown = page.evaluate(line.PYTHON_SHOWN)
+            for typed, whole, *click in sequence:
+                if typed == CLEAR:
+                    page.click("button:has-text('Clear Arguments')")
+                    case.append({"typed": typed})
+                    continue
+                enter(page, "input[name=command-text]", typed, not click)
+                if not click:
+                    shown = page.evaluate(line.PYTHON_SHOWN)
                 page.click("button:has-text('Send Command')")
-                case.append({"typed": typed, "whole": whole, "line": shown["line"], "name": shown["name"],
+                if click:
+                    page.wait_for_timeout(300)
+                    shown = page.evaluate(line.PYTHON_SHOWN)
+                case.append({"typed": typed, "whole": whole, "click": bool(click), "line": shown["line"], "name": shown["name"],
                              "inputs": shown["inputs"], "frame": frames()})
             cases.append(case)
         browser.close()
@@ -88,7 +125,7 @@ def check(binary, dictionary, fixture, out):
     def last():
         return gds.get("/records?kind=fprime.command&limit=10000")["records"][-1:]
 
-    different, sent = [], 0
+    different, sent, held, nothing = [], 0, 0, 0
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch()
@@ -98,28 +135,60 @@ def check(binary, dictionary, fixture, out):
                 page.wait_for_selector("body[data-ready=true]")
                 harness.show(page, "commands")
                 for step in case:
+                    if step["typed"] == CLEAR:
+                        page.click("#command-clear")
+                        continue
                     where = ([s["typed"] for s in case], step["typed"])
-                    enter(page, "#command-string", step["typed"])
+                    click, before = step.get("click"), last()
+                    enter(page, "#command-string", step["typed"], not click)
+                    if click:
+                        page.click("#command-send")
+                        page.wait_for_timeout(300)
                     shown = page.evaluate(line.NEW_SHOWN)
                     shown["inputs"], wanted = line.plain(shown["inputs"]), {**step, "inputs": line.plain(step["inputs"])}
+                    if step["whole"] == HELD:
+                        full = ", ".join([step["name"], *shown["inputs"]])
+                        if shown["name"] != step["name"] or shown["inputs"] != wanted["inputs"]:
+                            different.append((*where, f"form: Python GDS page {wanted['inputs']}, new page {shown['inputs']}"))
+                        given = "," in step["typed"]
+                        if (shown["line"] == step["typed"]) == given or (
+                                given and all(shown["inputs"]) and "[" not in shown["line"] and shown["line"].replace('"', "") != full):
+                            different.append((*where, f"the input shows {shown['line']!r}, the form {full!r}"))
                     # With another command shown, the form of the line's command is not on screen.
-                    if step["whole"] or shown["name"] == step["name"]:
+                    elif step["whole"] or shown["name"] == step["name"]:
                         for key in ("line", "name") + (("inputs",) if step["whole"] else ()):
                             if shown[key] != wanted[key]:
                                 different.append((*where, f"{key}: Python GDS page {wanted[key]!r}, new page {shown[key]!r}"))
-                    before = last()
-                    page.click("#command-send")
+                    if not click:
+                        page.click("#command-send")
                     try:
                         scenario.wait_for("the command", lambda: last() != before, 2 if step["whole"] else 1)
                         raw = base64.b64decode(last()[0]["raw"]).hex()
                     except TimeoutError:
                         raw = None
-                    if step["whole"]:
+                    if step["whole"] and not step["frame"].replace(ALIVE, ""):
+                        nothing += 1
+                        if raw is not None:
+                            different.append((*where, f"the Python GDS page sent nothing, the new page {raw}"))
+                    elif step["whole"]:
                         sent += 1
+                        held += step["whole"] == HELD
                         if raw is None or raw not in step["frame"]:
                             different.append((*where, f"Python GDS page sent {step['frame']}, new page {raw}"))
                     elif raw is not None:
                         different.append((*where, f"a line that is not a command, the new page sent {raw}"))
+            # A line that leaves arguments out and names a command that is not shown: nothing sent, its form untouched.
+            enter(page, "#command-string", TEST)
+            enter(page, "#command-string", NO_OP)
+            enter(page, "#command-string", ONE + ", 6")
+            before = last()
+            page.click("#command-send")
+            page.wait_for_timeout(1000)
+            page.select_option("#command-select", ONE)
+            page.wait_for_timeout(300)
+            hidden = page.evaluate(line.NEW_SHOWN)["inputs"]
+            if last() != before or hidden != ["5", "1.5", "7"]:
+                different.append(([TEST, NO_OP], ONE + ", 6", f"sent {last() != before}, the form of the command then holds {hidden}"))
             browser.close()
     finally:
         gds.stop()
@@ -128,7 +197,9 @@ def check(binary, dictionary, fixture, out):
     if different:
         sys.exit(f"{len(different)} differences from the Python GDS page")
     print(f"  ok: {len(cases)} sequences of refused and taken Command String lines, each then the send button: {sent} "
-          "taken lines send the command packet of the Python GDS page's frame, the others send nothing")
+          f"lines send the command packet of the Python GDS page's frame ({held} of them give part of the arguments of the "
+          f"command shown), {nothing} such lines send nothing on either page, the lines not taken send nothing; "
+          "such a line for a command that is not shown leaves the form of that command as it was")
 
 
 if __name__ == "__main__":

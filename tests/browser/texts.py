@@ -1,4 +1,4 @@
-"""Every button, table header, placeholder and label of every tab against the Python GDS page.
+"""Every button, table header, placeholder, label and hover text (`title`) of every tab against the Python GDS page.
 
     texts.py record PYTHON_GDS_URL FIXTURE              writes the texts of a running Python GDS page
     texts.py check FGDS DICTIONARY FIXTURE DIFFERENCES OUT    reads the same texts from the new page
@@ -14,7 +14,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 TABS = ["Commanding", "Events", "Channels", "Uplink", "Downlink", "Dictionaries", "Charts", "Logs", "Sequences", "Advanced"]
-KINDS = ["buttons", "headers", "placeholders", "labels"]
+KINDS = ["buttons", "headers", "placeholders", "labels", "titles"]
 
 # The texts of what is on screen, in the order of the page, each once.
 SHOWN = """() => {
@@ -28,6 +28,8 @@ SHOWN = """() => {
     return {
         buttons: all("button, input[type=button], input[type=submit], a.btn", (e) => text(e) || e.title || e.getAttribute("aria-label") || ""),
         headers: all("th", text),
+        // The hover text of a control.
+        titles: all("input[title], button[title], label[title], textarea[title], select[title], a[title]", (e) => e.title.trim()),
         placeholders: all("input[placeholder], textarea[placeholder]", (e) => e.placeholder.trim()),
         // The text of a label without that of a list or a field inside it.
         labels: all("label, h1, h2, h3, h4, h5, legend, .input-group-text", (e) => {
@@ -99,7 +101,7 @@ def check(binary, dictionary, fixture, differences, out):
                                 "fgds": [t for t in shown[tab][kind] if t not in expected[tab][kind]]}
                          for kind in KINDS} for tab in TABS}, file, indent=1)
     assert not wrong, f"{len(wrong)} texts differ from the Python GDS page and the list of differences"
-    harness.step(f"texts of the page: buttons, table headers, placeholders and labels of the {len(TABS)} tabs of the Python GDS "
+    harness.step(f"texts of the page: buttons, table headers, placeholders, labels and hover texts of the {len(TABS)} tabs of the Python GDS "
                  f"page; {equal} are on both pages, {different} are on one page only, each listed with its reason")
 
 

@@ -61,14 +61,14 @@ class FgdsUplink extends FilesTab {
     return html`
       <h2>File Uplink</h2>
       <div class="controls">
-        <label>Destination Folder <input id="directory" placeholder="/path/to/destination/folder"></label>
-        <label class="button">Add Files
+        <label>Destination Folder <input id="directory" title="Destination folder path on the spacecraft where files will be uploaded" placeholder="/path/to/destination/folder"></label>
+        <label class="button" title="Select files to upload">Add Files
           <input id="files" type="file" multiple hidden @change=${(e) => this.stage(e.target)}></label>
-        <button id="begin" @click=${() => this.act(() => this.upload())}>Begin Uplink</button>
+        <button id="begin" title="Begin uplinking all uploaded files" @click=${() => this.act(() => this.upload())}>Begin Uplink</button>
         ${data.paused || !data.files.length
-          ? html`<button id="unpause" ?disabled=${data.link !== "connected"} @click=${post("/resume")}>Unpause</button>`
-          : html`<button id="pause" @click=${post("/pause")}>Pause</button>`}
-        <button id="cancel-packet" ?disabled=${data.files.some((t) => t.state === "transferring")} @click=${post("/cancel-packet")}>Send Cancel Packet</button>
+          ? html`<button id="unpause" title="Resume file uplink" ?disabled=${data.link !== "connected"} @click=${post("/resume")}>Unpause</button>`
+          : html`<button id="pause" title="Pause file uplink" @click=${post("/pause")}>Pause</button>`}
+        <button id="cancel-packet" title="Send a cancel packet to FSW" ?disabled=${data.files.some((t) => t.state === "transferring")} @click=${post("/cancel-packet")}>Send Cancel Packet</button>
       </div>
       <div class="controls">
         <span>Queue: <b>${data.paused ? "paused" : "running"}</b>, link: ${data.link}</span>
@@ -81,7 +81,7 @@ class FgdsUplink extends FilesTab {
         <textarea id="packetList" placeholder="List specific packets to uplink: 1, 5, 9..." .value=${this.editing.packets.join(", ")}
           @input=${(e) => this.packetNumbers(e.target.value)}></textarea>
         <span class="error">${this.packetError}</span>
-        <button id="packets-save" ?disabled=${this.packetError !== ""} @click=${() => this.savePackets()}>Save</button>
+        <button id="packets-save" title="Save" ?disabled=${this.packetError !== ""} @click=${() => this.savePackets()}>Save</button>
       </div>` : ""}
       <div class="controls">${this.filterField()}</div>
       <table id="transfers">

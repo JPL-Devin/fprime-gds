@@ -287,6 +287,7 @@ def stock(browser, gds):
     # A Command String that is not a command with its arguments, after a command was loaded and sent: the send
     # button sends nothing (no command record in the GDS, no command counted by Ref), and the page says so.
     # The history row loaded shows in the command list too.
+    # (A line that leaves arguments out and names the command shown is sent with what the form holds: refused.py.)
     page.fill("#command-string", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7")
     page.press("#command-string", "Tab")
     assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", page.input_value("#command-select")
@@ -298,7 +299,7 @@ def stock(browser, gds):
     # The counter of Ref comes with its telemetry, some time after the commands: wait until it is still for 5 s.
     held = (commands(), scenario.steady(dispatched, quiet=5.0))
     for text in ("", "   ", 'CdhCore.cmdDisp.CMD_NO_OP_STRING, "unfinished', "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, , 7",
-                 "Nope.cmd.DOES_NOT_EXIST", "CdhCore.cmdDisp.CMD_NO_OP_STRING", "FileHandling.fileManager.RemoveFile, a", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9"):
+                 "Nope.cmd.DOES_NOT_EXIST", "CdhCore.cmdDisp.CMD_NO_OP_STRING", "FileHandling.fileManager.RemoveFile, a"):
         choose(page, "CdhCore.cmdDisp.CMD_TEST_CMD_1")
         for key, value in (("arg1", "5"), ("arg2", "1.5"), ("arg3", "7")):
             page.fill(f"[data-arg={key}]", value)
@@ -311,7 +312,7 @@ def stock(browser, gds):
         assert page.locator("#command-message.error-text, #command-string-error, #command-unknown").count(), f"{text!r}: refused in silence"
     after = (commands(), scenario.steady(dispatched, quiet=5.0))
     assert after == held, f"a command went out: {held} before, {after} after"
-    step("Command String empty, of spaces, not of the form, of an unknown name, with too few arguments, then the send "
+    step("Command String empty, of spaces, not of the form, of an unknown name, with an argument that is not one, then the send "
          "button: nothing is sent and the page says why")
     choose(page, "CdhCore.cmdDisp.CMD_NO_OP")
     page.click("#command-history tbody tr:has-text('CMD_TEST_CMD_1') button[data-action=load] >> nth=0")
@@ -321,6 +322,18 @@ def stock(browser, gds):
     options = page.eval_on_selector_all("#command-form select[data-arg] option", "(all) => all.map((o) => o.textContent)")
     assert options == ["True", "False"], options
     step("a history row loaded is the one selected in the command list; a boolean is chosen from True and False")
+    # The search of the command list reads the names only, and its text goes when a command is shown (finding 50).
+    page.fill("#command-filter", "0x1000000")
+    assert page.inner_text("#command-none") == "Sorry, no matching options.", "an opcode is searched"
+    assert page.eval_on_selector_all("#command-select option", "(all) => all.length") == 0
+    page.fill("#command-filter", "zzz")
+    page.click("#command-history tbody tr:has-text('CMD_TEST_CMD_1') button[data-action=load] >> nth=0")
+    assert page.input_value("#command-filter") == "", "the search text stays after a history row is loaded"
+    assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", "nothing is selected after the load"
+    page.fill("#command-filter", "no_op_str")
+    assert page.eval_on_selector_all("#command-select option", "(all) => all.map((o) => o.value)") == ["CdhCore.cmdDisp.CMD_NO_OP_STRING"]
+    page.fill("#command-filter", "")
+    step("command list search: names only (`0x1000000`: `Sorry, no matching options.`); the text is cleared when a history row is loaded")
 
     # One U8 left empty and one holding 300: the message under each, in one press.
     choose(page, "Ref.typeDemo.CHOICES_WITH_FRIENDS")

@@ -32,10 +32,8 @@ function fromRecord(type, value) {
         return [m.name, m.count === null ? fromRecord(m.type, v)
           : Array.from({ length: m.count }, (_, i) => fromRecord(m.type, (v || [])[i]))];
       }));
-    case "bool": {
-      const text = String(value).toLowerCase();
-      return text === "yes" ? "true" : text === "no" ? "false" : text;
-    }
+    // A text of the Command String stays as typed (`TRUE`, `yes`, `1`), as in the input of the Python page.
+    case "bool": return String(value);
     default: return value === FILL_NEEDED && type.kind !== "string" ? null : String(value);
   }
 }
@@ -59,6 +57,10 @@ function lineText(type, state) {
   if (state === null || state === "") return FILL_NEEDED;
   try {
     if (type.kind === "float") return String(parseFloat(state));
+    if (type.kind === "bool") {
+      const text = String(state).toLowerCase();
+      return ["true", "yes"].includes(text) ? "true" : ["false", "no"].includes(text) ? "false" : String(state);
+    }
     if (type.kind !== "integer") return String(state);
     if (type.bits === 64) return String(BigInt(state));
     if (type.signed) return String(parseInt(state, 10));
@@ -135,7 +137,7 @@ function validate(type, holder, key, path, errors, groups = true) {
     }
     case "float": return scalar(Number.isNaN(parseFloat(state)) ? "Supply floating point number" : "");
     // validate.js has no text for a boolean; one with nothing chosen is not valid.
-    case "bool": return state === "true" || state === "false";
+    case "bool": return state !== null && ["yes", "no", "true", "false"].includes(String(state).toLowerCase());
     case "string": {
       const bytes = new TextEncoder().encode(state ?? "").length;
       // The Python GDS page refuses an empty text and one longer than the type holds.
@@ -204,7 +206,7 @@ function convert(type, state) {
       return Object.fromEntries(type.members.map((m) => [
         m.name, m.count === null ? convert(m.type, state[m.name]) : state[m.name].map((item) => convert(m.type, item)),
       ]));
-    case "bool": return state === "true";
+    case "bool": return ["true", "yes"].includes(String(state).toLowerCase());
     // Numbers go as typed: the GDS reads the text by the rule of the Python GDS.
     default: return state;
   }
@@ -292,6 +294,8 @@ class CommandsTab extends LitElement {
     this.unknown = "";
     this.message = null;
     this.cleared = true;
+    // The search text does not stay once a command is shown (vue-select of the Python page).
+    this.filter = "";
   }
 
   // A command chosen in the list: its form is shown and validated.
@@ -372,15 +376,23 @@ class CommandsTab extends LitElement {
       return;
     }
     // A value the line gives goes to the form of its command; an element or member it does not give keeps
-    // what that form holds. With an argument missing the Python page stops there: the command shown does
-    // not change (its line does when it is this command), nothing is validated, and nothing can be sent.
-    // The line typed stays when it changes neither the command shown nor a value, as on the Python page.
+    // what that form holds. A line that leaves an argument out is taken only for the command shown: its
+    // values go to the form, the input shows the line of the form (a name alone stays as typed, as on the
+    // Python page), and the send button sends what the form shows or marks the fields it cannot send. For another command such a line changes nothing, not the
+    // form of that command either, and nothing can be sent.
+    // A whole line typed stays when it changes neither the command shown nor a value, as on the Python page.
     const shown = this.selected;
-    const held = JSON.stringify(this.form(command).values);
+    const form = this.form(command);
+    const held = JSON.stringify(form.values);
     const taken = this.load(command, tokens.slice(1));
-    const changed = this.selected !== shown || JSON.stringify(this.form(command).values) !== held;
-    if (changed && (taken || shown === command)) this.updateComplete.then(() => { input.value = this.line; });
-    if (!taken) this.lineRefused = true;
+    if (!taken && shown !== command) {
+      form.values = JSON.parse(held);
+      return;
+    }
+    this.lineRefused = false;
+    if ((!taken && tokens.length > 1) || this.selected !== shown || JSON.stringify(form.values) !== held) {
+      this.updateComplete.then(() => { input.value = this.line; });
+    }
   }
 
   // A history row put back in the form.
@@ -476,8 +488,8 @@ class CommandsTab extends LitElement {
           ${state === "true" || state === "false" ? nothing
             // Nothing chosen (after `Clear Arguments`), or a text of the Command String that is neither.
             : html`<option value=${state ?? ""} .selected=${true}>${state ?? ""}</option>`}
-          <option value="true" .selected=${String(state).toLowerCase() === "true"}>True</option>
-          <option value="false" .selected=${String(state).toLowerCase() === "false"}>False</option>
+          <option value="true" .selected=${state === "true"}>True</option>
+          <option value="false" .selected=${state === "false"}>False</option>
         </select>${note}`;
       case "array":
         return html`<div class="arg-group" data-arg-group=${key}>
@@ -524,7 +536,9 @@ class CommandsTab extends LitElement {
     // the one that is selected.
     const parameter = (c) => /_PRM_(SET|SAVE)$/.test(c.name) && !(command && c.name === command.name);
     const listed = this.commands.filter((c) => (this.parameters || !parameter(c))
-      && (!needle || c.name.toLowerCase().includes(needle) || format.hexId(c.opcode).includes(needle)));
+     
+      // The search of the Python page (vue-select) looks for the text in the name, in any case.
+      && (!needle || c.name.toLowerCase().includes(needle)));
     const line = command ? [command.name, ...command.params.map((p) => lineText(p.type, this.values[p.name]))].join(", ") : this.unknown;
     this.line = line;
     const history = this.history
@@ -543,6 +557,7 @@ class CommandsTab extends LitElement {
             ${listed.map((c) => html`<option value=${c.name} .selected=${!!command && c.name === command.name}
               title=${c.annotation}>${c.name}</option>`)}
           </select>
+          ${listed.length ? nothing : html`<div class="muted" id="command-none">Sorry, no matching options.</div>`}
         </div>
         <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); this.send(); }}>
           ${command ? html`
