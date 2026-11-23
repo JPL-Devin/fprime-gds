@@ -238,9 +238,49 @@ DASHES = [
     ["-j"], [],
 ]
 
+# Round 8, Q1: every beginning of a long option of `fprime-cli command-send` that several options have.
+# `ambiguous option` lists them in the order of the parser. fprime-cli keeps its six groups of GDS options in
+# a set, so the order of the groups changes from start to start: the beginnings in VARYING match options of
+# two groups or more, and their names are compared as a set. The others are compared as written.
+NO_OP = "CdhCore.cmdDisp.CMD_NO_OP"
+LONG = ["--help", "--hash-file", "--file-storage-directory", "--file-uplink-cooldown", "--file-uplink-chunk-size",
+        "--no-zmq", "--zmq-transport", "--tts-port", "--tts-addr", "--logs", "--log-directly", "--log-to-stdout",
+        "--log-level-gds", "--disable-data-logging", "--log-prefix", "--no-clear-history", "--deployment", "--dictionary",
+        "--packet-spec", "--packet-set-name", "--arguments", "--list", "--ids", "--components", "--search", "--json"]
+AMBIGUOUS = sorted({name[:end] for name in LONG for end in range(3, len(name))
+                    if sum(other.startswith(name[:end]) for other in LONG) > 1})
+VARYING = ["--d", "--di", "--n", "--no", "--no-", "--="]
+DASHES += [[NO_OP, beginning] for beginning in AMBIGUOUS + ["--="]]
 
-def dashes(name, gds, out):
+# Round 8, Q2: an option of fprime-cli that names something that is not there. Both end with the same exit
+# code and send nothing; the texts differ (deviations.md).
+MISSING = [
+    ["--dictionary", "/nonexistent.json"], ["--dictionary", "/tmp"], ["--dictionary", "{out}/not-json"], ["--dictionary", "{out}/empty.json"],
+    ["--packet-set-name", "x"], ["--packet-spec", "/nonexistent"],
+    ["--hash-file", "/nonexistent"], ["--file-storage-directory", "/nonexistent/x"], ["--file-storage-directory", "{out}/not-json"],
+    ["-l", "/nonexistent/logs"], ["-l", "{out}/not-json"], ["--log-prefix", "/nonexistent/p"],
+]
+# The same options naming something that is there, and the options without a use in fgds: the command is sent.
+THERE = [
+    # A deployment is where the dictionary is looked for: not looked at when `--dictionary` is given.
+    ["--dictionary", "{dictionary}", "-d", "/nonexistent"],
+    ["--packet-set-name", "RefPackets"], ["--hash-file", "{out}/not-json"], ["--file-storage-directory", "{out}/files"],
+    ["--log-prefix", "p"], ["--file-uplink-cooldown", "-1"], ["--file-uplink-chunk-size", "0"], ["--log-directly"],
+    ["--log-level-gds", "DEBUG"], ["--disable-data-logging"], ["--no-clear-history"], ["--log-to-stdout"],
+]
+
+
+def named(out):
+    """MISSING and THERE as command lines, their files made."""
+    os.makedirs(out, exist_ok=True)
+    open(f"{out}/not-json", "w").write("x\n")
+    open(f"{out}/empty.json", "w").write("{}\n")
+    return [[NO_OP, *(token.format(out=out, dictionary=args.dictionary) for token in options)] for options in MISSING + THERE]
+
+
+def dashes(name, gds, out, lines=None):
     """Each command line of DASHES: exit code, standard output, the message, the command packets it put on the link."""
+    lines = DASHES if lines is None else lines
     ref, results, scid = None, [], scenario.spacecraft_id(args.dictionary)
     try:
         proxy = scenario.Proxy(gds.link_port)
@@ -248,13 +288,13 @@ def dashes(name, gds, out):
         code, sample, error = run(gds.cli("channels", "-t", "30", "--json"))
         assert json_lines(sample), f"{name}: no telemetry within 30 s: {code} {error}"
         time.sleep(scenario.GAP)
-        for tokens in DASHES:
+        for tokens in lines:
             before = len(scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid))
             code, output, error = run(gds.cli("command-send", *tokens))
             time.sleep(scenario.GAP)
             packets = [p.hex() for p in scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)[before:]]
             message = error.split(": error: ", 1)[1].strip() if code == 2 and ": error: " in error else ""
-            if message.startswith("ambiguous option: "):  # the order of the matches of fprime-cli changes from run to run
+            if message.startswith("ambiguous option: ") and tokens[-1] in VARYING:
                 message = message.split(" could match ")[0] + " could match " + ", ".join(sorted(message.split(" could match ")[1].split(", ")))
             results.append({"exit": code, "stdout": output, "message": message, "packets": packets})
         return results
@@ -284,6 +324,22 @@ def compare_dashes(python, rust):
     sent = sum(1 for result in python if result["packets"])
     require(f"the dash matrix has command lines that send and command lines that do not: {sent} of {len(python)} sent",
             20 <= sent <= len(python) - 20)
+
+
+def compare_named(lines, python, rust):
+    for index, (tokens, expected, got) in enumerate(zip(lines, python, rust)):
+        what = f"command-send {' '.join(tokens[1:])}"
+        if index < len(MISSING):
+            require(f"{what}: both end with exit code {expected['exit']} and send nothing",
+                    expected["exit"] not in (0, 2) and got["exit"] == expected["exit"] and not expected["packets"] and not got["packets"]
+                    and not got["stdout"], f"{expected} {got}")
+        elif tokens[-1] == "--log-to-stdout":
+            require(f"{what}: both send the command, exit code 0; fprime-cli prints the lines of its logging, fgds nothing",
+                    expected["exit"] == got["exit"] == 0 and expected["packets"] == got["packets"] and len(got["packets"]) == 1
+                    and "Logging system initialized!" in expected["stdout"] and not got["stdout"], f"{expected} {got}")
+        else:
+            check(f"{what}: exit 0, 1 packet", expected, got)
+            require(f"{what}: the command is sent", got["exit"] == 0 and len(got["packets"]) == 1, f"{got}")
 
 
 def refused(fgds):
@@ -456,6 +512,20 @@ def main():
         python = PythonGds(f"{args.out}/python-dashes")
         compare_dashes(dashes("fprime-cli", python, f"{args.out}/python-dashes"), rust_dashes)
         scenario.stop(python.process)
+        lines = named(f"{args.out}/named")
+        print(f"options that name a file, a directory or a packet set: {len(lines)} command lines through both against Ref")
+        fgds = Fgds(f"{args.out}/rust-named")
+        rust_named = dashes("fgds", fgds, f"{args.out}/rust-named", lines)
+        scenario.stop(fgds.process)
+        python = PythonGds(f"{args.out}/python-named")
+        compare_named(lines, dashes("fprime-cli", python, f"{args.out}/python-named", lines), rust_named)
+        scenario.stop(python.process)
+        # Without `--dictionary`, so without the options every other fprime-cli line of this check has: no GDS is asked.
+        for options in (["-d", "/nonexistent"], ["--deployment", f"{args.out}/named"]):
+            expected = run([PYTHON_CLI, "command-send", NO_OP, *options])
+            got = run([args.fgds, "command-send", NO_OP, "--url", "http://127.0.0.1:1", *options])
+            require(f"command-send {' '.join(options)}, no --dictionary: both end with exit code 255",
+                    expected[0] == got[0] == 255 and not got[1], f"{expected} {got}")
         open(f"{args.out}/downlink.bin", "wb").write(capture)
         scid = scenario.spacecraft_id(args.dictionary)
         packets = [[p.hex() for p in scenario.uplink_packets(stream, args.framing, scid)] for stream in (python_uplink, rust_uplink)]

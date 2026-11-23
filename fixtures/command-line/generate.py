@@ -30,8 +30,37 @@ FIELDS = ["command_name", "arguments", "is_printing_list", "ids", "components", 
 DEFAULT_LOGS = create_parser().parse_args(["command-send"]).logs
 
 
-def read(tokens):
+# `ambiguous option` lists its matches in the order the option strings were added to the parser. fprime-cli
+# keeps its six groups of GDS options in a set (`CompositeParser.constituent_parsers`), whose order follows
+# the addresses of the objects and so changes from start to start; inside a group the order is the one of
+# the source. The table is recorded with the order of groups seen most often: the option strings of the
+# parser are put in it.
+USUAL = ["--hash-file", "--file-storage-directory", "--no-zmq", "-l", "--no-clear-history", "-d"]
+
+
+def usual_parser():
     parser = create_parser()
+    strings = parser._subparsers._group_actions[0].choices["command-send"]._option_string_actions
+    names = list(strings)
+    end = names.index("--arguments")
+    assert names[:2] == ["-h", "--help"] and set(USUAL) < set(names[2:end])
+    groups = {}
+    for name in names[2:end]:
+        if name in USUAL:
+            first = name
+        groups.setdefault(first, []).append(name)
+    order = names[:2] + [name for first in USUAL for name in groups[first]] + names[end:]
+    actions = {name: strings[name] for name in order}
+    strings.clear()
+    strings.update(actions)
+    return parser
+
+
+PARSER = usual_parser()
+
+
+def read(tokens):
+    parser = PARSER
     out, err = io.StringIO(), io.StringIO()
     try:
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -41,10 +70,6 @@ def read(tokens):
             return {"help": True}
         assert stop.code == 2, stop.code
         error = err.getvalue().split(": error: ", 1)[1].removesuffix("\n")
-        if error.startswith("ambiguous option: "):
-            # fprime-cli builds its parser from a set of parents: the order of the matches changes from run to run.
-            start, matches = error.split(" could match ")
-            error = start + " could match " + ", ".join(sorted(matches.split(", ")))
         return {"error": error}
     values = {field: getattr(args, field) for field in FIELDS}
     if values["logs"] == DEFAULT_LOGS:

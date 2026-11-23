@@ -12,6 +12,7 @@ use fgds_core::serde_json::{json, Value};
 use fgds_core::{CliEnv, Error, Manifest, Plugin, Registry, Result, Subcommand};
 use items::{Filter, Item};
 use std::io::Write;
+use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -237,13 +238,20 @@ impl Subcommand for Commands {
 struct CommandSend;
 
 /// The options of `fprime-cli command-send` (fprime-gds 4.4.0), in the order of its parser, and the two
-/// `fgds` adds. Those that set up the Python GDS itself are read and have no effect here.
+/// `fgds` adds. That order is the one `ambiguous option` lists its matches in. `fprime-cli` keeps its six
+/// groups of GDS options (hash file, files, middleware, logs, history, dictionary) in a Python set, whose
+/// order follows the addresses of the objects: the order here is the one it takes most often (158 of 300
+/// starts), the others are rotations of it. Those that set up the Python GDS itself are read and have no effect here.
 fn command_send_options() -> Vec<Opt> {
     use Kind::{Float, Int, Str};
     use Nargs::{Exactly, Flag, One, OneOrMore, ZeroOrMore};
     const LEVELS: Kind = Kind::Choice(&["DEBUG", "INFO", "WARNING", "ERROR"]);
     vec![
         Opt::new(&["-h", "--help"], Flag, Str),
+        Opt::new(&["--hash-file"], One, Str),
+        Opt::new(&["--file-storage-directory"], One, Str),
+        Opt::new(&["--file-uplink-cooldown"], One, Float).ignored(),
+        Opt::new(&["--file-uplink-chunk-size"], One, Int).ignored(),
         Opt::new(&["--no-zmq"], Flag, Str).ignored(),
         Opt::new(&["--zmq-transport"], Exactly(2), Str).ignored(),
         Opt::new(&["--tts-port"], One, Int).ignored(),
@@ -253,16 +261,12 @@ fn command_send_options() -> Vec<Opt> {
         Opt::new(&["--log-to-stdout"], Flag, Str).ignored(),
         Opt::new(&["--log-level-gds"], One, LEVELS).ignored(),
         Opt::new(&["--disable-data-logging"], Flag, Str).ignored(),
-        Opt::new(&["--log-prefix"], One, Str).ignored(),
+        Opt::new(&["--log-prefix"], One, Str),
         Opt::new(&["--no-clear-history"], Flag, Str).ignored(),
-        Opt::new(&["-d", "--deployment"], One, Str).ignored(),
+        Opt::new(&["-d", "--deployment"], One, Str),
         Opt::new(&["--dictionary"], One, Str),
-        Opt::new(&["--packet-spec"], One, Str).ignored(),
-        Opt::new(&["--packet-set-name"], One, Str).ignored(),
-        Opt::new(&["--hash-file"], One, Str).ignored(),
-        Opt::new(&["--file-storage-directory"], One, Str).ignored(),
-        Opt::new(&["--file-uplink-cooldown"], One, Float).ignored(),
-        Opt::new(&["--file-uplink-chunk-size"], One, Int).ignored(),
+        Opt::new(&["--packet-spec"], One, Str),
+        Opt::new(&["--packet-set-name"], One, Str),
         Opt::new(&["--arguments"], ZeroOrMore, Str),
         Opt::new(&["--list"], Flag, Str),
         Opt::new(&["-i", "--ids"], OneOrMore, Int),
@@ -272,6 +276,86 @@ fn command_send_options() -> Vec<Opt> {
         Opt::new(&["--url"], One, Str).exact(),
         Opt::new(&["--dry-run"], Flag, Str).exact(),
     ]
+}
+
+/// The options of `fprime-cli` without a use here whose value names a file or a directory.
+const NAMING: [&str; 6] =
+    ["packet-spec", "packet-set-name", "deployment", "hash-file", "file-storage-directory", "log-prefix"];
+
+/// Whether `fprime-cli` could make the directory `path`: nothing is made here.
+fn creatable(path: &Path) -> std::result::Result<(), String> {
+    let path = if path.as_os_str().is_empty() { Path::new(".") } else { path };
+    if path.is_dir() {
+        return Ok(());
+    }
+    if path.exists() {
+        return Err(format!("{} is not a directory", path.display()));
+    }
+    let Some(parent) = path
+        .ancestors()
+        .skip(1)
+        .map(|a| if a.as_os_str().is_empty() { Path::new(".") } else { a })
+        .find(|a| a.exists())
+    else {
+        return Err(format!("{} cannot be created", path.display()));
+    };
+    let probe = parent.join(format!(".fgds-{}", std::process::id()));
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+        Ok(_) => std::fs::remove_file(&probe).map_err(|e| e.to_string()),
+        Err(error) => Err(format!("{} cannot be created in {}: {error}", path.display(), parent.display())),
+    }
+}
+
+fn has_packet_set(dictionary: &Value, name: &str) -> std::result::Result<(), (u8, String)> {
+    let sets = dictionary["telemetryPacketSets"].as_array().cloned().unwrap_or_default();
+    if sets.iter().any(|set| set["name"] == name) {
+        return Ok(());
+    }
+    Err((1, format!("the dictionary does not contain packet set '{name}'")))
+}
+
+/// What the options of `fprime-cli command-send` name is there, as `fprime-cli` requires before it sends
+/// anything: the dictionary, the packet set, the packet specification, the deployment, the hash file, the
+/// directories of files and logs. The error is the exit code of `fprime-cli` and what is missing.
+fn named_things_exist(args: &ArgMatches, env: &CliEnv) -> std::result::Result<(), (u8, String)> {
+    let given = |name: &str| args.get_one::<String>(name);
+    // `fprime-cli` looks for the dictionary in the deployment when none is given.
+    if let Some(deployment) = given("deployment").filter(|_| given("dictionary").is_none()) {
+        let dict = Path::new(deployment).join("dict");
+        if !dict.exists() {
+            return Err((255, format!("dictionary location {} does not exist", dict.display())));
+        }
+    }
+    if let Some(path) = given("dictionary") {
+        if !Path::new(path).is_file() {
+            return Err((1, format!("dictionary file {path} does not exist")));
+        }
+        (env.dictionary)().map_err(|e| (1, format!("dictionary file {path}: {e}")))?;
+    }
+    if let (Some(name), Some(path)) = (given("packet-set-name"), given("dictionary")) {
+        let json: Value = std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())
+            .and_then(|text| fgds_core::serde_json::from_str(&text).map_err(|e| e.to_string()))
+            .map_err(|e| (1, format!("dictionary file {path}: {e}")))?;
+        has_packet_set(&json, name)?;
+    }
+    if let Some(path) = given("packet-spec").filter(|path| !Path::new(path).is_file()) {
+        return Err((1, format!("packet specification {path} does not exist")));
+    }
+    if let Some(path) = given("hash-file").filter(|path| !Path::new(path).exists()) {
+        return Err((255, format!("hash file location {path} does not exist")));
+    }
+    if let Some(path) = given("file-storage-directory") {
+        creatable(Path::new(path)).map_err(|e| (1, format!("file storage directory: {e}")))?;
+    }
+    if let Some(logs) = given("logs") {
+        creatable(Path::new(logs)).map_err(|e| (1, format!("log directory: {e}")))?;
+    }
+    if let Some(parent) = given("log-prefix").and_then(|prefix| Path::new(prefix).parent().map(Path::to_path_buf)) {
+        let logs = given("logs").map(String::as_str).unwrap_or(".");
+        creatable(&Path::new(logs).join(parent)).map_err(|e| (1, format!("log directory: {e}")))?;
+    }
+    Ok(())
 }
 
 impl Subcommand for CommandSend {
@@ -306,6 +390,7 @@ impl Subcommand for CommandSend {
                     .help("List the commands instead (same as `commands`)"),
             )
             .args(filter_args())
+            .args(NAMING.map(|name| Arg::new(name).long(name).hide(true)))
     }
 
     fn argparse(&self) -> Option<Parser> {
@@ -321,10 +406,23 @@ impl Subcommand for CommandSend {
         let Some(name) = args.get_one::<String>("command-name") else {
             return Ok(refused("One of command-name or --list is required"));
         };
+        if let Err((code, missing)) = named_things_exist(args, env) {
+            eprintln!("nothing was sent: {missing}");
+            return Ok(ExitCode::from(code));
+        }
+        // Without `--dictionary` the packet set is one of the dictionary of the GDS.
+        let set = args.get_one::<String>("packet-set-name").filter(|_| !args.contains_id("dictionary"));
         let arguments: Vec<&String> = args.get_many::<String>("arguments").map(Iterator::collect).unwrap_or_default();
         let dry_run = args.get_flag("dry-run");
         runtime()?.block_on(async {
             api.check_version().await?;
+            if let Some(Err((code, missing))) = match set {
+                Some(set) => Some(has_packet_set(&api.get("/dictionary", &[]).await?, set)),
+                None => None,
+            } {
+                eprintln!("nothing was sent: {missing}");
+                return Ok(ExitCode::from(code));
+            }
             let body = json!({"name": name, "args": arguments});
             let query: &[(&str, &str)] = if dry_run { &[("dry_run", "true")] } else { &[] };
             match api.post("/commands", query, &body).await {
@@ -403,7 +501,11 @@ mod tests {
                 }
                 Ok(out)
             };
-            let got = parser.canonical(&tokens);
+            // The table has no column for the options kept only to check what they name.
+            let got = parser.canonical(&tokens).map(|mut out| {
+                out.retain(|text| !NAMING.iter().any(|name| text.starts_with(&format!("--{name}="))));
+                out
+            });
             if got != expected {
                 wrong.push(format!("{tokens:?}\n  argparse {expected:?}\n  fgds     {got:?}"));
             }

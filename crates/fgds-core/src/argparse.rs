@@ -284,9 +284,8 @@ impl Parser {
             // `consume_optional`
             let found = options[start].as_ref().expect("an option here");
             if found.len() > 1 {
-                // `fprime-cli` gives the matches in an order that changes from run to run: sorted here.
-                let mut names: Vec<&str> = found.iter().map(|f| f.1.as_str()).collect();
-                names.sort_unstable();
+                // `_get_option_tuples`: the matches in the order the option strings were added.
+                let names: Vec<&str> = found.iter().map(|f| f.1.as_str()).collect();
                 return Err(format!("ambiguous option: {} could match {}", tokens[start], names.join(", ")));
             }
             let (mut index, mut string, mut separator, mut explicit) = found[0].clone();
