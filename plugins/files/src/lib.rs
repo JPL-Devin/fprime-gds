@@ -327,7 +327,7 @@ impl Plugin for FilesPlugin {
         let for_handler = shared.clone();
         reg.add_handler(Arc::new(move |config| {
             let options = for_handler.options(config)?;
-            Ok(Box::new(uplink::UplinkHandler { shared: for_handler.clone(), options }))
+            Ok(Box::new(uplink::UplinkHandler { shared: for_handler.clone(), options, unconfirmed: Vec::new() }))
         }))?;
         let for_handler = shared.clone();
         reg.add_handler(Arc::new(move |config| {

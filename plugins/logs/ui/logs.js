@@ -87,7 +87,7 @@ class LogsTab extends LitElement {
     const log = this.logs.find((l) => l.name === this.selected);
     return html`
       <div class="toolbar">
-        <label>Log
+        <label>Available Logs
           <select id="logs-select" @change=${(e) => this.choose(e.target.value)}>
             ${this.logs.map((l) => html`<option value=${l.name} ?selected=${l.name === this.selected}>${l.name}</option>`)}
           </select>
@@ -95,7 +95,7 @@ class LogsTab extends LitElement {
         <label>Filter <input type="search" id="logs-filter" .value=${this.text}
           @input=${(e) => { this.text = e.target.value; }}></label>
         <label><input type="checkbox" id="logs-follow" .checked=${this.following}
-          @change=${(e) => { this.following = e.target.checked; }}>Follow</label>
+          @change=${(e) => { this.following = e.target.checked; }}>Scroll Log Output</label>
         <a id="logs-download" href=${`/api/v1/logs/${encodeURIComponent(this.selected)}?format=text&limit=10000`}
           download=${`${this.selected}.log`}>Download</a>
         <span class="muted" id="logs-count">${lines.length} of ${this.lines.length} lines</span>

@@ -1,0 +1,928 @@
+[
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [ONE, TWO]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "ONE",
+    "TWO"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [ONE, TWO]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES, [ONE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "ONE",
+    "TWO"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [ONE]",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [ONE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "ONE",
+    "ONE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [ONE, ONE]",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES, [TWO]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "TWO",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [TWO, BLUE]",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES, []",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, []",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES, [TWO]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "TWO",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [TWO, BLUE]",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICE, RED",
+   "name": "Ref.typeDemo.CHOICE",
+   "inputs": [
+    "RED"
+   ],
+   "line": "Ref.typeDemo.CHOICE, RED",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES, [TWO]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "TWO",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [TWO, BLUE]",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: TWO}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "TWO",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: TWO, secondChoice: BLUE}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {secondChoice: TWO}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "TWO"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: TWO}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: BLUE}",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {secondChoice: TWO}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "RED",
+    "TWO"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: RED, secondChoice: TWO}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICE_PAIR, {secondChoice: TWO}",
+   "name": "Ref.typeDemo.CHOICE_PAIR",
+   "inputs": [
+    "ONE",
+    "TWO"
+   ],
+   "line": "Ref.typeDemo.CHOICE_PAIR, {firstChoice: ONE, secondChoice: TWO}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, f32: 1.5, f64: -2.25}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "-1",
+    "2",
+    "-3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "1.5",
+    "-2.25"
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, f32: 1.5, f64: -2.25}",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i16: 9, f32: 3.5}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "-1",
+    "9",
+    "-3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "3.5",
+    "-2.25"
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 9, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, f32: 3.5, f64: -2.25}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i16: 9, f32: 3.5}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "",
+    "9",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "3.5",
+    ""
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: <FILL-VALUE>, i16: 9, i32: <FILL-VALUE>, i64: <FILL-VALUE>, u8: <FILL-VALUE>, u16: <FILL-VALUE>, u32: <FILL-VALUE>, u64: <FILL-VALUE>, f32: 3.5, f64: <FILL-VALUE>}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -128 and 127",
+    "Supply signed decimal integer  between -2147483648 and 2147483647",
+    "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+    "Supply floating point number"
+   ]
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "1",
+    "2.5",
+    "3"
+   ],
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "9",
+    "2.5",
+    "3"
+   ],
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9, 2.5, 3",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "1",
+    "2.5",
+    "3"
+   ],
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 9",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "1",
+    "2.5",
+    "3"
+   ],
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "1",
+    "2.5",
+    "3"
+   ],
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 1, [RED, BLUE], 2",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "1",
+    "RED",
+    "BLUE",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 1, [RED, BLUE], 2",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 7, [TWO]",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "7",
+    "TWO",
+    "BLUE",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 7, [TWO, BLUE], 2",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 1, [RED, BLUE], 2",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "1",
+    "RED",
+    "BLUE",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 1, [RED, BLUE], 2",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 7",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "7",
+    "RED",
+    "BLUE",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 7, [RED, BLUE], 2",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 1, {tooManyChoices: [[RED, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 2",
+   "name": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS",
+   "inputs": [
+    "1",
+    "RED",
+    "BLUE",
+    "TWO",
+    "RED",
+    "BLUE",
+    "RED",
+    "BLUE",
+    "3",
+    "4",
+    "2"
+   ],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 1, {tooManyChoices: [[RED, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 2",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[TWO]], choicePair: {secondChoice: ONE}, choiceAsMemberArray: [9]}",
+   "name": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS",
+   "inputs": [
+    "5",
+    "TWO",
+    "BLUE",
+    "TWO",
+    "RED",
+    "BLUE",
+    "RED",
+    "ONE",
+    "9",
+    "4",
+    "2"
+   ],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[TWO, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: ONE}, choiceAsMemberArray: [9, 4]}, 2",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "FileHandling.fileManager.RemoveFile, \"a\", false",
+   "name": "FileHandling.fileManager.RemoveFile",
+   "inputs": [
+    "a",
+    "false"
+   ],
+   "line": "FileHandling.fileManager.RemoveFile, \"a\", false",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "FileHandling.fileManager.RemoveFile, \"b\"",
+   "name": "FileHandling.fileManager.RemoveFile",
+   "inputs": [
+    "b",
+    "false"
+   ],
+   "line": "FileHandling.fileManager.RemoveFile, \"b\", false",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "FileHandling.fileManager.RemoveFile, \"b\"",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "FileHandling.fileManager.RemoveFile, \"b\"",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[TWO]], choicePair: {secondChoice: ONE}, choiceAsMemberArray: [9]}",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[TWO]], choicePair: {secondChoice: ONE}, choiceAsMemberArray: [9]}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 1, {tooManyChoices: [[RED, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 2",
+   "name": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS",
+   "inputs": [
+    "1",
+    "RED",
+    "BLUE",
+    "TWO",
+    "RED",
+    "BLUE",
+    "RED",
+    "BLUE",
+    "3",
+    "4",
+    "2"
+   ],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 1, {tooManyChoices: [[RED, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 2",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[], [BLUE]]}, 6",
+   "name": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS",
+   "inputs": [
+    "5",
+    "RED",
+    "BLUE",
+    "BLUE",
+    "RED",
+    "BLUE",
+    "RED",
+    "BLUE",
+    "3",
+    "4",
+    "6"
+   ],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[RED, BLUE], [BLUE, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 6",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 1, {tooManyChoices: [[RED, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 2",
+   "name": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS",
+   "inputs": [
+    "1",
+    "RED",
+    "BLUE",
+    "TWO",
+    "RED",
+    "BLUE",
+    "RED",
+    "BLUE",
+    "3",
+    "4",
+    "2"
+   ],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 1, {tooManyChoices: [[RED, BLUE], [TWO, RED]], separateChoice: BLUE, choicePair: {firstChoice: RED, secondChoice: BLUE}, choiceAsMemberArray: [3, 4]}, 2",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.CHOICES, [RED, BLUE]",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[], [BLUE]]}",
+   "name": "Ref.typeDemo.CHOICES",
+   "inputs": [
+    "RED",
+    "BLUE"
+   ],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, 5, {tooManyChoices: [[], [BLUE]]}",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i16: 9, f32: 3.5}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "",
+    "9",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "3.5",
+    ""
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: <FILL-VALUE>, i16: 9, i32: <FILL-VALUE>, i64: <FILL-VALUE>, u8: <FILL-VALUE>, u16: <FILL-VALUE>, u32: <FILL-VALUE>, u64: <FILL-VALUE>, f32: 3.5, f64: <FILL-VALUE>}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -128 and 127",
+    "Supply signed decimal integer  between -2147483648 and 2147483647",
+    "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+    "Supply floating point number"
+   ]
+  },
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i16: 9, f32: 3.5, i8: 1}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "1",
+    "9",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "3.5",
+    ""
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: 1, i16: 9, i32: <FILL-VALUE>, i64: <FILL-VALUE>, u8: <FILL-VALUE>, u16: <FILL-VALUE>, u32: <FILL-VALUE>, u64: <FILL-VALUE>, f32: 3.5, f64: <FILL-VALUE>}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -2147483648 and 2147483647",
+    "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+    "Supply floating point number"
+   ]
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, f32: 1.5, f64: -2.25}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "-1",
+    "2",
+    "-3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "1.5",
+    "-2.25"
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: -1, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, f32: 1.5, f64: -2.25}",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i8: abc}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "abc",
+    "2",
+    "-3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "1.5",
+    "-2.25"
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: NaN, i16: 2, i32: -3, i64: 4, u8: 5, u16: 6, u32: 7, u64: 8, f32: 1.5, f64: -2.25}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -128 and 127"
+   ]
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i16: 9, f32: 3.5}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "",
+    "9",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "3.5",
+    ""
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: <FILL-VALUE>, i16: 9, i32: <FILL-VALUE>, i64: <FILL-VALUE>, u8: <FILL-VALUE>, u16: <FILL-VALUE>, u32: <FILL-VALUE>, u64: <FILL-VALUE>, f32: 3.5, f64: <FILL-VALUE>}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -128 and 127",
+    "Supply signed decimal integer  between -2147483648 and 2147483647",
+    "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+    "Supply floating point number"
+   ]
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {i16: 9, f32: 3.5}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "",
+    "9",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "3.5",
+    ""
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: <FILL-VALUE>, i16: 9, i32: <FILL-VALUE>, i64: <FILL-VALUE>, u8: <FILL-VALUE>, u16: <FILL-VALUE>, u32: <FILL-VALUE>, u64: <FILL-VALUE>, f32: 3.5, f64: <FILL-VALUE>}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -128 and 127",
+    "Supply signed decimal integer  between -2147483648 and 2147483647",
+    "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+    "Supply floating point number"
+   ]
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 1, [ONE, TWO], 2",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "1",
+    "ONE",
+    "TWO",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, 1, [ONE, TWO], 2",
+   "error": "",
+   "messages": []
+  },
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, abc, [ONE, TWO], 2",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "abc",
+    "ONE",
+    "TWO",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, NaN, [ONE, TWO], 2",
+   "error": "",
+   "messages": [
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+   ]
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.CHOICES_WITH_FRIENDS, abc, [ONE, TWO], 2",
+   "name": "Ref.typeDemo.CHOICES_WITH_FRIENDS",
+   "inputs": [
+    "abc",
+    "ONE",
+    "TWO",
+    "2"
+   ],
+   "line": "Ref.typeDemo.CHOICES_WITH_FRIENDS, NaN, [ONE, TWO], 2",
+   "error": "",
+   "messages": [
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
+   ]
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, abc",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "line": "Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS, abc",
+   "error": "",
+   "messages": []
+  }
+ ],
+ [
+  {
+   "typed": "Ref.typeDemo.SEND_SCALARS, {}",
+   "name": "Ref.typeDemo.SEND_SCALARS",
+   "inputs": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "line": "Ref.typeDemo.SEND_SCALARS, {i8: <FILL-VALUE>, i16: <FILL-VALUE>, i32: <FILL-VALUE>, i64: <FILL-VALUE>, u8: <FILL-VALUE>, u16: <FILL-VALUE>, u32: <FILL-VALUE>, u64: <FILL-VALUE>, f32: <FILL-VALUE>, f64: <FILL-VALUE>}",
+   "error": "",
+   "messages": [
+    "Supply signed decimal integer  between -128 and 127",
+    "Supply signed decimal integer  between -32768 and 32767",
+    "Supply signed decimal integer  between -2147483648 and 2147483647",
+    "Supply signed decimal integer  between -9223372036854775808 and 9223372036854775807",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 65535",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 4294967295",
+    "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615",
+    "Supply floating point number",
+    "Supply floating point number"
+   ]
+  }
+ ]
+]

@@ -119,8 +119,9 @@ class ChannelsTab extends LitElement {
       return format.matches(["time", "id", "name", "value"].map((key) => held(d, key)), this.text);
     }), held);
     return html`
+      <h2>Channels</h2>
       <div class="toolbar">
-        <label>Filter <input type="search" id="channels-filter" placeholder="name, id, value" .value=${this.text}
+        <label>Filters: <input type="search" id="channels-filter" placeholder="name, id, value" .value=${this.text}
           @input=${(e) => { this.text = e.target.value; }}></label>
         <label>Telemetry packet
           <select id="channels-packet" @change=${(e) => { this.packet = e.target.value; }}>

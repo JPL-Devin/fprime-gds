@@ -43,6 +43,7 @@ class AdvancedTab extends LitElement {
     const format = this.gds.format;
     if (!s) return html`<div class="muted">Waiting for the status…</div>`;
     return html`
+      <h2>Advanced GDS Settings and Statistics</h2>
       <h3>Versions</h3>
       <dl class="facts" id="advanced-versions">
         <dt>GDS</dt><dd data-field="gds">${version.gds}</dd>

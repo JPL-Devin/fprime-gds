@@ -59,8 +59,9 @@ class FgdsUplink extends FilesTab {
     const post = (path) => () => this.act(() => this.gds.api.post("/files/uplink" + path, {}));
     const active = (t) => t.state === "queued" || t.state === "transferring";
     return html`
+      <h2>File Uplink</h2>
       <div class="controls">
-        <label>Destination Folder <input id="directory" placeholder="on the spacecraft"></label>
+        <label>Destination Folder <input id="directory" placeholder="/path/to/destination/folder"></label>
         <label class="button">Add Files
           <input id="files" type="file" multiple hidden @change=${(e) => this.stage(e.target)}></label>
         <button id="begin" @click=${() => this.act(() => this.upload())}>Begin Uplink</button>

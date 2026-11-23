@@ -137,6 +137,11 @@ def counters_equal_rows(page, when):
     step(f"new page, {when}: {', '.join(expected)}, the numbers of rows of these severities in the Events table")
 
 
+def again(data):
+    """The length of the first quarter of the data, in whole frames."""
+    return len(scenario.whole_frames(data[:len(data) // 4 // FRAME_SIZE * FRAME_SIZE if FRAMING == "ccsds" else len(data) // 4], FRAMING, FRAME_SIZE))
+
+
 def new_page_tables(browser, data):
     out = f"{OUT}/rust"
     os.makedirs(out, exist_ok=True)
@@ -193,6 +198,17 @@ def new_page_tables(browser, data):
         page.wait_for_function(f"() => document.querySelectorAll('#events-table tbody tr').length === {count}")
         counters_equal_rows(page, "after a reload")
         assert "Ground time" not in page.eval_on_selector("#events-table", NEW_PAGE)["header"], "the hidden column is back after a reload"
+        # `channels_display_last_received`: the first part of the data, whose samples are older than those shown,
+        # arrives again with the box cleared, then with the box ticked.
+        tables["again"] = []
+        for ticked in (False, True):
+            show(page, "advanced")
+            page.set_checked("#channels-display-last-received", ticked)
+            flight.sendall(data[:again(data)])
+            scenario.steady(lambda: gds.get("/status")["counters"].get("packets_received", 0))
+            page.wait_for_timeout(2000)
+            show(page, "channels")
+            tables["again"].append(page.eval_on_selector("#channels-table", NEW_PAGE)["rows"])
         show(page, "channels")
         page.screenshot(path=f"{OUT}/new-channels.png")
         assert not problems, problems
@@ -264,6 +280,14 @@ def python_page_tables(browser, data, events_wanted):
                 tables[tab]["filtered"].append(int(page.evaluate(PYTHON_TOTAL, header)))
             page.evaluate(PYTHON_FILTER, [header, ""])
             page.wait_for_timeout(500)
+        tables["again"] = []
+        for ticked in (False, True):
+            box = page.locator(".input-group:has(.input-group-text:text-is('channels_display_last_received')) input[type=checkbox]")
+            assert box.is_checked() != ticked, "channels_display_last_received of the Python GDS page"
+            box.evaluate("(box) => box.click()")
+            flight.sendall(data[:again(data)])
+            page.wait_for_timeout(5000)
+            tables["again"].append(python_rows(page, "Channel Value"))
         page.screenshot(path=f"{OUT}/python.png")
         return tables
     finally:
@@ -310,6 +334,14 @@ for tab in ("events", "channels"):
         if len(a) != b:
             different.append(f"{tab} filtered by {text!r}: {b} rows in the Python GDS page, {len(a)} in the new page")
     kept[tab] = old[tab]["filtered"]
+# `channels_display_last_received`: cleared, older samples change no row; ticked, they replace the values shown.
+for n, name in enumerate(("cleared", "ticked")):
+    ours, theirs = new["again"][n], old["again"][n]
+    different += [f"channels_display_last_received {name}, row {i}: Python GDS page {b}, new page {a}"
+                  for i, (a, b) in enumerate(zip(ours, theirs, strict=True)) if a != b]
+assert old["again"][0] == old["channels"]["rows"], "older samples changed a row of the Python GDS page with the box cleared"
+replaced = sum(a != b for a, b in zip(old["again"][0], old["again"][1], strict=True))
+assert replaced, "older samples replaced no value of the Python GDS page with the box ticked"
 for line in different[:40]:
     print(f"  DIFFERENT: {line}")
 assert not different, f"{len(different)} differences"
@@ -330,5 +362,6 @@ step("events and channels: the same order as the Python GDS page after one click
 assert all(any(kept[tab]) and not all(kept[tab]) for tab in kept), kept
 step(f"events and channels: the same rows as the Python GDS page for {len(FILTERS)} filter texts (rows kept of the events {kept['events']}, "
      f"of the channels {kept['channels']})")
+step(f"channels_display_last_received: cleared, older samples change no row of either page; ticked, they replace {replaced} values, the same in both")
 step("the ground time column is hidden by its box and stays hidden after a reload; the other columns are those of the Python GDS page")
 print("browser parity: all checks passed")

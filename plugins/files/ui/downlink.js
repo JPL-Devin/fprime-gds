@@ -11,7 +11,7 @@ class FgdsDownlink extends FilesTab {
     const link = (name) => html`<a href=${"/api/v1/files/downlink/" + encodeURIComponent(name)} download=${name}>Download</a>`;
     return html`
       <span class="error">${this.error}</span>
-      <h3>Transfers</h3>
+      <h2>File Downlink</h2>
       <div class="controls">${this.filterField()}</div>
       <table id="transfers">
         ${this.head(["Start Time", "End Time", "Source", "Destination", "State", "Control", "Progress", "Problems"])}

@@ -109,8 +109,9 @@ class EventsTab extends LitElement {
     })[key]);
     const shown = this.limit ? (columns.sorted() ? sorted.slice(0, this.limit) : sorted.slice(-this.limit)) : sorted;
     return html`
+      <h2>Events</h2>
       <div class="toolbar">
-        <label>Filter <input type="search" id="events-filter" placeholder="name, text, id" .value=${this.text}
+        <label>Filters: <input type="search" id="events-filter" placeholder="name, text, id" .value=${this.text}
           @input=${(e) => { this.text = e.target.value; }}></label>
         <label>Component
           <select id="events-component" @change=${(e) => { this.component = e.target.value; }}>

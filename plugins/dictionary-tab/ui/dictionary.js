@@ -86,8 +86,9 @@ class DictionaryTab extends LitElement {
         ${SECTIONS.map((s) => html`<button role="tab" data-section=${s.id} aria-selected=${String(s.id === this.section)}
           @click=${() => { this.section = s.id; }}>${s.title} (${(s.source(dictionary) || []).length})</button>`)}
       </div>
+      <h2>${SECTIONS.find((s) => s.id === this.section).title} Dictionary</h2>
       <div class="toolbar">
-        <label>Search <input type="search" id="dictionary-search" .value=${this.text}
+        <label>Filters: <input type="search" id="dictionary-search" .value=${this.text}
           @input=${(e) => { this.text = e.target.value; }}></label>
         <span class="muted" id="dictionary-count">${rows.length} of ${all.length}</span>
       </div>

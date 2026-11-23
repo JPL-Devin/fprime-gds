@@ -1,0 +1,226 @@
+{
+ "Commanding": {
+  "buttons": [
+   "Clear Arguments",
+   "Send Command",
+   "First",
+   "<",
+   ">",
+   "Last"
+  ],
+  "headers": [
+   "Command Time",
+   "Command String"
+  ],
+  "placeholders": [
+   "Command string of the form: FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant"
+  ],
+  "labels": [
+   "Sending Command: CdhCore.cmdDisp.CMD_NO_OP",
+   "Mnemonic",
+   "Show Parameter Commands",
+   "Description:",
+   "Command String",
+   "Filters:",
+   "0 - 0"
+  ]
+ },
+ "Events": {
+  "buttons": [
+   "First",
+   "<",
+   ">",
+   "Last",
+   "Clear All"
+  ],
+  "headers": [
+   "Event Time",
+   "Event Id",
+   "Event Name",
+   "Event Severity",
+   "Event Description"
+  ],
+  "placeholders": [],
+  "labels": [
+   "Events",
+   "Filters:",
+   "0 - 0"
+  ]
+ },
+ "Channels": {
+  "buttons": [
+   "First",
+   "<",
+   ">",
+   "Last",
+   "Edit View",
+   "Clear All"
+  ],
+  "headers": [
+   "Last Sample Time",
+   "Channel Id",
+   "Channel Name",
+   "Channel Value"
+  ],
+  "placeholders": [],
+  "labels": [
+   "Channels",
+   "Filters:",
+   "0 - 40"
+  ]
+ },
+ "Uplink": {
+  "buttons": [
+   "Begin Uplink",
+   "Unpause",
+   "Send Cancel Packet",
+   "First",
+   "<",
+   ">",
+   "Last"
+  ],
+  "headers": [
+   "Start Time",
+   "End Time",
+   "Source",
+   "Destination",
+   "State",
+   "Control",
+   "Progress"
+  ],
+  "placeholders": [
+   "/path/to/destination/folder"
+  ],
+  "labels": [
+   "File Uplink",
+   "Destination Folder",
+   "Add Files",
+   "Filters:",
+   "0 - 0"
+  ]
+ },
+ "Downlink": {
+  "buttons": [
+   "First",
+   "<",
+   ">",
+   "Last"
+  ],
+  "headers": [
+   "Start Time",
+   "End Time",
+   "Source",
+   "Destination",
+   "State",
+   "Control",
+   "Progress"
+  ],
+  "placeholders": [],
+  "labels": [
+   "File Downlink",
+   "Filters:",
+   "0 - 0"
+  ]
+ },
+ "Dictionaries": {
+  "buttons": [
+   "First",
+   "<",
+   ">",
+   "Last"
+  ],
+  "headers": [
+   "ID",
+   "Name",
+   "Description"
+  ],
+  "placeholders": [],
+  "labels": [
+   "Commands Dictionary",
+   "Filters:",
+   "0 - 40"
+  ]
+ },
+ "Charts": {
+  "buttons": [
+   "Add Chart",
+   "Lock Scale",
+   "Save",
+   "Help"
+  ],
+  "headers": [],
+  "placeholders": [
+   "Select a Channel"
+  ],
+  "labels": [
+   "Charts",
+   "Load",
+   "Data Window:",
+   "(S)",
+   "Time:"
+  ]
+ },
+ "Logs": {
+  "buttons": [],
+  "headers": [],
+  "placeholders": [],
+  "labels": [
+   "Available Logs",
+   "Scroll Log Output"
+  ]
+ },
+ "Sequences": {
+  "buttons": [
+   "Uplink",
+   "Run",
+   "Build",
+   "Save As"
+  ],
+  "headers": [],
+  "placeholders": [
+   "Sequence name ending in .seq",
+   "/seq"
+  ],
+  "labels": [
+   "Command Sequencer",
+   "Uplink Directory",
+   "Open"
+  ]
+ },
+ "Advanced": {
+  "buttons": [
+   "Clear Errors"
+  ],
+  "headers": [
+   "Statistic",
+   "Value",
+   "Clear Errors"
+  ],
+  "placeholders": [],
+  "labels": [
+   "Advanced GDS Settings and Statistics",
+   "Polling Intervals",
+   "events",
+   "command_history",
+   "channels",
+   "logdata",
+   "upfiles",
+   "downfiles",
+   "stats",
+   "Miscellaneous",
+   "event_buffer_size",
+   "command_buffer_size",
+   "response_object_limit",
+   "compact_commanding",
+   "channels_display_last_received",
+   "Active Clients",
+   "History Sizes",
+   "Page Performance",
+   "Cached Items",
+   "Request Times",
+   "Dropped Items",
+   "Misc. Counts",
+   "GDS Error Log"
+  ]
+ }
+}

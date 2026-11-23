@@ -5,7 +5,10 @@ the Python GDS page.
     messages.py check FGDS DICTIONARY FIXTURE OUT    replays every case of the fixture on the new page
 
 A case is one press of the send button: what is done to each scalar input, in the order of the page, and
-what the page shows before the press and after it (a message per scalar input, the lines under arrays and structs, sent or not).
+what the page shows when the form is drawn (`drawn`), before the press (`before`) and after it: a message
+per scalar input, whether the input is marked, the lines under arrays and structs, sent or not. Every case
+is played twice on a page opened anew: on the form as the page draws it when the command is chosen
+(`chosen`), and after `Clear Arguments` (`cleared`).
 """
 import json
 import os
@@ -59,6 +62,9 @@ PYTHON_SHOWN = """() => ({
         const note = e.querySelector(".invalid-feedback");
         return getComputedStyle(note).display === "none" ? "" : note.textContent.trim();
     }),
+    // The mark of the page: its red border, which Bootstrap draws with the place of the message.
+    marked: [...document.querySelectorAll(".command-input-form .fprime-scalar-argument")].map((e) =>
+        getComputedStyle(e.querySelector(".invalid-feedback")).display !== "none"),
     groups: [...document.querySelectorAll(".command-input-form .fp-error")].map((e) => e.textContent.trim())
         .filter((text) => text),
 })"""
@@ -67,6 +73,7 @@ NEW_SHOWN = """() => ({
         const note = document.querySelector(`#command-form span[data-error-for="${e.dataset.arg}"]`);
         return note ? note.textContent.trim() : "";
     }),
+    marked: [...document.querySelectorAll("#command-form [data-arg]")].map((e) => e.classList.contains("invalid")),
     groups: [...document.querySelectorAll("#command-form div[data-error-for]")].map((e) => e.textContent.trim()),
 })"""
 
@@ -98,30 +105,41 @@ def press(page, selector, sends):
     return bool(requests)
 
 
+STARTS = ["chosen", "cleared"]
+
+
 def record(url, fixture):
     found = {}
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={"width": 1400, "height": 2000})
-        page.goto(url)
-        page.wait_for_selector(".command-input-form")
         for command in COMMANDS:
-            page.fill("#mnemonic input.vs__search", command)
-            page.press("#mnemonic input.vs__search", "Enter")
-            page.wait_for_function("(name) => document.querySelector('.command-input-form').parentElement"
-                                   ".querySelector('h2').textContent.endsWith(name)", arg=command)
+            def choose():
+                page.goto(url)
+                page.wait_for_selector(".command-input-form")
+                page.fill("#mnemonic input.vs__search", command)
+                page.press("#mnemonic input.vs__search", "Enter")
+                page.wait_for_function("(name) => document.querySelector('.command-input-form').parentElement"
+                                       ".querySelector('h2').textContent.endsWith(name)", arg=command)
+                page.wait_for_timeout(100)
+            choose()
             kinds = page.evaluate(PYTHON_KINDS)
             found[command] = {"kinds": kinds, "cases": []}
-            for case in cases(kinds):
-                page.click("button:has-text('Clear Arguments')")
-                fields = page.locator(".command-input-form .fprime-scalar-argument")
-                for i, text in enumerate(case):
-                    field = fields.nth(i)
-                    fill(page, field if kinds[i] == "bool" else field.locator("input.fprime-input"), kinds[i], text)
-                before = page.evaluate(PYTHON_SHOWN)
-                sent = press(page, "button:has-text('Send Command')",
-                             lambda r: r.method == "PUT" and "/commands/" in r.url)
-                found[command]["cases"].append({"inputs": case, "before": before, **page.evaluate(PYTHON_SHOWN), "sent": sent})
+            for start in STARTS:
+                for case in cases(kinds):
+                    choose()
+                    if start == "cleared":
+                        page.click("button:has-text('Clear Arguments')")
+                    drawn = page.evaluate(PYTHON_SHOWN)
+                    fields = page.locator(".command-input-form .fprime-scalar-argument")
+                    for i, text in enumerate(case):
+                        field = fields.nth(i)
+                        fill(page, field if kinds[i] == "bool" else field.locator("input.fprime-input"), kinds[i], text)
+                    before = page.evaluate(PYTHON_SHOWN)
+                    sent = press(page, "button:has-text('Send Command')",
+                                 lambda r: r.method == "PUT" and "/commands/" in r.url)
+                    found[command]["cases"].append({"start": start, "inputs": case, "drawn": drawn, "before": before,
+                                                    **page.evaluate(PYTHON_SHOWN), "sent": sent})
         browser.close()
     with open(fixture, "w") as file:
         json.dump(found, file, indent=1)
@@ -146,11 +164,16 @@ def check(binary, dictionary, fixture, out):
             harness.show(page, "commands")
             for command, wanted in expected.items():
                 kinds = wanted["kinds"]
-                assert [case["inputs"] for case in wanted["cases"]] == cases(kinds), f"{command}: record the fixture again"
+                assert [(case["start"], case["inputs"]) for case in wanted["cases"]] == [
+                    (start, case) for start in STARTS for case in cases(kinds)], f"{command}: record the fixture again"
                 for case in wanted["cases"]:
-                    # Chosen again: every input as it is before anything is typed.
+                    # A page opened anew: every form as it is before anything is typed.
+                    page.reload()
+                    harness.show(page, "commands")
                     page.select_option("#command-select", command)
-                    page.click("#command-clear")
+                    if case["start"] == "cleared":
+                        page.click("#command-clear")
+                    drawn = page.evaluate(NEW_SHOWN)
                     fields = page.locator("#command-form [data-arg]")
                     assert fields.count() == len(kinds), f"{command}: {fields.count()} inputs, {len(kinds)} in the Python page"
                     for i, text in enumerate(case["inputs"]):
@@ -158,23 +181,24 @@ def check(binary, dictionary, fixture, out):
                     # No Ref is connected: a command the page sends is answered "link down", which is not an error of the page.
                     before = page.evaluate(NEW_SHOWN)
                     sent = press(page, "#command-send", lambda r: r.method == "POST" and r.url.endswith("/commands"))
-                    shown = {"before": before, **page.evaluate(NEW_SHOWN), "sent": sent}
+                    shown = {"drawn": drawn, "before": before, **page.evaluate(NEW_SHOWN), "sent": sent}
                     count += 1
                     if shown != {key: case[key] for key in shown}:
                         different.append((command, case, shown))
                     if not sent:
-                        said = any(shown["scalars"]) or shown["groups"] or page.locator("#command-message").count()
-                        assert said, f"{command} {case['inputs']}: refused without a word"
-                        silent += not (any(shown["scalars"]) or shown["groups"])
+                        said = any(shown["marked"]) or shown["groups"] or page.locator("#command-message").count()
+                        assert said, f"{command} {case['inputs']}: refused with no mark and no word"
+                        silent += not (any(shown["marked"]) or shown["groups"])
             browser.close()
     finally:
         gds.stop()
     for command, case, shown in different:
         print(f"  !! {command} {case['inputs']}\n     Python: {json.dumps({k: case[k] for k in shown})}\n     fgds:   {json.dumps(shown)}")
     assert not different, f"{len(different)} of {count} cases differ from the Python GDS page"
-    harness.step(f"command messages: {count} submissions of {len(expected)} commands (each input empty, with an invalid "
-                 "text, typed then emptied, alone and with the others invalid) show the messages of the Python GDS page "
-                 f"and send when it sends; {silent} it refuses without a message have a line under the form")
+    harness.step(f"command messages: {count} submissions of {len(expected)} commands (each input untouched, with an "
+                 "invalid text, typed then emptied, alone and with the others invalid; on the form as drawn and after "
+                 "Clear Arguments) show the messages and the marks of the Python GDS page when the form is drawn, "
+                 f"before Send and after it, and send when it sends; {silent} it refuses with no mark have a line under the form")
 
 
 if __name__ == "__main__":

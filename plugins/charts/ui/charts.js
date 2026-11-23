@@ -193,6 +193,7 @@ class ChartsTab extends LitElement {
   render() {
     const options = this.names.map((name) => html`<option value=${name}>${name}</option>`);
     return html`
+      <h2>Charts</h2>
       <div class="toolbar">
         <button id="chart-add" @click=${() => this.add()}>Add Chart</button>
         <button id="chart-save" @click=${() => this.save()}>Save</button>

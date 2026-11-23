@@ -97,6 +97,7 @@ class SequencesTab extends LitElement {
 
   render() {
     return html`
+      <h2>Command Sequencer</h2>
       <div class="toolbar">
         <input id="sequence-name" type="text" placeholder="Sequence name ending in .seq" ?disabled=${this.active}>
         <label><input id="sequence-directory" type="text" placeholder="/seq" value="/seq"

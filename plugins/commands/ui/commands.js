@@ -4,16 +4,17 @@ import { LitElement, html, nothing } from "/ui/lit.js";
 
 const KIND = "fprime.command";
 
-// The value an input of `type` starts with. Scalars start empty, so nothing is sent by accident: null until
-// something is typed, as in the Python GDS page, which tells it from a text typed and removed ("").
-function initial(type) {
+// The value an input of `type` holds when the page opens, as the Python GDS gives it to its page: an enum its
+// default constant, a boolean `True`, a number nothing (null, which the page tells from a text typed and
+// removed, ""). `cleared` is what `Clear Arguments` leaves: the same, but a boolean with nothing chosen.
+function initial(type, cleared = false) {
   switch (type.kind) {
-    case "enum": return type.constants.some((c) => c.name === type.default) ? type.default : type.constants[0].name;
-    case "bool": return null;
-    case "array": return Array.from({ length: type.size }, () => initial(type.element));
+    case "enum": return type.constants.some((c) => c.name === type.default) && !cleared ? type.default : type.constants[0].name;
+    case "bool": return cleared ? null : "true";
+    case "array": return Array.from({ length: type.size }, () => initial(type.element, cleared));
     case "struct":
       return Object.fromEntries(type.members.map((m) => [
-        m.name, m.count === null ? initial(m.type) : Array.from({ length: m.count }, () => initial(m.type)),
+        m.name, m.count === null ? initial(m.type, cleared) : Array.from({ length: m.count }, () => initial(m.type, cleared)),
       ]));
     case "string": return "";
     default: return null;
@@ -97,65 +98,121 @@ function shown(type, value) {
   }
 }
 
-// The mistake in a scalar input, or null: the message under the input ("" when the Python GDS page refuses
-// without one), and whether the array or struct that holds the input names it in its own line.
-function mistake(type, text) {
-  const said = (message) => ({ text: message, counted: true });
+// What the Python GDS page does with its arguments (validate.js, arguments.js), on the input states of this
+// page. An argument has an error text, written when it is validated; the browser besides refuses an input
+// that is empty or does not match its pattern, which the page shows as a mark once its form was validated.
+
+// Validate the state at `holder[key]`: its error text goes to `errors` by path (also the line of an array or
+// struct that names its members in error). Returns whether it is valid. An enum constant typed in another
+// case is rewritten.
+function validate(type, holder, key, path, errors, groups = true) {
+  const state = holder[key];
+  const group = (children) => {
+    const bad = children.filter(([, valid]) => !valid).map(([token]) => `Error in field/index: ${token}.`);
+    if (bad.length && groups) errors.set(path, bad.join(" ")); else errors.delete(path);
+    return bad.length === 0;
+  };
+  const items = (element, list, at) => list.map((_, i) => [i, validate(element, list, i, `${at}[${i}]`, errors, groups)]);
+  const scalar = (message) => { if (message) errors.set(path, message); else errors.delete(path); return !message; };
   switch (type.kind) {
-    // Integers and floats: the rules and the messages of the Python GDS page (validate.js).
+    case "array": return group(items(type.element, state, path));
+    case "struct":
+      return group(type.members.map((m) => {
+        if (m.count === null) return [m.name, validate(m.type, state, m.name, `${path}.${m.name}`, errors, groups)];
+        const at = `${path}.${m.name}`;
+        const bad = items(m.type, state[m.name], at).filter(([, valid]) => !valid).map(([i]) => `Error in field/index: ${i}.`);
+        if (bad.length && groups) errors.set(at, bad.join(" ")); else errors.delete(at);
+        return [m.name, bad.length === 0];
+      }));
     case "integer": {
-      const pattern = type.signed ? /^(-?[1-9]\d*|0)$/
-        : /^(0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[1-9]\d*|0)$/;
       const min = type.signed ? -(1n << BigInt(type.bits - 1)) : 0n;
       const max = type.signed ? (1n << BigInt(type.bits - 1)) - 1n : (1n << BigInt(type.bits)) - 1n;
       const kind = type.signed ? "signed decimal integer" : "binary, octal, decimal, or hexadecimal unsigned integer";
-      // validate.js reads the text with BigInt (which takes " 4 ", "007", "0x10" and ""): a message when
-      // nothing was typed, when that fails or when the value is out of range. The pattern and `required` of
-      // the input then refuse the rest without a message.
+      // validate.js reads the text with BigInt, which takes " 4 ", "007", "0x10" and "".
       let value = null;
-      try { value = text === null ? null : BigInt(text); } catch (e) { /* not an integer */ }
-      if (value === null || value < min || value > max) return said(`Supply ${kind}  between ${min} and ${max}`);
-      return pattern.test(text) ? null : { text: "", counted: false };
+      try { value = state === null ? null : BigInt(state); } catch (e) { /* not an integer */ }
+      return scalar(value === null || value < min || value > max ? `Supply ${kind}  between ${min} and ${max}` : "");
     }
-    case "float": return Number.isNaN(parseFloat(text)) ? said("Supply floating point number") : null;
-    // validate.js has no message for a bool that is not chosen.
-    case "bool": return text === "true" || text === "false" ? null : said("");
+    case "float": return scalar(Number.isNaN(parseFloat(state)) ? "Supply floating point number" : "");
+    // validate.js has no text for a boolean; one with nothing chosen is not valid.
+    case "bool": return state === "true" || state === "false";
     case "string": {
-      const bytes = new TextEncoder().encode(text).length;
+      const bytes = new TextEncoder().encode(state ?? "").length;
       // The Python GDS page refuses an empty text and one longer than the type holds.
       const fits = bytes > 0 && (type.max === undefined || bytes <= type.max);
-      return fits ? null : said(`Supply general text of less than ${type.max} characters`);
+      return scalar(fits ? "" : `Supply general text of less than ${type.max} characters`);
     }
-    case "enum": return type.constants.some((c) => c.name === text) ? null : said(`Supply one of: ${type.constants.map((c) => c.name).join(" ")}`);
-    default: return said(`type ${type.name} is not supported`);
+    case "enum": {
+      const names = type.constants.map((c) => c.name);
+      const lower = state === null ? [] : names.filter((name) => name.toLowerCase() === String(state).toLowerCase());
+      const found = names.includes(state) ? state : lower.length === 1 ? lower[0] : null;
+      if (found !== null) holder[key] = found;
+      return scalar(found === null ? `Supply one of: ${names.join(" ")}` : "");
+    }
+    default: return scalar(`type ${type.name} is not supported`);
   }
 }
 
-// The JSON value the API takes for an input state; mistakes are collected by path.
-function convert(type, state, path, mistakes) {
+// Whether the browser refuses the input of a scalar: `required`, and the pattern of an integer.
+function refused(type, state) {
+  if (type.kind === "enum" || type.kind === "bool") return false;
+  if (state === null || state === "") return true;
+  if (type.kind !== "integer") return false;
+  return !(type.signed ? /^(-?[1-9]\d*|0)$/ : /^(0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[1-9]\d*|0)$/).test(state);
+}
+
+// Whether the browser refuses an input of the form.
+function anyRefused(type, state) {
   switch (type.kind) {
-    case "array": return state.map((item, i) => convert(type.element, item, `${path}[${i}]`, mistakes));
+    case "array": return state.some((item) => anyRefused(type.element, item));
+    case "struct":
+      return type.members.some((m) => (m.count === null ? anyRefused(m.type, state[m.name])
+        : state[m.name].some((item) => anyRefused(m.type, item))));
+    default: return refused(type, state);
+  }
+}
+
+// Give the state at `holder[key]` the value of a `Command String` or of a history row, as arguments.js: a
+// member or element that is not given keeps what it holds; a value that is missing, or one value where an
+// array or struct is expected, stops the assignment there (the Python page throws a TypeError).
+function assign(type, holder, key, given) {
+  const each = (element, list, values) => {
+    if (values === null || typeof values !== "object") throw new TypeError("not an array or struct");
+    list.forEach((_, i) => { if (i in values) assign(element, list, i, values[i]); });
+  };
+  switch (type.kind) {
+    case "array": each(type.element, holder[key], given); return;
+    case "struct":
+      if (given === null || typeof given !== "object") throw new TypeError("not an array or struct");
+      for (const m of type.members) {
+        if (!(m.name in given)) continue;
+        if (m.count === null) assign(m.type, holder[key], m.name, given[m.name]);
+        else each(m.type, holder[key][m.name], given[m.name]);
+      }
+      return;
+    default:
+      if (given === null || given === undefined) throw new TypeError("no value");
+      holder[key] = fromRecord(type, given);
+  }
+}
+
+// The JSON value the API takes for an input state.
+function convert(type, state) {
+  switch (type.kind) {
+    case "array": return state.map((item) => convert(type.element, item));
     case "struct":
       return Object.fromEntries(type.members.map((m) => [
-        m.name,
-        m.count === null ? convert(m.type, state[m.name], `${path}.${m.name}`, mistakes)
-          : state[m.name].map((item, i) => convert(m.type, item, `${path}.${m.name}[${i}]`, mistakes)),
+        m.name, m.count === null ? convert(m.type, state[m.name]) : state[m.name].map((item) => convert(m.type, item)),
       ]));
-    default: {
-      // A line typed as `Command String` can give an array or a struct where one value is taken.
-      if (state !== null && typeof state === "object") state = String(state);
-      const problem = mistake(type, state);
-      if (problem !== null) mistakes.set(path, problem);
-      if (type.kind === "bool") return state === "true";
-      // Numbers go as typed: the GDS reads the text by the rule of the Python GDS.
-      return state;
-    }
+    case "bool": return state === "true";
+    // Numbers go as typed: the GDS reads the text by the rule of the Python GDS.
+    default: return state;
   }
 }
 
 class CommandsTab extends LitElement {
   static properties = {
-    filter: { state: true }, selected: { state: true }, values: { state: true }, mistakes: { state: true },
+    filter: { state: true }, selected: { state: true }, values: { state: true }, errors: { state: true }, was: { state: true },
     message: { state: true }, sending: { state: true }, version: { state: true }, historyFilter: { state: true },
     parameters: { state: true }, lineError: { state: true }, unknown: { state: true },
   };
@@ -170,7 +227,9 @@ class CommandsTab extends LitElement {
     this.line = "";
     this.selected = null;
     this.values = {};
-    this.mistakes = new Map();
+    this.errors = new Map();
+    this.forms = new Map(); // by command name: what its form holds, kept while the page is open
+    this.was = false; // whether the form was validated: an input the browser refuses is then marked
     this.message = null;
     this.sending = false;
     this.history = [];
@@ -191,7 +250,7 @@ class CommandsTab extends LitElement {
     // As the Python GDS page (command-input.js): the first command of the dictionary whose mnemonic starts
     // with CMD_NO_OP is selected at start, or else the first command.
     const first = listed.find((c) => c.name.split(".").pop().startsWith("CMD_NO_OP")) || listed[0];
-    if (first) this.choose(first.name);
+    if (first) this.show(first);
     this.stop = this.gds.records.follow({ kinds: [KIND] }, (records) => {
       this.history.push(...records);
       this.version += 1;
@@ -212,18 +271,73 @@ class CommandsTab extends LitElement {
     return command.params.map((p) => shown(p.type, args[p.name])).join(", ");
   }
 
-  choose(name, args) {
-    const command = this.commands.find((c) => c.name === name);
-    if (!command) return;
+  // What the form of `command` holds: the values of its inputs and their error texts. As on the Python
+  // page, a command keeps them while another one is shown.
+  form(command) {
+    if (!this.forms.has(command.name)) {
+      this.forms.set(command.name, {
+        values: Object.fromEntries(command.params.map((p) => [p.name, initial(p.type)])), errors: new Map(),
+      });
+    }
+    return this.forms.get(command.name);
+  }
+
+  // Show the form of `command`, with what it holds.
+  show(command) {
+    const form = this.form(command);
     this.selected = command;
+    this.values = form.values;
+    this.errors = form.errors;
     this.lineRefused = false;
     this.unknown = "";
-    this.values = Object.fromEntries(command.params.map((p) => [
-      p.name, args && p.name in args ? fromRecord(p.type, args[p.name]) : initial(p.type),
-    ]));
-    this.mistakes = new Map();
     this.message = null;
     this.cleared = true;
+  }
+
+  // A command chosen in the list: its form is shown and validated.
+  choose(name) {
+    const command = this.commands.find((c) => c.name === name);
+    if (!command) return;
+    this.show(command);
+    this.validate();
+  }
+
+  // `Clear Arguments`: every input as at the start but a boolean, which has nothing chosen; no error text.
+  // Nothing is validated.
+  clear() {
+    const command = this.selected;
+    for (const p of command.params) this.values[p.name] = initial(p.type, true);
+    this.errors.clear();
+    this.lineRefused = false;
+    this.message = null;
+    this.cleared = true;
+    this.requestUpdate();
+  }
+
+  // Give the form of `command` the values of `given`, one per argument in order, then show and validate it.
+  // Returns false when a value is missing: as on the Python page the values before it are kept and the
+  // command shown does not change.
+  load(command, given) {
+    const form = this.form(command);
+    try {
+      command.params.forEach((p, i) => assign(p.type, form.values, p.name, i < given.length ? given[i] : null));
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
+      this.requestUpdate();
+      return false;
+    }
+    this.show(command);
+    // The Python page writes the messages of the fields only, not those of an array or a structure.
+    this.validate(false);
+    return true;
+  }
+
+  // Validate every argument of the form, as the Python page when a command is chosen and before it sends.
+  validate(groups = true) {
+    this.was = true;
+    const valid = this.selected.params.map((p) => validate(p.type, this.values, p.name, p.name, this.errors, groups));
+    this.requestUpdate();
+    return valid.every(Boolean) && !this.selected.params.some((p) => anyRefused(p.type, this.values[p.name]));
   }
 
   // A line typed as `Command String`: the form is filled and its fields are checked, as the Python page.
@@ -249,47 +363,49 @@ class CommandsTab extends LitElement {
       this.updateComplete.then(() => { input.value = this.line; });
       return;
     }
-    // Fewer arguments than the command takes: the Python page stops while it fills the form. The command
-    // shown keeps the arguments given when it is this one, another command stays as it is; nothing is checked.
-    const missing = tokens.length - 1 < command.params.length;
-    if (missing && this.selected !== command) return;
-    this.updateComplete.then(() => { input.value = this.line; });
-    // An argument the line does not give keeps what the form holds for this command.
-    const held = this.selected === command ? this.values : {};
-    this.choose(command.name, Object.fromEntries(command.params.map((p, i) => [p.name, tokens[i + 1]])
-      .filter(([, value]) => value !== undefined)));
-    this.values = { ...this.values, ...Object.fromEntries(command.params.slice(tokens.length - 1)
-      .filter((p) => p.name in held).map((p) => [p.name, held[p.name]])) };
-    if (missing) this.lineRefused = true;
-    else this.request();
+    // A value the line gives goes to the form of its command; an element or member it does not give keeps
+    // what that form holds. With an argument missing the Python page stops there: the command shown does
+    // not change (its line does when it is this command), nothing is validated, and nothing can be sent.
+    // The line typed stays when it changes neither the command shown nor a value, as on the Python page.
+    const shown = this.selected;
+    const held = JSON.stringify(this.form(command).values);
+    const taken = this.load(command, tokens.slice(1));
+    const changed = this.selected !== shown || JSON.stringify(this.form(command).values) !== held;
+    if (changed && (taken || shown === command)) this.updateComplete.then(() => { input.value = this.line; });
+    if (!taken) this.lineRefused = true;
+  }
+
+  // A history row put back in the form.
+  loadRecord(record) {
+    const command = this.commands.find((c) => c.name === record.body.name);
+    if (!command) return;
+    const args = record.body.args || {};
+    this.load(command, Array.isArray(args) ? args : command.params.map((p) => args[p.name]));
   }
 
   // Replace the value at `path` (argument name, then member names and indexes).
   setAt(path, value) {
-    const next = structuredClone(this.values);
-    let at = next;
+    let at = this.values;
     for (const key of path.slice(0, -1)) at = at[key];
     at[path[path.length - 1]] = value;
-    this.values = next;
+    this.requestUpdate();
   }
 
+  // The request for the form, or null when it is not valid.
   request() {
-    const mistakes = new Map();
-    const args = Object.fromEntries(this.selected.params.map((p) => [
-      p.name, convert(p.type, this.values[p.name], p.name, mistakes),
-    ]));
-    this.mistakes = mistakes;
-    return mistakes.size ? null : { name: this.selected.name, args };
+    if (!this.validate()) return null;
+    return {
+      name: this.selected.name,
+      args: Object.fromEntries(this.selected.params.map((p) => [p.name, convert(p.type, this.values[p.name])])),
+    };
   }
 
-  // As the Python GDS page while the form is filled: an input is checked when it changes, with the whole
+  // As the Python GDS page while the form is filled: an input is validated when it changes, with the whole
   // array or struct it is part of; the other arguments keep what they showed.
   checkArgument(name) {
     const parameter = this.selected.params.find((p) => p.name === name);
-    const mistakes = new Map([...this.mistakes]
-      .filter(([key]) => key !== name && !key.startsWith(`${name}.`) && !key.startsWith(`${name}[`)));
-    convert(parameter.type, this.values[name], name, mistakes);
-    this.mistakes = mistakes;
+    validate(parameter.type, this.values, name, name, this.errors);
+    this.requestUpdate();
   }
 
   async send(request = this.selected ? this.request() : null) {
@@ -299,17 +415,25 @@ class CommandsTab extends LitElement {
       return;
     }
     if (!request) {
-      // As the Python GDS page: the fields are marked, with their messages. Where it has no message for a
-      // marked field (and shows the one of the browser), a line under the form says why nothing is sent.
-      const silent = [...this.mistakes.values()].every((m) => m.text === "");
-      this.message = silent
-        ? { error: true, text: `${this.selected.name} was not sent: the marked fields are empty or not valid` } : null;
+      // As the Python GDS page: the fields are marked, with their messages; a field the browser refuses
+      // (empty, or not the text of its type) is marked with no message. Where the Python page marks nothing
+      // (a boolean with nothing chosen after `Clear Arguments`), a line under the form says why nothing is sent.
+      this.updateComplete.then(() => {
+        if (!this.querySelector("#command-form .invalid, #command-form .error-text")) {
+          this.message = { error: true, text: `${this.selected.name} was not sent: an argument has no value` };
+        }
+      });
+      this.message = null;
       return;
     }
+    // The Python page takes the validated state off its form when it sends.
+    const form = this.selected ? this.form(this.selected) : null;
+    if (form && this.selected.name === request.name) this.was = false;
     this.sending = true;
     try {
       const sent = await this.gds.api.post("/commands", request);
       this.message = { error: false, text: `${request.name} sent (record ${sent.seq})` };
+      if (form && this.forms.get(request.name) === form) { form.errors.clear(); this.requestUpdate(); }
     } catch (error) {
       this.message = { error: true, text: `${request.name} was not sent: ${error.message}` };
     } finally {
@@ -318,17 +442,17 @@ class CommandsTab extends LitElement {
   }
 
   // The line the Python GDS page writes under an array or struct: one sentence per member in error.
-  groupNote(key, children) {
-    const keys = [...this.mistakes].filter(([, m]) => m.counted).map(([k]) => k);
-    const bad = children.filter(([, child]) => keys.some((k) => k === child || k.startsWith(child + ".") || k.startsWith(child + "[")));
-    const text = bad.map(([token]) => `Error in field/index: ${token}.`).join(" ");
-    return bad.length ? html`<div class="error-text" data-error-for=${key}>${text}</div>` : nothing;
+  groupNote(key) {
+    const text = this.errors.get(key);
+    return text ? html`<div class="error-text" data-error-for=${key}>${text}</div>` : nothing;
   }
 
   input(type, state, path, label) {
     const key = label;
-    const problem = this.mistakes.has(key);
-    const text = problem ? this.mistakes.get(key).text : "";
+    const text = this.errors.get(key) || "";
+    const scalar = type.kind !== "array" && type.kind !== "struct";
+    // Marked as on the Python page: an error text, or a form that was validated and an input the browser refuses.
+    const problem = scalar && (text !== "" || (this.was && refused(type, state)));
     const set = (e) => { this.lineRefused = false; this.setAt(path, e.target.value); this.checkArgument(path[0]); };
     const note = text ? html`<span class="error-text" data-error-for=${key}>${text}</span>` : nothing;
     switch (type.kind) {
@@ -341,7 +465,9 @@ class CommandsTab extends LitElement {
         </select>${note}`;
       case "bool":
         return html`<select data-arg=${key} class=${problem ? "invalid" : ""} @change=${set}>
-          <option value="" .selected=${!state}></option>
+          ${state === "true" || state === "false" ? nothing
+            // Nothing chosen (after `Clear Arguments`), or a text of the Command String that is neither.
+            : html`<option value=${state ?? ""} .selected=${true}>${state ?? ""}</option>`}
           <option value="true" .selected=${String(state).toLowerCase() === "true"}>True</option>
           <option value="false" .selected=${String(state).toLowerCase() === "false"}>False</option>
         </select>${note}`;
@@ -349,7 +475,7 @@ class CommandsTab extends LitElement {
         return html`<div class="arg-group" data-arg-group=${key}>
           ${state.map((item, i) => html`<div class="arg-row"><span class="arg-name mono">[${i}]</span>
             ${this.input(type.element, item, [...path, i], `${key}[${i}]`)}</div>`)}
-          ${this.groupNote(key, state.map((_, i) => [i, `${key}[${i}]`]))}
+          ${this.groupNote(key)}
         </div>`;
       case "struct":
         return html`<div class="arg-group" data-arg-group=${key}>
@@ -358,9 +484,9 @@ class CommandsTab extends LitElement {
               : html`<div class="arg-group">${state[m.name].map((item, i) => html`<div class="arg-row">
                   <span class="arg-name mono">[${i}]</span>
                   ${this.input(m.type, item, [...path, m.name, i], `${key}.${m.name}[${i}]`)}</div>`)}
-                  ${this.groupNote(`${key}.${m.name}`, state[m.name].map((_, i) => [i, `${key}.${m.name}[${i}]`]))}</div>`}
+                  ${this.groupNote(`${key}.${m.name}`)}</div>`}
           </div>`)}
-          ${this.groupNote(key, type.members.map((m) => [m.name, `${key}.${m.name}`]))}
+          ${this.groupNote(key)}
         </div>`;
       default:
         if (type.kind === "float") {
@@ -400,6 +526,7 @@ class CommandsTab extends LitElement {
     return html`
       <div class="commanding">
         <div class="command-list">
+          <label for="command-filter">Mnemonic</label>
           <input type="search" id="command-filter" placeholder="Filter commands" .value=${this.filter}
             @input=${(e) => { this.filter = e.target.value; }}>
           <label><input type="checkbox" id="show-parameter-commands" .checked=${this.parameters}
@@ -411,19 +538,19 @@ class CommandsTab extends LitElement {
         </div>
         <form class="command-form" id="command-form" novalidate @submit=${(e) => { e.preventDefault(); this.send(); }}>
           ${command ? html`
-            <h3 id="command-name">${command.name} <span class="muted mono">${format.hexId(command.opcode)}</span></h3>
-            <div class="muted">${command.annotation}</div>
+            <h2>Sending Command: <span id="command-name">${command.name}</span></h2>
+            <div class="muted"><label>Description:</label> ${command.annotation} <span class="mono">${format.hexId(command.opcode)}</span></div>
             ${command.params.length ? nothing : html`<div class="muted">No arguments.</div>`}
             ${command.params.map((p) => html`<div class="arg-row top" data-param=${p.name}>
               <span class="arg-name" title=${p.annotation}>${p.name}<br><span class="muted mono">${p.type.name}</span></span>
               ${this.input(p.type, this.values[p.name], [p.name], p.name)}
             </div>`)}
             <div class="toolbar">
-              <button class="action" id="command-send" type="submit" ?disabled=${this.sending}>Send command</button>
-              <button class="action secondary" type="button" id="command-clear" @click=${() => this.choose(command.name)}>Clear</button>
-            </div>` : this.unknown ? html`<h3 id="command-name">${this.unknown}</h3>
+              <button class="action" id="command-send" type="submit" ?disabled=${this.sending}>Send Command</button>
+              <button class="action secondary" type="button" id="command-clear" @click=${() => this.clear()}>Clear Arguments</button>
+            </div>` : this.unknown ? html`<h2>Sending Command: <span id="command-name">${this.unknown}</span></h2>
               <div class="error-text" id="command-unknown">${this.unknown} is not a command.</div>
-              <div class="toolbar"><button class="action" id="command-send" type="submit">Send command</button></div>`
+              <div class="toolbar"><button class="action" id="command-send" type="submit">Send Command</button></div>`
               : html`<div class="muted">Choose a command.</div>`}
           ${this.message ? html`<div id="command-message" class=${this.message.error ? "error-text" : ""}>${this.message.text}</div>` : nothing}
         </form>
@@ -435,7 +562,7 @@ class CommandsTab extends LitElement {
       ${this.lineError ? html`<div class="error-text" id="command-string-error">${this.lineError}</div>` : nothing}
       <h3>Command history</h3>
       <div class="toolbar">
-        <label>Filter <input type="search" id="history-filter" .value=${this.historyFilter}
+        <label>Filters: <input type="search" id="history-filter" .value=${this.historyFilter}
           @input=${(e) => { this.historyFilter = e.target.value; }}></label>
         <span class="muted">${history.length} of ${this.history.length} commands; a row can be loaded into the form or sent again.</span>
       </div>
@@ -449,7 +576,7 @@ class CommandsTab extends LitElement {
             <td data-col="outcome">${r.body.outcome}${r.body.reason ? `: ${r.body.reason}` : ""}</td>
             <td class="nowrap">
               <button class="action secondary" type="button" data-action="load"
-                @click=${() => this.choose(r.body.name, r.body.args)}>Load</button>
+                @click=${() => this.loadRecord(r)}>Load</button>
               <button class="action secondary" type="button" data-action="resend"
                 @click=${() => this.send({ name: r.body.name, args: r.body.args || {} })}>Resend</button>
             </td>

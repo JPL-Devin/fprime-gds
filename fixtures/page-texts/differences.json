@@ -1,0 +1,300 @@
+{
+ "Commanding": {
+  "buttons": {
+   "python": {
+    "First": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "<": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    ">": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "Last": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   }
+  },
+  "headers": {
+   "python": {
+    "Command Time": "fgds names the column Ground time: deviations.md, Command history"
+   },
+   "fgds": {
+    "Ground time": "the Command Time column of Python: deviations.md, Command history",
+    "Opcode": "extra column: deviations.md, Command history",
+    "Outcome": "extra column: deviations.md, Command history"
+   }
+  },
+  "placeholders": {
+   "fgds": {
+    "Filter commands": "the search of the Python Mnemonic selector is a field of its own in fgds"
+   }
+  },
+  "labels": {
+   "python": {
+    "0 - 0": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   },
+   "fgds": {
+    "Command history": "extra heading"
+   }
+  }
+ },
+ "Events": {
+  "buttons": {
+   "python": {
+    "First": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "<": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    ">": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "Last": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   },
+   "fgds": {
+    "Pause": "extra: stops the table from following new rows"
+   }
+  },
+  "headers": {
+   "fgds": {
+    "Ground time": "extra column, hidden by its box"
+   }
+  },
+  "placeholders": {
+   "fgds": {
+    "name, text, id": "extra hint in the filter field"
+   }
+  },
+  "labels": {
+   "python": {
+    "0 - 0": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   },
+   "fgds": {
+    "Component": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "FATAL": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "WARNING_HI": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "WARNING_LO": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "ACTIVITY_HI": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "ACTIVITY_LO": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "COMMAND": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "DIAGNOSTIC": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Rows": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Event Time": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Ground time": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Event Id": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Event Name": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Event Severity": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)",
+    "Event Description": "extra: severity boxes, Component, Rows and a box per column (deviations.md, Page furniture)"
+   }
+  }
+ },
+ "Channels": {
+  "buttons": {
+   "python": {
+    "First": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "<": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    ">": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "Last": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   }
+  },
+  "headers": {
+   "fgds": {
+    "Ground time": "extra column, hidden by its box"
+   }
+  },
+  "placeholders": {
+   "fgds": {
+    "name, id, value": "extra hint in the filter field"
+   }
+  },
+  "labels": {
+   "python": {
+    "0 - 40": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   },
+   "fgds": {
+    "Telemetry packet": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)",
+    "Channels without a value": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)",
+    "Last Sample Time": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)",
+    "Ground time": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)",
+    "Channel Id": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)",
+    "Channel Name": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)",
+    "Channel Value": "extra: Telemetry packet, Channels without a value and a box per column (deviations.md, Page furniture)"
+   }
+  }
+ },
+ "Uplink": {
+  "buttons": {
+   "python": {
+    "First": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "<": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    ">": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "Last": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   }
+  },
+  "labels": {
+   "python": {
+    "0 - 0": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   }
+  }
+ },
+ "Downlink": {
+  "buttons": {
+   "python": {
+    "First": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "<": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    ">": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "Last": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   }
+  },
+  "headers": {
+   "fgds": {
+    "Problems": "extra: the problems and the files received (deviations.md, Downlink tab)",
+    "File": "extra: the problems and the files received (deviations.md, Downlink tab)",
+    "Size": "extra: the problems and the files received (deviations.md, Downlink tab)"
+   }
+  },
+  "labels": {
+   "python": {
+    "0 - 0": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   },
+   "fgds": {
+    "Files": "extra: the problems and the files received (deviations.md, Downlink tab)"
+   }
+  }
+ },
+ "Dictionaries": {
+  "buttons": {
+   "python": {
+    "First": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "<": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    ">": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture",
+    "Last": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   },
+   "fgds": {
+    "Commands (126)": "the links Commands, Events, Channels of Python are buttons with a count; three more sections are extra",
+    "Events (359)": "the links Commands, Events, Channels of Python are buttons with a count; three more sections are extra",
+    "Channels (200)": "the links Commands, Events, Channels of Python are buttons with a count; three more sections are extra",
+    "Parameters (12)": "the links Commands, Events, Channels of Python are buttons with a count; three more sections are extra",
+    "Types (112)": "the links Commands, Events, Channels of Python are buttons with a count; three more sections are extra",
+    "Telemetry packets (35)": "the links Commands, Events, Channels of Python are buttons with a count; three more sections are extra"
+   }
+  },
+  "headers": {
+   "python": {
+    "ID": "fgds names the column Opcode in the Commands section"
+   },
+   "fgds": {
+    "Opcode": "the ID column of Python",
+    "Arguments": "extra column: deviations.md, Dictionaries tab"
+   }
+  },
+  "labels": {
+   "python": {
+    "0 - 40": "paging of the Python table (40 rows at a time); fgds has one table: deviations.md, Page furniture"
+   }
+  }
+ },
+ "Charts": {
+  "buttons": {
+   "python": {
+    "Lock Scale": "not built: deviations.md, Charts tab"
+   },
+   "fgds": {
+    "Load": "a label around a file field in Python, a button in fgds; same effect",
+    "Pause": "an icon button in Python: deviations.md, Charts tab: pause and remove controls",
+    "Remove": "an icon button in Python: deviations.md, Charts tab: pause and remove controls"
+   }
+  },
+  "placeholders": {
+   "python": {
+    "Select a Channel": "the Python selector is a search field; fgds has a list with the same entries"
+   }
+  },
+  "labels": {
+   "python": {
+    "Load": "a label around a file field in Python, a button in fgds; same effect",
+    "Data Window:": "one label `Data Window (S)` in fgds",
+    "(S)": "one label `Data Window (S)` in fgds"
+   },
+   "fgds": {
+    "Data Window (S)": "`Data Window:` and `(S)` on the Python page"
+   }
+  }
+ },
+ "Logs": {
+  "labels": {
+   "fgds": {
+    "Filter": "extra: a filter of the log lines"
+   }
+  }
+ },
+ "Sequences": {
+  "buttons": {
+   "python": {
+    "Build": "not built: deviations.md, Sequences tab"
+   },
+   "fgds": {
+    "Open": "a label around a file field in Python, a button in fgds; same effect"
+   }
+  },
+  "labels": {
+   "python": {
+    "Open": "a label around a file field in Python, a button in fgds; same effect"
+   }
+  }
+ },
+ "Advanced": {
+  "buttons": {
+   "python": {
+    "Clear Errors": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows"
+   },
+   "fgds": {
+    "Enable link": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Disable link": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows"
+   }
+  },
+  "headers": {
+   "python": {
+    "Statistic": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Clear Errors": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows"
+   },
+   "fgds": {
+    "Counter": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Plugin": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Version": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "State": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Fault": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Counters": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Tab": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Title": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Module": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Kind": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Description": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Stored": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Filter fields": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows"
+   }
+  },
+  "labels": {
+   "python": {
+    "Polling Intervals": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "events": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "command_history": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "channels": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "logdata": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "upfiles": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "downfiles": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "stats": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "event_buffer_size": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "command_buffer_size": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "response_object_limit": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "compact_commanding": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Active Clients": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "History Sizes": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Page Performance": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Cached Items": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Request Times": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Dropped Items": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "Misc. Counts": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows",
+    "GDS Error Log": "the settings and statistics of the Python page: deviations.md, the Advanced tab rows"
+   },
+   "fgds": {
+    "Versions": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Link and storage": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Statistics": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Plugins": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Tabs": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Record kinds": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows",
+    "Runs": "the fgds Advanced tab shows its own state (versions, link, plugins, tabs, record kinds, runs): deviations.md, the Advanced tab rows"
+   }
+  }
+ }
+}

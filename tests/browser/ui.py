@@ -144,9 +144,8 @@ def stock(browser, gds):
                 assert page.text_content(f"[data-error-for={name}]") == message, (name, text)
                 assert page.locator("#command-message").count() == 0, "a line under the form and a message"
             else:
-                # No message in the Python GDS page (the browser explains): a line under the form, never silence.
+                # No message in the Python GDS page (the browser explains): the field is marked, nothing more.
                 assert page.locator(f"[data-error-for={name}]").count() == 0, (name, text)
-                assert "was not sent" in page.text_content("#command-message"), (name, text)
             assert len(rows(page, "#command-history")) == sent, f"{name}={text!r} was sent"
     step(f"command inputs: {len(cases)} integer texts taken or refused as in the Python GDS page, with its messages; "
          "a negative float is sent")
@@ -206,6 +205,26 @@ def stock(browser, gds):
     step(f"numbers typed key by key: {len(floats)} float texts (exponent, sign, leading dot), {len(integers)} integer "
          "texts (binary, octal, hexadecimal, decimal) and the ten members of SEND_SCALARS are sent with the bytes "
          "of the value; 4 texts that are not numbers are refused")
+    # The frames the Python GDS page sent to Ref for the same steps; the command packet is inside.
+    untouched = "20440425001000c0000018000005002003000000000000000a6e6f66696c652e62696efff9be"
+    kept = "2044041a001000c020000d00001000500300000000000000017513"
+    page.reload()
+    page.wait_for_selector("body[data-ready=true]")
+    show(page, "commands")
+    choose(page, "FileHandling.fileManager.RemoveFile")
+    assert page.input_value("[data-arg=ignoreErrors]") == "true", "a Boolean nobody touched is not True"
+    assert page.input_value("#command-string") == 'FileHandling.fileManager.RemoveFile, "", true'
+    shown, raw = typed({"fileName": "nofile.bin"})
+    assert raw is not None and raw.hex() in untouched, raw and raw.hex()
+    for text, elements in (("Ref.typeDemo.CHOICES, [ONE]", (0, 0)), ("Ref.typeDemo.CHOICES, [ONE, TWO]", (0, 1)),
+                           ("Ref.typeDemo.CHOICES, [ONE]", (0, 1))):
+        page.fill("#command-string", text)
+        page.press("#command-string", "Tab")
+        shown, raw = typed({})
+        assert raw is not None and raw.endswith(struct.pack(">ii", *elements)), (text, raw and raw.hex())
+    assert raw.hex() in kept, raw.hex()
+    step("a Boolean nobody touched is True and RemoveFile is sent with the bytes of the Python GDS page; "
+         "`CHOICES, [ONE]` sends [ONE, ONE] on a new form and [ONE, TWO] after [ONE, TWO] was sent, its bytes")
     choose(page, "CdhCore.events.SET_EVENT_FILTER")
     options = page.eval_on_selector("select[data-arg=filterLevel]", "(s) => [...s.options].map((o) => o.value)")
     assert "WARNING_HI" in options and "ACTIVITY_LO" in options, options
@@ -300,7 +319,7 @@ def stock(browser, gds):
     assert page.eval_on_selector_all("#command-form select[data-arg] option", "(all) => all.length") == 0
     choose(page, "FileHandling.fileManager.RemoveFile")
     options = page.eval_on_selector_all("#command-form select[data-arg] option", "(all) => all.map((o) => o.textContent)")
-    assert options == ["", "True", "False"], options
+    assert options == ["True", "False"], options
     step("a history row loaded is the one selected in the command list; a boolean is chosen from True and False")
 
     # One U8 left empty and one holding 300: the message under each, in one press.
@@ -565,6 +584,29 @@ def files_and_products(page, gds):
     uplink.locator("th", has_text="Destination").click()
     assert destinations() == order, destinations()
     step("Uplink tab: the filter field keeps the rows holding the text; a click on a header sorts ascending, a second descending, a third as listed")
+    # Three files in the queue, as the Python GDS: the start time is when the file begins, the end time when its
+    # end packet is sent, and the next file begins at once (the three start times of the Python page are equal).
+    queued = ["queued1.bin", "queued2.bin", "queued3.bin"]
+    for name in queued:
+        shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/{name}")
+    uplink.locator("#files").set_input_files([f"{gds.out}/{name}" for name in queued])
+    uplink.get_by_role("button", name="Begin Uplink").click()
+    for name in queued:
+        expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
+    times = [[parsedate_to_datetime(text) for text in uplink.locator("tr", has_text=name).locator("td").all_text_contents()[:2]]
+             for name in queued]
+    for (_, ended), (started, _) in zip(times, times[1:]):
+        assert 0 <= (started - ended).total_seconds() <= 1, times
+    for name in queued:
+        scenario.wait_for(f"Ref received {name}", lambda: open(f"{gds.out}/ref/{name}", "rb").read() == content)
+    uplink.locator("th", has_text="Start Time").click()
+    # Rows of the same second keep the order of the list, newest first.
+    starts = [parsedate_to_datetime(row.locator("td").nth(0).text_content()) for row in uplink.locator("tr:has(td)").all()]
+    assert starts == sorted(starts) and destinations()[0] == "up.bin" and sorted(destinations()[-3:]) == queued, destinations()
+    uplink.locator("th", has_text="Start Time").click()
+    uplink.locator("th", has_text="Start Time").click()
+    step(f"Uplink tab: three files of the queue begin one after the other with no wait ({[str(t[0].time()) for t in times]}); "
+         "sorted by Start Time the rows are in the order of their times")
     step(f"Uplink tab: up.bin ({len(content)} bytes) chosen in the page, sent at once and finished; Ref wrote the same bytes; "
          f"times as the Python page ({cells[0]}); destination shown and received by Ref as the Python page for the "
          f"directories {[d for d, _ in joined]}")

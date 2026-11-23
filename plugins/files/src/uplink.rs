@@ -10,7 +10,8 @@ use std::time::Duration;
 /// How often the link state is looked at when nothing else happens.
 const POLL: Duration = Duration::from_millis(100);
 
-/// How long after the end packet the flight side is watched before a transfer counts as finished.
+/// How long after the end packet the flight side is watched before a transfer counts as finished;
+/// the next file of the queue is sent meanwhile, as the Python GDS sends it at once.
 /// A write to a peer that is about to go away succeeds, and Ref takes about a second to end after
 /// an assert; `FileReceived` of `Svc.FileUplink` for the destination ends the wait at once.
 const CONFIRM: Duration = Duration::from_secs(2);
@@ -37,6 +38,14 @@ fn seen(record: &Record, destination: &str) -> Option<Seen> {
 pub(crate) struct UplinkHandler {
     pub shared: Arc<Shared>,
     pub options: Options,
+    /// Transfers whose end packet is sent and whose outcome is not known yet.
+    pub unconfirmed: Vec<Unconfirmed>,
+}
+
+pub(crate) struct Unconfirmed {
+    id: String,
+    destination: String,
+    until: tokio::time::Instant,
 }
 
 /// Why a transfer stopped before its end packet.
@@ -54,7 +63,7 @@ impl Handler for UplinkHandler {
         Filter::kinds(&[KIND_UPLINK, "fprime.event"])
     }
 
-    async fn run(self: Box<Self>, ctx: Context, mut records: RecordStream) -> Result<()> {
+    async fn run(mut self: Box<Self>, ctx: Context, mut records: RecordStream) -> Result<()> {
         let mut shutdown = ctx.shutdown.clone();
         // The queue runs from the start, as the Python GDS queue does. It pauses when a link that
         // was connected is lost (FIL-4) or when the operator asks; before the first connection
@@ -76,12 +85,18 @@ impl Handler for UplinkHandler {
                 })
             };
             // Records are read also when idle so that the subscription never lags.
-            while let Ok(Some(_)) = tokio::time::timeout(Duration::ZERO, records.next()).await {}
+            while let Ok(Some(record)) = tokio::time::timeout(Duration::ZERO, records.next()).await {
+                self.settle(&ctx, Some(&record)).await;
+            }
+            self.settle(&ctx, None).await;
             let Some(transfer) = next else {
                 tokio::select! {
                     _ = shutdown.cancelled() => return Ok(()),
                     _ = self.shared.wake.notified() => {}
-                    record = records.next() => if record.is_none() { return Ok(()) },
+                    record = records.next() => match record {
+                        Some(record) => self.settle(&ctx, Some(&record)).await,
+                        None => return Ok(()),
+                    },
                     _ = tokio::time::sleep(POLL) => {}
                 }
                 continue;
@@ -93,9 +108,10 @@ impl Handler for UplinkHandler {
             }
             was_connected = ctx.status.link() == "connected";
             let ended = self.update(&transfer.id, |t| {
+                // As the Python GDS: the end time is when the end packet is sent.
                 t.ended = Transfer::now();
                 match outcome {
-                    Ok(()) => t.state = "finished",
+                    Ok(()) => {}
                     Err(Stop::Canceled) => t.state = "canceled",
                     Err(Stop::Failed(reason)) => (t.state, t.reason) = ("failed", Some(reason)),
                     Err(Stop::LinkLost) => (t.state, t.reason) = ("failed", Some("the link is not connected".into())),
@@ -104,6 +120,10 @@ impl Handler for UplinkHandler {
             // The staged copy is of no use once the transfer has ended.
             let _ = std::fs::remove_file(self.options.uplink_dir().join(&ended.name));
             publish(&ctx, ended.record(KIND_UPLINK)).await;
+            if !ended.ended() {
+                let until = tokio::time::Instant::now() + CONFIRM;
+                self.unconfirmed.push(Unconfirmed { id: ended.id, destination: ended.destination, until });
+            }
         }
     }
 }
@@ -131,32 +151,35 @@ impl UplinkHandler {
         }
     }
 
-    /// After the end packet: finished unless the link goes away or the flight software reports a
-    /// fatal event within `CONFIRM`.
-    async fn confirm(&self, ctx: &Context, transfer: &Transfer, records: &mut RecordStream) -> Result<(), Stop> {
-        let end = tokio::time::Instant::now() + CONFIRM;
-        loop {
-            if ctx.status.link() != "connected" {
-                return Err(Stop::LinkLost);
-            }
-            let wait = POLL.min(end.saturating_duration_since(tokio::time::Instant::now()));
-            if wait.is_zero() {
-                return Ok(());
-            }
-            match tokio::time::timeout(wait, records.next()).await {
-                Ok(Some(record)) => match seen(&record, &transfer.destination) {
-                    Some(Seen::Received) => return Ok(()),
-                    Some(Seen::Fatal(reason)) => return Err(Stop::Failed(reason)),
-                    None => {}
-                },
-                Ok(None) => return Ok(()),
-                Err(_) => {}
-            }
+    /// After an end packet: finished on `FileReceived` or when `CONFIRM` has passed with the link
+    /// connected; failed when the link goes away or the flight software reports a fatal event.
+    async fn settle(&mut self, ctx: &Context, record: Option<&Record>) {
+        let connected = ctx.status.link() == "connected";
+        let now = tokio::time::Instant::now();
+        let mut waiting = Vec::new();
+        for item in std::mem::take(&mut self.unconfirmed) {
+            let outcome = match record.and_then(|r| seen(r, &item.destination)) {
+                _ if !connected => Some(Err("the link is not connected".to_string())),
+                Some(Seen::Received) => Some(Ok(())),
+                Some(Seen::Fatal(reason)) => Some(Err(reason)),
+                None if now >= item.until => Some(Ok(())),
+                None => None,
+            };
+            let Some(outcome) = outcome else {
+                waiting.push(item);
+                continue;
+            };
+            let ended = self.update(&item.id, |t| match outcome {
+                Ok(()) => t.state = "finished",
+                Err(reason) => (t.state, t.reason) = ("failed", Some(reason)),
+            });
+            publish(ctx, ended.record(KIND_UPLINK)).await;
         }
+        self.unconfirmed = waiting;
     }
 
     /// Start packet, data packets, end packet: the sequence of the Python GDS.
-    async fn transfer(&self, ctx: &Context, transfer: &Transfer, records: &mut RecordStream) -> Result<(), Stop> {
+    async fn transfer(&mut self, ctx: &Context, transfer: &Transfer, records: &mut RecordStream) -> Result<(), Stop> {
         let path = self.options.uplink_dir().join(&transfer.name);
         let mut file = std::fs::File::open(&path).map_err(|e| Stop::Failed(format!("{}: {e}", transfer.name)))?;
         let mut seq = 0;
@@ -183,6 +206,7 @@ impl UplinkHandler {
                 return Err(Stop::LinkLost);
             }
             while let Ok(Some(record)) = tokio::time::timeout(Duration::ZERO, records.next()).await {
+                self.settle(ctx, Some(&record)).await;
                 if let Some(Seen::Fatal(reason)) = seen(&record, &transfer.destination) {
                     return Err(Stop::Failed(reason));
                 }
@@ -205,7 +229,7 @@ impl UplinkHandler {
             let length = length.min(transfer.size.saturating_sub(offset) as usize);
             if length == 0 {
                 self.send(ctx, &mut seq, FilePacket::End { checksum: checksum.0 }).await?;
-                return self.confirm(ctx, transfer, records).await;
+                return Ok(());
             }
             checksum.update(&chunk[..length], offset);
             self.send(ctx, &mut seq, FilePacket::Data { offset: offset as u32, data: chunk[..length].to_vec() })

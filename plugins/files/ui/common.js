@@ -20,7 +20,7 @@ export class FilesTab extends LitElement {
 
   // The filter field of the table, as on the tables of the Python GDS page.
   filterField() {
-    return html`<label>Filter <input type="search" id="filter" .value=${this.needle || ""}
+    return html`<label>Filters: <input type="search" id="filter" .value=${this.needle || ""}
       @input=${(e) => { this.needle = e.target.value; }}></label>`;
   }
 
