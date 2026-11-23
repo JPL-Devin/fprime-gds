@@ -443,9 +443,27 @@ def stock(browser, gds):
     expect(page.locator("#data-flow")).to_have_attribute("data-flow", "on", timeout=10000)
     with page.context.expect_page() as opened:
         page.click("#new-window")
-    assert opened.value.url == page.url, opened.value.url
+    # As the Python GDS page, the address names the tab as its button does, and such an address opens that tab.
+    assert opened.value.url == page.url == f"{gds.url}/#Channels", opened.value.url
+    opened.value.wait_for_selector("#tabs button[data-tab=channels][aria-selected=true]")
+    names = {}
+    for button in opened.value.locator("#tabs button[data-tab]").all():
+        button.click()
+        names[button.get_attribute("data-tab")] = opened.value.url.split("#")[1]
+    python = ["Commanding", "Events", "Channels", "Uplink", "Downlink", "Dictionaries", "Charts", "Logs", "Sequences", "Advanced"]
+    assert [name for name in names.values() if name != "Data%20Products"] == python, names
+    for tab, name in names.items():
+        for fragment in (name, tab):
+            opened.value.goto(f"{gds.url}/")
+            opened.value.goto(f"{gds.url}/#{fragment}")
+            opened.value.wait_for_selector(f"#tabs button[data-tab={tab}][aria-selected=true]")
+    opened.value.goto("about:blank")
+    opened.value.goto(f"{gds.url}/")
+    opened.value.wait_for_selector("#tabs button[data-tab=commands][aria-selected=true]")
+    assert opened.value.url == f"{gds.url}/", opened.value.url
     opened.value.close()
-    step("top bar: the data-flow indicator is on while Ref sends; the new-window button opens the page in a new window")
+    step("top bar: the data-flow indicator is on while Ref sends; the new-window button opens the page in a new window; "
+         "the address names each tab as the Python GDS page (#Channels), and opens the tab it names")
 
     # The counters of the top bar, and "Clear All": as the Python GDS page.
     severities = [r["body"]["severity"] for r in gds.get("/records?kind=fprime.event&limit=10000")["records"]]

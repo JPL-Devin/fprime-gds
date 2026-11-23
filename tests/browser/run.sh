@@ -21,5 +21,6 @@ cargo build --quiet -p browser-gds
 "$tools/bin/python" "$here/messages.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-messages/python-page.json" "$OUT/messages"
 "$tools/bin/python" "$here/line.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-string/python-page.json" "$OUT/line"
 "$tools/bin/python" "$here/held.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-string/held.json" "$OUT/held"
+"$tools/bin/python" "$here/refused.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-string/refused.json" "$OUT/refused"
 "$tools/bin/python" "$here/texts.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/page-texts/python-page.json" "$here/../../fixtures/page-texts/differences.json" "$OUT/texts"
 PATH="$VENV/bin:$PATH" "$tools/bin/python" "$here/parity.py" "$FGDS" "$REF_BIN" "$DICTIONARY" "$VENV/bin/fprime-gds" "$OUT/parity"

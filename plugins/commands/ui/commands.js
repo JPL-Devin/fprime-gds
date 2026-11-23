@@ -340,6 +340,14 @@ class CommandsTab extends LitElement {
     return valid.every(Boolean) && !this.selected.params.some((p) => anyRefused(p.type, this.values[p.name]));
   }
 
+  // The line is read once after it was typed, also when it is the text the input held before (the browser
+  // gives no `change` then).
+  entered(input) {
+    if (!this.lineTyped) return;
+    this.lineTyped = false;
+    this.fromLine(input.value, input);
+  }
+
   // A line typed as `Command String`: the form is filled and its fields are checked, as the Python page.
   fromLine(text, input) {
     this.lineError = "";
@@ -558,7 +566,8 @@ class CommandsTab extends LitElement {
       <h3>Command String</h3>
       <input type="text" id="command-string" class=${this.lineError ? "invalid" : ""} .value=${line}
         placeholder="Command string of the form: ${COMMAND_FORMAT_SPEC}"
-        @focus=${() => { this.lineError = ""; }} @change=${(e) => this.fromLine(e.target.value, e.target)}>
+        @focus=${() => { this.lineError = ""; }} @input=${() => { this.lineTyped = true; }} @change=${(e) => this.entered(e.target)}
+        @keydown=${(e) => { if (e.key === "Enter") this.entered(e.target); }} @blur=${(e) => this.entered(e.target)}>
       ${this.lineError ? html`<div class="error-text" id="command-string-error">${this.lineError}</div>` : nothing}
       <h3>Command history</h3>
       <div class="toolbar">

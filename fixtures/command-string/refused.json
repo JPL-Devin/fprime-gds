@@ -1,0 +1,318 @@
+[
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c018000500000100000088ff73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": ",",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c019000500000100000063dc73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c01a00050000010000004e9873697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c01b0005000001000000a5bb73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP ",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP ",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c01c0005000001000000141073697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c01d000e000001000002000000053fc0000007b1b373697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": ",",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c01e000e000001000002000000053fc0000007b1c173697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c01f000e000001000002000000053fc000000741f073697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c020000e000001000002000000053fc0000007476a73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c021000e000001000002000000053fc0000007b75b73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": ", ,",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c022000e000001000002000000053fc0000007b72973697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c023000e000001000002000000053fc0000007471873697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c024000e000001000002000000053fc0000007b7cd73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": ",",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c025000e000001000002000000053fc000000747fc73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c026000e000001000002000000053fc0000007478e73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c027000e000001000002000000053fc0000007b7bf73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a\"",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a\"",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+   "inputs": [
+    "a"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c028000e000001000001000000000000000161a12973697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": ";",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a\"",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+   "inputs": [
+    "a"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c029000e000001000001000000000000000161511873697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a\"",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"a\"",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP_STRING",
+   "inputs": [
+    "a"
+   ],
+   "frame": "73697474696e672077656c6c73697474696e672077656c6c2044041b001000c02a000e000001000001000000000000000161516a73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c02b000500000100000051b973697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP_STRING, \"unfinished",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c73697474696e672077656c6c20440412001000c02c0005000001000000e01273697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_NO_OP",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_NO_OP",
+   "name": "CdhCore.cmdDisp.CMD_NO_OP",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c20440412001000c02d00050000010000000b3173697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  }
+ ],
+ [
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c02e000e000001000002000000053fc0000007b6e173697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "Nope.cmd.DOES_NOT_EXIST",
+   "whole": false,
+   "line": "Nope.cmd.DOES_NOT_EXIST",
+   "name": "Nope.cmd.DOES_NOT_EXIST",
+   "inputs": [],
+   "frame": "73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c02f000e000001000002000000053fc000000746d073697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1e3, 7",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c030000e000001000002000000053fc0000007b59573697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "5",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c031000e000001000002000000053fc000000745a473697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 6",
+   "whole": false,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 6, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "6",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c032000e000001000002000000063fc00000078b3673697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  },
+  {
+   "typed": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 6, 1.5, 7",
+   "whole": true,
+   "line": "CdhCore.cmdDisp.CMD_TEST_CMD_1, 6, 1.5, 7",
+   "name": "CdhCore.cmdDisp.CMD_TEST_CMD_1",
+   "inputs": [
+    "6",
+    "1.5",
+    "7"
+   ],
+   "frame": "73697474696e672077656c6c2044041b001000c033000e000001000002000000063fc00000077b0773697474696e672077656c6c73697474696e672077656c6c73697474696e672077656c6c"
+  }
+ ]
+]

@@ -383,7 +383,16 @@ function mount(tab) {
   }
 }
 
-function select(id) {
+// The tab named in the address: as the Python GDS page the fragment is the name the tab shows (`#Channels`);
+// the identifier of a tab is taken too. With no fragment the first tab is shown and the address is left as it is.
+function fromAddress() {
+  let name = location.hash.slice(1);
+  try { name = decodeURIComponent(name); } catch { /* shown as the first tab */ }
+  const tab = tabs.find((t) => t.title === name) || tabs.find((t) => t.id === name);
+  select(tab ? tab.id : "", name !== "");
+}
+
+function select(id, address = true) {
   const tab = tabs.find((t) => t.id === id) || tabs[0];
   if (!tab) return;
   mount(tab);
@@ -391,7 +400,8 @@ function select(id) {
     other.button.setAttribute("aria-selected", String(other === tab));
     if (other.panel) other.panel.hidden = other !== tab;
   }
-  if (location.hash !== "#" + tab.id) history.replaceState(null, "", "#" + tab.id);
+  const fragment = "#" + encodeURIComponent(tab.title);
+  if (address && location.hash !== fragment) history.replaceState(null, "", fragment);
   document.title = `${tab.title} - F Prime GDS`;
 }
 
@@ -484,8 +494,8 @@ async function start() {
       tab.button.classList.add("failed");
     }
   }));
-  window.addEventListener("hashchange", () => select(location.hash.slice(1)));
-  select(location.hash.slice(1));
+  window.addEventListener("hashchange", fromAddress);
+  fromAddress();
   document.body.dataset.ready = "true";
 }
 

@@ -206,6 +206,9 @@ DASHES = [
     # P5: an option of the parser where an argument is meant.
     [I8, "--arguments", "-l"], [I8, "--arguments", "-s"], [I8, "--arguments", "-i"], [I8, "--arguments", "-c"], [I8, "--arguments", "-d"],
     [I8, "--arguments", "-j"], [I8, "--arguments", "-h"],
+    # Round 7 web, N4: `-inf` with a value after it, and the name after `--`.
+    [THREE, "--arguments", "5", "-inf", "7"], [THREE, "--arguments", "5", "1.5", "-inf"], ["--arguments", "5", "-inf", "7", "--", THREE],
+    [THREE, "--arguments", "5", "-i", "7"],
     # P6: `-j` with a command that is sent.
     [F32, "-j", "--arguments", "1.5"], [F32, "--arguments", "1.5", "--json"],
     # Round 6 and the M2 row: what the parser refuses or reads as an option.
@@ -262,7 +265,8 @@ def dashes(name, gds, out):
 
 # The two differences of docs/design/deviations.md that the matrix meets.
 HELP = [[I8, "--arguments", "-h"]]  # both print their own help text
-COUNT = [[I8, "--arguments", "-j"], [F32, "--arguments", "1.5", "--arguments"]]  # C4: no argument left for a command that takes one
+# C4: fewer arguments left than the command takes
+COUNT = [[I8, "--arguments", "-j"], [F32, "--arguments", "1.5", "--arguments"], [THREE, "--arguments", "5", "-i", "7"]]
 
 
 def compare_dashes(python, rust):
@@ -272,7 +276,7 @@ def compare_dashes(python, rust):
             require(f"{what}: both print a help text, exit code 0, nothing sent",
                     all(r["exit"] == 0 and r["stdout"] and not r["packets"] for r in (expected, got)), f"{expected} {got}")
         elif tokens in COUNT:
-            require(f"{what}: fprime-cli sends the command without its argument, fgds refuses it with exit code 1 (C4)",
+            require(f"{what}: fprime-cli sends the command with too few arguments, fgds refuses it with exit code 1 (C4)",
                     expected["exit"] == 0 and len(expected["packets"]) == 1 and got == {"exit": 1, "stdout": "", "message": "", "packets": []},
                     f"{expected} {got}")
         else:
