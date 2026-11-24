@@ -4,8 +4,26 @@
 - Design baseline approved by the user on 2026-11-21: `docs/design/requirements-and-architecture.md`.
 - First slice built (M0 and the smallest part of M1): the Cargo workspace of section 4.10 with `fgds-dictionary`, `fgds-core`, `fgds-shell`, `fgds`, the plugins `comm-tcp`, `framing-fprime`, `storage-memory`, `events`, `channels`, `commands`, and `examples/custom-gds`.
 - `scripts/check.sh` runs every check and passes locally: format, lints, tests; `fgds` against `Ref` (commands, events, channels, WebSocket replay then live); the comparison with the Python GDS, live and on replayed bytes (`tests/compare/README.md` lists the accepted differences); the example binary.
-- `.github/workflows/check.yml` calls the same script. It passes on this branch.
+- `.github/workflows/check.yml` calls the same script. It failed on `4778afbd` (run 45389134110); the cause has not been looked at. The local runs below are the evidence.
 - Where the code differs from the design, and what to change in the design before more plugins are built: `docs/design/deviations.md`. The design document itself is unchanged.
+
+## Checkpoint, end of round 10
+- Head of the code: `26607e26` on `devin/1795279000-rust-gds-integration` (round 9 was `4778afbd`). No pull request.
+- Verified: one full `FPRIME=~/repos/fprime scripts/check.sh` on `67c69df3`, about 48 minutes. Every part passed; the script ended with exit 1 at "nothing left behind" only because `tests/browser/ui.py` was being edited in the tree (the G3 page check, now `26607e26`). That check was then run alone (`tests/browser/ui.py`, all passed) and the tree is clean with no process left. The full script was not run again on `26607e26`.
+- In round 10 (all in "Round 10 batch" below): chunk size against the frame (57) and the F´ flight frame limit; `fgds check` validates as `fgds run` (58); control characters shown visibly in text output; upload source path, 255-byte limit and backslash in names (G1 to G3, page and command line); `seqgen` argument count (F10-2); a refused upload does not block the others (F10-4); Charts wheel zoom text in `deviations.md` (F10-5); shortened and repeated options (G4, to be removed with `argparse.rs`).
+- Not verified: UDP against flight software that speaks UDP itself; UART on a real serial device; the Python retry in `tests/cli` (runs only when Python misses a handshake); a deployment with a frame accumulator smaller than 2048 bytes.
+- One test of `ref_integration_test.py` (`test_seqgen_complex_args`) failed once in that run because `Ref` did not send an event it printed, and passed on the retry the check makes for that state.
+
+## Next: cleanup pass (not started)
+Scope and order are in two reviews made on `4778afbd`, kept by the requesting session: `fgds-python-isms-review.md` (code that exists only to equal the Python GDS; follow its section 4 order, keep its section 3) and `fgds-rust-review.md` (3 MUST FIX, 8 SHOULD).
+- The user wants a solid, maintainable GDS, similar to the Python one, not identical. Python comparisons stay only for bytes sent to flight and data decoded.
+- Step 1: reword SEQ-1, decision 7, section 6.1/MNT-11 in the design.
+- Step 2: the unsafe copied behaviours (U1 to U9; U1 is done) and, each with a test: live subscribers miss stored records when a send happens under a backlog (`crates/fgds-core/src/pipeline.rs`); a downlink truncates the earlier ground copy of the same name (`plugins/files/src/downlink.rs`); an uplink refused with `FileOpenError` is shown as `finished` (`plugins/files/src/uplink.rs`); the CI failure above. Cheap SHOULD items: invalid plugin options ignored, validate every option before storage opens, `scripts/check.sh` runnable without the Python GDS.
+- Step 3: `clap` alone (delete `crates/fgds-core/src/argparse.rs` and `Plugin::argparse`), `serde_json` alone (delete `crates/fgds-dictionary/src/pyjson.rs`; U64/I64 exact at full range, out-of-range or wrong-typed members refused), one JSON writer and one float writer, plain value text. Stop and report after this step (lines removed, check duration before and after).
+- Steps 4 and 5 wait for confirmation: one encoder, data products on the shared dictionary types, hand-written sequence parser; simpler Commanding page, CLI output from the record, parity harness reduced to bytes and data, `deviations.md` as a short list for someone coming from fprime-gds.
+- Messages: one that reads sensibly stays. Replace only wording that names Python or its classes (`NoneType`, `invalid literal for int() with base 0`); remove code whose only purpose is to equal Python.
+- Wire formats, binary file formats and the dictionary format stay byte-equal for valid input; the byte fixtures are the guard. One push per step, the reduced check passing first.
+- SHOULD items not taken go under "Known gaps".
 
 ## Pass criterion (user, round 9)
 - The Python GDS is the reference only where it is correct or neutral: do not copy its bugs, and do not reproduce its checks 1-to-1. A difference is a defect of fgds only if (a) data shown or stored or bytes sent to `Ref` differ for an input both should accept, (b) fgds accepts what a sensible tool refuses or refuses what it should accept, (c) a Python feature, control or option is missing or does something else. Wording, exit code values among non-zero ones, the order of reported errors and the timing of validation marks are recorded only. The head of "Differences from the Python GDS" in `docs/design/deviations.md` states it; the rows are in five groups.
