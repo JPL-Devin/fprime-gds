@@ -266,6 +266,18 @@ impl Subcommand for SeqgenCommand {
             println!("{missing}");
             Ok(ExitCode::FAILURE)
         };
+        // The dictionary is read as this tool reads it: one with the sections a sequence needs is enough.
+        let offline = || {
+            let path = args.get_one::<String>("dictionary").map(PathBuf::from).unwrap_or_default();
+            load_dictionary(&path).map(std::sync::Arc::new).map_err(fgds_core::Error::Config)
+        };
+        let env = &CliEnv {
+            config: env.config,
+            registry: env.registry,
+            dictionary: &offline,
+            storage: env.storage,
+            client: env.client,
+        };
         if let Err(missing) = gds_options::hold(args, env, true) {
             return refused(missing);
         }
