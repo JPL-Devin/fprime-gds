@@ -229,6 +229,19 @@ impl Plugin for ParamsPlugin {
     }
 }
 
+/// `-d`: the short form `fprime-prm-write` and `fprime-prm-decode` have for `--dictionary`.
+fn dictionary_arg() -> Arg {
+    Arg::new("dictionary-short").short('d').value_name("DICTIONARY").help("Same as --dictionary")
+}
+
+/// The dictionary of `-d`, else the one of `--dictionary` or of the configuration.
+fn dictionary_path(args: &ArgMatches, env: &CliEnv) -> Result<PathBuf> {
+    match args.get_one::<String>("dictionary-short") {
+        Some(path) => Ok(PathBuf::from(path)),
+        None => fgds_offline::dictionary_path(env),
+    }
+}
+
 fn output_arg() -> Arg {
     Arg::new("output")
         .short('o')
@@ -288,6 +301,7 @@ impl Subcommand for WriteCommand {
                         .help("Also write the default value of each parameter the file does not give"),
                 )
                 .arg(output_arg())
+                .arg(dictionary_arg())
         };
         let save = Arg::new("save")
             .long("save")
@@ -304,7 +318,7 @@ impl Subcommand for WriteCommand {
         let (format, args) = args.subcommand().expect("a format is required");
         let input = PathBuf::from(args.get_one::<String>("json_file").expect("required"));
         let output = args.get_one::<String>("output").map_or_else(|| input.with_extension(format), PathBuf::from);
-        let dictionary = fgds_offline::dictionary_path(env)?;
+        let dictionary = dictionary_path(args, env)?;
         if let Some(refused) = begin("Converting", "json-file", &input, &dictionary, &output, format) {
             return Ok(refused);
         }
@@ -338,13 +352,14 @@ impl Subcommand for DecodeCommand {
                     .help("Output format"),
             )
             .arg(output_arg())
+            .arg(dictionary_arg())
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let input = PathBuf::from(args.get_one::<String>("dat_file").expect("required"));
         let format = args.get_one::<String>("format").expect("has a default").as_str();
         let output = args.get_one::<String>("output").map_or_else(|| input.with_extension(format), PathBuf::from);
-        let dictionary = fgds_offline::dictionary_path(env)?;
+        let dictionary = dictionary_path(args, env)?;
         if let Some(refused) = begin("Decoding", "dat-file", &input, &dictionary, &output, format) {
             return Ok(refused);
         }

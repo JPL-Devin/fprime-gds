@@ -7,6 +7,7 @@
 pub mod argparse;
 mod config;
 mod error;
+pub mod gds_options;
 mod http;
 mod link;
 mod pipeline;

@@ -427,6 +427,44 @@ def compare_raw(lines, python, rust):
                 bad["exit"] == after["exit"] == 0 and not bad["packets"] + after["packets"], f"{bad} {after}")
 
 
+# `file-uplink` with the GDS options of fprime-cli (round 9): the same table as `command-send`.
+UPLINK_SENT = [  # both uplink the file: the same packets on the link
+    [], ["-t", "30"], ["--hash-file", "{out}/small.bin"], ["--file-storage-directory", "{out}/files"], ["-l", "{out}/logs"],
+    ["--log-prefix", "p"], ["--packet-set-name", "RefPackets"], ["--dictionary", "{dictionary}"], ["--dictionary", "{dictionary}", "-d", "/nonexistent"],
+    ["--log-level-gds", "DEBUG", "--no-clear-history", "--disable-data-logging", "--file-uplink-cooldown", "0.5"], ["--time", "30"],
+]
+UPLINK_REFUSED = [  # both refuse, nothing sent
+    *BAD.values(), ["--dictionary", "{out}/small.bin"], ["-l"], ["--log-level-gds", "x"], ["--tts-port", "x"], ["--arguments"], ["--l", "x"],
+]
+
+
+def uplinks(out):
+    """The command lines of file-uplink, the file they send made."""
+    os.makedirs(f"{out}/ro", exist_ok=True)
+    os.chmod(f"{out}/ro", 0o555)
+    open(f"{out}/small.bin", "wb").write(bytes(range(200)))
+    lines = [["file-uplink", f"{out}/small.bin", f"cli-uplink-{at}.bin"] + [t.format(out=out, dictionary=args.dictionary) for t in tokens]
+             for at, tokens in enumerate(UPLINK_SENT + UPLINK_REFUSED)]
+    return lines + [["file-uplink"], ["file-uplink", f"{out}/absent.bin"]]
+
+
+def compare_uplinks(lines, python, rust):
+    json.dump([lines, python, rust], open(f"{args.out}/uplinks.json", "w"), indent=1)
+    for at, (tokens, expected, got) in enumerate(zip(lines, python, rust)):
+        what = " ".join(tokens)
+        if at < len(UPLINK_SENT):
+            # The start packet names the copy each GDS keeps of the file: compared from the destination on.
+            destination = tokens[2].encode().hex()
+            starts = [packets[0].endswith(destination) for packets in (expected["packets"], got["packets"]) if packets]
+            require(f"{what}: both end with exit code 0 and put the same {len(expected['packets'])} packets on the link",
+                    expected["exit"] == got["exit"] == 0 and len(got["packets"]) >= 3 and starts == [True, True]
+                    and got["packets"][1:] == expected["packets"][1:], f"{expected} {got}")
+        else:
+            require(f"{what}: both refuse (fprime-cli exit code {expected['exit']}, fgds {got['exit']}), nothing sent",
+                    expected["exit"] != 0 and got["exit"] != 0 and (expected["exit"] == 2) == (got["exit"] == 2)
+                    and not got["packets"] + expected["packets"], f"{expected} {got}")
+
+
 def dashes(name, gds, out, lines=None, subcommand="command-send"):
     """Each command line of DASHES: exit code, standard output, the message, the command packets it put on the link."""
     lines = DASHES if lines is None else lines
@@ -641,8 +679,49 @@ def subset(what, python, rust):
             python and not missing, f"not printed by fgds: {json.dumps(missing[:2])}\n    fgds has e.g.: {json.dumps(rust[:2])}")
 
 
+def offline(out):
+    """seqgen, prm-write and prm-decode with the dictionary options of the Python tools: same accept or refuse, same file written."""
+    os.makedirs(out, exist_ok=True)
+    deployment = os.path.dirname(os.path.dirname(args.dictionary))
+    with open(f"{out}/a.seq", "w") as file:
+        file.write("R00:00:00 CdhCore.cmdDisp.CMD_NO_OP\nR00:00:01 Ref.typeDemo.CHOICE ONE\n")
+    with open(f"{out}/p.json", "w") as file:
+        file.write('{"Ref.typeDemo": {"CHOICE_PRM": "TWO"}}')
+    run([args.fgds, "prm-write", "dat", f"{out}/p.json", "-d", args.dictionary, "-o", f"{out}/x.dat"])
+    given, absent = ["--dictionary", args.dictionary], "/nonexistent/x"
+    seqgen = [(given, True), (["-d", deployment], True), (["-d", deployment] + given, True), ([f"-d{deployment}"], True),
+              (given + ["--packet-set-name", "RefPackets"], True), (given + ["-t", "2"], True), (["--dict", args.dictionary], True),
+              (["-d", absent], False), (["--dictionary", absent], False), (given + ["--packet-set-name", "x"], False),
+              (given + ["--packet-spec", absent], False), (["--d", args.dictionary], False), (given + ["--hash-file", "x"], False),
+              ([], False)]
+    short = [(["-d", args.dictionary], True), (given, True), ([f"-d{args.dictionary}"], True), (["-d", absent], False), ([], False)]
+    cases = [("fprime-seqgen", "seqgen", [], "a.seq", options, None, sent) for options, sent in seqgen]
+    for options, sent in short:
+        cases += [("fprime-prm-write", "prm-write", [kind], "p.json", options, "-o", sent) for kind in ("dat", "seq")]
+        cases += [("fprime-prm-decode", "prm-decode", form, "x.dat", options, "-o", sent) for form in ([], ["-f", "text"], ["-f", "csv"])]
+    for tool, subcommand, first, source, options, flag, written in cases:
+        results = []
+        for name, command in (("python", [f"{args.venv_bin}/{tool}"]), ("rust", [args.fgds, subcommand])):
+            path = f"{out}/{name}.out"
+            if os.path.exists(path):
+                os.remove(path)
+            code, _, _ = run(command + first + [f"{out}/{source}"] + ([flag, path] if flag else [path]) + options, cwd="/")
+            content = None
+            if os.path.exists(path):
+                with open(path, "rb") as file:
+                    content = file.read()
+            results.append((code == 0, content))
+        what = f"{subcommand} {' '.join(first + options)}".replace(deployment, "<deployment>")
+        if written:
+            require(f"{what}: both write the same file", results[0] == results[1] and results[0][0] and results[0][1], results)
+        else:
+            require(f"{what}: both refuse and write nothing", results[0] == results[1] == (False, None), results)
+
+
 def main():
     os.makedirs(args.out, exist_ok=True)
+    print("offline tools with the dictionary options")
+    offline(f"{args.out}/offline")
     fgds = python = None
     try:
         fgds = Fgds(f"{args.out}/rust")
@@ -678,6 +757,14 @@ def main():
         scenario.stop(fgds.process)
         python = PythonGds(f"{args.out}/python-standard")
         compare_standard(lines, dashes("fprime-cli", python, f"{args.out}/python-standard", tokens, None), rust_standard)
+        scenario.stop(python.process)
+        lines = uplinks(f"{args.out}/uplinks")
+        print(f"file-uplink with the GDS options: {len(lines)} command lines through both against Ref")
+        fgds = Fgds(f"{args.out}/rust-uplinks")
+        rust_uplinks = dashes("fgds", fgds, f"{args.out}/rust-uplinks", lines, None)
+        scenario.stop(fgds.process)
+        python = PythonGds(f"{args.out}/python-uplinks")
+        compare_uplinks(lines, dashes("fprime-cli", python, f"{args.out}/python-uplinks", lines, None), rust_uplinks)
         scenario.stop(python.process)
         fgds = Fgds(f"{args.out}/rust-raw")
         packet = run(fgds.cli("command-send", NO_OP, "--dry-run"))[1].strip()

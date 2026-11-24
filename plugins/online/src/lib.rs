@@ -8,11 +8,11 @@ mod items;
 use api::Api;
 use fgds_core::argparse::{Kind, Nargs, Opt, Parser};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
+use fgds_core::gds_options::{self, has_packet_set, not_done, READ_AS_FPRIME_CLI};
 use fgds_core::serde_json::{json, Value};
 use fgds_core::{CliEnv, Error, Manifest, Plugin, Registry, Result, Subcommand};
 use items::{Filter, Item};
 use std::io::Write;
-use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
@@ -97,39 +97,6 @@ fn print(item: &Item, json: bool) {
     }
 }
 
-/// The GDS options every command of `fprime-cli` (fprime-gds 4.4.0) takes, in the order of its parser.
-/// That order is the one `ambiguous option` lists its matches in. `fprime-cli` keeps its six groups of
-/// GDS options (hash file, files, middleware, logs, history, dictionary) in a Python set, whose order
-/// follows the addresses of the objects: the order here is the one it takes most often. Those that set
-/// up the Python GDS itself are read and have no effect here.
-fn gds_options() -> Vec<Opt> {
-    use Kind::{Float, Int, Str};
-    use Nargs::{Exactly, Flag, One};
-    const LEVELS: Kind = Kind::Choice(&["DEBUG", "INFO", "WARNING", "ERROR"]);
-    vec![
-        Opt::new(&["-h", "--help"], Flag, Str),
-        Opt::new(&["--hash-file"], One, Str),
-        Opt::new(&["--file-storage-directory"], One, Str),
-        Opt::new(&["--file-uplink-cooldown"], One, Float).ignored(),
-        Opt::new(&["--file-uplink-chunk-size"], One, Int).ignored(),
-        Opt::new(&["--no-zmq"], Flag, Str).ignored(),
-        Opt::new(&["--zmq-transport"], Exactly(2), Str).ignored(),
-        Opt::new(&["--tts-port"], One, Int).ignored(),
-        Opt::new(&["--tts-addr"], One, Str).ignored(),
-        Opt::new(&["-l", "--logs"], One, Str),
-        Opt::new(&["--log-directly"], Flag, Str),
-        Opt::new(&["--log-to-stdout"], Flag, Str).ignored(),
-        Opt::new(&["--log-level-gds"], One, LEVELS).ignored(),
-        Opt::new(&["--disable-data-logging"], Flag, Str).ignored(),
-        Opt::new(&["--log-prefix"], One, Str),
-        Opt::new(&["--no-clear-history"], Flag, Str).ignored(),
-        Opt::new(&["-d", "--deployment"], One, Str),
-        Opt::new(&["--dictionary"], One, Str),
-        Opt::new(&["--packet-spec"], One, Str),
-        Opt::new(&["--packet-set-name"], One, Str),
-    ]
-}
-
 /// `--list` and the filters of `fprime-cli`, after its GDS options.
 fn search_options() -> Vec<Opt> {
     use Nargs::{Flag, One, OneOrMore};
@@ -143,7 +110,7 @@ fn search_options() -> Vec<Opt> {
 
 /// The options of `fprime-cli command-send`, then the two `fgds` adds.
 fn command_send_options() -> Vec<Opt> {
-    let mut options = gds_options();
+    let mut options = gds_options::options();
     options.push(Opt::new(&["--arguments"], Nargs::ZeroOrMore, Kind::Str));
     options.extend(search_options());
     options.push(Opt::new(&["-j", "--json"], Nargs::Flag, Kind::Str));
@@ -154,7 +121,7 @@ fn command_send_options() -> Vec<Opt> {
 
 /// The options of `fprime-cli events` and `fprime-cli channels`, then the three `fgds` adds.
 fn send_raw_options() -> Vec<Opt> {
-    let mut options = gds_options();
+    let mut options = gds_options::options();
     options.push(Opt::new(&["--verbose"], Nargs::Flag, Kind::Str));
     options.push(Opt::new(&["--bin-path"], Nargs::One, Kind::Str));
     options.push(Opt::new(&["--hex-string"], Nargs::One, Kind::Str));
@@ -163,7 +130,7 @@ fn send_raw_options() -> Vec<Opt> {
 }
 
 fn records_options() -> Vec<Opt> {
-    let mut options = gds_options();
+    let mut options = gds_options::options();
     options.extend(search_options());
     options.push(Opt::new(&["-t", "--timeout"], Nargs::One, Kind::Float));
     options.push(Opt::new(&["-j", "--json"], Nargs::Flag, Kind::Str));
@@ -171,134 +138,6 @@ fn records_options() -> Vec<Opt> {
     options.push(Opt::new(&["-H", "--history"], Nargs::Flag, Kind::Str).exact());
     options.push(Opt::new(&["--no-follow"], Nargs::Flag, Kind::Str).exact());
     options
-}
-
-/// The GDS options of `fprime-cli` that are checked here and are no option of `fgds` itself.
-const NAMING: [&str; 6] =
-    ["packet-spec", "packet-set-name", "deployment", "hash-file", "file-storage-directory", "log-prefix"];
-
-fn gds_args() -> Vec<Arg> {
-    let mut args: Vec<Arg> = NAMING.iter().map(|name| Arg::new(*name).long(*name).hide(true)).collect();
-    args.push(Arg::new("log-directly").long("log-directly").action(ArgAction::SetTrue).hide(true));
-    args
-}
-
-const READ_AS_FPRIME_CLI: &str = "The command line is read as `fprime-cli` reads it: its options are accepted \
-    with the same spelling, also shortened (`--arg`, `-i5`, `-l LOGS`). Those that name a dictionary, a file or a \
-    directory are checked as `fprime-cli` checks them before anything is done; the others have no effect.";
-
-/// Whether `fprime-cli` could make the directory `path`, and with `written` whether it could write in it.
-/// Nothing is left here: a file is made and removed in the nearest directory that exists.
-fn directory(path: &Path, written: bool) -> std::result::Result<(), String> {
-    let path = if path.as_os_str().is_empty() { Path::new(".") } else { path };
-    let nearest =
-        path.ancestors().map(|a| if a.as_os_str().is_empty() { Path::new(".") } else { a }).find(|a| a.exists());
-    let Some(nearest) = nearest else {
-        return Err(format!("{} cannot be created", path.display()));
-    };
-    if !nearest.is_dir() {
-        return Err(format!("{} is not a directory", nearest.display()));
-    }
-    if nearest == path && !written {
-        return Ok(());
-    }
-    let probe = nearest.join(format!(".fgds-{}", std::process::id()));
-    match std::fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
-        Ok(_) => std::fs::remove_file(&probe).map_err(|e| e.to_string()),
-        Err(error) if nearest == path => Err(format!("{} is not writable: {error}", path.display())),
-        Err(error) => Err(format!("{} cannot be created in {}: {error}", path.display(), nearest.display())),
-    }
-}
-
-fn has_packet_set(dictionary: &Value, name: &str) -> std::result::Result<(), (u8, String)> {
-    let sets = dictionary["telemetryPacketSets"].as_array().cloned().unwrap_or_default();
-    if sets.iter().any(|set| set["name"] == name) {
-        return Ok(());
-    }
-    Err((1, format!("the dictionary does not contain packet set '{name}'")))
-}
-
-/// The dictionary `fprime-cli` finds in a deployment: the one `*Dictionary.json` of its `dict` directory.
-fn deployment_dictionary(deployment: &str) -> std::result::Result<std::path::PathBuf, (u8, String)> {
-    let dict = Path::new(deployment).join("dict");
-    let entries = std::fs::read_dir(&dict)
-        .map_err(|_| (255, format!("dictionary location {} does not exist", dict.display())))?;
-    let mut found: Vec<_> = entries
-        .filter_map(|entry| entry.ok().map(|e| e.path()))
-        .filter(|p| p.is_file() && p.file_name().is_some_and(|n| n.to_string_lossy().ends_with("Dictionary.json")))
-        .collect();
-    match found.len() {
-        0 => Err((255, format!("No dictionary found in dictionary location {}", dict.display()))),
-        1 => Ok(found.remove(0)),
-        _ => Err((255, format!("Multiple dictionaries of same type found in dictionary location {}", dict.display()))),
-    }
-}
-
-/// The one check of the GDS options of `fprime-cli`, made by `command-send`, `events` and `channels` before
-/// anything else, a listing included: what the options name is there, as `fprime-cli` requires. The checks
-/// are those of `StandardPipelineParser` in the order it most often makes them (its parts are in a Python
-/// set): the dictionary (`--dictionary`, else the one of `--deployment`; the packet specification, the
-/// packet set), the hash file, the directory of files, the directory of logs. The error is the exit code
-/// of `fprime-cli` and what is missing. The result is the dictionary the options name, when they name one:
-/// the names are looked up and listed from it. `listing`: `fprime-cli` writes no file for a listing.
-fn gds_options_hold(
-    args: &ArgMatches,
-    env: &CliEnv,
-    listing: bool,
-) -> std::result::Result<Option<Value>, (u8, String)> {
-    let given = |name: &str| args.get_one::<String>(name);
-    let read = |path: &Path| {
-        std::fs::read_to_string(path)
-            .map_err(|e| e.to_string())
-            .and_then(|text| fgds_core::serde_json::from_str::<Value>(&text).map_err(|e| e.to_string()))
-            .map_err(|e| (1, format!("dictionary file {}: {e}", path.display())))
-    };
-    let dictionary = if let Some(path) = given("dictionary") {
-        if !Path::new(path).is_file() {
-            return Err((1, format!("dictionary file {path} does not exist")));
-        }
-        (env.dictionary)().map_err(|e| (1, format!("dictionary file {path}: {e}")))?;
-        Some(read(Path::new(path))?)
-    } else if let Some(deployment) = given("deployment").filter(|d| !d.is_empty()) {
-        // `fprime-cli` looks for the dictionary in the deployment when none is given.
-        Some(read(&deployment_dictionary(deployment)?)?)
-    } else {
-        None
-    };
-    if let Some(path) = given("packet-spec") {
-        if !Path::new(path).is_file() {
-            return Err((1, format!("packet specification {path} does not exist")));
-        }
-        // `fprime-cli` reads it as XML; here only its beginning is looked at.
-        let text = std::fs::read(path).map_err(|e| (1, format!("packet specification {path}: {e}")))?;
-        let text = String::from_utf8_lossy(&text);
-        if !text.trim_start_matches('\u{feff}').trim_start().starts_with('<') {
-            return Err((1, format!("packet specification {path} is not XML")));
-        }
-    }
-    if let (Some(name), Some(dictionary)) = (given("packet-set-name"), &dictionary) {
-        has_packet_set(dictionary, name)?;
-    }
-    // `fprime-cli` takes an empty text as no hash file; here it names a file that is not there.
-    if let Some(path) = given("hash-file").filter(|path| !Path::new(path).exists()) {
-        return Err((255, format!("hash file location {path} does not exist")));
-    }
-    if let Some(path) = given("file-storage-directory") {
-        directory(Path::new(path), !listing).map_err(|e| (1, format!("file storage directory: {e}")))?;
-    }
-    // `fprime-cli` writes its log in `<logs>/<prefix>-<time>`, with `--log-directly` in `<logs>`.
-    let direct = args.get_flag("log-directly");
-    if given("logs").is_some() || given("log-prefix").is_some() {
-        let logs = given("logs").map(String::as_str).unwrap_or("logs");
-        if direct && logs.is_empty() {
-            return Err((1, "log directory: no directory is named".to_string()));
-        }
-        let prefix = given("log-prefix").map(String::as_str).unwrap_or("fprime-cli");
-        let dated = Path::new(logs).join(format!("{prefix}-"));
-        let into = if direct { Path::new(logs) } else { dated.parent().unwrap_or(Path::new(logs)) };
-        directory(into, true).map_err(|e| (1, format!("log directory: {e}")))?;
-    }
-    Ok(dictionary)
 }
 
 /// The dictionary the names are looked up in: the one the options name, else the one of the running GDS,
@@ -317,12 +156,6 @@ async fn dictionary_of(
         Some(set) => has_packet_set(&dictionary, set).map(|()| dictionary),
         None => Ok(dictionary),
     })
-}
-
-/// A command line `fprime-cli` ends before doing anything: what is missing and its exit code.
-fn not_done(what: &str, (code, missing): (u8, String)) -> ExitCode {
-    eprintln!("nothing was {what}: {missing}");
-    ExitCode::from(code)
 }
 
 /// `fgds events` and `fgds channels`.
@@ -367,7 +200,7 @@ impl Subcommand for Records {
                     .allow_negative_numbers(true)
                     .help("Wait at most this long for the next matching item, print it and exit [default: follow until interrupted]"),
             )
-            .args(gds_args())
+            .args(gds_options::args())
     }
 
     fn argparse(&self) -> Option<Parser> {
@@ -376,7 +209,7 @@ impl Subcommand for Records {
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let listing = args.get_flag("list");
-        let given = match gds_options_hold(args, env, listing) {
+        let given = match gds_options::hold(args, env, listing) {
             Ok(given) => given,
             Err(missing) => return Ok(not_done(if listing { "listed" } else { "read" }, missing)),
         };
@@ -513,7 +346,7 @@ impl Subcommand for CommandSend {
                     .help("List the commands instead (same as `commands`)"),
             )
             .args(filter_args())
-            .args(gds_args())
+            .args(gds_options::args())
     }
 
     fn argparse(&self) -> Option<Parser> {
@@ -526,7 +359,7 @@ impl Subcommand for CommandSend {
         if name.is_none() && !listing {
             return Ok(refused("One of command-name or --list is required"));
         }
-        let given = match gds_options_hold(args, env, listing) {
+        let given = match gds_options::hold(args, env, listing) {
             Ok(given) => given,
             Err(missing) => return Ok(not_done(if listing { "listed" } else { "sent" }, missing)),
         };
@@ -622,7 +455,7 @@ impl Subcommand for SendRaw {
                     .value_name("HEX")
                     .help("The bytes to send in hexadecimal (0xDEADBEEF, deadbeef, \"de ad be ef\")"),
             )
-            .args(gds_args())
+            .args(gds_options::args())
     }
 
     fn argparse(&self) -> Option<Parser> {
@@ -644,7 +477,7 @@ impl Subcommand for SendRaw {
             Ok(data) => data,
             Err(missing) => return Ok(not_done("sent", (1, missing))),
         };
-        if let Err(missing) = gds_options_hold(args, env, false) {
+        if let Err(missing) = gds_options::hold(args, env, false) {
             return Ok(not_done("sent", missing));
         }
         let api = api(args, env)?;

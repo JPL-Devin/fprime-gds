@@ -1,6 +1,8 @@
 //! `fgds files`: the file routes of a running GDS from the command line.
 
+use fgds_core::argparse::{Kind, Nargs, Opt, Parser};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
+use fgds_core::gds_options;
 use fgds_core::serde_json::Value;
 use fgds_core::{CliEnv, Error, Result, Subcommand};
 use std::process::ExitCode;
@@ -84,12 +86,37 @@ impl Subcommand for FileUplink {
             .arg(Arg::new("file").value_name("file-path").required(true).help("Path to the local file to uplink"))
             .arg(Arg::new("destination").help("Destination path on the spacecraft"))
             .args(wait_args())
+            .after_help(gds_options::READ_AS_FPRIME_CLI)
+            .args(gds_options::args())
+    }
+
+    fn argparse(&self) -> Option<Parser> {
+        let mut options = gds_options::options();
+        options.push(Opt::new(&["-t", "--timeout"], Nargs::One, Kind::Float));
+        options.push(Opt::new(&["--no-wait"], Nargs::Flag, Kind::Str));
+        options.push(Opt::new(&["--url"], Nargs::One, Kind::Str).exact());
+        Some(Parser { options, positionals: vec![(Nargs::One, "file-path"), (Nargs::Optional, "destination")] })
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
+        let named = match gds_options::hold(args, env, false) {
+            Ok(named) => named,
+            Err(missing) => return Ok(gds_options::not_done("uplinked", missing)),
+        };
         let base = base(args, env)?;
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
-        runtime.block_on(upload(args, &base))
+        runtime.block_on(async {
+            // Without a dictionary named, the packet set is looked up in the one of the running GDS.
+            if let (None, Some(set)) = (named, args.get_one::<String>("packet-set-name")) {
+                let url = format!("{}/dictionary", base.strip_suffix("/files").unwrap_or(&base));
+                let failed = |e: reqwest::Error| Error::other(format!("the GDS at {base} did not answer: {e}"));
+                let dictionary = reqwest::get(url).await.map_err(failed)?.json::<Value>().await.map_err(failed)?;
+                if let Err(missing) = gds_options::has_packet_set(&dictionary, set) {
+                    return Ok(gds_options::not_done("uplinked", missing));
+                }
+            }
+            upload(args, &base).await
+        })
     }
 }
 
