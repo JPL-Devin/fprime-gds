@@ -139,7 +139,7 @@ Things fgds has and the Python GDS does not.
 Not differences of `fgds`, but seen in the checks and handled there:
 
 - **`Ref` prints events it does not send (C26).** Any `Ref/test/int` test can fail now and then for this reason, with either GDS: the test waits for an event that `Ref` printed in its log and did not write to the socket. Seen with `test_seqgen_complex_args` (fgds side: `Ref` printed four events, `Ref.typeDemo.ChoicePairEv`, `ChoicesEv`, `ChoiceSlurryEv`, a completion, flight times `1795298759:173448` to `:173476`, whose bytes are not in `raw.log`) and with `test_signal_generation` (Python side, 1 of 6 runs of the command-line verifier). `tests/cli/ref_int.py` runs a failed test once more, alone, only in that case.
-- **The Python uplinker stops now and then** (`tests/files`). `FileUplinker.send` hands the packet to the encoder and only then sets the handshake it expects; for a start packet the handshake can return in between and is ignored, and the file ends as `TIMEOUT` after 20 s (reproduced by a 0.5 s pause at that point). `tests/files/check.py` begins the Python run again, at most three times, only on that state. fgds has no handshake step.
+- **The Python uplinker stops now and then** (`tests/files`). `FileUplinker.send` hands the packet to the encoder and only then sets the handshake it expects; for a start packet the handshake can return in between and is ignored, and the file ends as `TIMEOUT` after 20 s (reproduced by a 0.5 s pause at that point). `tests/files/check.py` and the `file-uplink` lines of `tests/cli/check.py` begin the Python run again, at most three times, only on that state. fgds has no handshake step.
 
 ## Interfaces of section 4
 

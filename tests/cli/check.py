@@ -1176,9 +1176,17 @@ def main():
         fgds = Fgds(f"{args.out}/rust-uplinks")
         rust_uplinks = dashes("fgds", fgds, f"{args.out}/rust-uplinks", lines, None)
         scenario.stop(fgds.process)
-        python = PythonGds(f"{args.out}/python-uplinks")
-        compare_uplinks(lines, dashes("fprime-cli", python, f"{args.out}/python-uplinks", lines, None), rust_uplinks)
-        scenario.stop(python.process)
+        # The Python uplinker misses a handshake now and then and ends the file as TIMEOUT (deviations.md, as
+        # tests/files): its run is begun again, at most three times, only on that state.
+        for attempt in (1, 2, 3):
+            python = PythonGds(f"{args.out}/python-uplinks-{attempt}")
+            python_uplinks = dashes("fprime-cli", python, f"{args.out}/python-uplinks-{attempt}", lines, None)
+            scenario.stop(python.process)
+            missed = [" ".join(l[2:]) for l, r in zip(lines, python_uplinks) if "failed with state TIMEOUT" in r["stdout"]]
+            if not missed or attempt == 3:
+                break
+            print(f"  note: Python GDS, attempt {attempt}: its uplinker missed a handshake ({', '.join(missed)}); begun again", flush=True)
+        compare_uplinks(lines, python_uplinks, rust_uplinks)
         fgds = Fgds(f"{args.out}/rust-raw")
         packet = run(fgds.cli("command-send", NO_OP, "--dry-run"))[1].strip()
         lines = raw(f"{args.out}/raw", packet)
