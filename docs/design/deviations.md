@@ -141,7 +141,8 @@ Things fgds has and the Python GDS does not.
 
 Review of `fgds repl` and `fgds tui` at `49ec3785` (13 findings), what is left as it is:
 
-- **Section 5 and a cargo feature for `fgds tui` (finding 10).** The count is corrected under "Dependencies outside section 5"; the decision is open, see there.
+- **Section 5 and a cargo feature for `fgds tui` (finding 10).** Decided at the re-review of `c381880f`: `rustyline`, `ratatui`, `crossterm`, `nix` and `unicode-width` are accepted in section 5 of the design without a cargo feature.
+- **`cargo deny` is not in `scripts/check.sh` (re-review, finding 4).** It is not installed in the check environment and `cargo install cargo-deny` needs the network; once installed, `cargo deny --offline check licenses` still stops, because it asks for the crates of every target (`windows-sys` and others are not downloaded on Linux). Run once by hand with the network and the list MIT, Apache-2.0, BSL-1.0, it rejects 21 packages; those looked at are of the base, not of `repl` (the `icu_*` family, Unicode-3.0, through `reqwest`; `matchit` through `axum`), so a `deny.toml` needs a licence list for the whole workspace, which is a decision of the integration.
 - **The retry of `tests/files` on a time-out without an abort of `Ref` (finding 11).** Kept: the time-out of the `down.bin` downlink and of the `after.bin` uplink were both seen without the abort line, and the retry was asked for on the states seen. The Python half now always prints the attempt it ended at (`Python GDS half ended at attempt 1 of 3`), so a second attempt is not read as a first-time pass.
 - **Terminals other than xterm** are not tested. Screens below 3 rows or 20 columns are drawn without a panic (unit test and `tests/tui/faults.py`) and are of no use.
 - **A typed line of `fgds repl` longer than the terminal is wide** still leaves its first rows on the screen when an event is printed above it ([repl.md](../repl.md#limits)).
@@ -182,14 +183,14 @@ Not differences of `fgds`, but seen in the checks and handled there:
 | Crate | Where | Why |
 |---|---|---|
 | `tracing-subscriber` | `fgds` | `tracing` alone prints nothing; this writes the log |
-| `rustyline` | `repl` only | Line editing, history and Tab completion of `fgds repl` |
+| `rustyline` (features `with-file-history`, `custom-bindings`) | `repl` only | Line editing, history and Tab completion of `fgds repl`; the binding keeps characters that would not be shown as they are out of the line |
 | `ratatui` (with its `crossterm` backend) | `repl` only | The panes and the keys of `fgds tui` |
 | `nix` (feature `term`) | `repl` only | Reads and puts back the terminal modes when `fgds repl` ends on a signal; already in `Cargo.lock` through `rustyline` |
 | `unicode-width` | `repl` only | The number of columns of a character, for folding and for the cursor; already in `Cargo.lock` through `rustyline` and `ratatui` |
 | `futures-util` | `fgds-shell` tests only | Reading a WebSocket in tests with `tokio-tungstenite` |
 
-The four crates of `repl` take `Cargo.lock` from 209 to 292 packages, 83 more, of which 26 are `windows*` and `winapi*` targets; none is used by another crate, but `repl` is in the stock plugin list, so the stock binary carries them.
-Section 5 is not changed for them and `fgds tui` is not behind a cargo feature: whether `rustyline` and `ratatui` are accepted (MNT-5) is a decision on the design, left to the integration, and is open.
+The four crates of `repl` take `Cargo.lock` from 209 to 295 packages, 86 more (3 of them, `radix_trie`, `nibble_vec` and `endian-type`, for the key bindings of `rustyline`), of which 26 are `windows*` and `winapi*` targets; none is used by another crate, but `repl` is in the stock plugin list, so the stock binary carries them.
+They are accepted (MNT-5) and now listed in section 5 of the design, without a cargo feature; their licences are MIT, Apache-2.0 or BSL-1.0 as read by the reviewer of `c381880f`. `fgds repl` (`src/prompt.rs`, `rustyline`, `nix`) and `fgds tui` (`src/tui.rs`, `ratatui`) share the rest of the crate and do not use each other: either is removed by deleting its file, its registration line in `src/lib.rs` and its dependencies.
 
 `reqwest` and `tokio-tungstenite` are in section 5; here they are development dependencies of `fgds-shell` only.
 `serde_json` uses its `preserve_order` feature so arguments keep their declaration order.

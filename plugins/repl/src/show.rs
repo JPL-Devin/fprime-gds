@@ -57,6 +57,12 @@ pub fn flight_time(record: &Value) -> String {
     fgds_core::python_times(field("base"), field("context"), field("seconds"), field("microseconds")).0
 }
 
+/// Whether `c` may enter a line being typed: it is shown as it is. A backslash is, and is doubled
+/// only where the line is printed again, beside text that may hold escapes.
+pub fn typed(c: char) -> bool {
+    c == '\\' || visible(c.encode_utf8(&mut [0; 4])) == c.to_string()
+}
+
 /// An event as a terminal may be given it, with its severity in colour when `colour` is set.
 pub fn event(record: &Value, colour: bool) -> String {
     let body = &record["body"];
@@ -209,12 +215,17 @@ mod tests {
             "hi\\x1b]0;T\\x07\\x1b[2J\\r\\n\\t\\x7f\\x9b"
         );
         assert_eq!(visible("a\\x1b é漢🚀"), "a\\\\x1b é漢🚀");
-        let hidden =
-            "\u{2028}\u{2029}\u{061c}\u{200e}\u{200f}\u{202a}\u{202e}\u{2066}\u{2069}\u{200b}\u{200d}\u{2060}\u{feff}";
-        assert_eq!(
-            visible(hidden),
-            "\\u{2028}\\u{2029}\\u{061C}\\u{200E}\\u{200F}\\u{202A}\\u{202E}\\u{2066}\\u{2069}\\u{200B}\\u{200D}\\u{2060}\\u{FEFF}"
-        );
+        // Each of the 19 code points of the rule, and what is beside the ranges.
+        let hidden = "\u{2028}\u{2029}\u{061c}\u{200e}\u{200f}\u{202a}\u{202b}\u{202c}\u{202d}\u{202e}\
+                      \u{2066}\u{2067}\u{2068}\u{2069}\u{200b}\u{200c}\u{200d}\u{2060}\u{feff}";
+        let shown: String = hidden.chars().map(|c| format!("\\u{{{:04X}}}", u32::from(c))).collect();
+        assert_eq!(hidden.chars().count(), 19);
+        assert_eq!(visible(hidden), shown);
+        assert_eq!(&shown[..16], "\\u{2028}\\u{2029}");
+        let beside = "\u{2027}\u{202f}\u{2065}\u{206a}\u{200a}\u{2061}\u{061b}";
+        assert_eq!(visible(beside), beside);
+        assert_eq!(visible("\0\u{8}\u{80}\u{85}\u{9f}\u{a0}"), "\\x00\\x08\\x80\\x85\\x9f\u{a0}");
+        assert!(typed('\\') && typed('é') && typed('漢') && !typed('\u{7}') && !typed('\u{202e}') && !typed('\u{9b}'));
         let record =
             json!({"body": {"severity": "ACTIVITY_HI", "name": "A.b\u{1b}[2J", "display_text": "x\u{1b}]0;T\u{7}\\"}});
         assert!(

@@ -37,6 +37,8 @@ class Fake:
     def __init__(self, port, dictionary, version="one", kinds=KINDS, first_seq=1):
         self.port, self.dictionary, self.version, self.kinds = port, dictionary, version, list(kinds)
         self.posts, self.delay, self.refuse, self.streams, self.opened = [], 0.0, None, [], 0
+        # `fail`: a path and the (status, message) it answers with; `no_stream`: `/stream` answers 404.
+        self.fail, self.no_stream = {}, False
         self.records, self.seq, self.lock = [], first_seq - 1, threading.Lock()
         fake = self
 
@@ -63,14 +65,19 @@ class Fake:
                 url = urlparse(self.path)
                 query = parse_qs(url.query)
                 path = url.path.removeprefix("/api/v1")
-                if path == "/version":
+                if path in fake.fail:
+                    status, message = fake.fail[path]
+                    self.answer({"error": {"code": "x", "message": message}}, status)
+                elif path == "/stream" and fake.no_stream:
+                    self.answer({"error": {"code": "x", "message": "no stream here"}}, 404)
+                elif path == "/version":
                     self.answer({"api": 1, "gds": "fake", "dictionary": fake.version, "plugins": []})
                 elif path == "/dictionary":
                     self.answer(fake.dictionary)
                 elif path == "/kinds":
                     self.answer([{"id": kind} for kind in fake.kinds])
                 elif path == "/records":
-                    after = int(query.get("after_seq", ["0"])[0])
+                    after = int(query.get("after_seq", ["-1"])[0])
                     self.answer({"records": [r for r in fake.records if int(r["seq"]) > after][:1], "next": None})
                 elif path == "/stream":
                     if not set(query.get("kind", [""])[0].split(",")) <= set(fake.kinds):

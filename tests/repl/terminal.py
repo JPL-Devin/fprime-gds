@@ -31,7 +31,7 @@ class Terminal:
                 pass
 
     def type(self, keys):
-        os.write(self.master, keys.encode())
+        os.write(self.master, keys if isinstance(keys, bytes) else keys.encode())
 
     def expect(self, pattern, start=0, timeout=30.0):
         """The first match of `pattern` at or after `start`; None after `timeout` seconds."""

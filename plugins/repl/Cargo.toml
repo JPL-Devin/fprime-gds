@@ -15,7 +15,7 @@ futures-util = { workspace = true }
 reqwest = { workspace = true }
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 nix = { version = "0.30", default-features = false, features = ["term"] }
-rustyline = { version = "17", default-features = false, features = ["with-file-history"] }
+rustyline = { version = "17", default-features = false, features = ["custom-bindings", "with-file-history"] }
 tokio = { workspace = true }
 unicode-width = "0.2"
 tokio-tungstenite = { workspace = true }
