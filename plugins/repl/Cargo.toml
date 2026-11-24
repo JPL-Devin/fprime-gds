@@ -1,6 +1,6 @@
 [package]
 name = "repl"
-description = "`fgds repl`: an interactive prompt on a running GDS, with events and telemetry printed above it"
+description = "`fgds repl` and `fgds tui`: an interactive prompt and a three-pane screen on a running GDS"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,6 +13,7 @@ fgds-core = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }
 reqwest = { workspace = true }
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 rustyline = { version = "17", default-features = false, features = ["with-file-history"] }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
