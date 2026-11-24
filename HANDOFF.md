@@ -31,6 +31,8 @@
 - Listed in `docs/design/deviations.md`, group 5: `fprime-comm-bridge` (no bridge program in the tree; about one and a half days), UDP adapters, single framing stages, `--output-unframed-data`. Group 1: Python `send-raw --no-zmq` cannot work (cause in the row).
 - No option is accepted and ignored (F3): a subcommand names the options of `fgds run` it honours (`Subcommand::honours`), the others are refused with exit 2 and left out of its help. A new subcommand or option needs a line in `EFFECT` of `tests/cli/check.py` (`effects`), which tries every long option on every subcommand and fails for one that is neither refused nor shown to change the outcome.
 - `file-uplink --file-uplink-chunk-size`, `--file-uplink-cooldown`: per file, through `chunk` and `cooldown` of `POST /files/uplink`.
+- `comm-tcp` sets `TCP_NODELAY` on the link socket (both modes). Without it the kernel held a small packet back while the previous one was not acknowledged: with packets sent a few ms apart, the bytes left 19 to 33 ms after the `raw.sent` record, sometimes two or three packets in one segment, and `tests/cli/check.py` (which reads the link as `send-raw` returns) failed now and then. Measured over 20 runs x 11 packets with `tcpdump`: 9 of 220 late before, 0 of 220 after.
+- Seen once in `tests/cli/check.py`, not ours: Python's `fprime-cli file-uplink --file-uplink-cooldown 0.5` did not return within the time limit of the check. A second run passed. Noted only.
 - The three full passes of `scripts/check.sh` are to be run once the round-9 findings are in.
 
 ## Known gaps

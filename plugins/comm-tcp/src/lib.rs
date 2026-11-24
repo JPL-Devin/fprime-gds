@@ -64,7 +64,10 @@ fn keepalive(cfg: &PluginConfig) -> Result<Duration> {
 
 type Halves = (Box<dyn LinkReader>, Box<dyn LinkWriter>, PeerInfo);
 
+/// A packet leaves when it is written: without `TCP_NODELAY` the kernel holds a small write back
+/// while the previous one is not acknowledged (Nagle), up to the 40 ms of a delayed acknowledgement.
 fn halves(stream: TcpStream, address: String, keepalive: Duration) -> Halves {
+    let _ = stream.set_nodelay(true);
     let (reader, writer) = stream.into_split();
     let peer = PeerInfo { address, message_boundaries: false };
     (Box::new(Reader(reader, None)), Box::new(Writer::new(writer, keepalive)), peer)
@@ -110,6 +113,7 @@ impl Adapter for Server {
             let _ = refusing.await;
         }
         let (stream, peer) = self.listener.accept().await.map_err(|e| io(&self.address, e))?;
+        let _ = stream.set_nodelay(true);
         let (reader, writer) = stream.into_split();
         let (connected, mut closed) = tokio::sync::oneshot::channel::<()>();
         let listener = self.listener.clone();
