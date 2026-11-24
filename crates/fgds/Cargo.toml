@@ -18,6 +18,7 @@ comm-uart = { workspace = true }
 comm-udp = { workspace = true }
 events = { workspace = true }
 online = { path = "../../plugins/online" }
+repl = { path = "../../plugins/repl" }
 files = { workspace = true }
 sequences = { path = "../../plugins/sequences" }
 params = { path = "../../plugins/params" }
