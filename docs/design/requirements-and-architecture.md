@@ -90,7 +90,7 @@ Verification: **UT** unit test, **IT** integration test against the `Ref` deploy
 | FIL-5 | An uplink that makes no progress for a configurable time (default 20 s) shall end as failed and visible, and the queue shall continue with the next file. | G2 | IT |
 | FIL-2 | The GDS shall receive downlinked files, report progress, and end a transfer that receives no data for a configurable time (default 20 s) as failed and visible. | G2 | IT |
 | FIL-3 | Every name of a file on the ground machine that is received from the flight software or from an API client shall be reduced to a base name inside the configured storage directory (a destination path on the spacecraft is passed unchanged); a name that would resolve outside it shall be rejected. The same check shall be applied when a file is read or served, including for paths found in database records. | G4 | UT, IT (database with a crafted path) |
-| SEQ-1 | The GDS shall validate a text command sequence against the dictionary and build the binary file accepted by `Svc::CmdSequencer`, byte-identical to the output of `fprime-seqgen` for the same input, in-process and without starting another program. | G2 | UT (corpus compared with `fprime-seqgen` output) |
+| SEQ-1 | The GDS shall validate a text command sequence against the dictionary and build the binary file that `Svc::CmdSequencer` accepts, equal to the output of `fprime-seqgen` for the valid files of the fixture corpus, in-process and without starting another program. | G2 | UT (valid files of the corpus compared with `fprime-seqgen` output; invalid input refused) |
 | SEQ-2 | The GDS shall uplink a built sequence file, and any already-built sequence file, through FIL-1. | G2 | IT |
 | PRM-1 | The GDS shall decode a parameter database file to JSON and encode JSON to a parameter database file (functions of `fprime-prm-decode` and `fprime-prm-write`). | G2 | UT (round trip, fixtures from flight software) |
 
@@ -215,7 +215,7 @@ To keep these cheap to add later, every route declares at registration whether i
 | MNT-1 | The core crate shall depend on no plugin crate. A plugin crate shall depend on the core and on no other plugin crate; plugins interact only through records, the uplink service and the API. | G4 | UT (dependency graph check in CI) |
 | MNT-2 | Each plugin shall be unit-tested against test doubles provided by the core (fake context, in-memory storage, scripted adapter). | G4 | INS |
 | MNT-3 | An end-to-end test against the `Ref` deployment, built in CI, shall run on every change. | G4 | INS (CI configuration) |
-| MNT-11 | A comparison test shall run the same `Ref` scenario against this GDS and against the current `fprime-gds`, and shall fail on any difference in the decoded data, as defined in section 6.1. | G2 | IT (CI) |
+| MNT-11 | A comparison test shall run the same `Ref` scenario against this GDS and against the current `fprime-gds`, and shall fail on any difference in the decoded data or in the bytes sent on the link, as defined in section 6.1. Wording, option reading and the order of refusals are not compared. | G2 | IT (CI) |
 | MNT-4 | Every crate shall forbid `unsafe` code by attribute, and CI shall run `cargo fmt --check` and `cargo clippy` with warnings denied. | G4 | UT (CI) |
 | MNT-5 | Direct dependencies shall be limited to the list of section 5; adding one shall require a change to that list, and CI shall check licences and advisories with `cargo deny`. | G4 | UT (CI) |
 | MNT-6 | Framers, decoders, the data product decoder, the dictionary loader and the sequence compiler shall return an error, and never panic, on any input; CI shall fuzz each. | G4 | UT (fuzzing) |
@@ -612,7 +612,7 @@ Accepted from `deviations.md` after the first slice was built, and revised after
 4. `Manifest { name, version, options: Vec<OptionSpec { name, help, default, secret }>, requires_kinds }`. Option `name` of plugin `p` is `--p-name` on the command line, `[plugins.p] name` in the configuration file, and `name` in `PluginConfig`; two plugins may use the same option name. The core builds each `PluginConfig` (`Config::plugin_config`): a key the manifest does not declare is an error, and `OptionSpec.default` is filled in, so a plugin repeats no default. The core's own options (`config`, `dictionary`, `comm`, `framing`, `storage`, `database`, `logs`, `read-only`, `bind`) and subcommands (`run`, `check`) are claimed for `core`; the core options are global arguments, accepted with every subcommand.
 5. `RunInfo` has `first_seq`, `reserved_seq` and `dictionary_hash`. `KindSpec.text_fields` are JSON pointers into the body.
 6. Record API filters: `filter=<field>:<op>:<value>` with `eq ne lt le gt ge contains in prefix` (`in` takes a comma-separated list), plus `before_seq`, `from`, `to`. Stream messages: `{"type":"record","record":{..}}`, `{"type":"live","seq":".."}` once when the stored records have all been sent (`seq` is the last one sent; at once for a stream without `after_seq`), and `{"type":"lagged","last_seq":".."}` before a slow client is closed.
-7. Display text is produced by the decoder, stored in the body as `display_text`, and must equal the text the Python GDS shows, including format strings of array elements and struct members. A format field is filled as Python's `format` fills it: sign and magnitude for `x` and `o`, `g` as in C, `nan` and `inf` for non-finite values.
+7. Display text is produced by the decoder, stored in the body as `display_text`, including format strings of array elements and struct members. Format strings are filled by the FPP rules (C `printf` conversions): sign and magnitude for `x` and `o`, `g` as in C, `nan` and `inf` for non-finite values.
 8. A decoder may return several records for one packet. The decoder always sets `raw` of each record to that item's own bytes, in one layout per kind, stated in the kind's description (`fprime.channel`: identifier, time tag, value, also for a channel of a telemetry packet; `fprime.event`: identifier, time tag, arguments). The router does not fill `raw`.
 9. Every route of a plugin shares one `Context` (`axum::Router<Context>`).
 10. The storage failure path is in the pipeline (`pipeline.rs`), so every storage gets it: a commit that fails or exceeds the time-out (2 s) puts storage in state `failed`; records are then broadcast with `stored = false` and are not kept for a later write; every later batch is offered to storage again, and when one is accepted a `gds.storage_gap` record (`first_seq`, `last_seq` of what was not stored) and a `gds.storage_recovered` record are published. There is no buffer of unstored records and no rewrite. `stored` is true for a transient record: false means lost, nothing else. Records of the uplink service have their own queue, taken first by the commit task, and `Records::publish_uplink` never waits (LNK-11).
@@ -651,7 +651,7 @@ Accepted from `deviations.md` after the first slice was built, and revised after
 
 ### 6.1 Ground truth: the current fprime-gds on `Ref`
 
-The final test of this GDS is to run the `Ref` deployment and see the data we expect. The current `fprime-gds` is the reference for what to expect (MNT-11).
+The final test of this GDS is to run the `Ref` deployment and see the data we expect. The current `fprime-gds` is the reference for decoded data and for bytes on the link only (MNT-11); messages, command-line reading, page texts and the handling of invalid input are this GDS's own.
 
 - One scripted scenario drives `Ref`: start-up, `CMD_NO_OP` and commands with every argument type, a parameter set and save, a file uplink and downlink, a data product, a sequence run.
 - The scenario runs twice in CI, with the same `Ref` binary and dictionary: once against `fprime-gds` (through its Test API), once against this GDS (through the Python client).
@@ -664,8 +664,8 @@ A second source of ground truth is the test data in the `fprime-gds` repository 
 
 | Fixture set in `fprime-gds` | Used for |
 |---|---|
-| `common/dp/test_dp_data`: 18 data product files (one per record type, compressed and uncompressed `Ref` products, two checksum-failure cases) with their two dictionaries | Data product decoder and validator (DP-3, DP-5, CLI-5): same decoded output and same failures as `fprime-dp` |
-| `common/tools/input` and `expected`: 39 sequence files with 37 expected binaries or error texts, with their dictionaries | Sequence compiler (SEQ-1): byte-identical binaries, an error on every invalid input |
+| `common/dp/test_dp_data`: 18 data product files (one per record type, compressed and uncompressed `Ref` products, two checksum-failure cases) with their two dictionaries | Data product decoder and validator (DP-3, DP-5, CLI-5): same decoded data as `fprime-dp`, a failure on every invalid file |
+| `common/tools/input` and `expected`: 39 sequence files with 37 expected binaries or error texts, with their dictionaries | Sequence compiler (SEQ-1): equal binaries for the valid files, an error on every invalid input |
 | `common/loaders/resources/RefTopologyDictionary.json` | Dictionary loader (LNK-1) |
 | Byte vectors written in the Python tests for CCSDS framing, encoders, type serialization and parameter files | Framing layers, encoders, type encode/decode, parameter tools (LNK-4, LNK-10, PRM-1): the vectors are ported as Rust unit tests |
 
@@ -690,7 +690,7 @@ Each milestone ends with its exit tests and the comparison of 6.1 (for the data 
 | M3 | Files plugin, Uplink and Downlink tabs, Python client and pytest fixture, online subcommands | FIL-1..5, SCR-1..6, CLI-1..3, CLI-6, SEC-6, SEC-7, LNK-13 | The `Ref` integration tests that use neither data products (M4) nor sequence building (M6) pass with edits limited to imports and fixture setup |
 | M4 | Data products, parameters, dictionary tools, `--read-only` | DP-1..8, PRM-1, CLI-5 (except sequence build), STO-12, STO-13, SEC-9 | Downlink and browse a `Ref` data product; the `Ref` data product integration test passes; decoder output equals `fprime-dp` output on fixtures |
 | M5 | `framing-ccsds`, `comm-udp`, `comm-uart`, telemetry packets, `comm-bridge` | LNK-3, LNK-4, LNK-15, LNK-19, LNK-20, CLI-4, MNT-6 | `Ref` over CCSDS framing with packet metadata on the records; an example decoder registered by application identifier; UDP and pseudo-terminal UART tests; fuzzing jobs |
-| M6 | Sequences, Charts, Dashboard; how-to pages; extension points declared stable | SEQ-1, SEQ-2, CLI-5 (sequence build), remaining table 3.4-A rows, STO-8, CUS-6, CUS-11, MNT-8 | Sequence corpus byte-identical to `fprime-seqgen`; the `Ref` sequence tests pass; every table 3.4-A row has a passing browser test; every extension point has an example built in CI |
+| M6 | Sequences, Charts, Dashboard; how-to pages; extension points declared stable | SEQ-1, SEQ-2, CLI-5 (sequence build), remaining table 3.4-A rows, STO-8, CUS-6, CUS-11, MNT-8 | Valid files of the sequence corpus equal to `fprime-seqgen` output; the `Ref` sequence tests pass; every table 3.4-A row has a passing browser test; every extension point has an example built in CI |
 
 ## 7. Decisions
 
