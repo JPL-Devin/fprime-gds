@@ -122,8 +122,12 @@ class HandshakeMissed(Exception):
     """The uplinker of the Python GDS stopped: it sends a packet before it notes the handshake to expect."""
 
 
+class RefEnded(Exception):
+    """Stock Ref ended under the Python GDS: its file uplink asserts when file packets arrive in one piece."""
+
+
 def python_side(args, out, staging, attempts=3):
-    """The run of the Python GDS, begun again from a new Ref when its uplinker missed a handshake.
+    """The run of the Python GDS, begun again from a new Ref when its uplinker missed a handshake or Ref ended.
 
     `FileUplinker.send` (fprime_gds/common/files/uplinker.py) hands the packet to the encoder and only then
     sets the handshake it expects; the handshake of a start packet (sent from the queue thread) can return
@@ -133,8 +137,8 @@ def python_side(args, out, staging, attempts=3):
     for attempt in range(1, attempts + 1):
         try:
             return python_once(args, out, staging)
-        except HandshakeMissed as missed:
-            print(f"  note: Python GDS, attempt {attempt}: {missed}; its uplinker missed a handshake", flush=True)
+        except (HandshakeMissed, RefEnded) as missed:
+            print(f"  note: Python GDS, attempt {attempt}: {missed}", flush=True)
             if attempt == attempts:
                 raise
 
@@ -200,6 +204,10 @@ def python_once(args, out, staging):
         time.sleep(1)
         found["sequence"] = sequence_counts(args, out, proxy)
         return found
+    except TimeoutError as timeout:
+        if ref and ref.poll() is not None:
+            raise RefEnded(f"{timeout}; Ref ended with {ref.returncode}") from timeout
+        raise
     finally:
         try:
             if pipeline:
