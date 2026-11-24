@@ -832,13 +832,21 @@ def merges(out):
 # with `--ip-client`, `--comm-adapter uart`, `--gui-port` and `-g none`.
 
 class Relay:
-    """Ref (a TCP client) on one side; on the other a pseudo-terminal, or a port the GDS connects to."""
+    """Ref (a TCP client) on one side; on the other a pseudo-terminal, a port the GDS connects to, or a pair of
+    UDP ports (`serial="udp"`: the GDS sends to `address` and receives on `recv_port`)."""
 
     def __init__(self, serial):
         self.uplink, self.downlink = bytearray(), bytearray()
         self.server = socket.create_server(("127.0.0.1", 0))
         self.port = self.server.getsockname()[1]
-        if serial:
+        if serial == "udp":
+            self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.udp.bind(("127.0.0.1", 0))
+            self.address = f"127.0.0.1:{self.udp.getsockname()[1]}"
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as free:
+                free.bind(("127.0.0.1", 0))
+                self.recv_port = free.getsockname()[1]
+        elif serial:
             self.far, near = os.openpty()
             self.device = os.ttyname(near)
             os.close(near)
@@ -849,7 +857,10 @@ class Relay:
 
     def _run(self, serial):
         ref, _ = self.server.accept()
-        if serial:
+        if serial == "udp":
+            read = lambda: self.udp.recv(65535)
+            write = lambda data: self.udp.sendto(data, ("127.0.0.1", self.recv_port))
+        elif serial:
             def write(data):  # a pseudo-terminal takes what the reader has room for
                 while data:
                     data = data[os.write(self.far, data):]
@@ -876,6 +887,7 @@ def capabilities(out):
         ("the TCP server (the default)", lambda: (None, None), []),
         ("--comm tcp-client", lambda: (Relay(False), None), []),
         ("--comm uart over a pseudo-terminal", lambda: (Relay(True), None), []),
+        ("--comm udp", lambda: (Relay("udp"), None), []),
         ("--no-page", lambda: (None, None), ["--no-page"]),
     ]
     sent = {}
@@ -885,6 +897,8 @@ def capabilities(out):
             link = None
         elif hasattr(relay, "device"):
             link = ["--comm", "uart", "--comm-uart-device", relay.device, "--comm-uart-baud", "115200"]
+        elif hasattr(relay, "udp"):
+            link = ["--comm", "udp", "--comm-udp-address", relay.address, "--comm-udp-recv-port", str(relay.recv_port)]
         else:
             link = ["--comm", "tcp-client", "--comm-tcp-address", relay.address]
         gds = ref = None
@@ -920,6 +934,8 @@ def capabilities(out):
                     scenario.stop(process)
     done = run([args.fgds, "run", "--dictionary", args.dictionary, "--logs", f"{out}/refused", "--bind", "127.0.0.1:0", "--comm", "uart", "--comm-uart-baud", "12345"])
     require("fgds run --comm uart --comm-uart-baud 12345: refused when it starts", done[0] != 0 and "is not one of" in done[2], done)
+    done = run([args.fgds, "run", "--dictionary", args.dictionary, "--logs", f"{out}/refused", "--bind", "127.0.0.1:0", "--comm", "udp", "--comm-udp-recv-port", "0"])
+    require("fgds run --comm udp --comm-udp-recv-port 0: refused when it starts", done[0] != 0 and "is not a port" in done[2], done)
 
 
 # Round 9, F3: no option is accepted and ignored. For every subcommand that is not `run` or `check`, every long
@@ -1113,7 +1129,7 @@ def main():
     effects(f"{args.out}/effects")
     if os.environ.get("CLI_CHECK_ONLY") == "effects":
         return
-    print("fgds run: TCP server, TCP client, serial device, without the page")
+    print("fgds run: TCP server, TCP client, serial device, UDP, without the page")
     capabilities(f"{args.out}/capabilities")
     print("offline tools with the dictionary options")
     offline(f"{args.out}/offline")

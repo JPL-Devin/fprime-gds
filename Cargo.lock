@@ -291,6 +291,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "comm-udp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "fgds-core",
+ "tokio",
+]
+
+[[package]]
 name = "commands"
 version = "0.1.0"
 dependencies = [
@@ -448,6 +458,7 @@ dependencies = [
  "clap",
  "comm-tcp",
  "comm-uart",
+ "comm-udp",
  "commands",
  "data-products",
  "dictionary-tab",

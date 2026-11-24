@@ -15,6 +15,7 @@ channels = { workspace = true }
 commands = { workspace = true }
 comm-tcp = { workspace = true }
 comm-uart = { workspace = true }
+comm-udp = { workspace = true }
 events = { workspace = true }
 online = { path = "../../plugins/online" }
 files = { workspace = true }

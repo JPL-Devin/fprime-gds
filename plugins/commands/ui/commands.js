@@ -384,6 +384,11 @@ class CommandsTab extends LitElement {
       this.updateComplete.then(() => { input.value = this.line; });
       return;
     }
+    // More arguments than the command takes: refused as on the command line, the line left as typed.
+    if (tokens.length - 1 > command.params.length) {
+      this.lineError = `${command.name} takes ${command.params.length} arguments, ${tokens.length - 1} given`;
+      return;
+    }
     // A value the line gives goes to the form of its command; an element or member it does not give keeps
     // what that form holds. A line that leaves an argument out is taken only for the command shown: its
     // values go to the form, the input shows the line of the form (a name alone stays as typed, as on the

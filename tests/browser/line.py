@@ -90,6 +90,12 @@ def record(url, fixture):
     print(f"{len(found)} lines written to {fixture}")
 
 
+# Lines with more arguments than the command takes, and the refusal of fgds.
+EXCESS = {
+    "CdhCore.cmdDisp.CMD_TEST_CMD_1, 1, 2.5, 3, 4": "CdhCore.cmdDisp.CMD_TEST_CMD_1 takes 3 arguments, 4 given",
+}
+
+
 def check(binary, dictionary, fixture, out):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import harness
@@ -105,11 +111,24 @@ def check(binary, dictionary, fixture, out):
             problems = []
             page = harness.open_page(browser, gds.url, problems)
             harness.show(page, "commands")
+            before = None
             for case in expected:
                 page.fill("#command-string", case["typed"])
                 page.press("#command-string", "Tab")
                 page.wait_for_timeout(100)
                 shown = page.evaluate(NEW_SHOWN)
+                if case["typed"] in EXCESS:
+                    # The Python page drops the arguments in excess and loads the rest (deviations.md, finding 54):
+                    # fgds refuses the line, leaves it as typed and the form as it was. The line the Python page
+                    # shows is then typed, so that the next cases start from the same form.
+                    refused = dict(before, line=case["typed"], error=EXCESS[case["typed"]])
+                    if shown != refused:
+                        different.append((case["typed"], refused, shown))
+                    page.fill("#command-string", case["line"])
+                    page.press("#command-string", "Tab")
+                    page.wait_for_timeout(100)
+                    shown = page.evaluate(NEW_SHOWN)
+                before = shown
                 wanted = {key: case[key] for key in shown}
                 wanted["inputs"], shown["inputs"] = plain(wanted["inputs"]), plain(shown["inputs"])
                 if shown != wanted:
@@ -153,7 +172,7 @@ def check(binary, dictionary, fixture, out):
     quoted = sum('"' in line for line in LINES)
     harness.step(f"Command String: {len(expected)} lines typed ({quoted} with quoted strings; arrays, structs, enums, a name "
                  "in lower case, too few and too many arguments, an unknown command, a wrong constant, lines that are not of the form) "
-                 "fill the form, show the line and the message as the Python GDS page")
+                 "fill the form, show the line and the message as the Python GDS page; a line with too many arguments is refused and left as typed")
 
 
 if __name__ == "__main__":

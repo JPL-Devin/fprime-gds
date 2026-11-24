@@ -314,6 +314,27 @@ def stock(browser, gds):
     assert after == held, f"a command went out: {held} before, {after} after"
     step("Command String empty, of spaces, not of the form, of an unknown name, with an argument that is not one, then the send "
          "button: nothing is sent and the page says why")
+    # Finding 54: more arguments than the command takes. Refused as on the command line, with its message;
+    # nothing is sent and the line stays as typed (the Python page sends the command without the last one).
+    for name, line, takes in (
+            ("CdhCore.cmdDisp.CMD_NO_OP", "CdhCore.cmdDisp.CMD_NO_OP, 5", 0),
+            ("CdhCore.cmdDisp.CMD_NO_OP_STRING", 'CdhCore.cmdDisp.CMD_NO_OP_STRING, "a", 5', 1),
+            ("CdhCore.cmdDisp.CMD_TEST_CMD_1", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7, 8", 3),
+            ("Ref.typeDemo.CHOICES", 'Ref.typeDemo.CHOICES, ["ONE", "TWO"], 5', 1),
+            ("Ref.typeDemo.CHOICE_PAIR", 'Ref.typeDemo.CHOICE_PAIR, {"firstChoice": "ONE", "secondChoice": "TWO"}, 5', 1)):
+        for enter in (True, False):
+            choose(page, name)
+            page.fill("#command-string", line)
+            page.press("#command-string", "Enter" if enter else "Tab")
+            expect(page.locator("#command-string-error")).to_have_text(f"{name} takes {takes} arguments, {takes + 1} given")
+            assert page.input_value("#command-string") == line
+            page.click("#command-send")
+            page.wait_for_timeout(1000)
+            assert commands() == held[0], f"{line!r} then the send button: a command went out"
+            assert page.locator("#command-message.error-text, #command-string-error").count(), f"{line!r}: refused in silence"
+    assert (commands(), scenario.steady(dispatched, quiet=5.0)) == held
+    step("Command String with one argument more than the command takes (0, 1, 3, an array, a structure), then the send "
+         "button: `<name> takes N arguments, N+1 given`, nothing is sent")
     choose(page, "CdhCore.cmdDisp.CMD_NO_OP")
     page.click("#command-history tbody tr:has-text('CMD_TEST_CMD_1') button[data-action=load] >> nth=0")
     assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", "the list does not show the row loaded"
