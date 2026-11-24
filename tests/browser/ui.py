@@ -690,9 +690,9 @@ def files_and_products(page, gds):
     for name in queued:
         scenario.wait_for(f"Ref received {name}", lambda: open(f"{gds.out}/ref/{name}", "rb").read() == content)
     uplink.locator("th", has_text="Start Time").click()
-    # Rows of the same second keep the order of the list, newest first.
+    # Rows of the same second keep the order of the list, newest first (the file before the three may share it).
     starts = [parsedate_to_datetime(row.locator("td").nth(0).text_content()) for row in uplink.locator("tr:has(td)").all()]
-    assert starts == sorted(starts) and destinations()[0] == "up.bin" and sorted(destinations()[-3:]) == queued, destinations()
+    assert starts == sorted(starts) and destinations()[0] == "up.bin" and set(queued) <= set(destinations()[-4:]), destinations()
     uplink.locator("th", has_text="Start Time").click()
     uplink.locator("th", has_text="Start Time").click()
     step(f"Uplink tab: three files of the queue begin one after the other with no wait ({[str(t[0].time()) for t in times]}); "
