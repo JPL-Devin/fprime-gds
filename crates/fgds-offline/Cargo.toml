@@ -11,3 +11,4 @@ workspace = true
 [dependencies]
 fgds-core = { workspace = true }
 crc = { workspace = true }
+serde = { workspace = true }

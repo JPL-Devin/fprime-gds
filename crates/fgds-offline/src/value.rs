@@ -146,8 +146,16 @@ impl Value {
         }
     }
 
+    /// JSON on one line, as a sequence file carries it in a string argument: `, ` and `: ` between
+    /// the parts and ASCII only, so that the bytes sent to flight stay those of `fprime-seqgen`.
     pub fn to_json(&self) -> String {
-        self.to_serde().to_string()
+        use serde::Serialize;
+        let mut out = Vec::new();
+        let mut writer = serde_json::Serializer::with_formatter(&mut out, Spaced);
+        match self.to_serde().serialize(&mut writer) {
+            Ok(()) => String::from_utf8(out).unwrap_or_default(),
+            Err(_) => String::new(),
+        }
     }
 
     pub fn to_json_pretty(&self) -> String {
@@ -249,4 +257,34 @@ pub fn parse_int(text: &str) -> Option<Int> {
         return None;
     }
     Int::parse(&format!("{sign}{digits}"), radix)
+}
+
+struct Spaced;
+
+impl serde_json::ser::Formatter for Spaced {
+    fn begin_array_value<W: ?Sized + std::io::Write>(&mut self, w: &mut W, first: bool) -> std::io::Result<()> {
+        w.write_all(if first { b"" } else { b", " })
+    }
+
+    fn begin_object_key<W: ?Sized + std::io::Write>(&mut self, w: &mut W, first: bool) -> std::io::Result<()> {
+        w.write_all(if first { b"" } else { b", " })
+    }
+
+    fn begin_object_value<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        w.write_all(b": ")
+    }
+
+    fn write_string_fragment<W: ?Sized + std::io::Write>(&mut self, w: &mut W, text: &str) -> std::io::Result<()> {
+        for c in text.chars() {
+            match c.is_ascii() {
+                true => w.write_all(&[c as u8])?,
+                false => {
+                    for unit in c.encode_utf16(&mut [0; 2]) {
+                        write!(w, "\\u{unit:04x}")?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
