@@ -7,22 +7,18 @@ mod api;
 mod complete;
 mod filter;
 mod line;
+mod prompt;
 mod show;
 mod tui;
 
 use api::Api;
 use base64::Engine;
 use complete::Names;
-use fgds_core::clap::{Arg, ArgMatches, Command};
+use fgds_core::clap::{Arg, ArgMatches};
 use fgds_core::serde_json::{json, Value};
-use fgds_core::{CliEnv, Error, Manifest, Plugin, Registry, Result, Subcommand};
+use fgds_core::{CliEnv, Error, Manifest, Plugin, Registry, Result};
 use filter::Filter;
 use line::Line;
-use rustyline::error::ReadlineError;
-use rustyline::history::DefaultHistory;
-use rustyline::{ColorMode, CompletionType, Config, Editor};
-use std::io::{IsTerminal, Write};
-use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -34,7 +30,7 @@ impl Plugin for ReplPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_subcommand(Arc::new(Repl))?;
+        reg.add_subcommand(Arc::new(prompt::Repl))?;
         reg.add_subcommand(Arc::new(tui::Tui))
     }
 }
@@ -108,18 +104,16 @@ async fn kinds(api: &Api) -> (Vec<&'static str>, Vec<&'static str>) {
 
 /// Gives the stream to `on` until the process ends, connecting again when it stops. One note
 /// when the stream is lost and one when it is open again; the attempts in between say nothing
-/// and wait longer each time. `dictionary` is the dictionary version of `/version` last read.
+/// and wait longer each time. `dictionary` is the dictionary as last read.
 async fn stream(api: Api, mut dictionary: Value, mut on: impl FnMut(Item)) {
     let (mut after, mut wait, mut lost) = (None, WAITS.0, false);
     let mut without = Vec::new();
     loop {
-        // A GDS started again may have another dictionary.
-        if let Ok(version) = api.check_version().await {
-            if version["dictionary"] != dictionary {
-                if let Ok(read) = api.get("/dictionary", &[]).await {
-                    dictionary = version["dictionary"].clone();
-                    on(Item::Dictionary(read));
-                }
+        // A GDS started again may have another dictionary under the same version: the content is compared.
+        if let Ok(read) = api.get("/dictionary", &[]).await {
+            if read != dictionary {
+                dictionary.clone_from(&read);
+                on(Item::Dictionary(read));
             }
         }
         let (kinds, missing) = kinds(&api).await;
@@ -159,17 +153,6 @@ async fn stream(api: Api, mut dictionary: Value, mut on: impl FnMut(Item)) {
     }
 }
 
-/// The stream as lines, through the filters, for `print`.
-async fn stream_lines(api: Api, session: Follower, colour: bool, mut print: impl FnMut(String)) {
-    let own = api.client().to_string();
-    let on = |item: Item| match item {
-        Item::Record(record) => view(&session.shared).line(record, &own, colour).into_iter().for_each(&mut print),
-        Item::Note(note) => print(show::visible(&note)),
-        Item::Dictionary(read) => print(reload(&session.dictionary, read)),
-    };
-    stream(api, session.version, on).await;
-}
-
 /// The dictionary of the GDS as last read, with the names Tab completes.
 struct Loaded {
     value: Value,
@@ -196,10 +179,9 @@ fn reload(dictionary: &Dictionary, read: Value) -> String {
 struct Follower {
     shared: Shared,
     dictionary: Dictionary,
-    version: Value,
 }
 
-/// On a signal that ends the process (SIGTERM, SIGHUP, SIGQUIT, SIGINT), calls `restore` to put
+/// On a signal that ends the process (SIGTERM, SIGHUP, SIGQUIT, SIGINT, SIGALRM, SIGUSR1, SIGUSR2), calls `restore` to put
 /// the terminal back, then ends with 128 + the signal number. SIGKILL cannot be answered.
 fn restore_on_signal(restore: impl FnOnce() + Send + 'static) {
     use tokio::signal::unix::{signal, SignalKind};
@@ -208,7 +190,15 @@ fn restore_on_signal(restore: impl FnOnce() + Send + 'static) {
         let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
         runtime.block_on(async {
             let (got, mut signals) = tokio::sync::mpsc::channel(1);
-            let kinds = [SignalKind::terminate(), SignalKind::hangup(), SignalKind::quit(), SignalKind::interrupt()];
+            let kinds = [
+                SignalKind::terminate(),
+                SignalKind::hangup(),
+                SignalKind::quit(),
+                SignalKind::interrupt(),
+                SignalKind::alarm(),
+                SignalKind::user_defined1(),
+                SignalKind::user_defined2(),
+            ];
             for kind in kinds {
                 let (Ok(mut arrives), got) = (signal(kind), got.clone()) else { continue };
                 tokio::spawn(async move {
@@ -229,112 +219,9 @@ fn restore_on_signal(restore: impl FnOnce() + Send + 'static) {
 
 const PROMPT: &str = "fgds> ";
 
-/// What the terminal shows on its last row, for the stream to print above it.
-#[derive(Default)]
-struct Screen {
-    state: Row,
-    line: String,
-    /// The cursor, as a byte of `line`.
-    pos: usize,
-    /// What the stream had to print while the row was `Row::Entered`.
-    held: Vec<String>,
-}
-
-#[derive(Default, PartialEq)]
-enum Row {
-    /// Nothing is being typed: the cursor is at the start of an empty row.
-    #[default]
-    Free,
-    /// The row holds the prompt and `line`.
-    Typed,
-    /// Enter was pressed and the editor is leaving the row.
-    Entered,
-}
-
-type Shown = Arc<Mutex<Screen>>;
-
-fn screen(shown: &Shown) -> std::sync::MutexGuard<'_, Screen> {
-    shown.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-/// Prints `text` above the line being typed and draws that line again under it.
-///
-/// rustyline has an `ExternalPrinter` for this, but with one in use it leaves keys that arrive
-/// together (pasted text) unread until the next key (versions 14 to 19). So the editor tells
-/// through its helper what the row holds, and the row is drawn again here. A typed line longer
-/// than the terminal is wide leaves its first rows above `text`.
-fn print_above(shown: &Shown, text: &str) {
-    let mut screen = screen(shown);
-    let mut out = std::io::stdout().lock();
-    let _ = match screen.state {
-        Row::Free => writeln!(out, "{text}"),
-        Row::Typed => {
-            let back = unicode_width::UnicodeWidthStr::width(&screen.line[screen.pos..]);
-            let back = if back > 0 { format!("\x1b[{back}D") } else { String::new() };
-            write!(out, "\r\x1b[J{text}\r\n{PROMPT}{}{back}", screen.line)
-        }
-        Row::Entered => {
-            screen.held.push(text.to_string());
-            Ok(())
-        }
-    };
-    let _ = out.flush();
-}
-
-struct Helper {
-    dictionary: Dictionary,
-    shown: Shown,
-}
-
-impl Helper {
-    fn note(&self, line: &str, pos: usize) {
-        let mut screen = screen(&self.shown);
-        screen.line.clear();
-        screen.line.push_str(line);
-        screen.pos = pos;
-    }
-}
-
-impl rustyline::Helper for Helper {}
-impl rustyline::validate::Validator for Helper {
-    /// Asked when Enter is pressed.
-    fn validate(
-        &self,
-        _: &mut rustyline::validate::ValidationContext,
-    ) -> rustyline::Result<rustyline::validate::ValidationResult> {
-        screen(&self.shown).state = Row::Entered;
-        Ok(rustyline::validate::ValidationResult::Valid(None))
-    }
-}
-// The editor asks for a hint after every change of the line, and whether to highlight after
-// every move of the cursor: the two places where it tells what the row holds.
-impl rustyline::hint::Hinter for Helper {
-    type Hint = String;
-
-    fn hint(&self, line: &str, pos: usize, _: &rustyline::Context<'_>) -> Option<String> {
-        self.note(line, pos);
-        None
-    }
-}
-impl rustyline::highlight::Highlighter for Helper {
-    fn highlight_char(&self, line: &str, pos: usize, _: rustyline::highlight::CmdKind) -> bool {
-        self.note(line, pos);
-        false
-    }
-}
-impl rustyline::completion::Completer for Helper {
-    type Candidate = String;
-
-    fn complete(&self, line: &str, pos: usize, _: &rustyline::Context<'_>) -> rustyline::Result<(usize, Vec<String>)> {
-        Ok(loaded(&self.dictionary).names.complete(line, pos))
-    }
-}
-
 struct Session {
     api: Api,
     dictionary: Dictionary,
-    /// The dictionary version of `/version` when `dictionary` was read.
-    version: Value,
     shared: Shared,
     runtime: tokio::runtime::Runtime,
 }
@@ -352,20 +239,19 @@ impl Session {
         };
         let api = Api::new(base, format!("fgds-{name}-{}", std::process::id()));
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
-        let (version, dictionary) = runtime.block_on(async {
-            let version = api.check_version().await?;
-            Ok::<_, Error>((version["dictionary"].clone(), api.get("/dictionary", &[]).await?))
+        let dictionary = runtime.block_on(async {
+            api.check_version().await?;
+            api.get("/dictionary", &[]).await
         })?;
         let dictionary = Arc::new(Mutex::new(load(dictionary)));
-        Ok(Session { api, dictionary, version, shared: Shared::default(), runtime })
+        Ok(Session { api, dictionary, shared: Shared::default(), runtime })
     }
 
     /// For the thread of the stream: a client (a connection is not shared between two runtimes)
     /// and what the stream reads and changes.
     fn follower(&self) -> (Api, Follower) {
         let api = Api::new(self.api.base().to_string(), self.api.client().to_string());
-        let (shared, dictionary, version) = (self.shared.clone(), self.dictionary.clone(), self.version.clone());
-        (api, Follower { shared, dictionary, version })
+        (api, Follower { shared: self.shared.clone(), dictionary: self.dictionary.clone() })
     }
 
     /// Does what `line` asks and returns what to print, as a terminal may be given it; `None` to leave.
@@ -433,8 +319,10 @@ impl Session {
                 Err(error) => return vec![unsent(&error)],
             };
             let Some(seq) = api::seq(&sent["seq"]) else { return vec!["sent".to_string()] };
-            let after = seq.saturating_sub(1).to_string();
-            let query = [("kind", "fprime.command"), ("after_seq", after.as_str()), ("limit", "1")];
+            // The record itself: the first after the one before it, or the first of all.
+            let after = seq.checked_sub(1).map(|before| before.to_string());
+            let mut query = vec![("kind", "fprime.command"), ("limit", "1")];
+            query.extend(after.as_deref().map(|after| ("after_seq", after)));
             match self.api.get("/records", &query).await {
                 Ok(page) => {
                     let record = &page["records"][0];
@@ -457,99 +345,12 @@ fn unsent(error: &Error) -> String {
     }
 }
 
-fn other(error: impl std::fmt::Display) -> Error {
-    Error::Other(error.to_string())
-}
-
-/// The prompt, on a terminal. The stream runs on a thread of its own and prints above the line.
-fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
-    // The colour mode is forced so that the editor asks its highlighter (see `Helper`).
-    let config = Config::builder()
-        .completion_type(CompletionType::List)
-        .auto_add_history(true)
-        .color_mode(ColorMode::Forced)
-        .build();
-    let mut editor: Editor<Helper, DefaultHistory> = Editor::with_config(config).map_err(other)?;
-    let shown = Shown::default();
-    editor.set_helper(Some(Helper { dictionary: session.dictionary.clone(), shown: shown.clone() }));
-    let history = std::env::var_os("HOME").map(|home| std::path::Path::new(&home).join(".fgds_history"));
-    if let Some(history) = &history {
-        let _ = editor.load_history(history);
-    }
-    println!("fgds repl on {}: `help` lists what can be typed, `quit` leaves.", show::visible(session.api.base()));
-    // Ctrl-C is a key of the editor here, not a signal: SIGINT comes from another process.
-    if let Ok(modes) = nix::sys::termios::tcgetattr(std::io::stdin()) {
-        restore_on_signal(move || {
-            let _ = nix::sys::termios::tcsetattr(std::io::stdin(), nix::sys::termios::SetArg::TCSANOW, &modes);
-            let _ = std::io::stdout().write_all(b"\r\n");
-        });
-    }
-    let (api, follower) = session.follower();
-    let above = shown.clone();
-    std::thread::spawn(move || {
-        let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
-        runtime.block_on(stream_lines(api, follower, colour, |line| print_above(&above, &line)));
-    });
-    loop {
-        *screen(&shown) = Screen { state: Row::Typed, ..Default::default() };
-        let read = editor.readline(PROMPT);
-        let held = std::mem::take(&mut *screen(&shown)).held;
-        held.iter().for_each(|line| print_above(&shown, line));
-        match read {
-            Ok(line) => {
-                // After each line: a prompt ended by a signal keeps its history.
-                if let Some(history) = &history {
-                    let _ = editor.append_history(history);
-                }
-                match session.handle(&line) {
-                    Some(lines) => lines.iter().for_each(|line| print_above(&shown, line)),
-                    None => break,
-                }
-            }
-            // Ctrl-C drops the line being typed.
-            Err(ReadlineError::Interrupted) => continue,
-            Err(ReadlineError::Eof) => break,
-            Err(error) => return Err(other(error)),
-        }
-    }
-    Ok(ExitCode::SUCCESS)
-}
-
-/// `fgds repl`.
-struct Repl;
-
-impl Subcommand for Repl {
-    fn command(&self) -> Command {
-        Command::new("repl")
-            .about("Interactive prompt on a running GDS: send commands, watch events and telemetry")
-            .after_help(
-                "Type `help` at the prompt. When the standard input is not a terminal, nothing is read: \
-                 events, channel samples and commands are printed until interrupted.",
-            )
-            .arg(url_arg())
-    }
-
-    fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        let session = Session::open("repl", args, env)?;
-        let colour = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
-        if std::io::stdin().is_terminal() {
-            return prompt(session, colour);
-        }
-        let (api, follower) = session.follower();
-        let print = |line: String| {
-            let mut out = std::io::stdout().lock();
-            // A closed pipe (`fgds repl | head`) ends the command, it is not an error.
-            if writeln!(out, "{line}").and_then(|()| out.flush()).is_err() {
-                std::process::exit(0);
-            }
-        };
-        session.runtime.block_on(async {
-            tokio::select! {
-                () = stream_lines(api, follower, colour, print) => {}
-                () = fgds_core::interrupt() => {}
-            }
-        });
-        Ok(ExitCode::SUCCESS)
+/// `error` as a terminal may be given it: its text may come from the GDS or from `--url`.
+fn shown(error: Error) -> Error {
+    match error {
+        Error::Invalid(text) => Error::Invalid(show::visible(&text)),
+        Error::Io(error) => Error::Io(std::io::Error::new(error.kind(), show::visible(&error.to_string()))),
+        other => Error::Other(show::visible(&other.to_string())),
     }
 }
 

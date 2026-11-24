@@ -5,8 +5,10 @@ and a healthy GDS do not do.
   text of flight with escape sequences reaches the terminal as visible text, with colour and without, and when piped
   a GDS without one of the record kinds, and one whose first sequence number is 0
   a command the dictionary read at the start does not have is left to the GDS
-  the GDS stops: one line, then silence; it starts again with another dictionary: one line, and that dictionary is used
-  SIGTERM, SIGHUP, SIGQUIT and SIGINT put the terminal back and keep the history
+  the GDS stops: one line, then silence; it starts again with another dictionary under the same version: one line, and that dictionary is used
+  an error before the prompt, and the line being typed or pasted, show no control either
+  a GDS that answers and refuses the stream: one line
+  SIGTERM, SIGHUP, SIGQUIT, SIGINT, SIGALRM, SIGUSR1 and SIGUSR2 put the terminal back and keep the history
 
 Standard library only.
 """
@@ -35,8 +37,9 @@ PROMPT = "fgds> "
 ENV = {**os.environ, "HOME": args.out, "TERM": "xterm", "NO_COLOR": "1"}
 COLOUR = {name: value for name, value in ENV.items() if name != "NO_COLOR"}
 # A window title, a cleared screen, a C1 control, a line break, a backslash, a reversal of direction.
-HOSTILE = "a\x1b]0;TITLE\x07b\x1b[2Jc\x9b31md\r\ne\\f\u202eg"
-SHOWN = "a\\x1b]0;TITLE\\x07b\\x1b[2Jc\\x9b31md\\r\\ne\\\\f\\u{202E}g"
+# and one of each other class of the rule: NUL, backspace, DEL, a C1 line break, a tab, a mark without width, an isolate, a BOM.
+HOSTILE = "a\x1b]0;TITLE\x07b\x1b[2Jc\x9b31md\r\ne\\f\u202eg\x00\x08\x7f\x85\t\u200b\u2066\ufeffh"
+SHOWN = "a\\x1b]0;TITLE\\x07b\\x1b[2Jc\\x9b31md\\r\\ne\\\\f\\u{202E}g\\x00\\x08\\x7f\\x85\\t\\u{200B}\\u{2066}\\u{FEFF}h"
 LOST, BACK, OTHER = "trying again until the GDS answers", "the GDS answers again", "the GDS has another dictionary"
 
 
@@ -49,7 +52,7 @@ def require(what, condition, detail=""):
 
 def obeyed(seen):
     """What of HOSTILE a terminal would obey, in what was written to it."""
-    return [bad for bad in ("\x1b]", "\x1b[2J", "\x9b", "\x07", "\u202e", "d\r\ne", "d\r\r\ne") if bad in seen]
+    return [bad for bad in ("\x1b]", "\x1b[2J", "\x9b", "\x07", "\u202e", "d\r\ne", "d\r\r\ne", "\x00", "\x08", "\x7f", "\x85", "\t", "\u200b", "\u2066", "\ufeff") if bad in seen]
 
 
 def prompt(fake, env=ENV):
@@ -61,7 +64,7 @@ def prompt(fake, env=ENV):
 
 def hostile_text():
     print("text of flight with escape sequences")
-    fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO", f"A.b.{HOSTILE}"), first_seq=0)
+    fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO", f"A.b.{HOSTILE}"))
     for name, env in (("without colour", ENV), ("with colour", COLOUR)):
         terminal = prompt(fake, env)
         at = len(terminal.seen)
@@ -82,10 +85,6 @@ def hostile_text():
         terminal.type("cmd A.b.GO\r")
         require(f"{name}: the reason of a refusal is visible text", terminal.expect(re.escape(f"not sent: {SHOWN}"), at), repr(terminal.seen[at:]))
         fake.refuse = None
-        terminal.type("cmd A.b.GO\r")
-        require(f"{name}: a command whose record has sequence number 0 is answered", terminal.expect(r"CMD   A\.b\.GO \[\] by fgds-repl-\d+: sent", at),
-                repr(terminal.seen[at:]))
-        fake.seq = 7
         terminal.type("quit\r")
         require(f"{name}: quit leaves with exit code 0", terminal.ended() == 0)
         terminal.read()
@@ -105,6 +104,85 @@ def hostile_text():
     require("piped: the same visible text, one record a line",
             f"EVENT ACTIVITY_HI A.b.{SHOWN}: {SHOWN}\n" in printed and f"CHAN  A.b.{SHOWN} = {SHOWN}\n" in printed and printed.count("\n") == 2
             and not obeyed(printed), repr(printed))
+    fake.stop()
+
+
+def start_up_errors():
+    print("an error before the prompt")
+    fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO"))
+    for path in ("/version", "/dictionary"):
+        fake.fail = {path: (500, HOSTILE)}
+        terminal = Terminal([args.fgds, "repl", "--url", fake.url], ENV)
+        code = terminal.ended()
+        terminal.read()
+        require(f"{path} answers 500: the prompt ends with exit code 1 and the message as `{SHOWN}`",
+                code == 1 and f"error: 500 Internal Server Error: {SHOWN}" in terminal.seen and not obeyed(terminal.seen), f"{code} {terminal.seen!r}")
+    piped = subprocess.run([args.fgds, "repl", "--url", fake.url], stdin=subprocess.DEVNULL, capture_output=True, env=ENV, timeout=30)
+    printed = piped.stderr.decode(errors="replace")
+    require("piped: the same", piped.returncode == 1 and f"error: 500 Internal Server Error: {SHOWN}" in printed and not obeyed(printed), repr(printed))
+    fake.stop()
+    terminal = Terminal([args.fgds, "repl", "--url", f"http://127.0.0.1:1/{HOSTILE}".replace("\x00", "")], ENV)  # an argument cannot hold NUL
+    code = terminal.ended()
+    terminal.read()
+    require("no GDS at `--url`: the address is in the error as visible text",
+            code == 1 and "error: no GDS answers at http://127.0.0.1:1/a\\x1b]0;TITLE" in terminal.seen and not obeyed(terminal.seen), f"{code} {terminal.seen!r}")
+
+
+def typed_text():
+    print("what is typed or pasted")
+    history = f"{args.out}/.fgds_history"
+    with open(history, "w") as file:  # as `c381880f` could leave it
+        file.write("#V2\ncmds plain\ncmds \x07\u202e\n")
+    fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO"), first_seq=0)
+    terminal = prompt(fake)
+    at = len(terminal.seen)
+    terminal.type("cmd A.b.GO\r")
+    answered = terminal.expect(r"CMD   A\.b\.GO \[\] by fgds-repl-\d+: sent", at)
+    require("a command whose record has sequence number 0 is answered", answered and [r["seq"] for r in fake.records] == ["0"],
+            f"{fake.records} {terminal.seen[at:]!r}")
+    at = len(terminal.seen)
+    # Pasted: U+202E, a C1 control and marks without width between letters; then a quoted insert of BEL.
+    terminal.type("cmd A.b.GO x\u202e\u009b\u200b\ufeffZ")
+    terminal.type(b"\x16\x07\x11\x07")
+    terminal.type("\r")
+    sent = terminal.expect(r"CMD   A\.b\.GO \[\"xZ\"\] by fgds-repl-\d+: sent", at)
+    require("characters that would not be shown as they are do not enter the line: the argument sent is what the row shows",
+            sent and fake.posts[-1] == ("/commands", {"name": "A.b.GO", "args": ["xZ"]}) and "cmd A.b.GO xZ" in terminal.rows()[-5:-1].__str__(),
+            f"{fake.posts} {terminal.seen[at:]!r}")
+    at = len(terminal.seen)
+    terminal.type(b"cmds \x9b")  # one byte that is not UTF-8
+    dropped = terminal.expect("line dropped: ", at)
+    terminal.type("cmds GO\r")
+    require("a byte that is not text drops the line, and the prompt goes on", dropped and terminal.expect(r"A\.b\.GO \(0x", at), repr(terminal.seen[at:]))
+    at = len(terminal.seen)
+    terminal.type("\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A")
+    time.sleep(0.5)
+    terminal.type("\x15quit\r")
+    require("quit leaves with exit code 0", terminal.ended() == 0)
+    terminal.read()
+    require("the lines of the history were recalled, the one with controls was not", "cmds plain" in terminal.seen[at:], repr(terminal.seen[at:]))
+    require("nothing reached the terminal as a control", not obeyed(terminal.seen), f"{obeyed(terminal.seen)} {terminal.seen!r}")
+    kept = open(history).read()
+    require("and the history holds the line as sent", "cmd A.b.GO xZ\n" in kept and not obeyed(kept.replace("\x07\u202e", "", 1)), repr(kept))
+    fake.stop()
+
+
+def stream_refused():
+    print("a GDS that answers and has no stream")
+    fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO"))
+    fake.no_stream = True
+    terminal = Terminal([args.fgds, "repl", "--url", fake.url], ENV)
+    lost = terminal.expect(LOST)
+    time.sleep(8.0)
+    terminal.read()
+    require("one line says so, and eight seconds add none", lost and terminal.seen.count(LOST) == 1 and "404" in terminal.seen, terminal.seen)
+    at = len(terminal.seen)
+    terminal.type("cmd A.b.GO\r")
+    require("a command still goes through", terminal.expect(r"CMD   A\.b\.GO \[\] by fgds-repl-\d+: sent", at), terminal.seen[at:])
+    fake.no_stream = False
+    require("the stream is there again: one line", terminal.expect(BACK, at, 40.0) and terminal.seen.count(BACK) == 1, terminal.seen[at:])
+    terminal.type("quit\r")
+    require("quit leaves with exit code 0", terminal.ended() == 0)
     fake.stop()
 
 
@@ -139,7 +217,7 @@ def judge_and_restart():
         require("eight seconds without a GDS add no line", len(notes) == 1, f"{notes}")
 
         at = len(terminal.seen)
-        fake = fake_gds.Fake(port, fake_gds.dictionary("A.b.GO", "Other.x.NEW"), version="two")
+        fake = fake_gds.Fake(port, fake_gds.dictionary("A.b.GO", "Other.x.NEW"))  # the same version string
         back = terminal.expect(BACK, at, 40.0)
         require("the GDS starts again: one line says so", back and terminal.seen[at:].count(BACK) == 1 and LOST not in terminal.seen[at:], terminal.seen[at:])
         require("and one that it has another dictionary", terminal.expect(OTHER, at) and terminal.seen[at:].count(OTHER) == 1, terminal.seen[at:])
@@ -167,7 +245,7 @@ def signals():
     print("signals")
     fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO"))
     history = f"{args.out}/.fgds_history"
-    for number in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGINT):
+    for number in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGINT, signal.SIGALRM, signal.SIGUSR1, signal.SIGUSR2):
         if os.path.exists(history):
             os.remove(history)
         terminal = prompt(fake)
@@ -181,6 +259,9 @@ def signals():
         code = terminal.ended()
         require(f"{number.name}: the prompt ends with exit code {128 + number}", code == 128 + number, f"{code}")
         require(f"{number.name}: the terminal is in line mode with echo, as it was", terminal.line_mode())
+        terminal.read()
+        require(f"{number.name}: bracketed paste is not left on", not terminal.seen.rstrip().endswith("\x1b[?2004h") and "\x1b[?2004h" not in terminal.seen,
+                repr(terminal.seen[-80:]))
         kept = os.path.exists(history) and open(history).read()
         require(f"{number.name}: the history has the line entered before", kept and f"cmds {number.name}" in kept, f"{kept!r}")
     fake.stop()
@@ -188,6 +269,9 @@ def signals():
 
 try:
     hostile_text()
+    start_up_errors()
+    typed_text()
+    stream_refused()
     judge_and_restart()
     signals()
 finally:

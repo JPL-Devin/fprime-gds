@@ -13,6 +13,8 @@ Standard library only.
 """
 import argparse
 import os
+import pty
+import select
 import re
 import signal
 import subprocess
@@ -69,6 +71,27 @@ def restored(screen):
     after = termios.tcgetattr(screen.master)
     return bool(screen.modes.get(1049) is False and screen.modes.get(25) is True and after[3] & termios.ICANON and after[3] & termios.ECHO
                 and after[:4] == screen.before[:4])
+
+
+def start_up_error():
+    print("an error before the screen")
+    fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO"))
+    fake.fail = {"/version": (500, HOSTILE)}
+    master, slave = pty.openpty()
+    process = subprocess.Popen([args.fgds, "tui", "--url", fake.url], stdin=slave, stdout=slave, stderr=slave, env=ENV, start_new_session=True)
+    scenario.STARTED.append(process)
+    os.close(slave)
+    code, seen = process.wait(30), b""
+    while select.select([master], [], [], 0.5)[0]:
+        try:
+            seen += os.read(master, 65536)
+        except OSError:
+            break
+    seen = seen.decode(errors="replace")
+    obeyed = [bad for bad in ("\x1b", "\x9b", "\x07", "\u202e", "d\r\ne", "d\r\r\ne") if bad in seen]
+    require(f"/version answers 500: exit code 1, the message as `{SHOWN}`, no control written",
+            code == 1 and f"error: 500 Internal Server Error: {SHOWN}" in seen and not obeyed, f"{code} {obeyed} {seen!r}")
+    fake.stop()
 
 
 def text_and_width():
@@ -158,7 +181,7 @@ def restart():
         time.sleep(8.0)
         screen.read()
         require("eight seconds without a GDS add no line", screen.events().count(LOST) == 1 and BACK not in screen.events(), screen.text())
-        fake = fake_gds.Fake(port, fake_gds.dictionary("A.b.GO", "Other.x.NEW"), version="two")
+        fake = fake_gds.Fake(port, fake_gds.dictionary("A.b.GO", "Other.x.NEW"))  # the same version string
         back = screen.expect(lambda: BACK in screen.events() and OTHER in screen.events(), 40.0)
         require("the GDS starts again with another dictionary: one line for each",
                 back and screen.events().count(BACK) == 1 and screen.events().count(OTHER) == 1 and screen.events().count(LOST) == 1, screen.text())
@@ -181,7 +204,7 @@ def signals_and_sizes():
     print("signals")
     fake = fake_gds.Fake(scenario.free_port(), fake_gds.dictionary("A.b.GO"))
     try:
-        for number in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGINT):
+        for number in (signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGINT, signal.SIGALRM, signal.SIGUSR1, signal.SIGUSR2):
             screen = start(fake)
             screen.type("half a li")
             screen.expect(lambda: screen.command_line() == "fgds> half a li")
@@ -210,6 +233,7 @@ def signals_and_sizes():
 
 
 try:
+    start_up_error()
     text_and_width()
     one_at_a_time()
     restart()

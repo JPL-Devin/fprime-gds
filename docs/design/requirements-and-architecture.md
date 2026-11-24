@@ -636,6 +636,7 @@ Accepted from `deviations.md` after the first slice was built, and revised after
 | Async traits | async-trait |
 | HTTP and WebSocket client (online command line) | reqwest, tokio-tungstenite |
 | Serial port | tokio-serial (only in `comm-uart`) |
+| Interactive prompt and panes (only in the `repl` plugin, not behind a cargo feature) | rustyline, ratatui with crossterm, nix, unicode-width |
 | Embedded static files | rust-embed |
 | Logging | tracing |
 | Errors | thiserror |

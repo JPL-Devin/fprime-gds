@@ -433,7 +433,8 @@ fn screen(session: &Arc<Session>, terminal: &mut ratatui::DefaultTerminal) -> st
             Item::Note(note) => panes(&panes_of_stream).add(show::visible(&note), Tone::Warning),
             Item::Dictionary(read) => panes(&panes_of_stream).add(reload(&follower.dictionary, read), Tone::Warning),
         };
-        runtime.block_on(crate::stream(api, follower.version.clone(), on));
+        let read = crate::loaded(&follower.dictionary).value.clone();
+        runtime.block_on(crate::stream(api, read, on));
     });
 
     let flight = Arc::new(Flight::default());
@@ -520,6 +521,12 @@ impl Subcommand for Tui {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
+        tui(args, env).map_err(crate::shown)
+    }
+}
+
+fn tui(args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
+    {
         if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
             let reason = "fgds tui needs a terminal; `fgds repl` prints the stream without one";
             return Err(Error::Invalid(reason.to_string()));
