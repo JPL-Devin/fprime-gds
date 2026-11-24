@@ -7,3 +7,6 @@ mkdir -p "$OUT"
 
 echo "== repl. the prompt against Ref"
 python3 tests/repl/check.py --fgds "$FGDS" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT"
+
+echo "== repl. the prompt against a stand-in for the GDS: hostile text, restart, signals"
+python3 tests/repl/faults.py --fgds "$FGDS" --out "$OUT/faults"

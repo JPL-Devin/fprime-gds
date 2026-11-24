@@ -1608,11 +1608,13 @@ dependencies = [
  "base64 0.22.1",
  "fgds-core",
  "futures-util",
+ "nix",
  "ratatui",
  "reqwest",
  "rustyline",
  "tokio",
  "tokio-tungstenite",
+ "unicode-width",
 ]
 
 [[package]]

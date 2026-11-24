@@ -5,15 +5,14 @@
   the command record and the events of the command are printed, and the prompt is drawn again under them
   an event that arrives while a line is being typed is printed above that line
   a refused command puts nothing on the link and says why
+  an event of Ref whose text holds escape sequences is printed as visible text
   without a terminal on the standard input, the stream is printed and nothing is read
 
 What the terminal received is kept in `<out>/transcript.txt`. Standard library only.
 """
 import argparse
 import os
-import pty
 import re
-import select
 import signal
 import subprocess
 import sys
@@ -23,6 +22,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "compare"))
 import scenario  # noqa: E402
+from terminal import Terminal  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--fgds", required=True)
@@ -45,63 +45,6 @@ def require(what, condition, detail=""):
     if not condition:
         failures.append(what)
         print(f"    {detail}"[:3000])
-
-
-class Terminal:
-    """A process on a pseudo-terminal, and everything it wrote there."""
-
-    def __init__(self, command):
-        self.master, slave = pty.openpty()
-        self.process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=ENV, start_new_session=True)
-        scenario.STARTED.append(self.process)
-        os.close(slave)
-        self.seen = ""
-
-    def read(self, patience=0.1):
-        if select.select([self.master], [], [], patience)[0]:
-            try:
-                self.seen += os.read(self.master, 65536).decode(errors="replace")
-            except OSError:  # the process closed its side
-                pass
-
-    def type(self, keys):
-        os.write(self.master, keys.encode())
-
-    def expect(self, pattern, start=0, timeout=30.0):
-        """The first match of `pattern` at or after `start`; None after `timeout` seconds."""
-        end = time.monotonic() + timeout
-        while True:
-            if found := re.search(pattern, self.seen[start:]):
-                return start + found.start(), start + found.end()
-            if time.monotonic() > end:
-                return None
-            self.read()
-
-    def rows(self):
-        """The rows of the terminal after everything written: what a person sees, scrolled off rows included.
-
-        Knows what the editor writes: carriage return, line feed, cursor left and right, clear to the
-        end of the row or of the screen. Rows are taken as wide as needed.
-        """
-        rows, row, column = [[]], 0, 0
-        for escape, count, action, char in re.findall(r"(\x1b\[\??([0-9;]*)([A-Za-z]))|([^\x1b])", self.seen):
-            if char == "\r":
-                column = 0
-            elif char == "\n":
-                row += 1
-                if row == len(rows):
-                    rows.append([])
-            elif char and char >= " ":
-                rows[row][column:column + 1] = char
-                column += 1
-            elif action in "CD":
-                column = max(0, column + int(count or 1) * (1 if action == "C" else -1))
-            elif action in "KJ":
-                del rows[row][column:]
-                if action == "J":
-                    del rows[row + 1:]
-            rows[row].extend(" " * (column - len(rows[row])))
-        return ["".join(cells).rstrip() for cells in rows]
 
 
 def packets(proxy, scid):
@@ -131,7 +74,7 @@ def main():
     time.sleep(scenario.SETTLE)  # the events of that command are over before the prompt starts
 
     print("the prompt on a pseudo-terminal")
-    terminal = Terminal([args.fgds, "repl", "--url", url])
+    terminal = Terminal([args.fgds, "repl", "--url", url], ENV)
     try:
         require("the prompt is drawn", terminal.expect(re.escape(PROMPT)), terminal.seen)
         terminal.type("mute channels\r")
@@ -177,9 +120,23 @@ def main():
         terminal.type("cmd Ref.typeDemo.CHOICE PURPLE\r")
         require("a refused value says why", terminal.expect(r"not sent: [^\r\n]*PURPLE", at), terminal.seen[at:])
         terminal.type("cmd Ref.nope.CMD\r")
-        require("an unknown command says so", terminal.expect("not sent: Ref.nope.CMD is not a command", at), terminal.seen[at:])
+        require("an unknown command is refused by the GDS", terminal.expect("not sent: unknown command Ref.nope.CMD", at), terminal.seen[at:])
         time.sleep(scenario.SETTLE)
         require("the refused commands put nothing on the link", len(packets(proxy, scid)) == before)
+
+        # Text from flight with escape sequences: Ref returns the argument of CMD_NO_OP_STRING in an event.
+        at = len(terminal.seen)
+        hostile = "A\x1b]0;TITLE\x07B\x1b[2JC"
+        done = subprocess.run([args.fgds, "command-send", "--url", url, NO_OP + "_STRING", "--arguments", hostile], capture_output=True, text=True, timeout=60)
+        shown = r"A\x1b]0;TITLE\x07B\x1b[2JC"
+        event = terminal.expect(rf"EVENT ACTIVITY_HI CdhCore\.cmdDisp\.NoOpStringReceived: [^\r\n]*{re.escape(shown)}", at)
+        require(f"an event of Ref with ESC ] 0 ; and ESC [ 2J in its text is printed as {shown}", done.returncode == 0 and event,
+                f"{done.stdout} {done.stderr} {terminal.seen[at:]!r}")
+        # The record has its arguments as JSON, which writes ESC as \u001b; the backslash is doubled as any other.
+        record = re.search(rf"CMD   {re.escape(NO_OP)}_STRING [^\r\n]*{re.escape(r'A\\u001b]0;TITLE\\u0007B\\u001b[2JC')}", terminal.seen[at:])
+        require("the record of that command shows them as text too", record, repr(terminal.seen[at:]))
+        obeyed = [bad for bad in ("\x1b]", "\x1b[2J", "\x07") if bad in terminal.seen[at:]]
+        require("and none of its bytes reached the terminal as a control", not obeyed, f"{obeyed} {terminal.seen[at:]!r}")
 
         at = len(terminal.seen)
         terminal.type("cmds NO_OP_S\r")

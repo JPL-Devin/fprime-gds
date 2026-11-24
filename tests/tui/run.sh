@@ -7,3 +7,6 @@ mkdir -p "$OUT"
 
 echo "== tui. the three panes against Ref"
 python3 tests/tui/check.py --fgds "$FGDS" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT"
+
+echo "== tui. the screen against a stand-in for the GDS: hostile text, restart, signals"
+python3 tests/tui/faults.py --fgds "$FGDS" --out "$OUT/faults"

@@ -3,7 +3,7 @@
 //! filters and completion as the prompt; only the screen and the line editor are here.
 
 use crate::complete::Names;
-use crate::{show, url_arg, view, Item, Session, PROMPT};
+use crate::{loaded, reload, show, url_arg, view, Item, Session, PROMPT};
 use fgds_core::clap::{ArgMatches, Command};
 use fgds_core::serde_json::Value;
 use fgds_core::{CliEnv, Error, Result, Subcommand};
@@ -19,6 +19,7 @@ use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 /// Lines kept in the events pane.
 const SCROLLBACK: usize = 5000;
@@ -89,8 +90,8 @@ impl Panes {
         let body = &record["body"];
         let time = show::flight_time(record);
         let time = time.split_once('T').map_or(time.as_str(), |(_, time)| time).chars().take(12).collect();
-        let value = body["display_text"].as_str().unwrap_or("").to_string();
-        self.channels.insert(body["name"].as_str().unwrap_or("?").to_string(), (value, time));
+        let value = show::visible(body["display_text"].as_str().unwrap_or(""));
+        self.channels.insert(show::visible(body["name"].as_str().unwrap_or("?")), (value, time));
     }
 
     /// The `height` rows of the log that end `back` lines before its end, `width` wide, long
@@ -122,34 +123,103 @@ impl Panes {
     fn channel_rows(&self, width: usize, shown: impl Fn(&str) -> bool) -> Vec<String> {
         let rows: Vec<_> = self.channels.iter().filter(|(name, _)| shown(name)).collect();
         let widest = |column: usize| {
-            let of = |(n, (v, t)): &(&String, &(String, String))| [n.as_str(), v, t][column].chars().count();
+            let of = |(n, (v, t)): &(&String, &(String, String))| [n.as_str(), v, t][column].width();
             rows.iter().map(of).max().unwrap_or(0)
         };
         let (name, value, time) = (widest(0), widest(1), widest(2));
         let timed = name + value + time + 2 <= width;
         // A long value (a string, an array) is cut by the pane rather than taking the names.
         let name = name.min(width.saturating_sub(value.min(12) + 1)).max(1);
+        let pad = |text: &str, width: usize| format!("{text}{}", " ".repeat(width.saturating_sub(text.width())));
         let row = |(n, (v, t)): &(&String, &(String, String))| {
-            let cut = n.chars().count().saturating_sub(name);
-            let n: String =
-                if cut > 0 { format!("…{}", n.chars().skip(cut + 1).collect::<String>()) } else { n.to_string() };
-            if timed {
-                format!("{n:<name$} {v:<value$} {t}")
+            let n = if n.width() > name {
+                let (end, _) = columns(n, n.width() + 1 - name, name);
+                format!("…{end}")
             } else {
-                format!("{n:<name$} {v}")
+                n.to_string()
+            };
+            if timed {
+                format!("{} {} {t}", pad(&n, name), pad(v, value))
+            } else {
+                format!("{} {v}", pad(&n, name))
             }
         };
         rows.iter().map(row).collect()
     }
 }
 
-/// `line` cut into rows of `width` characters.
+fn wide(c: char) -> usize {
+    c.width().unwrap_or(0)
+}
+
+/// `line` cut into rows of `width` columns: a wide character (CJK, emoji) takes two.
 fn fold(line: &str, width: usize) -> Vec<String> {
-    let chars: Vec<char> = line.chars().collect();
-    if chars.is_empty() {
-        return vec![String::new()];
+    let (mut rows, mut used) = (vec![String::new()], 0);
+    for c in line.chars() {
+        if used > 0 && used + wide(c) > width {
+            rows.push(String::new());
+            used = 0;
+        }
+        rows.last_mut().expect("never empty").push(c);
+        used += wide(c);
     }
-    chars.chunks(width.max(1)).map(|row| row.iter().collect()).collect()
+    rows
+}
+
+/// What `text` has from the column `skip` on, `width` columns at most, and the columns left
+/// out before it: more than `skip` when a wide character lies across that column.
+fn columns(text: &str, skip: usize, width: usize) -> (String, usize) {
+    let (mut shown, mut skipped, mut used) = (String::new(), 0, 0);
+    for c in text.chars() {
+        if skipped < skip {
+            skipped += wide(c);
+        } else if used + wide(c) <= width {
+            shown.push(c);
+            used += wide(c);
+        } else {
+            break;
+        }
+    }
+    (shown, skipped)
+}
+
+/// The one line the GDS is being asked. A second one is refused: none is kept to be sent later.
+#[derive(Default)]
+struct Flight {
+    asked: Mutex<Option<String>>,
+    left: AtomicBool,
+}
+
+impl Flight {
+    fn asked(&self) -> std::sync::MutexGuard<'_, Option<String>> {
+        self.asked.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// Takes `line` as the one being asked; the line still without its answer otherwise.
+    fn begin(&self, line: &str) -> std::result::Result<(), String> {
+        let mut asked = self.asked();
+        match asked.as_ref() {
+            Some(waiting) => Err(waiting.clone()),
+            None => {
+                *asked = Some(line.to_string());
+                Ok(())
+            }
+        }
+    }
+
+    fn end(&self) {
+        *self.asked() = None;
+    }
+
+    /// The user leaves: nothing is posted from now on. The line still without its answer.
+    fn leave(&self) -> Option<String> {
+        self.left.store(true, Ordering::SeqCst);
+        self.asked().clone()
+    }
+
+    fn may_post(&self) -> bool {
+        !self.left.load(Ordering::SeqCst)
+    }
 }
 
 /// The command line: the text, the cursor, the lines typed before, and what Tab offered.
@@ -230,7 +300,10 @@ impl Editor {
                 self.pos = 0;
             }
             KeyCode::Char('k') if control => self.line.truncate(self.pos),
-            KeyCode::Char(c) if !control && !alt => {
+            // What `show::visible` would not leave as it is has no place on the line; pasted text has some.
+            KeyCode::Char(c)
+                if !control && !alt && (c == '\\' || crate::complete::plain(c.encode_utf8(&mut [0; 4]))) =>
+            {
                 self.line.insert(self.pos, c);
                 self.pos += c.len_utf8();
             }
@@ -283,6 +356,7 @@ fn draw(
     frame: &mut Frame,
     panes: &mut Panes,
     editor: &Editor,
+    waiting: Option<&str>,
     shown: impl Fn(&str) -> bool,
     colour: bool,
 ) -> (usize, usize) {
@@ -308,23 +382,25 @@ fn draw(
 
     // The end of a line longer than the pane is shown, with the cursor in it.
     let (width, _) = inner(bottom);
-    let before = PROMPT.chars().count() + editor.line[..editor.pos].chars().count();
-    let skip = (before + 1).saturating_sub(width);
-    let text: String = format!("{PROMPT}{}", editor.line).chars().skip(skip).take(width).collect();
-    let keys = " Tab completes, PgUp/PgDn events, Alt-Up/Down channels, `help`, `quit` ";
-    frame.render_widget(Paragraph::new(text).block(Block::bordered().title(keys)), bottom);
-    let column = u16::try_from(before - skip).unwrap_or(0);
-    frame.set_cursor_position((bottom.x + 1 + column, bottom.y + 1));
+    let before = PROMPT.width() + editor.line[..editor.pos].width();
+    let (text, skipped) = columns(&format!("{PROMPT}{}", editor.line), (before + 1).saturating_sub(width), width);
+    let title = match waiting {
+        Some(line) => format!(" waiting for the GDS to answer `{line}`; nothing else is sent meanwhile "),
+        None => " Tab completes, PgUp/PgDn events, Alt-Up/Down channels, `help`, `quit` ".to_string(),
+    };
+    frame.render_widget(Paragraph::new(text).block(Block::bordered().title(title)), bottom);
+    let column = u16::try_from(before.saturating_sub(skipped)).unwrap_or(0);
+    frame.set_cursor_position((bottom.x.saturating_add(1).saturating_add(column), bottom.y.saturating_add(1)));
 
     if !editor.offers.is_empty() {
         let mut offers: Vec<String> = editor.offers.iter().take(OFFERS).cloned().collect();
         if editor.offers.len() > OFFERS {
             offers.push(format!("... and {} more", editor.offers.len() - OFFERS));
         }
-        let wide = offers.iter().map(|offer| offer.chars().count()).max().unwrap_or(0) + 2;
+        let wide = offers.iter().map(|offer| offer.width()).max().unwrap_or(0) + 2;
         let wide = u16::try_from(wide).unwrap_or(u16::MAX).min(upper.width);
         let high = u16::try_from(offers.len() + 2).unwrap_or(u16::MAX).min(upper.height);
-        let area = Rect::new(bottom.x, bottom.y - high, wide, high);
+        let area = Rect::new(bottom.x, bottom.y.saturating_sub(high), wide, high);
         frame.render_widget(Clear, area);
         let offers: Vec<Line> = offers.into_iter().map(Line::raw).collect();
         frame.render_widget(Paragraph::new(offers).block(Block::bordered().title(" Tab ")), area);
@@ -336,13 +412,14 @@ fn panes(shared: &Mutex<Panes>) -> std::sync::MutexGuard<'_, Panes> {
     shared.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn screen(session: &Session, terminal: &mut ratatui::DefaultTerminal) -> std::io::Result<()> {
-    let names = Names::of(&session.dictionary);
+/// Draws the screen and reads the keys until the user leaves. Returns the line the GDS had not
+/// answered by then.
+fn screen(session: &Arc<Session>, terminal: &mut ratatui::DefaultTerminal) -> std::io::Result<Option<String>> {
     let colour = std::env::var_os("NO_COLOR").is_none();
     let shared = Arc::new(Mutex::new(Panes::default()));
-    panes(&shared).add(format!("fgds tui on {}", session.api.base()), Tone::Plain);
+    panes(&shared).add(format!("fgds tui on {}", show::visible(session.api.base())), Tone::Plain);
 
-    let (api, view_of_stream, panes_of_stream) = (session.stream_api(), session.shared.clone(), shared.clone());
+    let ((api, follower), panes_of_stream) = (session.follower(), shared.clone());
     std::thread::spawn(move || {
         let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
         let own = api.client().to_string();
@@ -350,49 +427,32 @@ fn screen(session: &Session, terminal: &mut ratatui::DefaultTerminal) -> std::io
             Item::Record(record) if record["kind"] == "fprime.channel" => panes(&panes_of_stream).sample(record),
             Item::Record(record) => {
                 let tone = if record["kind"] == "fprime.event" { Tone::of_event(record) } else { Tone::Plain };
-                let line = view(&view_of_stream).line(record, &own, false);
+                let line = view(&follower.shared).line(record, &own, false);
                 line.into_iter().for_each(|line| panes(&panes_of_stream).add(line, tone));
             }
-            Item::Note(note) => panes(&panes_of_stream).add(note, Tone::Warning),
+            Item::Note(note) => panes(&panes_of_stream).add(show::visible(&note), Tone::Warning),
+            Item::Dictionary(read) => panes(&panes_of_stream).add(reload(&follower.dictionary, read), Tone::Warning),
         };
-        runtime.block_on(crate::stream(api, on));
+        runtime.block_on(crate::stream(api, follower.version.clone(), on));
     });
 
-    // The lines typed are run on a thread of their own: the screen is drawn while the GDS answers.
-    let (typed, lines) = std::sync::mpsc::channel::<String>();
-    let left = AtomicBool::new(false);
-    std::thread::scope(|scope| {
-        scope.spawn(|| {
-            for line in lines {
-                let Some(answer) = session.handle(&line) else { return left.store(true, Ordering::Relaxed) };
-                let mut panes = panes(&shared);
-                for line in answer {
-                    let tone = if line.starts_with("not sent") { Tone::Bad } else { Tone::Plain };
-                    panes.add(line, tone);
-                }
-            }
-        });
-        // Leaving this function drops `typed`, which ends the thread.
-        keys(session, terminal, &shared, &names, colour, typed, &left)
-    })
-}
-
-/// Draws the screen and reads the keys until the user leaves.
-fn keys(
-    session: &Session,
-    terminal: &mut ratatui::DefaultTerminal,
-    shared: &Mutex<Panes>,
-    names: &Names,
-    colour: bool,
-    typed: std::sync::mpsc::Sender<String>,
-    left: &AtomicBool,
-) -> std::io::Result<()> {
+    let flight = Arc::new(Flight::default());
+    let answer = |shared: &Mutex<Panes>, lines: Vec<String>| {
+        let mut panes = panes(shared);
+        for line in lines {
+            let tone =
+                if line.starts_with("not sent") || line.starts_with("no answer") { Tone::Bad } else { Tone::Plain };
+            panes.add(line, tone);
+        }
+    };
     let mut editor = Editor::default();
     let (mut events, mut table) = (1, 1);
-    while !left.load(Ordering::Relaxed) {
+    loop {
+        let waiting = flight.asked().clone();
         terminal.draw(|frame| {
             let filter = &view(&session.shared).filter;
-            (events, table) = draw(frame, &mut panes(shared), &editor, |name| filter.allows(false, name), colour);
+            let shown = |name: &str| filter.allows(false, name);
+            (events, table) = draw(frame, &mut panes(&shared), &editor, waiting.as_deref(), shown, colour);
         })?;
         if !event::poll(Duration::from_millis(100))? {
             continue;
@@ -404,25 +464,48 @@ fn keys(
                 continue;
             }
             let half = |pane: usize| isize::try_from(pane / 2).unwrap_or(1).max(1);
-            match editor.key(key, names) {
-                Asked::Nothing => {}
-                Asked::Quit => return Ok(()),
-                Asked::Events(way) => panes(shared).scroll(way * half(events)),
+            let line = match editor.key(key, &loaded(&session.dictionary).names) {
+                Asked::Nothing => continue,
+                Asked::Quit => return Ok(flight.leave()),
+                Asked::Events(way) => {
+                    panes(&shared).scroll(way * half(events));
+                    continue;
+                }
                 Asked::Channels(way) => {
-                    let mut panes = panes(shared);
+                    let mut panes = panes(&shared);
                     panes.down = panes.down.saturating_add_signed(way * half(table));
+                    continue;
                 }
-                Asked::Run(line) => {
-                    let mut panes = panes(shared);
-                    panes.back = 0;
-                    panes.add(format!("{PROMPT}{line}"), Tone::Typed);
-                    // The thread is there until it has seen `quit`, which ends this loop.
-                    let _ = typed.send(line);
+                Asked::Run(line) => line,
+            };
+            {
+                let mut panes = panes(&shared);
+                panes.back = 0;
+                panes.add(format!("{PROMPT}{}", show::visible(&line)), Tone::Typed);
+            }
+            // What goes to the link is asked on a thread of its own, one line at a time: the
+            // screen is drawn while the GDS answers, and no line waits to be sent later.
+            if !matches!(crate::line::parse(&line), Ok(crate::line::Line::Cmd { .. } | crate::line::Line::RawUplink(_)))
+            {
+                match session.handle(&line) {
+                    Some(lines) => answer(&shared, lines),
+                    None => return Ok(flight.leave()),
                 }
+            } else if let Err(waiting) = flight.begin(&line) {
+                let refusal =
+                    format!("not sent: the GDS has not answered `{waiting}`; type the line again after its answer");
+                answer(&shared, vec![show::visible(&refusal)]);
+            } else {
+                let (session, shared, flight) = (session.clone(), shared.clone(), flight.clone());
+                std::thread::spawn(move || {
+                    if flight.may_post() {
+                        answer(&shared, session.handle(&line).unwrap_or_default());
+                    }
+                    flight.end();
+                });
             }
         }
     }
-    Ok(())
 }
 
 /// `fgds tui`.
@@ -441,12 +524,23 @@ impl Subcommand for Tui {
             let reason = "fgds tui needs a terminal; `fgds repl` prints the stream without one";
             return Err(Error::Invalid(reason.to_string()));
         }
-        let session = Session::open("tui", args, env)?;
+        let session = Arc::new(Session::open("tui", args, env)?);
+        // The lock keeps the thread of the screen from drawing after the terminal is put back.
+        crate::restore_on_signal(|| {
+            let _drawing = std::io::stdout().lock();
+            ratatui::restore();
+        });
         // `init` also puts the terminal back when the program panics.
         let mut terminal = ratatui::try_init().map_err(Error::Io)?;
         let ended = screen(&session, &mut terminal);
         ratatui::restore();
-        ended.map_err(Error::Io)?;
+        // The process ends here without waiting for that answer.
+        if let Some(line) = ended.map_err(Error::Io)? {
+            eprintln!(
+                "fgds tui: left before the GDS answered `{}`: it was posted and may have been sent",
+                show::visible(&line)
+            );
+        }
         Ok(ExitCode::SUCCESS)
     }
 }
@@ -462,6 +556,60 @@ mod tests {
             {"name": "A.disp.CMD_NO_OP_STRING", "formalParams": []},
             {"name": "B.other.CMD_GO", "formalParams": []},
         ]}))
+    }
+
+    #[test]
+    fn a_wide_character_takes_two_columns() {
+        assert_eq!(fold("ab漢字漢字c", 5), ["ab漢", "字漢", "字c"]);
+        assert_eq!(fold("漢", 1), ["漢"]);
+        assert_eq!(fold("", 4), [""]);
+        assert_eq!(columns("fgds> 漢字x", 7, 4), ("字x".to_string(), 8));
+        let mut panes = Panes::default();
+        panes.sample(&json!({"body": {"name": "A.b.漢字", "display_text": "é\u{1b}[2J"}}));
+        panes.sample(&json!({"body": {"name": "A.b.Count", "display_text": "7"}}));
+        let rows = panes.channel_rows(40, |_| true);
+        assert_eq!(rows[0].find('7'), rows[1].find('é').map(|at| at - 2), "{rows:?}");
+        assert!(rows[1].contains("é\\x1b[2J"), "{rows:?}");
+    }
+
+    #[test]
+    fn one_line_is_asked_at_a_time_and_none_after_leaving() {
+        let flight = Flight::default();
+        assert_eq!(flight.begin("cmd A"), Ok(()));
+        assert_eq!(flight.begin("cmd B"), Err("cmd A".to_string()));
+        flight.end();
+        assert_eq!(flight.begin("cmd C"), Ok(()));
+        assert!(flight.may_post());
+        assert_eq!(flight.leave(), Some("cmd C".to_string()));
+        assert!(!flight.may_post());
+    }
+
+    #[test]
+    fn every_size_of_terminal_is_drawn() {
+        let mut panes = Panes::default();
+        panes.add("a line 漢字 longer than a small pane is wide".to_string(), Tone::Plain);
+        panes.sample(&json!({"body": {"name": "A.b.Count", "display_text": "7"}}));
+        let mut editor = Editor::default();
+        typed(&mut editor, "cmd X 漢字漢字🚀é");
+        editor.offers = vec!["A.disp.CMD_NO_OP".to_string(); 12];
+        for (width, height) in [(1, 1), (2, 2), (3, 3), (10, 4), (40, 10), (180, 45)] {
+            let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, height)).unwrap();
+            terminal
+                .draw(|frame| {
+                    let _ = draw(frame, &mut panes, &editor, Some("cmd A"), |_| true, true);
+                })
+                .unwrap();
+        }
+        // The cursor is at the column of the insertion point: wide characters count for two.
+        editor.pos -= "🚀é".len();
+        let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(60, 14)).unwrap();
+        terminal
+            .draw(|frame| {
+                let _ = draw(frame, &mut panes, &editor, None, |_| true, false);
+            })
+            .unwrap();
+        let column = u16::try_from("fgds> cmd X ".len() + 8 + 1).unwrap();
+        terminal.backend_mut().assert_cursor_position((column, 12));
     }
 
     fn typed(editor: &mut Editor, text: &str) {

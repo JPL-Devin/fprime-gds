@@ -14,6 +14,40 @@ fn list<'a>(value: &'a Value, key: &str) -> impl Iterator<Item = &'a Value> {
     value[key].as_array().into_iter().flatten()
 }
 
+/// `text` as a terminal may be given it. Everything `fgds repl` and `fgds tui` print that comes
+/// from flight, from the dictionary or from what the operator typed goes through here, once.
+///
+/// - C0, DEL and C1 are shown: `\x1b`, `\r`, `\n`, `\t`, the others as `\xNN`.
+/// - A backslash is doubled, so what is shown is read back in one way only.
+/// - Line and paragraph separators, the marks and controls of text direction, and the characters
+///   of no width are shown as `\u{XXXX}`. Other valid text is unchanged.
+pub fn visible(text: &str) -> String {
+    let mut shown = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '\\' => shown.push_str("\\\\"),
+            '\r' => shown.push_str("\\r"),
+            '\n' => shown.push_str("\\n"),
+            '\t' => shown.push_str("\\t"),
+            c if c.is_control() => shown.push_str(&format!("\\x{:02x}", u32::from(c))),
+            '\u{2028}'
+            | '\u{2029}'
+            | '\u{061c}'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+            | '\u{2066}'..='\u{2069}'
+            | '\u{200b}'..='\u{200d}'
+            | '\u{2060}'
+            | '\u{feff}' => {
+                shown.push_str(&format!("\\u{{{:04X}}}", u32::from(c)));
+            }
+            c => shown.push(c),
+        }
+    }
+    shown
+}
+
 pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -23,7 +57,7 @@ pub fn flight_time(record: &Value) -> String {
     fgds_core::python_times(field("base"), field("context"), field("seconds"), field("microseconds")).0
 }
 
-/// An event with its severity in colour when `colour` is set.
+/// An event as a terminal may be given it, with its severity in colour when `colour` is set.
 pub fn event(record: &Value, colour: bool) -> String {
     let body = &record["body"];
     let severity = text(body, "severity");
@@ -34,10 +68,13 @@ pub fn event(record: &Value, colour: bool) -> String {
         "ACTIVITY_HI" => "36",
         _ => "0",
     };
-    let shown = if colour { format!("\x1b[{code}m{severity}\x1b[0m") } else { severity.to_string() };
-    format!("{} EVENT {shown} {}: {}", flight_time(record), text(body, "name"), text(body, "display_text"))
+    let severity = visible(severity);
+    let shown = if colour { format!("\x1b[{code}m{severity}\x1b[0m") } else { severity };
+    let rest = visible(&format!("{}: {}", text(body, "name"), text(body, "display_text")));
+    format!("{} EVENT {shown} {rest}", flight_time(record))
 }
 
+/// Not yet `visible`, as `command` and the lists below: `View::line` and `Session::handle` see to it.
 pub fn channel(record: &Value) -> String {
     let body = &record["body"];
     format!("{} CHAN  {} = {}", flight_time(record), text(body, "name"), text(body, "display_text"))
@@ -164,6 +201,32 @@ without * or ? is looked for anywhere in the name. Quote an argument that holds 
 mod tests {
     use super::*;
     use fgds_core::serde_json::json;
+
+    #[test]
+    fn what_a_terminal_would_obey_is_shown_not_written() {
+        assert_eq!(
+            visible("hi\u{1b}]0;T\u{7}\u{1b}[2J\r\n\t\u{7f}\u{9b}"),
+            "hi\\x1b]0;T\\x07\\x1b[2J\\r\\n\\t\\x7f\\x9b"
+        );
+        assert_eq!(visible("a\\x1b é漢🚀"), "a\\\\x1b é漢🚀");
+        let hidden =
+            "\u{2028}\u{2029}\u{061c}\u{200e}\u{200f}\u{202a}\u{202e}\u{2066}\u{2069}\u{200b}\u{200d}\u{2060}\u{feff}";
+        assert_eq!(
+            visible(hidden),
+            "\\u{2028}\\u{2029}\\u{061C}\\u{200E}\\u{200F}\\u{202A}\\u{202E}\\u{2066}\\u{2069}\\u{200B}\\u{200D}\\u{2060}\\u{FEFF}"
+        );
+        let record =
+            json!({"body": {"severity": "ACTIVITY_HI", "name": "A.b\u{1b}[2J", "display_text": "x\u{1b}]0;T\u{7}\\"}});
+        assert!(
+            event(&record, false).ends_with("EVENT ACTIVITY_HI A.b\\x1b[2J: x\\x1b]0;T\\x07\\\\"),
+            "{}",
+            event(&record, false)
+        );
+        // With colour, the only escape sequences are those of the severity.
+        let coloured = event(&record, true);
+        assert_eq!(coloured.matches('\u{1b}').count(), 2, "{coloured:?}");
+        assert!(coloured.contains("\u{1b}[36mACTIVITY_HI\u{1b}[0m A.b\\x1b[2J"), "{coloured:?}");
+    }
 
     fn dictionary() -> Value {
         json!({

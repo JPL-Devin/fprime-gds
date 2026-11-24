@@ -160,6 +160,15 @@ Things fgds has and the Python GDS does not.
 | Capabilities of `fprime-gds` that `fgds run` lacks (round 9, compared by capability, not by option name) | `--communication-selection udp-fast` (one frame per datagram towards another ground system), the UDP socket the `ip` adapter opens beside its TCP one (read only, same address and port); `--communication-selection none`; framing stages chosen one by one (`--framing-selection no-op`, `tm-frame-aggregator`, `space-packet-splitter`, `raw-space-data-link`, `raw-space-packet`, ...) and `--output-unframed-data`; starting the flight application (`--app`, `--application-arguments`; `-n` not to); opening the browser (`--skip-browser-open` not to); `--uart-skip-port-check`; `--no-reuse-address` | Adapters `tcp-server` (default), `tcp-client`, `uart`, `udp`; framing profiles `ccsds` and `fprime`; never starts the flight application and never opens a browser, so `-n` and `--skip-browser-open` are what it always does (moot); the listener always sets address reuse; a missing UART device is reported when the link opens and tried again | Not built: UDP (about half a day, with the bridge above), single framing stages and the dump of unframed data (the profiles cover `Ref`; about one day). Built in round 9: see "Sequence compiler and parameter tools", "`fgds run` against `fprime-gds`" below | `--help` of both; `tests/cli/check.py` section 7 for what is built |
 
 
+Review of `fgds repl` and `fgds tui` at `49ec3785` (13 findings), what is left as it is:
+
+- **Section 5 and a cargo feature for `fgds tui` (finding 10).** The count is corrected under "Dependencies outside section 5"; the decision is open, see there.
+- **The retry of `tests/files` on a time-out without an abort of `Ref` (finding 11).** Kept: the time-out of the `down.bin` downlink and of the `after.bin` uplink were both seen without the abort line, and the retry was asked for on the states seen. The Python half now always prints the attempt it ended at (`Python GDS half ended at attempt 1 of 3`), so a second attempt is not read as a first-time pass.
+- **Terminals other than xterm** are not tested. Screens below 3 rows or 20 columns are drawn without a panic (unit test and `tests/tui/faults.py`) and are of no use.
+- **A typed line of `fgds repl` longer than the terminal is wide** still leaves its first rows on the screen when an event is printed above it ([repl.md](../repl.md#limits)).
+- **SIGKILL and SIGSTOP** cannot be handled: the terminal is left as it was at that moment (`reset` puts it back).
+- **Names of the dictionary that hold a character the escaping rule changes** are listed escaped and are not offered by Tab completion, so that completion never puts in the line a text that is not the name.
+
 Not differences of `fgds`, but seen in the checks and handled there:
 
 - **`Ref` prints events it does not send (C26).** Any `Ref/test/int` test can fail now and then for this reason, with either GDS: the test waits for an event that `Ref` printed in its log and did not write to the socket. Seen with `test_seqgen_complex_args` (fgds side: `Ref` printed four events, `Ref.typeDemo.ChoicePairEv`, `ChoicesEv`, `ChoiceSlurryEv`, a completion, flight times `1795298759:173448` to `:173476`, whose bytes are not in `raw.log`) and with `test_signal_generation` (Python side, 1 of 6 runs of the command-line verifier). `tests/cli/ref_int.py` runs a failed test once more, alone, only in that case.
@@ -195,8 +204,13 @@ Not differences of `fgds`, but seen in the checks and handled there:
 |---|---|---|
 | `tracing-subscriber` | `fgds` | `tracing` alone prints nothing; this writes the log |
 | `rustyline` | `repl` only | Line editing, history and Tab completion of `fgds repl` |
-| `ratatui` (with its `crossterm` backend) | `repl` only | The panes and the keys of `fgds tui`; 54 packages more in `Cargo.lock`, none in the other crates |
+| `ratatui` (with its `crossterm` backend) | `repl` only | The panes and the keys of `fgds tui` |
+| `nix` (feature `term`) | `repl` only | Reads and puts back the terminal modes when `fgds repl` ends on a signal; already in `Cargo.lock` through `rustyline` |
+| `unicode-width` | `repl` only | The number of columns of a character, for folding and for the cursor; already in `Cargo.lock` through `rustyline` and `ratatui` |
 | `futures-util` | `fgds-shell` tests only | Reading a WebSocket in tests with `tokio-tungstenite` |
+
+The four crates of `repl` take `Cargo.lock` from 209 to 292 packages, 83 more, of which 26 are `windows*` and `winapi*` targets; none is used by another crate, but `repl` is in the stock plugin list, so the stock binary carries them.
+Section 5 is not changed for them and `fgds tui` is not behind a cargo feature: whether `rustyline` and `ratatui` are accepted (MNT-5) is a decision on the design, left to the integration, and is open.
 
 `reqwest` and `tokio-tungstenite` are in section 5; here they are development dependencies of `fgds-shell` only.
 `serde_json` uses its `preserve_order` feature so arguments keep their declaration order.

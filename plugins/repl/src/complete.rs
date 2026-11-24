@@ -30,6 +30,7 @@ fn choices<'a>(dictionary: &'a Value, mut ty: &'a Value) -> Vec<String> {
             Some("enum") => {
                 return list(definition, "enumeratedConstants")
                     .filter_map(|c| c["name"].as_str())
+                    .filter(|name| plain(name))
                     .map(str::to_string)
                     .collect()
             }
@@ -39,18 +40,28 @@ fn choices<'a>(dictionary: &'a Value, mut ty: &'a Value) -> Vec<String> {
     Vec::new()
 }
 
+/// A name a terminal may be given as it is.
+pub fn plain(name: &str) -> bool {
+    crate::show::visible(name) == name
+}
+
 impl Names {
+    /// A name that is not `plain` is left out: Tab would put it on the line being typed.
     pub fn of(dictionary: &Value) -> Names {
         let names = |key: &str| {
-            let mut names: Vec<String> =
-                list(dictionary, key).filter_map(|d| d["name"].as_str()).map(str::to_string).collect();
+            let mut names: Vec<String> = list(dictionary, key)
+                .filter_map(|d| d["name"].as_str())
+                .filter(|n| plain(n))
+                .map(str::to_string)
+                .collect();
             names.sort();
             names
         };
         let mut commands: Vec<(String, Vec<Vec<String>>)> = list(dictionary, "commands")
             .filter_map(|c| {
                 let parameters = list(c, "formalParams").map(|p| choices(dictionary, &p["type"])).collect();
-                Some((c["name"].as_str()?.to_string(), parameters))
+                let name = c["name"].as_str().filter(|name| plain(name))?;
+                Some((name.to_string(), parameters))
             })
             .collect();
         commands.sort();
