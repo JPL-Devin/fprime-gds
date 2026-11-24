@@ -46,6 +46,10 @@ impl Subcommand for Files {
             )
     }
 
+    fn honours(&self) -> &'static [&'static str] {
+        &["bind"]
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let base = base(args, env)?;
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
@@ -86,16 +90,38 @@ impl Subcommand for FileUplink {
             .arg(Arg::new("file").value_name("file-path").required(true).help("Path to the local file to uplink"))
             .arg(Arg::new("destination").help("Destination path on the spacecraft"))
             .args(wait_args())
+            .arg(
+                Arg::new("file-uplink-chunk-size")
+                    .long("file-uplink-chunk-size")
+                    .value_name("BYTES")
+                    .value_parser(fgds_core::clap::value_parser!(u16).range(1..))
+                    .help("Bytes of file data per packet of this uplink [default: the one of the running GDS]"),
+            )
+            .arg(
+                Arg::new("file-uplink-cooldown")
+                    .long("file-uplink-cooldown")
+                    .value_name("SECONDS")
+                    .value_parser(fgds_core::clap::value_parser!(f64))
+                    .help("Seconds between two packets of this uplink [default: the one of the running GDS]"),
+            )
             .after_help(gds_options::READ_AS_FPRIME_CLI)
             .args(gds_options::args())
     }
 
     fn argparse(&self) -> Option<Parser> {
         let mut options = gds_options::options();
+        // The two options of the table that are about this subcommand: given to the running GDS with the file.
+        for option in options.iter_mut().filter(|o| o.strings[0].starts_with("--file-uplink-")) {
+            option.emit = Some(option.strings[0][2..].to_string());
+        }
         options.push(Opt::new(&["-t", "--timeout"], Nargs::One, Kind::Float));
         options.push(Opt::new(&["--no-wait"], Nargs::Flag, Kind::Str));
         options.push(Opt::new(&["--url"], Nargs::One, Kind::Str).exact());
         Some(Parser { options, positionals: vec![(Nargs::One, "file-path"), (Nargs::Optional, "destination")] })
+    }
+
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary", "logs", "bind"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
@@ -178,6 +204,16 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let destination = args.get_one::<String>("destination");
     if let Some(destination) = destination {
         url += &format!("&destination={}", encode(destination));
+    }
+    if let Some(chunk) = args.try_get_one::<u16>("file-uplink-chunk-size").ok().flatten() {
+        url += &format!("&chunk={chunk}");
+    }
+    if let Some(cooldown) = args.try_get_one::<f64>("file-uplink-cooldown").ok().flatten() {
+        if !(cooldown.is_finite() && *cooldown >= 0.0) {
+            println!("Error starting file uplink: --file-uplink-cooldown: a number of seconds, not negative");
+            return Ok(ExitCode::FAILURE);
+        }
+        url += &format!("&cooldown={cooldown}");
     }
     let response = http.post(url).body(content).send().await.map_err(failed)?;
     let ok = response.status().is_success();

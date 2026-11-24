@@ -164,6 +164,10 @@ pub(crate) struct Transfer {
     /// Uplink only: the data packets to send, numbered from 1 (`Select Packets` of the Python GDS page);
     /// every packet of the file when absent.
     pub packets: Option<Vec<u64>>,
+    /// Uplink only: bytes of file data per packet and time between two packets of this file, when the
+    /// request gave them (`--file-uplink-chunk-size`, `--file-uplink-cooldown`); the options of the plugin otherwise.
+    pub chunk: Option<usize>,
+    pub cooldown: Option<Duration>,
 }
 
 impl Transfer {

@@ -241,6 +241,10 @@ impl Subcommand for SeqgenCommand {
     }
 
     /// Messages go to the standard output, as with `fprime-seqgen`.
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary"]
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let input = PathBuf::from(args.get_one::<String>("sequence").expect("required"));
         let timebase = match args.get_one::<String>("timebase") {

@@ -314,6 +314,10 @@ impl Subcommand for WriteCommand {
             .subcommand(format("seq", "Write a command sequence that sets the parameters").arg(save))
     }
 
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary"]
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let (format, args) = args.subcommand().expect("a format is required");
         let input = PathBuf::from(args.get_one::<String>("json_file").expect("required"));
@@ -353,6 +357,10 @@ impl Subcommand for DecodeCommand {
             )
             .arg(output_arg())
             .arg(dictionary_arg())
+    }
+
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {

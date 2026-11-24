@@ -29,6 +29,8 @@
 ## Round 9, local batch (not pushed)
 - Built: `send-raw`; `file-uplink`, `seqgen`, `prm-decode`, `prm-write` on the option table of `command-send` (`-d` included); `merge-dictionary`; Charts zoom, pan, `Reset Zoom`, `Lock Scale`, collapse; `--no-page`; the `comm-uart` plugin (`--comm uart`). `--comm tcp-client` and `--bind` were there and are now checked.
 - Listed in `docs/design/deviations.md`, group 5: `fprime-comm-bridge` (no bridge program in the tree; about one and a half days), UDP adapters, single framing stages, `--output-unframed-data`. Group 1: Python `send-raw --no-zmq` cannot work (cause in the row).
+- No option is accepted and ignored (F3): a subcommand names the options of `fgds run` it honours (`Subcommand::honours`), the others are refused with exit 2 and left out of its help. A new subcommand or option needs a line in `EFFECT` of `tests/cli/check.py` (`effects`), which tries every long option on every subcommand and fails for one that is neither refused nor shown to change the outcome.
+- `file-uplink --file-uplink-chunk-size`, `--file-uplink-cooldown`: per file, through `chunk` and `cooldown` of `POST /files/uplink`.
 - The three full passes of `scripts/check.sh` are to be run once the round-9 findings are in.
 
 ## Known gaps

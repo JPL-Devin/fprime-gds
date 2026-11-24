@@ -190,14 +190,16 @@ impl UplinkHandler {
         };
         self.send(ctx, &mut seq, start).await?;
         let (mut checksum, mut offset, mut percent) = (Checksum::default(), 0u64, 0);
-        let mut chunk = vec![0; self.options.chunk];
+        let size = transfer.chunk.unwrap_or(self.options.chunk);
+        let cooldown = transfer.cooldown.unwrap_or(self.options.cooldown);
+        let mut chunk = vec![0; size];
         // With a list of packets (`Select Packets`), as `TransmitFile.read` of the Python GDS: packet `n` is the
         // chunk at `(n - 1) * chunk size`; the file ends after the last of the list, or at the first one that
         // lies beyond the end of the file.
         let mut listed = transfer.packets.as_ref().map(|list| list.iter());
         let mut sent = 0u64;
         loop {
-            tokio::time::sleep(self.options.cooldown).await;
+            tokio::time::sleep(cooldown).await;
             let (cancel, paused) = {
                 let state = self.shared.state();
                 (state.uplinks.iter().any(|t| t.id == transfer.id && t.cancel), state.paused)
@@ -219,7 +221,7 @@ impl UplinkHandler {
             let length = match listed.as_mut().map(Iterator::next) {
                 Some(None) => 0,
                 Some(Some(number)) => {
-                    offset = (number - 1).saturating_mul(self.options.chunk as u64);
+                    offset = (number - 1).saturating_mul(size as u64);
                     file.seek(std::io::SeekFrom::Start(offset)).map_err(|e| Stop::Failed(e.to_string()))?;
                     read_chunk(&mut file, &mut chunk).map_err(|e| Stop::Failed(e.to_string()))?
                 }

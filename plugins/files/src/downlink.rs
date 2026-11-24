@@ -110,6 +110,8 @@ impl DownlinkHandler {
             started: Transfer::now(),
             ended: None,
             packets: None,
+            chunk: None,
+            cooldown: None,
         };
         let directory = self.options.downlink_dir();
         let created =

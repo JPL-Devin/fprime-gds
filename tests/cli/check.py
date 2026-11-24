@@ -13,6 +13,8 @@ import glob
 import argparse
 import difflib
 import json
+import hashlib
+import shutil
 import os
 import re
 import signal
@@ -436,6 +438,7 @@ UPLINK_SENT = [  # both uplink the file: the same packets on the link
     [], ["-t", "30"], ["--hash-file", "{out}/small.bin"], ["--file-storage-directory", "{out}/files"], ["-l", "{out}/logs"],
     ["--log-prefix", "p"], ["--packet-set-name", "RefPackets"], ["--dictionary", "{dictionary}"], ["--dictionary", "{dictionary}", "-d", "/nonexistent"],
     ["--log-level-gds", "DEBUG", "--no-clear-history", "--disable-data-logging", "--file-uplink-cooldown", "0.5"], ["--time", "30"],
+    ["--file-uplink-chunk-size", "100"], ["--file-uplink-chunk-size", "100", "--file-uplink-cooldown", "1"],
 ]
 UPLINK_REFUSED = [  # both refuse, nothing sent
     *BAD.values(), ["--dictionary", "{out}/small.bin"], ["-l"], ["--log-level-gds", "x"], ["--tts-port", "x"], ["--arguments"], ["--l", "x"],
@@ -463,6 +466,10 @@ def compare_uplinks(lines, python, rust):
             require(f"{what}: both end with exit code 0 and put the same {len(expected['packets'])} packets on the link",
                     expected["exit"] == got["exit"] == 0 and len(got["packets"]) >= 3 and starts == [True, True]
                     and got["packets"][1:] == expected["packets"][1:], f"{expected} {got}")
+            if "--file-uplink-chunk-size" in tokens:
+                sizes = [len(packet) // 2 for packet in got["packets"]]
+                require(f"{what}: the 200 bytes go in two data packets of 100 bytes ({sizes} bytes a packet), as with fprime-cli",
+                        len(sizes) == 4 and sizes[1] == sizes[2] and [len(p) for p in got["packets"][1:]] == [len(p) for p in expected["packets"][1:]], sizes)
         else:
             require(f"{what}: both refuse (fprime-cli exit code {expected['exit']}, fgds {got['exit']}), nothing sent",
                     expected["exit"] != 0 and got["exit"] != 0 and (expected["exit"] == 2) == (got["exit"] == 2)
@@ -894,8 +901,197 @@ def capabilities(out):
     require("fgds run --comm uart --comm-uart-baud 12345: refused when it starts", done[0] != 0 and "is not one of" in done[2], done)
 
 
+# Round 9, F3: no option is accepted and ignored. For every subcommand that is not `run` or `check`, every long
+# option any subcommand or the fprime-cli table has is tried: it is refused as unknown, refused as an option
+# of `fgds run`, or it has a line below: two command lines that differ by this option alone and whose outcomes
+# (exit code, standard output, files written, command packets on the link, more than 2.5 s taken) must differ.
+# NO_EFFECT are the options of fprime-cli about facilities fgds does not have (deviations.md): accepted, as
+# fprime-cli accepts them; those with a value are in VALUE_CHECKED and must refuse a bad one.
+ONLINE = ["events", "channels", "commands", "command-send", "send-raw", "file-uplink", "files upload", "files queue", "files pause",
+          "files resume", "files cancel", "files list", "files download"]
+OFFLINE = ["seqgen", "prm-write dat", "prm-write seq", "prm-decode", "merge-dictionary", "dp decode", "dp validate"]
+TABLE = ["events", "channels", "command-send", "send-raw", "file-uplink"]
+NO_EFFECT = ["--no-zmq", "--log-to-stdout", "--disable-data-logging", "--no-clear-history"]
+VALUE_CHECKED = {"--zmq-transport": (["a", "b"], ["a"]), "--tts-port": (["1"], ["x"]), "--tts-addr": (["a"], []),
+                 "--log-level-gds": (["DEBUG"], ["x"]), "--file-uplink-cooldown": (["1"], ["x"]), "--file-uplink-chunk-size": (["1"], ["x"])}
+NAMED = {  # the options of the fprime-cli table that name something: there, not there
+    "--dictionary": (["{D}"], ["/nonexistent/x"]), "--logs": (["{out}/logs"], ["/etc"]), "--hash-file": (["{out}/s.bin"], ["/nonexistent/x"]),
+    "--file-storage-directory": (["{out}/files"], ["/proc/x/y"]), "--log-prefix": (["p"], ["/nonexistent/p"]),
+    "--packet-spec": ([], ["--packet-spec", "/nonexistent/x"]), "--packet-set-name": (["RefPackets"], ["x"]),
+    "--deployment": ([], ["--deployment", "/nonexistent/x"]), "--log-directly": (["-l", "{out}/logs"], ["-l", "", "--log-directly"]),
+}
+LISTING = {"--ids": (["--ids", "1"], []), "--components": (["-c", "nothing"], []), "--search": (["-s", "NO_OP"], []), "--json": (["--json"], [])}
+FOLLOWED = {**{name: (["--list"] + a, ["--list"] + b) for name, (a, b) in LISTING.items()}, "--list": (["--list"], ["--no-follow", "--history"]),
+            "--history": (["--no-follow", "--history"], ["--no-follow"]), "--no-follow": (["--no-follow"], ["-t", "4"]),
+            "--timeout": (["-t", "1"], ["-t", "4"])}
+SEQ, PRM, DAT, FDP = "{out}/a.seq", "{out}/p.json", "{out}/x.dat", "{fixtures}/dp/test_dp_data/DpDemoUncompressed.fdp"
+MERGE = ["{out}/one.json", "{out}/two.json", "--output", "o.json"]
+EFFECT = {
+    "events": FOLLOWED, "channels": FOLLOWED, "commands": LISTING,
+    "command-send": {**{name: ([NO_OP, "--list"] + a, [NO_OP, "--list"] + b) for name, (a, b) in LISTING.items()},
+                     "--list": ([NO_OP, "--list"], [NO_OP]), "--dry-run": ([NO_OP, "--dry-run"], [NO_OP]),
+                     "--arguments": ([NO_OP + "_STRING", "--arguments", "a"], [NO_OP + "_STRING", "--arguments", "abc"])},
+    "send-raw": {"--hex-string": (["--hex-string", "{P}"], []), "--bin-path": (["--bin-path", "{out}/p.bin"], []),
+                 "--verbose": (["--hex-string", "{P}", "--verbose"], ["--hex-string", "{P}"])},
+    "file-uplink": {"--timeout": (["{out}/s.bin", "a", "-t", "0"], ["{out}/s.bin", "a"]), "--no-wait": (["{out}/s.bin", "a", "--no-wait"], ["{out}/s.bin", "a"]),
+                    "--file-uplink-chunk-size": (["{out}/s.bin", "a", "--file-uplink-chunk-size", "100"], ["{out}/s.bin", "a"]),
+                    "--file-uplink-cooldown": (["{out}/s.bin", "a", "--file-uplink-cooldown", "1.5"], ["{out}/s.bin", "a"])},
+    "files upload": {"--destination": (["{out}/s.bin", "-d", "/tmp/fgds-effects-y"], ["{out}/s.bin"]), "--timeout": (["{out}/s.bin", "-t", "0"], ["{out}/s.bin"]),
+                     "--no-wait": (["{out}/s.bin", "--no-wait"], ["{out}/s.bin"])},
+    "files queue": {}, "files pause": {}, "files resume": {}, "files cancel": {}, "files list": {},
+    "files download": {"--output": (["h.txt", "-o", "one"], ["h.txt", "-o", "other"])},
+    "seqgen": {"--dictionary": ([SEQ, "o.bin", "--dictionary", "{D}"], [SEQ, "o.bin", "--dictionary", "/nonexistent/x"]),
+               "--deployment": ([SEQ, "o.bin", "-d", "{deployment}"], [SEQ, "o.bin", "-d", "/nonexistent/x"]),
+               "--packet-spec": ([SEQ, "o.bin", "--dictionary", "{D}"], [SEQ, "o.bin", "--dictionary", "{D}", "--packet-spec", "/nonexistent/x"]),
+               "--packet-set-name": ([SEQ, "o.bin", "--dictionary", "{D}"], [SEQ, "o.bin", "--dictionary", "{D}", "--packet-set-name", "x"]),
+               "--timebase": ([SEQ, "o.bin", "--dictionary", "{D}", "-t", "2"], [SEQ, "o.bin", "--dictionary", "{D}"]),
+               "--all-errors": (["{out}/bad.seq", "o.bin", "--dictionary", "{D}", "--all-errors"], ["{out}/bad.seq", "o.bin", "--dictionary", "{D}"])},
+    "prm-decode": {"--dictionary": ([DAT, "-o", "o", "--dictionary", "{D}"], [DAT, "-o", "o", "--dictionary", "/nonexistent/x"]),
+                   "--format": ([DAT, "-o", "o", "-d", "{D}", "-f", "csv"], [DAT, "-o", "o", "-d", "{D}"]),
+                   "--output": ([DAT, "-o", "o", "-d", "{D}"], [DAT, "-o", "other", "-d", "{D}"])},
+    "merge-dictionary": {"--output": (MERGE, MERGE[:2] + ["--output", "other.json"]), "--name": (MERGE + ["--name", "n"], MERGE),
+                         "--prefix": (MERGE + ["--prefix", "a", "b"], MERGE), "--permissive": (MERGE[:1] + ["{out}/version.json"] + MERGE[2:] + ["--permissive"], MERGE[:1] + ["{out}/version.json"] + MERGE[2:]),
+                         "--prefer-primary": (MERGE[:1] + ["{out}/changed.json"] + MERGE[2:] + ["--permissive", "--prefer-primary"],
+                                              MERGE[:1] + ["{out}/changed.json"] + MERGE[2:] + ["--permissive"]),
+                         "--no-namespace": (MERGE[:1] + ["{out}/ids.json"] + MERGE[2:] + ["--no-namespace"], MERGE[:1] + ["{out}/ids.json"] + MERGE[2:]),
+                         "--namespace-all": (MERGE[:1] + ["{out}/ids.json"] + MERGE[2:] + ["--namespace-all"], MERGE[:1] + ["{out}/ids.json"] + MERGE[2:])},
+    "dp decode": {"--bin-file": (["-b", FDP, "-d", "{dp}", "-o", "o.json"], ["-d", "{dp}", "-o", "o.json"]),
+                  "--bin-dir": (["-B", "{out}/dp", "-d", "{dp}"], ["-d", "{dp}"]),
+                  "--dictionary": (["-b", FDP, "-d", "{dp}", "-o", "o.json"], ["-b", FDP, "-d", "/nonexistent/x", "-o", "o.json"]),
+                  "--output": (["-b", FDP, "-d", "{dp}", "-o", "o.json"], ["-b", FDP, "-d", "{dp}", "-o", "other.json"]),
+                  "--rename-id": (["-B", "{out}/dp", "-d", "{dp}", "-r"], ["-B", "{out}/dp", "-d", "{dp}"]),
+                  "--disable-decompression": (["-b", FDP.replace("Unc", "C"), "-d", "{dp}", "-o", "o.json", "-z"], ["-b", FDP.replace("Unc", "C"), "-d", "{dp}", "-o", "o.json"]),
+                  "--data-products-max-bytes": (["-b", FDP, "-d", "{dp}", "-o", "o.json", "--data-products-max-bytes", "8"], ["-b", FDP, "-d", "{dp}", "-o", "o.json"])},
+    "dp validate": {"--bin-file": (["-b", FDP, "-d", "{dp}"], ["-d", "{dp}"]), "--dictionary": (["-b", FDP, "-d", "{dp}"], ["-b", FDP, "-d", "/nonexistent/x"]),
+                    "--header-size": (["-b", FDP, "-s", "3"], ["-b", FDP, "-s", "40"]), "--guess-size": (["-b", FDP, "-g"], ["-b", FDP, "-s", "3"]),
+                    "--verbose": (["-b", FDP, "-d", "{dp}", "-v"], ["-b", FDP, "-d", "{dp}"])},
+}
+for kind in ("dat", "seq"):
+    EFFECT[f"prm-write {kind}"] = {
+        "--dictionary": ([PRM, "-o", "o", "--dictionary", "{D}"], [PRM, "-o", "o", "--dictionary", "/nonexistent/x"]),
+        "--defaults": ([PRM, "-o", "o", "-d", "{D}", "--defaults"], [PRM, "-o", "o", "-d", "{D}"]),
+        "--output": ([PRM, "-o", "o", "-d", "{D}"], [PRM, "-o", "other", "-d", "{D}"])}
+EFFECT["prm-write seq"]["--save"] = ([PRM, "-o", "o", "-d", "{D}", "--save"], [PRM, "-o", "o", "-d", "{D}"])
+BASE = {"files cancel": ["nothing"], "files download": ["h.txt"], "events": ["--list"], "channels": ["--list"], "command-send": [NO_OP, "--list"], "send-raw": ["--hex-string", "{P}"], "file-uplink": ["{out}/s.bin", "a"]}
+for name in TABLE:
+    for option, (there, absent) in NAMED.items():
+        EFFECT[name].setdefault(option, (BASE[name] + ([option] if there and not there[0].startswith("-") else []) + there,
+                                         BASE[name] + ([option] if absent and not absent[0].startswith("-") else []) + absent))
+    for option, (good, bad) in VALUE_CHECKED.items():
+        EFFECT[name].setdefault(option, (BASE[name] + [option] + good, BASE[name] + [option] + bad))
+
+
+def effects(out):
+    os.makedirs(f"{out}/work", exist_ok=True)
+    fixtures = os.path.join(os.path.dirname(os.path.dirname(HERE)), "fixtures")
+    for name, text in (("a.seq", "R00:00:00 CdhCore.cmdDisp.CMD_NO_OP\n"), ("bad.seq", "R00:00:00 No.such\nR00:00:01 Nor.this\n"),
+                       ("p.json", '{"Ref.typeDemo": {"CHOICE_PRM": "TWO"}}')):
+        open(f"{out}/{name}", "w").write(text)
+    open(f"{out}/s.bin", "wb").write(bytes(range(250)))
+    run([args.fgds, "prm-write", "dat", f"{out}/p.json", "-d", args.dictionary, "-o", f"{out}/x.dat"])
+    data = json.load(open(args.dictionary))
+    for name, change in (("one", lambda d: d), ("two", lambda d: d["metadata"].update(deploymentName="Two")),
+                         ("changed", lambda d: d["commands"][0].update(annotation="changed")),
+                         ("version", lambda d: d["metadata"].update(deploymentName="Two", frameworkVersion="other")),
+                         ("ids", lambda d: (d["metadata"].update(deploymentName="Two"), d["commands"][0].update(opcode=d["commands"][0]["opcode"] + 99999)))):
+        copy = json.loads(json.dumps(data))
+        change(copy)
+        json.dump(copy, open(f"{out}/{name}.json", "w"))
+    os.makedirs(f"{out}/dp", exist_ok=True)
+    for name in ("DpDemoCompressed.fdp", "DpDemoUncompressed.fdp"):
+        shutil.copy(f"{fixtures}/dp/test_dp_data/{name}", f"{out}/dp/{name}")
+    fgds = Fgds(f"{out}/gds", more=["--files-cooldown", "0"])
+    ref, scid = None, scenario.spacecraft_id(args.dictionary)
+    try:
+        proxy = scenario.Proxy(fgds.link_port)
+        ref = scenario.start_ref(args.ref, proxy, f"{out}/gds")
+        assert json_lines(run(fgds.cli("channels", "-t", "30", "--json"))[1]), "no telemetry within 30 s"
+        packet = run(fgds.cli("command-send", NO_OP, "--dry-run"))[1].strip()
+        open(f"{out}/p.bin", "wb").write(bytes.fromhex(packet))
+        open(f"{out}/gds/h-source.txt", "w").write("downlinked\n")
+        run(fgds.cli("command-send", "FileHandling.fileDownlink.SendFile", "--arguments", "h-source.txt", "h.txt"))
+        time.sleep(3)
+        places = {"out": out, "D": args.dictionary, "P": packet, "fixtures": fixtures, "dp": f"{fixtures}/dp/test_dp_data/dictionary_ref.json",
+                  "deployment": os.path.dirname(os.path.dirname(args.dictionary))}
+        bind = fgds.url.split("//")[1]
+        for at, key in enumerate(("bind", "dictionary")):
+            for good in (True, False):
+                value = ([bind, "127.0.0.1:1"] if at == 0 else [args.dictionary, "/nonexistent/x"])[not good]
+                open(f"{out}/{key}-{good}.toml", "w").write(f'{key} = "{value}"\n')
+
+        def outcome(subcommand, tokens, online):
+            for name in os.listdir(f"{out}/work"):
+                os.remove(f"{out}/work/{name}")
+            before, started = len(scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)), time.time()
+            url = [] if not online or "--bind" in tokens or "--config" in tokens else ["--url", fgds.url]
+            code, output, error = run([args.fgds, *subcommand.split(), *url, *(t.format(**places) for t in tokens)], cwd=f"{out}/work")
+            slow = time.time() - started > 2.5
+            time.sleep(0 if not online else 1.5 if "upl" in subcommand else 0.3)
+            packets = [len(p) for p in scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)[before:]]
+            files = {name: hashlib.sha256(open(f"{out}/work/{name}", "rb").read()).hexdigest() for name in sorted(os.listdir(f"{out}/work"))}
+            return {"exit": code, "stdout": output, "stderr": error, "files": files, "packets": packets, "slow": slow}
+
+        for cooldown in ("0", "1"):
+            before, started = len(scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)), time.time()
+            code = run(fgds.cli("file-uplink", f"{out}/s.bin", f"cooldown-{cooldown}", "--file-uplink-chunk-size", "50", "--file-uplink-cooldown", cooldown))[0]
+            taken, sent = time.time() - started, len(scenario.uplink_packets(bytes(proxy.uplink), args.framing, scid)) - before
+            require(f"file-uplink --file-uplink-chunk-size 50 --file-uplink-cooldown {cooldown}: 250 bytes in 5 data packets (7 packets), "
+                    f"{'at least 5 s' if cooldown == '1' else 'less than 2 s'} ({taken:.1f} s)",
+                    code == 0 and sent == 7 and (taken >= 5 if cooldown == "1" else taken < 2), (code, sent, taken))
+        helps = {s: set(re.findall(r"^\s+(?:-\w, )?(--[a-z-]+)", run([args.fgds, *s.split(), "--help"])[1], re.M)) for s in ONLINE + OFFLINE + ["run"]}
+        universe = sorted(set().union(*helps.values()) | set(LONG)) 
+        counts = {"unknown": 0, "of fgds run": 0, "effect": 0, "listed": 0}
+        for subcommand in ONLINE + OFFLINE:
+            online, table = subcommand in ONLINE, EFFECT[subcommand]
+            base = BASE.get(subcommand, next(iter(table.values()))[0] if table else [])
+            for option in universe:
+                if option in ("--help", "--arguments") and option not in table:
+                    continue  # the help text; `--arguments` of command-send takes what follows it
+                what = f"fgds {subcommand} {option}"
+                if option == "--url" and online or option == "--bind" and online or option == "--config":
+                    key = "dictionary" if not online else "bind"
+                    rest = [t for t in base if t not in ("--dictionary", "-d", "{D}")] if not online else base
+                    pair = {"--url": (base, base + ["--url", "http://127.0.0.1:1"]), "--bind": (base + ["--bind", bind], base + ["--bind", "127.0.0.1:1"]),
+                            "--config": (rest + ["--config", f"{out}/{key}-True.toml"], rest + ["--config", f"{out}/{key}-False.toml"])}[option]
+                    if option == "--config" and subcommand in ("merge-dictionary", "dp decode", "dp validate"):
+                        pair = (base, base + ["--config", "/nonexistent/x"])  # the file is read: one that is not there is refused
+                elif option in table:
+                    pair = table[option]
+                elif option in NO_EFFECT and subcommand in TABLE:
+                    result = run([args.fgds, *subcommand.split(), "--url", fgds.url, *(t.format(**places) for t in base), option])
+                    require(f"{what}: accepted as fprime-cli accepts it, an option of a facility fgds does not have (deviations.md)", result[0] == 0, result)
+                    counts["listed"] += 1
+                    continue
+                else:
+                    line = [args.fgds, *subcommand.split(), *(["--url", fgds.url] if online else []), *(t.format(**places) for t in base), option]
+                    code, _, error = run(line, cwd=f"{out}/work")
+                    if "a value is required" in error or "expected one argument" in error:
+                        code, _, error = run(line + ["x"], cwd=f"{out}/work")
+                    known = f"--{option[2:]} is an option of" in error
+                    unknown = any(text in error for text in (f"unexpected argument '{option}'", "unrecognized arguments: " + option))
+                    counts["of fgds run" if known else "unknown"] += 1
+                    if not (code == 2 and (known or unknown)):
+                        require(f"{what}: refused, or has a line in EFFECT", False, f"{code} {error}")
+                    continue
+                first, second = (outcome(subcommand, tokens, online) for tokens in pair)
+                counts["effect"] += 1
+                if first == second:
+                    require(f"{what}: `{' '.join(pair[0])}` and `{' '.join(pair[1])}` differ in what they do", False, first)
+        require(f"no option accepted and ignored: {len(ONLINE + OFFLINE)} subcommands x {len(universe)} options; {counts['effect']} change what the "
+                f"subcommand does (two command lines compared), {counts['of fgds run']} are refused as options of `fgds run`, {counts['unknown']} as "
+                f"unknown, {counts['listed']} are options of fprime-cli without an effect in fgds", all(counts.values()), counts)
+    finally:
+        if ref:
+            scenario.stop(ref)
+        scenario.stop(fgds.process)
+
+
 def main():
     os.makedirs(args.out, exist_ok=True)
+    print("every option of every subcommand: an effect, or refused")
+    effects(f"{args.out}/effects")
+    if os.environ.get("CLI_CHECK_ONLY") == "effects":
+        return
     print("fgds run: TCP server, TCP client, serial device, without the page")
     capabilities(f"{args.out}/capabilities")
     print("offline tools with the dictionary options")

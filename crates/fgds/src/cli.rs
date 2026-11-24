@@ -48,6 +48,12 @@ pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
         }
     };
     let (name, sub) = matches.subcommand().expect("a subcommand is required");
+    if let Some(subcommand) = registry.subcommands.iter().find(|s| s.command().get_name() == name) {
+        if let Some(option) = not_honoured(&registry, &matches, subcommand.honours()) {
+            eprintln!("fgds: error: --{option} is an option of `fgds run`; `fgds {name}` cannot honour it");
+            return Ok(ExitCode::from(2));
+        }
+    }
     let mut config = config(&matches, &registry)?;
     let replay = if name == "run" { sub.get_one::<String>("replay") } else { None };
     if let Some(database) = replay {
@@ -120,6 +126,30 @@ fn as_argparse(registry: &Registry, args: Vec<OsString>) -> std::result::Result<
     Ok(out)
 }
 
+/// The names of the options of the core and of the plugins, `config` apart: what configures `fgds run`.
+fn run_options(registry: &Registry) -> Vec<String> {
+    let mut names: Vec<String> =
+        ["read-only", "no-page"].iter().chain(OPTIONS.iter().map(|(name, _)| name)).map(|n| n.to_string()).collect();
+    for manifest in &registry.manifests {
+        names.extend(manifest.options.iter().map(|spec| option_name(manifest.name, spec.name)));
+    }
+    names
+}
+
+/// The first option of `fgds run` given on the command line that the subcommand does not honour.
+fn not_honoured(registry: &Registry, matches: &ArgMatches, honoured: &[&str]) -> Option<String> {
+    use clap::parser::ValueSource;
+    let mut levels = vec![matches];
+    while let Some((_, sub)) = levels.last().and_then(|m| m.subcommand()) {
+        levels.push(sub);
+    }
+    run_options(registry).into_iter().filter(|name| !honoured.contains(&name.as_str())).find(|name| {
+        levels.iter().any(|m| {
+            matches!(m.try_contains_id(name), Ok(true)) && m.value_source(name) == Some(ValueSource::CommandLine)
+        })
+    })
+}
+
 fn command(registry: &Registry) -> Command {
     let global = |name: &str, help: String| Arg::new(name.to_string()).long(name.to_string()).help(help).global(true);
     let mut command = Command::new("fgds")
@@ -153,10 +183,31 @@ fn command(registry: &Registry) -> Command {
             command = command.arg(global(&option_name(manifest.name, spec.name), help));
         }
     }
+    let run_options = run_options(registry);
     for subcommand in &registry.subcommands {
-        command = command.subcommand(subcommand.command());
+        let refused: Vec<&String> =
+            run_options.iter().filter(|n| !subcommand.honours().contains(&n.as_str())).collect();
+        command = command.subcommand(without(subcommand.command(), &refused));
     }
     command
+}
+
+/// The subcommand with the options of `fgds run` it does not honour left out of its help, at every level.
+/// They are still read, to be refused by name (`not_honoured`).
+fn without(command: Command, refused: &[&String]) -> Command {
+    let own: Vec<String> = command.get_arguments().map(|a| a.get_id().to_string()).collect();
+    let flags = ["read-only", "no-page"];
+    let hidden = refused.iter().filter(|name| !own.contains(name)).map(|name| {
+        let arg = Arg::new(name.to_string()).long(name.to_string()).hide(true);
+        if flags.contains(&name.as_str()) {
+            arg.action(ArgAction::SetTrue)
+        } else {
+            arg
+        }
+    });
+    let command = command.args(hidden.collect::<Vec<_>>());
+    let nested: Vec<String> = command.get_subcommands().map(|c| c.get_name().to_string()).collect();
+    nested.iter().fold(command, |command, name| command.mut_subcommand(name, |c| without(c, refused)))
 }
 
 /// The configuration file, then the command-line options over it.

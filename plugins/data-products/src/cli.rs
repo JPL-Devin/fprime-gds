@@ -61,11 +61,22 @@ impl Subcommand for DpCommand {
             .subcommand(validate)
     }
 
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary", "data-products-max-bytes"]
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let max_bytes = env.config.plugin(PLUGIN).get(OPTION_MAX_BYTES).and_then(|v| v.parse().ok());
         let outcome = match args.subcommand() {
             Some(("decode", args)) => run_decode(args, max_bytes.unwrap_or(DEFAULT_MAX_BYTES)),
-            Some(("validate", args)) => run_validate(args),
+            Some(("validate", args)) => {
+                let given = args.value_source("data-products-max-bytes");
+                if given == Some(fgds_core::clap::parser::ValueSource::CommandLine) {
+                    eprintln!("fgds: error: --data-products-max-bytes is an option of `fgds dp decode`; `fgds dp validate` cannot honour it");
+                    return Ok(ExitCode::from(2));
+                }
+                run_validate(args)
+            }
             _ => unreachable!("clap requires a subcommand"),
         };
         Ok(match outcome {

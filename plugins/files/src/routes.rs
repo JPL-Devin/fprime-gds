@@ -2,6 +2,8 @@
 
 use crate::{base_name, path_inside, publish, Shared, State, Transfer, KIND_UPLINK};
 use fgds_core::axum::body::Body;
+use std::time::Duration;
+
 use fgds_core::axum::extract::{Path, Query, State as Ctx};
 use fgds_core::axum::http::{header, StatusCode};
 use fgds_core::axum::response::{IntoResponse, Response};
@@ -73,6 +75,10 @@ struct Upload {
     source: Option<String>,
     /// Data packets to send, numbered from 1 and separated by commas; every packet when absent or empty.
     packets: Option<String>,
+    /// Bytes of file data per packet, for this file; the `chunk-size` of the plugin when absent.
+    chunk: Option<usize>,
+    /// Seconds between two packets of this file; the `cooldown` of the plugin when absent.
+    cooldown: Option<f64>,
 }
 
 /// The request body is the content of the file.
@@ -111,6 +117,14 @@ async fn upload(
             _ => return Err(invalid("Specify packet numbers as comma-separated list".into())),
         }
     }
+    if upload.chunk.is_some_and(|chunk| chunk == 0 || chunk > usize::from(u16::MAX)) {
+        return Err(invalid("chunk: between 1 and 65535".into()));
+    }
+    let cooldown = match upload.cooldown.map(Duration::try_from_secs_f64) {
+        Some(Err(_)) => return Err(invalid("cooldown: a number of seconds, not negative".into())),
+        Some(Ok(cooldown)) => Some(cooldown),
+        None => None,
+    };
     packets.sort_unstable();
     packets.dedup();
     let mut transfer = Transfer {
@@ -127,6 +141,8 @@ async fn upload(
         started: None,
         ended: None,
         packets: (!packets.is_empty()).then_some(packets),
+        chunk: upload.chunk,
+        cooldown,
     };
     {
         // Reserved under the lock: two uploads of one name cannot share the staged copy.

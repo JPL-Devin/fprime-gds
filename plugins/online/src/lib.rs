@@ -207,6 +207,10 @@ impl Subcommand for Records {
         Some(Parser { options: records_options(), positionals: Vec::new() })
     }
 
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary", "logs", "bind"]
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let listing = args.get_flag("list");
         let given = match gds_options::hold(args, env, listing) {
@@ -306,6 +310,10 @@ impl Subcommand for Commands {
             .args(filter_args())
     }
 
+    fn honours(&self) -> &'static [&'static str] {
+        &["bind"]
+    }
+
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let api = api(args, env)?;
         runtime()?.block_on(async {
@@ -351,6 +359,10 @@ impl Subcommand for CommandSend {
 
     fn argparse(&self) -> Option<Parser> {
         Some(Parser { options: command_send_options(), positionals: vec![(Nargs::Optional, "command-name")] })
+    }
+
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary", "logs", "bind"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
@@ -460,6 +472,10 @@ impl Subcommand for SendRaw {
 
     fn argparse(&self) -> Option<Parser> {
         Some(Parser { options: send_raw_options(), positionals: Vec::new() })
+    }
+
+    fn honours(&self) -> &'static [&'static str] {
+        &["dictionary", "logs", "bind"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
