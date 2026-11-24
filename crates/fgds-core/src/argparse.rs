@@ -36,8 +36,9 @@ pub struct Opt {
     pub strings: Vec<String>,
     pub nargs: Nargs,
     pub kind: Kind,
-    /// Whether a prefix of the long option stands for it: so for the options of `fprime-cli`, not for
-    /// those `fgds` adds, which leaves every command line of `fprime-cli` read as `fprime-cli` reads it.
+    /// Whether the option is one of `fprime-cli`. A shortened text is matched with these first and with
+    /// the options `fgds` adds only when it names none of them, which leaves every command line of
+    /// `fprime-cli` read as `fprime-cli` reads it.
     pub abbreviated: bool,
     /// The long option the values are given back with; `None` for an option without a meaning here.
     pub emit: Option<String>,
@@ -64,7 +65,7 @@ impl Opt {
         self
     }
 
-    /// An option `fprime-cli` does not have: it is written in full.
+    /// An option `fprime-cli` does not have: shortened only by a text that names no option of `fprime-cli`.
     pub fn exact(mut self) -> Opt {
         self.abbreviated = false;
         self
@@ -208,6 +209,17 @@ impl Parser {
         }
         if !found.is_empty() {
             return Some(found);
+        }
+        // A text that is no option of `fprime-cli` may shorten an option `fgds` adds.
+        if double {
+            for (index, option) in self.options.iter().enumerate() {
+                for string in option.strings.iter().filter(|s| !option.abbreviated && s.starts_with(before)) {
+                    found.push((Some(index), string.clone(), after.is_some(), after.clone()));
+                }
+            }
+            if !found.is_empty() {
+                return Some(found);
+            }
         }
         if Self::negative_number(token) || token.contains(' ') {
             return None;

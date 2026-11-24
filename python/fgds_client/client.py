@@ -83,11 +83,12 @@ class Client:
     def upload(self, path, destination=None, wait=60):
         """Queue a file for uplink (files plugin); the queue entry is returned.
 
-        The start packet carries `path` as its source path, as with the Python GDS. A file of the same
+        The start packet carries the name of the file in the uplink directory of the GDS as its source
+        path, as with the Python GDS; the directory of `path` is not sent. A file of the same
         name still in the queue is waited for (`wait` seconds): the Python GDS queues it behind.
         """
         path = str(path)
-        query = {"name": os.path.basename(path), "source": path}
+        query = {"name": os.path.basename(path)}
         if destination is not None:
             query["destination"] = str(destination)
         with open(path, "rb") as file:

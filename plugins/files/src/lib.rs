@@ -121,6 +121,25 @@ pub fn base_name(name: &str) -> Result<&str, String> {
     Ok(base)
 }
 
+/// The name of an uploaded file: what follows the last `/` of the name given. A `\\` is a character of
+/// the name, as on the machines the GDS runs on. The name is used on the spacecraft only (the copy on the
+/// GDS host is named by the transfer), so a control character is refused where it is sent, by
+/// `flight_path` of the destination, not here. Refused: empty, `.`, `..`, a NUL.
+pub fn upload_name(name: &str) -> Result<&str, String> {
+    let base = name.rsplit('/').next().unwrap_or_default();
+    if matches!(base, "" | "." | "..") || base.contains('\0') {
+        return Err(format!("\"{}\" is not a usable file name", name.escape_default()));
+    }
+    Ok(base)
+}
+
+/// A source path as `str(pathlib.Path(text))` writes it, which is what the Python GDS sends: no empty
+/// part, no `.` part.
+pub fn source_path(text: &str) -> String {
+    let parts: Vec<&str> = text.split('/').filter(|part| !part.is_empty() && *part != ".").collect();
+    format!("{}{}", if text.starts_with('/') { "/" } else { "" }, parts.join("/"))
+}
+
 /// A path sent to the flight software in a start packet (`what` is `destination` or `source`), as the
 /// operator gave it: nothing is renamed or cut. Refused: an empty path, one longer than the 255 bytes the
 /// one length byte of the packet can state (`Fw/FilePacket/FilePacket.hpp`), a control character (NUL
@@ -423,6 +442,20 @@ impl Plugin for FilesPlugin {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_upload_name_is_what_follows_the_last_slash() {
+        for (name, base) in
+            [("a.bin", "a.bin"), ("/x/y/a.bin", "a.bin"), ("s_a\\b.txt", "s_a\\b.txt"), ("a\nb", "a\nb")]
+        {
+            assert_eq!(super::upload_name(name), Ok(base));
+        }
+        for name in ["", ".", "..", "a/", "a/..", "a\0b"] {
+            assert!(super::upload_name(name).is_err(), "{name:?}");
+        }
+        assert_eq!(super::source_path("/tmp//u/./fprime-uplink/a.bin"), "/tmp/u/fprime-uplink/a.bin");
+        assert_eq!(super::source_path("files/fprime-uplink/a.bin"), "files/fprime-uplink/a.bin");
+    }
+
     #[test]
     fn a_name_is_one_path_component_inside_the_directory() {
         let directory = std::path::Path::new("/store/uplink");

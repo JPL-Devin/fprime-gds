@@ -200,11 +200,22 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let seconds = args.get_one::<f64>("timeout").copied().unwrap_or(60.0);
     let deadline = tokio::time::Instant::now() + Duration::try_from_secs_f64(seconds).unwrap_or(Duration::ZERO);
 
-    // The source path of the start packet is the path given here, as `fprime-cli file-uplink` sends it.
-    let mut url = format!("{base}/uplink?name={}&source={}", encode(&name), encode(&file.to_string_lossy()));
+    // Only the name goes to the GDS: the source path of the start packet is that name in its uplink directory.
+    let mut url = format!("{base}/uplink?name={}", encode(&name));
     let destination = args.get_one::<String>("destination");
     if let Some(destination) = destination {
         url += &format!("&destination={}", encode(destination));
+    }
+    // `file-uplink` names the file storage directory as `fprime-cli` does, `/tmp/<user>` without the option;
+    // `files upload` has no such option and the GDS names its own uplink directory.
+    if let Ok(store) = args.try_get_one::<String>("file-storage-directory") {
+        let store = store.cloned().unwrap_or_else(|| {
+            let user = ["LOGNAME", "USER", "LNAME", "USERNAME"]
+                .iter()
+                .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()));
+            format!("/tmp/{}", user.unwrap_or_default())
+        });
+        url += &format!("&store={}", encode(&store));
     }
     if let Some(chunk) = args.try_get_one::<u16>("file-uplink-chunk-size").ok().flatten() {
         url += &format!("&chunk={chunk}");

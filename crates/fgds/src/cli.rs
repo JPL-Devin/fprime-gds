@@ -199,6 +199,10 @@ fn command(registry: &Registry) -> Command {
         .version(fgds_core::VERSION)
         .subcommand_required(true)
         .arg_required_else_help(true)
+        // As argparse, for every subcommand: a long option may be shortened while it names one option
+        // only, and of an option given twice the last value counts.
+        .infer_long_args(true)
+        .args_override_self(true)
         .arg(global("config", "Configuration file [default: fgds.toml when present]".into()))
         .arg(
             global("read-only", "Open the database without writing to it; the link is not started".into())

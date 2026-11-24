@@ -63,16 +63,17 @@ async fn queue(Ctx(ctx): Ctx<Context>, Extension(shared): Files) -> Json<Value> 
 
 #[derive(Deserialize)]
 struct Upload {
-    /// Name of the file; reduced to its base name (FIL-3).
+    /// Name of the file: what follows the last `/` (`upload_name`).
     name: String,
     /// Path on the spacecraft, passed unchanged.
     destination: Option<String>,
     /// Without a destination: the directory on the spacecraft the base name is joined to, `/` when absent
     /// (`uplink_destination`).
     directory: Option<String>,
-    /// Source path written in the start packet; the path of the staged copy when absent. A script
-    /// gives the path of its own file, as the uplinker of the Python GDS sends it.
-    source: Option<String>,
+    /// The file storage directory an operator named for this uplink (`--file-storage-directory` of
+    /// `file-uplink`): the source path of the start packet is then `<store>/fprime-uplink/<name>`, as
+    /// `fprime-cli` sends it. Nothing is written there.
+    store: Option<String>,
     /// Data packets to send, numbered from 1 and separated by commas; every packet when absent or empty.
     packets: Option<String>,
     /// Bytes of file data per packet, for this file; the `chunk-size` of the plugin when absent.
@@ -92,12 +93,24 @@ async fn upload(
     let invalid = |message: String| error(StatusCode::UNPROCESSABLE_ENTITY, "invalid", message);
     // The operator's name is the name on the spacecraft only: the copy on this machine is named by the
     // identifier of the transfer, so that no text of the request reaches the file system of the GDS host.
-    let name = base_name(&upload.name).map_err(invalid)?.to_string();
+    let name = crate::upload_name(&upload.name).map_err(invalid)?.to_string();
     let directory = options.uplink_dir();
     let destination = crate::uplink_destination(upload.destination.as_deref(), upload.directory.as_deref(), &name);
     crate::flight_path("destination", &destination).map_err(invalid)?;
-    let source = upload.source.filter(|s| !s.is_empty()).unwrap_or_else(|| name.clone());
-    crate::flight_path("source", &source).map_err(invalid)?;
+    // The source path of the start packet, as the Python GDS sends it: the name in the uplink directory
+    // of the GDS (or of `store`), whatever directory of the operator's machine the file was read from.
+    let source = match &upload.store {
+        Some(store) => crate::source_path(&format!("{store}/fprime-uplink/{name}")),
+        None => crate::source_path(&format!("{}/{name}", directory.display())),
+    };
+    if source.len() > 255 {
+        let message = format!(
+            "the source path \"{}\" is {} bytes long in UTF-8; the file packet carries at most 255",
+            fgds_core::visible(&source),
+            source.len()
+        );
+        return Err(invalid(message));
+    }
     let too_large = || {
         let message = format!("the file is larger than {} bytes", options.max_upload);
         error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", message)

@@ -12,6 +12,7 @@ import copy
 import glob
 import argparse
 import difflib
+import getpass
 import json
 import hashlib
 import shutil
@@ -139,6 +140,12 @@ class PythonGds:
 # 1. Definitions: neither command line needs a link for these; fprime-cli reads the
 # dictionary file, fgds asks the running GDS.
 
+def broken(text):
+    """Text of fgds with the line breaks of a description put back: fgds prints a line break inside a text
+    as `\\n` (deviations.md, control bytes), fprime-cli prints the line break itself."""
+    return re.sub(r"(?<!\\)((?:\\\\)*)\\n", lambda found: found.group(1) + "\n", text)
+
+
 def definitions(fgds):
     """The output of both command lines is the same text, byte for byte, in the text and the JSON form."""
     print("definitions: the --list of both command lines")
@@ -153,7 +160,7 @@ def definitions(fgds):
                 also, rust, _ = run(fgds.cli(subcommand, "--list", *form, *chosen))
                 assert python or chosen != filters[0], f"fprime-cli {subcommand} --list printed nothing"
                 check(f"{subcommand} --list {' '.join(form + chosen)}: exit code and the {len(python.splitlines())} lines printed",
-                      [code, *python.splitlines()], [also, *rust.splitlines()])
+                      [code, *python.splitlines()], [also, *(rust if form else broken(rust)).splitlines()])
         for wrong in ("abc", "0x1000007"):
             code, _, python = run([PYTHON_CLI, subcommand, "--list", *dictionary, "-i", wrong])
             also, _, rust = run(fgds.cli(subcommand, "--list", "-i", wrong))
@@ -446,30 +453,67 @@ UPLINK_REFUSED = [  # both refuse, nothing sent
 
 
 def uplinks(out):
-    """The command lines of file-uplink, the file they send made."""
+    """The command lines of file-uplink, the files they send made.
+
+    The source path of a start packet is the name of the file in `fprime-uplink` of the file storage
+    directory, whatever the directory the file is read from. Every line but the first names one storage
+    directory for both tools (the last `--file-storage-directory` of a line counts), so that whole packets
+    are compared; the first has what each tool has without the option.
+    """
     os.makedirs(f"{out}/ro", exist_ok=True)
     os.chmod(f"{out}/ro", 0o555)
     open(f"{out}/small.bin", "wb").write(bytes(range(200)))
+    store = ["--file-storage-directory", f"{out}/store"]
     lines = [["file-uplink", f"{out}/small.bin", f"cli-uplink-{at}.bin"] + [t.format(out=out, dictionary=args.dictionary) for t in tokens]
+             + (store if 0 < at < len(UPLINK_SENT) and "--file-storage-directory" not in tokens else [])
              for at, tokens in enumerate(UPLINK_SENT + UPLINK_REFUSED)]
-    return lines + [["file-uplink"], ["file-uplink", f"{out}/absent.bin"]]
+    # Round 10, G2 and G3: a path of 300 bytes and a name with a line break, each with a destination; a name
+    # with a `\\` and no destination, which goes to `/s_a\\b.txt`.
+    deep = f"{out}/" + "/".join(["d" * 50] * 6)
+    os.makedirs(deep, exist_ok=True)
+    named = [[f"{deep}/long.bin", "g2-long.bin"], [f"{out}/g2\nline.txt", "g2-line.txt"], [f"{out}/s_a\\b.txt"]]
+    for tokens in named:
+        shutil.copy(f"{out}/small.bin", tokens[0])
+    assert len(deep.encode()) > 300
+    return lines + [["file-uplink"], ["file-uplink", f"{out}/absent.bin"]] + [["file-uplink", *tokens, *store] for tokens in named]
 
 
-def compare_uplinks(lines, python, rust):
+def start_paths(packet):
+    """Source and destination path of a start packet."""
+    raw = bytes.fromhex(packet)
+    assert raw[2] == 0, packet
+    source = raw[12:12 + raw[11]]
+    return source.decode(), raw[13 + len(source):13 + len(source) + raw[12 + len(source)]].decode()
+
+
+def compare_uplinks(lines, python, rust, python_out):
     json.dump([lines, python, rust], open(f"{args.out}/uplinks.json", "w"), indent=1)
+    refused = range(len(UPLINK_SENT), len(UPLINK_SENT) + len(UPLINK_REFUSED) + 2)
     for at, (tokens, expected, got) in enumerate(zip(lines, python, rust)):
-        what = " ".join(tokens)
-        if at < len(UPLINK_SENT):
-            # The start packet names the copy each GDS keeps of the file: compared from the destination on.
-            destination = tokens[2].encode().hex()
-            starts = [packets[0].endswith(destination) for packets in (expected["packets"], got["packets"]) if packets]
-            require(f"{what}: both end with exit code 0 and put the same {len(expected['packets'])} packets on the link",
-                    expected["exit"] == got["exit"] == 0 and len(got["packets"]) >= 3 and starts == [True, True]
-                    and got["packets"][1:] == expected["packets"][1:], f"{expected} {got}")
+        what = " ".join(tokens).replace("\n", "\\n")
+        if at == 0:
+            # Without the option: `/tmp/<user>/fprime-uplink/<name>` (the Python command line of this check
+            # always has the option, with a directory of its own).
+            paths = [start_paths(packets[0]) for packets in (expected["packets"], got["packets"]) if packets]
+            wanted = [(f"{python_out}/files/fprime-uplink/small.bin", tokens[2]), (f"/tmp/{getpass.getuser()}/fprime-uplink/small.bin", tokens[2])]
+            require(f"{what}: both end with exit code 0; the start packet of fgds has the source path {wanted[1][0]}, the other packets are equal",
+                    expected["exit"] == got["exit"] == 0 and len(got["packets"]) >= 3 and paths == wanted
+                    and got["packets"][1:] == expected["packets"][1:], f"{paths} {expected} {got}")
+        elif at not in refused:
+            name = os.path.basename(tokens[1])
+            source = next(tokens[i + 1] for i in reversed(range(len(tokens))) if tokens[i] == "--file-storage-directory") + f"/fprime-uplink/{name}"
+            paths = start_paths(got["packets"][0]) if got["packets"] else None
+            wanted = (source, tokens[2] if len(tokens) > 2 and not tokens[2].startswith("-") else f"/{name}")
+            # Ref may not write in `/`: both tools then send the packets and end with 1 on its FileOpenError.
+            code = 0 if len(tokens) > 2 and not tokens[2].startswith("-") else 1
+            require(f"{what}: both end with exit code {code} and put the same {len(expected['packets'])} packets on the link, "
+                    f"the start packet with the source path <storage directory>/fprime-uplink/{name!r} and the destination {wanted[1]!r}",
+                    expected["exit"] == got["exit"] == code and len(got["packets"]) >= 3 and paths == wanted
+                    and got["packets"] == expected["packets"], f"{paths} {wanted} {expected} {got}")
             if "--file-uplink-chunk-size" in tokens:
                 sizes = [len(packet) // 2 for packet in got["packets"]]
                 require(f"{what}: the 200 bytes go in two data packets of 100 bytes ({sizes} bytes a packet), as with fprime-cli",
-                        len(sizes) == 4 and sizes[1] == sizes[2] and [len(p) for p in got["packets"][1:]] == [len(p) for p in expected["packets"][1:]], sizes)
+                        len(sizes) == 4 and sizes[1] == sizes[2], sizes)
         else:
             require(f"{what}: both refuse (fprime-cli exit code {expected['exit']}, fgds {got['exit']}), nothing sent",
                     expected["exit"] != 0 and got["exit"] != 0 and (expected["exit"] == 2) == (got["exit"] == 2)
@@ -1114,6 +1158,53 @@ def effects(out):
                 counts["effect"] += 1
                 if first == second:
                     require(f"{what}: `{' '.join(pair[0])}` and `{' '.join(pair[1])}` differ in what they do", False, first)
+        # Round 10, G4: every subcommand reads a shortened long option and an option given twice as argparse
+        # does. The command lines are those of EFFECT that hold the option.
+        aliases = {s: dict(re.findall(r"^\s+(-\w), (--[a-z-]+)", run([args.fgds, *s.split(), "--help"])[1], re.M)) for s in ONLINE + OFFLINE}
+        every = set(universe) | {"--url"}
+        forms = {"shortened": 0, "twice": 0}
+        for subcommand in ONLINE + OFFLINE:
+            online = subcommand in ONLINE
+            for option, pair in EFFECT[subcommand].items():
+                if option in ("--arguments", "--help"):
+                    continue
+                short = next((k for k, v in aliases[subcommand].items() if v == option), None)
+                lines = [[option if t == short else t for t in tokens] for tokens in pair]
+                held = [tokens for tokens in lines if option in tokens]
+                if not held:
+                    continue
+                line, at = held[0], held[0].index(option)
+                end = next((i for i in range(at + 1, len(line)) if line[i].startswith("-")), len(line))
+                # In the lines of EFFECT what follows an option up to the next option is its values.
+                values = line[at + 1:end]
+                wanted = outcome(subcommand, line, online)
+                if wanted["exit"] == 2:
+                    continue  # a line refused for its usage
+                # The first value of the option given twice is that of the other line of EFFECT when that line is
+                # accepted too (argparse converts every value, so a bad first value is refused), else the same.
+                other = values
+                for t in lines:
+                    if t is not line and option in t:
+                        i = t.index(option)
+                        j = next((k for k in range(i + 1, len(t)) if t[k].startswith("-")), len(t))
+                        if j - i - 1 == len(values) and outcome(subcommand, t, online)["exit"] != 2:
+                            other = t[i + 1:j]
+                prefix = next((option[:n] for n in range(3, len(option)) if [o for o in every if o.startswith(option[:n])] == [option]), None)
+                tried = [("twice", line[:at] + [option, *other] + line[at:])]
+                if prefix:
+                    tried.append(("shortened", line[:at] + [prefix] + line[at + 1:]))
+                for form, tokens in tried:
+                    got = outcome(subcommand, tokens, online)
+                    forms[form] += 1
+                    # What an uplink and a followed stream print holds times: the exit code, the standard error
+                    # and the packets on the link are compared there.
+                    timed = "upl" in subcommand or subcommand in ("events", "channels") and "--list" not in tokens
+                    same = lambda o: {k: v for k, v in o.items() if k != "slow" and not (timed and k == "stdout")}
+                    if same(got) != same(wanted):
+                        require(f"fgds {subcommand}: `{' '.join(tokens)}` does what `{' '.join(line)}` does", False, f"{got} {wanted}")
+        require(f"every subcommand reads its options as argparse does: {forms['shortened']} command lines with a long option shortened to the "
+                f"shortest text that names it alone and {forms['twice']} with an option given twice (the last value counts) do what the plain "
+                f"command line does, over {len(ONLINE + OFFLINE)} subcommands", all(forms.values()), forms)
         require(f"no option accepted and ignored: {len(ONLINE + OFFLINE)} subcommands x {len(universe)} options; {counts['effect']} change what the "
                 f"subcommand does (two command lines compared), {counts['of fgds run']} are refused as options of `fgds run`, {counts['unknown']} as "
                 f"unknown, {counts['listed']} are options of fprime-cli without an effect in fgds", all(counts.values()), counts)
@@ -1128,7 +1219,7 @@ def main():
     print("every option of every subcommand: an effect, or refused")
     effects(f"{args.out}/effects")
     if os.environ.get("CLI_CHECK_ONLY") == "effects":
-        return
+        sys.exit(1 if failures else 0)
     print("fgds run: TCP server, TCP client, serial device, UDP, without the page")
     capabilities(f"{args.out}/capabilities")
     print("offline tools with the dictionary options")
@@ -1137,40 +1228,41 @@ def main():
     merges(f"{args.out}/merge")
     fgds = python = None
     try:
-        fgds = Fgds(f"{args.out}/rust")
-        definitions(fgds)
+        if os.environ.get("CLI_CHECK_ONLY") != "uplinks":
+            fgds = Fgds(f"{args.out}/rust")
+            definitions(fgds)
 
-        print("live: command-send of both command lines against Ref")
-        rust_uplink, capture = live("fgds", fgds, f"{args.out}/rust")
-        refused(fgds)
-        scenario.stop(fgds.process)
-        python = PythonGds(f"{args.out}/python")
-        python_uplink, _ = live("fprime-cli", python, f"{args.out}/python")
-        scenario.stop(python.process)
-        print(f"dash matrix: {len(DASHES)} command lines of command-send through both against Ref")
-        fgds = Fgds(f"{args.out}/rust-dashes")
-        rust_dashes = dashes("fgds", fgds, f"{args.out}/rust-dashes")
-        scenario.stop(fgds.process)
-        python = PythonGds(f"{args.out}/python-dashes")
-        compare_dashes(dashes("fprime-cli", python, f"{args.out}/python-dashes"), rust_dashes)
-        scenario.stop(python.process)
-        lines = named(f"{args.out}/named")
-        print(f"options that name a file, a directory or a packet set: {len(lines)} command lines through both against Ref")
-        fgds = Fgds(f"{args.out}/rust-named")
-        rust_named = dashes("fgds", fgds, f"{args.out}/rust-named", lines)
-        scenario.stop(fgds.process)
-        python = PythonGds(f"{args.out}/python-named")
-        compare_named(lines, dashes("fprime-cli", python, f"{args.out}/python-named", lines), rust_named)
-        scenario.stop(python.process)
-        lines = standard(f"{args.out}/standard")
-        print(f"the GDS options of fprime-cli: {len(STANDARD)} sets of options through {len(FORMS)} forms of command-send, events and channels, through both against Ref")
-        tokens = [line[0] for line in lines]
-        fgds = Fgds(f"{args.out}/rust-standard")
-        rust_standard = dashes("fgds", fgds, f"{args.out}/rust-standard", tokens, None)
-        scenario.stop(fgds.process)
-        python = PythonGds(f"{args.out}/python-standard")
-        compare_standard(lines, dashes("fprime-cli", python, f"{args.out}/python-standard", tokens, None), rust_standard)
-        scenario.stop(python.process)
+            print("live: command-send of both command lines against Ref")
+            rust_uplink, capture = live("fgds", fgds, f"{args.out}/rust")
+            refused(fgds)
+            scenario.stop(fgds.process)
+            python = PythonGds(f"{args.out}/python")
+            python_uplink, _ = live("fprime-cli", python, f"{args.out}/python")
+            scenario.stop(python.process)
+            print(f"dash matrix: {len(DASHES)} command lines of command-send through both against Ref")
+            fgds = Fgds(f"{args.out}/rust-dashes")
+            rust_dashes = dashes("fgds", fgds, f"{args.out}/rust-dashes")
+            scenario.stop(fgds.process)
+            python = PythonGds(f"{args.out}/python-dashes")
+            compare_dashes(dashes("fprime-cli", python, f"{args.out}/python-dashes"), rust_dashes)
+            scenario.stop(python.process)
+            lines = named(f"{args.out}/named")
+            print(f"options that name a file, a directory or a packet set: {len(lines)} command lines through both against Ref")
+            fgds = Fgds(f"{args.out}/rust-named")
+            rust_named = dashes("fgds", fgds, f"{args.out}/rust-named", lines)
+            scenario.stop(fgds.process)
+            python = PythonGds(f"{args.out}/python-named")
+            compare_named(lines, dashes("fprime-cli", python, f"{args.out}/python-named", lines), rust_named)
+            scenario.stop(python.process)
+            lines = standard(f"{args.out}/standard")
+            print(f"the GDS options of fprime-cli: {len(STANDARD)} sets of options through {len(FORMS)} forms of command-send, events and channels, through both against Ref")
+            tokens = [line[0] for line in lines]
+            fgds = Fgds(f"{args.out}/rust-standard")
+            rust_standard = dashes("fgds", fgds, f"{args.out}/rust-standard", tokens, None)
+            scenario.stop(fgds.process)
+            python = PythonGds(f"{args.out}/python-standard")
+            compare_standard(lines, dashes("fprime-cli", python, f"{args.out}/python-standard", tokens, None), rust_standard)
+            scenario.stop(python.process)
         lines = uplinks(f"{args.out}/uplinks")
         print(f"file-uplink with the GDS options: {len(lines)} command lines through both against Ref")
         fgds = Fgds(f"{args.out}/rust-uplinks")
@@ -1186,7 +1278,9 @@ def main():
             if not missed or attempt == 3:
                 break
             print(f"  note: Python GDS, attempt {attempt}: its uplinker missed a handshake ({', '.join(missed)}); begun again", flush=True)
-        compare_uplinks(lines, python_uplinks, rust_uplinks)
+        compare_uplinks(lines, python_uplinks, rust_uplinks, python.out)
+        if os.environ.get("CLI_CHECK_ONLY") == "uplinks":
+            return
         fgds = Fgds(f"{args.out}/rust-raw")
         packet = run(fgds.cli("command-send", NO_OP, "--dry-run"))[1].strip()
         lines = raw(f"{args.out}/raw", packet)
