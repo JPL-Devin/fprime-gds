@@ -16,6 +16,7 @@ use ratatui::Frame;
 use std::collections::{BTreeMap, VecDeque};
 use std::io::IsTerminal;
 use std::process::ExitCode;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -357,12 +358,41 @@ fn screen(session: &Session, terminal: &mut ratatui::DefaultTerminal) -> std::io
         runtime.block_on(crate::stream(api, on));
     });
 
+    // The lines typed are run on a thread of their own: the screen is drawn while the GDS answers.
+    let (typed, lines) = std::sync::mpsc::channel::<String>();
+    let left = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            for line in lines {
+                let Some(answer) = session.handle(&line) else { return left.store(true, Ordering::Relaxed) };
+                let mut panes = panes(&shared);
+                for line in answer {
+                    let tone = if line.starts_with("not sent") { Tone::Bad } else { Tone::Plain };
+                    panes.add(line, tone);
+                }
+            }
+        });
+        // Leaving this function drops `typed`, which ends the thread.
+        keys(session, terminal, &shared, &names, colour, typed, &left)
+    })
+}
+
+/// Draws the screen and reads the keys until the user leaves.
+fn keys(
+    session: &Session,
+    terminal: &mut ratatui::DefaultTerminal,
+    shared: &Mutex<Panes>,
+    names: &Names,
+    colour: bool,
+    typed: std::sync::mpsc::Sender<String>,
+    left: &AtomicBool,
+) -> std::io::Result<()> {
     let mut editor = Editor::default();
     let (mut events, mut table) = (1, 1);
-    loop {
+    while !left.load(Ordering::Relaxed) {
         terminal.draw(|frame| {
             let filter = &view(&session.shared).filter;
-            (events, table) = draw(frame, &mut panes(&shared), &editor, |name| filter.allows(false, name), colour);
+            (events, table) = draw(frame, &mut panes(shared), &editor, |name| filter.allows(false, name), colour);
         })?;
         if !event::poll(Duration::from_millis(100))? {
             continue;
@@ -374,30 +404,25 @@ fn screen(session: &Session, terminal: &mut ratatui::DefaultTerminal) -> std::io
                 continue;
             }
             let half = |pane: usize| isize::try_from(pane / 2).unwrap_or(1).max(1);
-            match editor.key(key, &names) {
+            match editor.key(key, names) {
                 Asked::Nothing => {}
                 Asked::Quit => return Ok(()),
-                Asked::Events(way) => panes(&shared).scroll(way * half(events)),
+                Asked::Events(way) => panes(shared).scroll(way * half(events)),
                 Asked::Channels(way) => {
-                    let mut panes = panes(&shared);
+                    let mut panes = panes(shared);
                     panes.down = panes.down.saturating_add_signed(way * half(table));
                 }
                 Asked::Run(line) => {
-                    {
-                        let mut panes = panes(&shared);
-                        panes.back = 0;
-                        panes.add(format!("{PROMPT}{line}"), Tone::Typed);
-                    }
-                    let Some(answer) = session.handle(&line) else { return Ok(()) };
-                    let mut panes = panes(&shared);
-                    for line in answer {
-                        let tone = if line.starts_with("not sent") { Tone::Bad } else { Tone::Plain };
-                        panes.add(line, tone);
-                    }
+                    let mut panes = panes(shared);
+                    panes.back = 0;
+                    panes.add(format!("{PROMPT}{line}"), Tone::Typed);
+                    // The thread is there until it has seen `quit`, which ends this loop.
+                    let _ = typed.send(line);
                 }
             }
         }
     }
+    Ok(())
 }
 
 /// `fgds tui`.
