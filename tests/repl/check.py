@@ -196,8 +196,10 @@ def main():
             file.write("\n".join(terminal.rows()) + "\n")
 
     print("without a terminal")
+    # With the default action for SIGINT, whatever this check itself was started with (see tests/cli).
     stream = subprocess.Popen([args.fgds, "repl", "--url", url], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                              text=True, env=ENV, start_new_session=True)
+                              text=True, env=ENV, start_new_session=True,
+                              preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
     scenario.STARTED.append(stream)
     time.sleep(2.0)
     command_send()
