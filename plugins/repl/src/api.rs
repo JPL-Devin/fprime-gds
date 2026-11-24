@@ -19,6 +19,12 @@ fn failed(what: &str, error: impl std::fmt::Display) -> Error {
     Error::Other(format!("{what}: {error}"))
 }
 
+/// Whether `error` is an answer of the GDS with an error status, of 500 and above (`answer` writes
+/// the status first); one of 400 to 499 is `Error::Invalid`.
+pub fn answered(error: &Error) -> bool {
+    matches!(error, Error::Other(text) if text.len() > 3 && text.as_bytes()[..3].iter().all(u8::is_ascii_digit))
+}
+
 /// A sequence number: the API writes them as text, being 64-bit.
 pub fn seq(value: &Value) -> Option<u64> {
     value.as_u64().or_else(|| value.as_str()?.parse().ok())

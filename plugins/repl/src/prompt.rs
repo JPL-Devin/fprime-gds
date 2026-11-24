@@ -13,6 +13,7 @@ use rustyline::{Cmd, ColorMode, CompletionType, Config, Editor, KeyEvent};
 use std::io::{IsTerminal, Write};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 /// The stream as lines, through the filters, for `print`.
 async fn stream_lines(api: Api, session: Follower, colour: bool, mut print: impl FnMut(String)) {
@@ -80,7 +81,17 @@ fn print_above(shown: &Shown, text: &str) {
 
 /// Keeps out of the line what would not be shown as it is (control characters, marks that change
 /// the direction of text or have no width), typed or pasted, and the quoted insert that takes any.
-struct Typed;
+///
+/// A paste comes between two marks of the terminal (bracketed paste) and is read here key by key,
+/// not by the editor, which would take it whole and unseen. In a paste no key is a command: a
+/// line break or a tab is a space, so that nothing pasted runs before Enter is pressed.
+#[derive(Default)]
+struct Typed {
+    /// When the last key of a paste was read; a paste whose end mark never comes ends after `PASTE`.
+    pasting: Mutex<Option<Instant>>,
+}
+
+const PASTE: Duration = Duration::from_millis(500);
 
 impl rustyline::ConditionalEventHandler for Typed {
     fn handle(
@@ -91,7 +102,34 @@ impl rustyline::ConditionalEventHandler for Typed {
         _: &rustyline::EventContext,
     ) -> Option<Cmd> {
         use rustyline::{KeyCode, Modifiers};
-        match event.get(0)? {
+        let key = event.get(0)?;
+        let mut pasting = self.pasting.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if pasting.is_some_and(|last| last.elapsed() > PASTE) {
+            *pasting = None;
+        }
+        match key {
+            KeyEvent(KeyCode::BracketedPasteStart, _) => {
+                *pasting = Some(Instant::now());
+                return Some(Cmd::Noop);
+            }
+            KeyEvent(KeyCode::BracketedPasteEnd, _) => {
+                *pasting = None;
+                return Some(Cmd::Noop);
+            }
+            _ if pasting.is_some() => {
+                *pasting = Some(Instant::now());
+                return match key {
+                    KeyEvent(KeyCode::Char(c), Modifiers::NONE | Modifiers::SHIFT) if show::typed(*c) => None,
+                    KeyEvent(KeyCode::Enter | KeyCode::Tab, _)
+                    | KeyEvent(KeyCode::Char('J' | 'M' | 'I'), Modifiers::CTRL) => {
+                        Some(Cmd::Insert(1, " ".to_string()))
+                    }
+                    _ => Some(Cmd::Noop),
+                };
+            }
+            _ => {}
+        }
+        match key {
             KeyEvent(KeyCode::Char('V' | 'Q'), Modifiers::CTRL) => Some(Cmd::Noop),
             KeyEvent(KeyCode::Char(c), Modifiers::NONE | Modifiers::SHIFT) if !show::typed(*c) => Some(Cmd::Noop),
             _ => None,
@@ -157,14 +195,13 @@ fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
     // The colour mode is forced so that the editor asks its highlighter (see `Helper`).
     let config = Config::builder()
         .completion_type(CompletionType::List)
-        .auto_add_history(true)
         .color_mode(ColorMode::Forced)
-        // Pasted text is read as keys, so that `Typed` sees each character.
-        .bracketed_paste(false)
+        // The terminal marks a paste; `Typed` reads it.
+        .bracketed_paste(true)
         .build();
     let mut editor: Editor<Helper, DefaultHistory> = Editor::with_config(config).map_err(other)?;
     let shown = Shown::default();
-    editor.bind_sequence(rustyline::Event::Any, rustyline::EventHandler::Conditional(Box::new(Typed)));
+    editor.bind_sequence(rustyline::Event::Any, rustyline::EventHandler::Conditional(Box::new(Typed::default())));
     editor.set_helper(Some(Helper { dictionary: session.dictionary.clone(), shown: shown.clone() }));
     let history = std::env::var_os("HOME").map(|home| std::path::Path::new(&home).join(".fgds_history"));
     if let Some(history) = &history {
@@ -179,7 +216,8 @@ fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
     if let Ok(modes) = nix::sys::termios::tcgetattr(std::io::stdin()) {
         restore_on_signal(move || {
             let _ = nix::sys::termios::tcsetattr(std::io::stdin(), nix::sys::termios::SetArg::TCSANOW, &modes);
-            let _ = std::io::stdout().write_all(b"\r\n");
+            // Bracketed paste off, as the editor leaves it.
+            let _ = std::io::stdout().write_all(b"\x1b[?2004l\r\n");
         });
     }
     let (api, follower) = session.follower();
@@ -194,7 +232,12 @@ fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
         let held = std::mem::take(&mut *screen(&shown)).held;
         held.iter().for_each(|line| print_above(&shown, line));
         match read {
+            // `Typed` lets none of these in; should the editor find another way, the line stops here.
+            Ok(line) if !line.chars().all(show::typed) => {
+                print_above(&shown, "line dropped: it holds a character that is not shown as it is");
+            }
             Ok(line) => {
+                let _ = editor.add_history_entry(line.as_str());
                 // After each line: a prompt ended by a signal keeps its history.
                 if let Some(history) = &history {
                     let _ = editor.append_history(history);
