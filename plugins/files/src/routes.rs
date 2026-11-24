@@ -90,13 +90,14 @@ async fn upload(
 ) -> Result<Json<Value>, ApiError> {
     let options = shared.options(&ctx.config)?;
     let invalid = |message: String| error(StatusCode::UNPROCESSABLE_ENTITY, "invalid", message);
+    // The operator's name is the name on the spacecraft only: the copy on this machine is named by the
+    // identifier of the transfer, so that no text of the request reaches the file system of the GDS host.
     let name = base_name(&upload.name).map_err(invalid)?.to_string();
     let directory = options.uplink_dir();
-    let path = path_inside(&directory, &name).map_err(invalid)?;
     let destination = crate::uplink_destination(upload.destination.as_deref(), upload.directory.as_deref(), &name);
-    if destination.len() > 255 {
-        return Err(invalid("the destination path is longer than 255 bytes".into()));
-    }
+    crate::flight_path("destination", &destination).map_err(invalid)?;
+    let source = upload.source.filter(|s| !s.is_empty()).unwrap_or_else(|| name.clone());
+    crate::flight_path("source", &source).map_err(invalid)?;
     let too_large = || {
         let message = format!("the file is larger than {} bytes", options.max_upload);
         error(StatusCode::PAYLOAD_TOO_LARGE, "too_large", message)
@@ -105,10 +106,6 @@ async fn upload(
     if u32::try_from(content.len()).is_err() {
         return Err(too_large());
     }
-    // The path of the staged copy is the source path of the start packet, as with the
-    // Python GDS; a path too long for the packet is replaced by the name.
-    let source = upload.source.filter(|s| !s.is_empty()).unwrap_or_else(|| path.to_string_lossy().into_owned());
-    let source = if source.len() > 255 { name.clone() } else { source };
     // As `TransmitFile` of the Python GDS: sorted, each number once; an empty list is the whole file.
     let mut packets = Vec::new();
     for token in upload.packets.iter().flat_map(|list| list.split(',')).map(str::trim).filter(|t| !t.is_empty()) {
@@ -144,13 +141,10 @@ async fn upload(
         chunk: upload.chunk,
         cooldown,
     };
+    // Two uploads of one name are two transfers to one path of the spacecraft: each has its own copy.
+    let path = path_inside(&directory, &transfer.id).map_err(invalid)?;
     {
-        // Reserved under the lock: two uploads of one name cannot share the staged copy.
         let mut state = shared.state();
-        if state.uplinks.iter().any(|t| t.name == transfer.name && !t.ended()) {
-            let message = format!("{} is already in the uplink queue", transfer.name);
-            return Err(error(StatusCode::CONFLICT, "conflict", message));
-        }
         state.uplinks.push(transfer.clone());
         State::trim(&mut state.uplinks);
     }
@@ -232,7 +226,7 @@ async fn cancel(
     };
     if let Some(transfer) = &removed {
         if let Ok(options) = shared.options(&ctx.config) {
-            let _ = std::fs::remove_file(options.uplink_dir().join(&transfer.name));
+            let _ = std::fs::remove_file(options.uplink_dir().join(&transfer.id));
         }
         publish(&ctx, transfer.record(KIND_UPLINK)).await;
     }

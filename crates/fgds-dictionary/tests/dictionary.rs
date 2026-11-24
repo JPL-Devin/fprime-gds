@@ -98,7 +98,13 @@ fn invalid_bytes_are_rejected() {
     reject(&d.types["T.Color"], &[9], "not a constant");
     reject(&Type::String { max: 2 }, &[0, 3, b'a', b'b', b'c'], "exceeds maximum");
     reject(&Type::String { max: 8 }, &[0, 3, b'a'], "needed 3 bytes");
-    reject(&Type::String { max: 8 }, &[0, 1, 0xFF], "UTF-8");
+}
+
+#[test]
+fn a_string_cut_inside_a_character_is_shown_lossy() {
+    // Flight software cuts a string at its size: `aé` cut after the first byte of `é`.
+    let value = dict().decode(&Type::String { max: 8 }, &mut Reader::new(&[0, 2, b'a', 0xC3])).unwrap();
+    assert_eq!(value, json!("a\u{fffd}"));
 }
 
 #[test]

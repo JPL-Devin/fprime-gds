@@ -354,6 +354,7 @@ def rust_side(args, out, store):
         found["early"] = early
         # After the packets compared with the Python GDS were taken.
         file_uplink(gds, out, proxy)
+        uploaded_names(gds, out, store)
 
         # The routes and `fgds files` give the same files.
         listing = gds.get("/files/downlink")
@@ -379,7 +380,7 @@ def rust_side(args, out, store):
                 assert needle.hex() not in text and base64.b64encode(needle[:48]).decode() not in text, \
                     f"file content found in records of kind {name}"
         progress = gds.records("fprime.file.uplink") + gds.records("fprime.file.downlink")
-        assert {r["body"]["state"] for r in progress} == {"queued", "transferring", "finished"}, progress[:3]
+        assert {r["body"]["state"] for r in progress} >= {"queued", "transferring", "finished"}, progress[:3]
         assert all(r["entity"] for r in progress)
         ok(f"file content is not in the record store; {len(progress)} progress records, each with an entity")
 
@@ -395,6 +396,115 @@ def rust_side(args, out, store):
             if process:
                 scenario.stop(process)
         raise
+
+
+def uploaded_names(gds, out, store):
+    """N9-1: the name of an upload is the name on the spacecraft only. The copy on the GDS host has a generated
+    name, a path the file packet cannot carry is refused, and the name is sent as given."""
+    def upload(body=b"x", **query):
+        url = "/files/uplink?" + urllib.parse.urlencode(query)
+        try:
+            with gds.request(url, body, "POST") as response:
+                return response.status, json.load(response)
+        except urllib.error.HTTPError as error:
+            return error.code, json.load(error)["error"]["message"]
+
+    def tree():
+        return {os.path.join(folder, name) for root in (out, store) for folder, _, names in os.walk(root) for name in names}
+
+    staging, before = f"{store}/uplink", tree()
+    assert os.listdir(staging) == [], os.listdir(staging)
+    gds.cli("pause")
+    # Names that would leave the staging directory if they were used as a path there.
+    hostile = ["../../n9-escape.bin", "..\\..\\n9-escape.bin", f"{out}/../n9-escape.bin", "/tmp/n9-escape.bin",
+               "C:\\n9\\n9-escape.bin", "a/b/n9-escape.bin", "~/n9-escape.bin", "n" * 300, "n9 escape\u202e.bin"]
+    for at, name in enumerate(hostile):
+        status, answer = upload(content(name, 300), name=name, destination=f"n9-{at}.bin", source="n9.bin")
+        assert status == 200 and answer["destination"] == f"n9-{at}.bin", (name, status, answer)
+    staged = sorted(os.listdir(staging))
+    assert len(staged) == len(hostile) and all(re.fullmatch(r"up-[0-9a-f]+-\d+", name) for name in staged), staged
+    assert tree() - before == {f"{staging}/{name}" for name in staged}, tree() - before
+    assert not os.path.exists("/tmp/n9-escape.bin") and not os.path.exists(os.path.expanduser("~/n9-escape.bin"))
+    ok(f"{len(hostile)} uploads named with `/`, `\\`, `..`, an absolute path, `~`, 300 bytes: each copy on the GDS host "
+       f"is in the staging directory under a generated name ({staged[0]}, ...), nothing else was written")
+
+    # Refused, with a message, and nothing written.
+    refused = [
+        (dict(name=""), "not a usable file name"), (dict(name=".."), "not a usable file name"),
+        (dict(name="."), "not a usable file name"), (dict(name="a/.."), "not a usable file name"),
+        (dict(name="a/"), "not a usable file name"), (dict(name="nul\0.bin"), "not a usable file name"),
+        (dict(name="line\n.bin"), "not a usable file name"),
+        (dict(name="a.bin", destination="d\0.bin"), "destination path holds a control character"),
+        (dict(name="a.bin", destination="d\x1f.bin"), "destination path holds a control character"),
+        (dict(name="a.bin", destination="d\x7f.bin"), "destination path holds a control character"),
+        (dict(name="a.bin", destination="dir/"), "names no file"), (dict(name="a.bin", destination="dir/."), "names no file"),
+        (dict(name="a.bin", destination="dir/.."), "names no file"), (dict(name="a.bin", destination=".."), "names no file"),
+        (dict(name="a.bin", destination="d" * 256), "destination path is 256 bytes long in UTF-8; the file packet carries at most 255"),
+        # 128 characters, 256 bytes: the limit counts bytes.
+        (dict(name="a.bin", destination="\u00e9" * 128), "destination path is 256 bytes long"),
+        (dict(name="n" * 250 + ".bin", directory="/d"), "destination path is 257 bytes long"),
+        (dict(name="a.bin", destination="a.bin", source="s" * 256), "source path is 256 bytes long"),
+        (dict(name="a.bin", destination="a.bin", source="s\0"), "source path holds a control character"),
+    ]
+    for query, message in refused:
+        status, answer = upload(**query)
+        assert status == 422 and message in answer, (query, status, answer)
+    assert sorted(os.listdir(staging)) == staged
+    ok(f"{len(refused)} uploads refused (422) with a message and nothing written: empty name, `.`, `..`, NUL, a control "
+       "character, a destination that names no file, a destination or source path over 255 bytes (counted in UTF-8)")
+    # At the limit: accepted as given, not cut.
+    limit = "\u00e9" * 127 + "a"
+    status, answer = upload(name="a.bin", destination=limit)
+    assert status == 200 and answer["destination"] == limit and answer["notice"], (status, answer)
+    gds.post(f"/files/uplink/{answer['id']}/cancel")
+
+    # One name twice: two transfers to the same path; the second replaces the first on the spacecraft.
+    for text in (b"first", b"second, the one that stays"):
+        status, answer = upload(text, name="n9-twice.bin", directory="")
+        assert status == 200 and answer["destination"] == "n9-twice.bin" and answer["notice"] is None, (status, answer)
+    # Sent as given: a space, characters outside ASCII (with a notice), and a path of more than 40 bytes.
+    long_name = "n9-ab" + "\u00e9" * 30 + ".bin"
+    given = {"n9 with space.txt": False, "n9-\u00fcni-\u00e9.txt": True, long_name: True}
+    for name, notice in given.items():
+        status, answer = upload(content(name, 600), name=name, directory="")
+        assert status == 200 and answer["destination"] == name and bool(answer["notice"]) == notice, (name, status, answer)
+    with open(f"{out}/local/n9-cli-\u00e9.bin", "wb") as file:
+        file.write(b"cli")
+    done = gds.cli("upload", "local/n9-cli-\u00e9.bin", "--destination", "n9-cli-\u00e9.bin")
+    assert "Note: " in done.stdout and "outside ASCII" in done.stdout, done.stdout
+    plain = gds.cli("upload", "local/waited.bin", "--destination", "n9 plain.bin")
+    assert "Note" not in plain.stdout, plain.stdout
+
+    after = int(gds.get("/cursor")["seq"])
+    gds.cli("resume")
+    wanted = [f"n9-{at}.bin" for at in range(len(hostile))] + ["n9-twice.bin", "n9-twice.bin", *given, "n9-cli-\u00e9.bin", "n9 plain.bin"]
+    def finished():
+        files = [f for f in gds.get("/files/uplink")["files"] if f["destination"] in wanted]
+        return len(files) == len(wanted) and all(f["state"] == "finished" for f in files)
+    scenario.wait_for("the uploads of N9-1", finished, 90)
+    scenario.wait_for("the staged copies removed", lambda: os.listdir(staging) == [], 10)
+    for at, name in enumerate(hostile):
+        assert read(f"{out}/n9-{at}.bin") == content(name, 300), name
+    assert read(f"{out}/n9-twice.bin") == b"second, the one that stays"
+    for name in given:
+        assert read(f"{out}/{name}") == content(name, 600), name
+    assert read(f"{out}/n9-cli-\u00e9.bin") == b"cli"
+    assert tree() - before - {f"{out}/{name}" for name in wanted} <= {f"{out}/local/n9-cli-\u00e9.bin"}, tree() - before
+    ok("sent as given: `n9 with space.txt`, `n9-\u00fcni-\u00e9.txt` and a 69-byte name are on Ref under these names with "
+       "their bytes; the two with characters outside ASCII gave a notice (route and command line), the space none; "
+       "one name uploaded twice reached Ref twice under that name and the second content stays")
+
+    # The events of Ref carry the name in a string of 40 bytes: the cut falls inside a two-byte character.
+    events = [r for r in gds.records("fprime.event") if int(r["seq"]) > after and "fileUplink.FileReceived" in r["body"]["name"]]
+    texts = [r["body"]["display_text"] for r in events]
+    assert len(events) >= len(wanted), texts
+    cut = [r for r in events if "n9-ab" in r["body"]["display_text"]]
+    assert len(cut) == 1, texts
+    json.dump(cut[0], open(f"{out}/n9-cut-event.json", "w"), indent=1)
+    shown = cut[0]["body"]["display_text"]
+    assert shown.startswith("Received file n9-ab" + "\u00e9" * 17) and "\ufffd" in shown, shown
+    gds.healthy(f"{out}/fgds.log")
+    ok(f"the FileReceived event of the 69-byte name is shown with the name cut by Ref inside a character: {shown!r}")
 
 
 def file_uplink(gds, out, proxy=None):
@@ -693,7 +803,6 @@ def main():
         parser.add_argument(f"--{name}", required=True)
     parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds", help="the framing Ref was built with")
     args = parser.parse_args()
-    # The source path is in the start packet: both ground systems read the file from the same path.
     store = f"{args.out}/store"
     shutil.rmtree(store, ignore_errors=True)
 
@@ -703,9 +812,14 @@ def main():
         json.dump({"python": python, "rust": rust}, open(f"{args.out}/results.json", "w"), indent=1)
         assert len(python["uplink_packets"]) == len(rust["uplink_packets"]), \
             (len(python["uplink_packets"]), len(rust["uplink_packets"]))
+        # The source path of a start packet is the path each side was given (`fgds files upload` sends the
+        # path on its command line; no copy on the GDS host has the operator's name): compared without it.
+        def same(packet):
+            raw = bytes.fromhex(packet)
+            return raw[:11] + raw[12 + raw[11]:] if raw[2] == 0 else raw
         for index, (p, r) in enumerate(zip(python["uplink_packets"], rust["uplink_packets"])):
-            assert p == r, f"file packet {index} differs:\n python {p}\n fgds   {r}"
-        ok(f"uplink: {len(rust['uplink_packets'])} file packets on the link, byte-identical to the Python GDS "
+            assert same(p) == same(r), f"file packet {index} differs:\n python {p}\n fgds   {r}"
+        ok(f"uplink: {len(rust['uplink_packets'])} file packets on the link, byte-identical to the Python GDS (the source path of the start packets apart) "
            f"({sum(len(p) // 2 for p in rust['uplink_packets'])} bytes)")
         if args.framing == "ccsds":
             for side, found in (("python", python), ("fgds", rust)):

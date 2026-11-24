@@ -108,6 +108,33 @@ pub fn base_name(name: &str) -> Result<&str, String> {
     Ok(base)
 }
 
+/// A path sent to the flight software in a start packet (`what` is `destination` or `source`), as the
+/// operator gave it: nothing is renamed or cut. Refused: an empty path, one longer than the 255 bytes the
+/// one length byte of the packet can state (`Fw/FilePacket/FilePacket.hpp`), a control character (NUL
+/// included), and a last part that is empty, `.` or `..`.
+pub fn flight_path(what: &str, path: &str) -> Result<(), String> {
+    let last = path.rsplit('/').next().unwrap_or_default();
+    let problem = if path.is_empty() {
+        "is empty".to_string()
+    } else if path.len() > 255 {
+        format!("is {} bytes long in UTF-8; the file packet carries at most 255", path.len())
+    } else if path.chars().any(|c| c < ' ' || c == '\x7f') {
+        "holds a control character".to_string()
+    } else if matches!(last, "" | "." | "..") {
+        format!("names no file (it ends in \"{last}\")")
+    } else {
+        return Ok(());
+    };
+    Err(format!("the {what} path {problem}"))
+}
+
+/// A notice for a path with characters outside ASCII: it is sent as given, in UTF-8.
+pub fn flight_path_notice(path: &str) -> Option<String> {
+    (!path.is_ascii()).then(|| {
+        format!("\"{path}\" holds characters outside ASCII; it is sent as given, in UTF-8, and the file system of the spacecraft may refuse it")
+    })
+}
+
 /// The path on the spacecraft of an uplinked file, by the rule of the Python GDS for every entry point:
 /// a destination is sent as given; without one it is `os.path.join(directory, name)`, where the directory is
 /// `/` unless given (`fprime-cli file-uplink SRC` sends `/SRC`; the page gives the text of its field, so an
@@ -177,6 +204,7 @@ impl Transfer {
             "size": self.size, "done": self.done, "state": self.state, "reason": self.reason,
             "problems": self.problems, "started": self.started, "ended": self.ended,
             "packets": self.packets.clone().unwrap_or_default(),
+            "notice": flight_path_notice(&self.destination),
         })
     }
 
@@ -354,6 +382,52 @@ impl Plugin for FilesPlugin {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_name_is_one_path_component_inside_the_directory() {
+        let directory = std::path::Path::new("/store/uplink");
+        for (name, base) in [
+            ("../../etc/passwd", "passwd"),
+            ("..\\..\\boot.ini", "boot.ini"),
+            ("/etc/passwd", "passwd"),
+            ("C:\\dir\\a.bin", "a.bin"),
+            ("a/b\\c", "c"),
+            ("name with space.txt", "name with space.txt"),
+        ] {
+            assert_eq!(super::base_name(name), Ok(base));
+            assert_eq!(super::path_inside(directory, name), Ok(directory.join(base)));
+        }
+        let long = "n".repeat(5000);
+        assert_eq!(super::path_inside(directory, &long), Ok(directory.join(&long)));
+        for name in ["", ".", "..", "a/..", "a\\..", "dir/", "/", "a\0b", "a/\0", "a\nb", "\u{7f}", "\u{85}"] {
+            assert!(super::base_name(name).is_err(), "{name:?}");
+            assert!(super::path_inside(directory, name).is_err(), "{name:?}");
+        }
+    }
+
+    #[test]
+    fn a_flight_path_is_sent_as_given_or_refused() {
+        let at_limit = format!("{}a", "\u{e9}".repeat(127));
+        for path in ["a.bin", "/dir/a.bin", "name with space.txt", "\u{fc}ni-\u{e9}.txt", "../a", "a\\..", &at_limit] {
+            assert_eq!(super::flight_path("destination", path), Ok(()), "{path:?}");
+            assert_eq!(super::flight_path_notice(path).is_some(), !path.is_ascii());
+        }
+        for (path, message) in [
+            ("", "the destination path is empty"),
+            ("a\0", "the destination path holds a control character"),
+            ("a\u{1f}b", "the destination path holds a control character"),
+            ("\u{7f}", "the destination path holds a control character"),
+            (".", "the destination path names no file (it ends in \".\")"),
+            ("dir/..", "the destination path names no file (it ends in \"..\")"),
+            ("dir/", "the destination path names no file (it ends in \"\")"),
+            (
+                &"\u{e9}".repeat(128),
+                "the destination path is 256 bytes long in UTF-8; the file packet carries at most 255",
+            ),
+        ] {
+            assert_eq!(super::flight_path("destination", path), Err(message.to_string()));
+        }
+    }
+
     #[test]
     fn destination_as_python() {
         // (destination, directory, result): `os.path.join` of the Python uplinker.

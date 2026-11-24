@@ -33,7 +33,7 @@ export function entries(type, prefix) {
 }
 
 class ChartsTab extends LitElement {
-  static properties = { charts: { state: true }, help: { state: true }, locked: { state: true } };
+  static properties = { charts: { state: true }, help: { state: true }, locked: { state: true }, unknown: { state: true } };
 
   constructor() {
     super();
@@ -41,6 +41,7 @@ class ChartsTab extends LitElement {
     this.next = 1;
     this.help = false;
     this.locked = false;
+    this.unknown = [];
     this.views = new Map(); // chart id -> {x, y}: the ranges chosen by zoom and pan; none is the first view
     this.data = new Map(); // chart id -> [{x, y}], the samples received since the channel was chosen
     this.drawn = new Map(); // chart id -> Chart
@@ -147,8 +148,16 @@ class ChartsTab extends LitElement {
     const drawn = this.drawn.get(leader.id);
     if (!drawn) return;
     const { min, max } = drawn.scales.x;
+    const chosen = Boolean((this.views.get(leader.id) || {}).x);
     for (const chart of this.charts) {
-      if (chart !== leader && this.drawn.has(chart.id)) this.view(chart, { x: [min, max] }, false);
+      if (chart === leader || !this.drawn.has(chart.id)) continue;
+      if (chosen) {
+        this.view(chart, { x: [min, max] }, false);
+      } else if ((this.views.get(chart.id) || {}).x) {
+        // The leader is on its first view (after `Reset Zoom`): so are the others, not on a copy of its range.
+        delete this.views.get(chart.id).x;
+        this.show(chart, undefined, true);
+      }
     }
   }
 
@@ -260,11 +269,13 @@ class ChartsTab extends LitElement {
   async load(event) {
     const file = event.target.files[0];
     if (!file) return;
-    const names = (await file.text()).split(/\s/).map((name) => name.trim());
+    const names = (await file.text()).split(/\s+/).filter(Boolean);
     event.target.value = "";
     const last = this.charts[this.charts.length - 1];
     if (names.length && last && !last.selected) this.remove(last);
-    for (const name of names) this.add(this.names.includes(name) ? name : "");
+    // A name the dictionary does not have gets no chart: it is named in a line under the buttons.
+    this.unknown = names.filter((name) => !this.names.includes(name));
+    for (const name of names) if (this.names.includes(name)) this.add(name);
   }
 
   updated() {
@@ -345,7 +356,9 @@ class ChartsTab extends LitElement {
   }
 
   render() {
-    const options = this.names.map((name) => html`<option value=${name}>${name}</option>`);
+    // `selected` on the option, not `value` on the list: the value of a list drawn for the first time is set
+    // before its options exist, and is lost.
+    const options = (selected) => this.names.map((name) => html`<option value=${name} ?selected=${name === selected}>${name}</option>`);
     return html`
       <h2>Charts</h2>
       <div class="toolbar">
@@ -357,6 +370,7 @@ class ChartsTab extends LitElement {
         <input id="chart-load" type="file" hidden @change=${(e) => this.load(e)}>
         <button id="chart-help" @click=${() => { this.help = !this.help; }}>Help</button>
       </div>
+      ${this.unknown.length ? html`<p id="chart-unknown" class="note" role="alert">Not loaded, no such channel in the dictionary: ${this.unknown.join(", ")}</p>` : ""}
       ${this.help ? html`<div id="chart-help-text" class="note">
         <p><b>Zoom in and out</b> by holding <b>ALT</b> and using mouse wheel to scroll while hovering over an axis</p>
         <p><b>Zoom in</b> by holding <b>ALT</b> and clicking and dragging a selection on the chart</p>
@@ -379,7 +393,7 @@ class ChartsTab extends LitElement {
           <div class="toolbar">
             <select class="chart-channel" .value=${chart.selected}
               @change=${(e) => this.change(chart, { selected: e.target.value })}>
-              <option value="">Select a Channel</option>${options}
+              <option value="" ?selected=${!chart.selected}>Select a Channel</option>${options(chart.selected)}
             </select>
             <label for="chart-span-${chart.id}">Data Window:</label>
             <input class="chart-span" id="chart-span-${chart.id}" type="number" min="1" .value=${String(chart.span)}

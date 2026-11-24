@@ -620,6 +620,23 @@ def files_and_products(page, gds):
     uplink.locator("th", has_text="Destination").click()
     assert destinations() == order, destinations()
     step("Uplink tab: the filter field keeps the rows holding the text; a click on a header sorts ascending, a second descending, a third as listed")
+    # N9-1: the name is sent as given. Outside ASCII: a notice; a space: none. Ref cuts the name in its event
+    # at 40 bytes, here inside a character: the event is shown with the replacement character.
+    spaced, accented = "n9 space.txt", "n9-ab" + "\u00e9" * 30 + ".bin"
+    for name in (spaced, accented):
+        shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/{name}")
+        uplink.locator("#files").set_input_files(f"{gds.out}/{name}")
+        uplink.get_by_role("button", name="Begin Uplink").click()
+        expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
+        assert uplink.locator("tr", has_text=name).locator("td").all_text_contents()[3] == name
+        expect(uplink.locator(".uplink-notice")).to_have_count(0 if name == spaced else 1)
+        assert open(f"{gds.out}/ref/{name}", "rb").read() == content
+    expect(uplink.locator(".uplink-notice")).to_contain_text("outside ASCII")
+    show(page, "events")
+    expect(page.locator("events-tab")).to_contain_text("Received file n9-ab" + "\u00e9" * 17 + "\ufffd")
+    show(page, "uplink")
+    step("Uplink tab: `n9 space.txt` and a 69-byte name outside ASCII reach Ref under these names; the second gives a notice; "
+         "its FileReceived event, cut by Ref inside a character, is shown on the Events tab")
     # Three files in the queue, as the Python GDS: the start time is when the file begins, the end time when its
     # end packet is sent, and the next file begins at once (the three start times of the Python page are equal).
     queued = ["queued1.bin", "queued2.bin", "queued3.bin"]
@@ -864,6 +881,27 @@ def charts_and_sequences(page, gds, problems):
     charts.locator(".chart-remove").first.click()
     expect(canvas).to_have_count(1)
     assert charts.locator(".chart-channel").first.input_value() == "ComCcsds.comQueue.comQueueDepth.1"
+    # Load: one chart per known name of the file, each selection list showing the channel its chart plots.
+    listed = ["Ref.blockDrv.BD_Cycles", COUNTER, "Not.a.Channel"]
+    with open(f"{gds.out}/charts.txt", "w") as file:
+        file.write("\n".join(listed) + "\n")
+    charts.locator("#chart-load").set_input_files(f"{gds.out}/charts.txt")
+    expect(canvas).to_have_count(3)
+    shown = lambda: page.evaluate('() => [...document.querySelectorAll("charts-tab .chart-channel")].map((s) => s.selectedOptions[0].textContent)')
+    gds.post("/commands", {"name": "CdhCore.cmdDisp.CMD_NO_OP", "args": []})
+    scenario.wait_for("a point in the loaded chart of the counter", lambda: int(canvas.nth(2).get_attribute("data-points") or 0))
+    counted = [float(r["body"]["value"]) for r in gds.records("fprime.channel") if r["body"]["name"] == COUNTER]
+    assert float(canvas.nth(2).get_attribute("data-first")) in counted, "the loaded chart of the counter plots another channel"
+    assert shown() == ["ComCcsds.comQueue.comQueueDepth.1", *listed[:2]], f"selection lists after Load: {shown()}"
+    assert charts.locator(".chart-title").all_text_contents() == shown(), "titles and selection lists differ after Load"
+    assert page.evaluate('() => [...document.querySelectorAll("charts-tab canvas")].map((c) => Chart.getChart(c).data.datasets[0].label)') == shown()
+    expect(charts.locator("#chart-unknown")).to_contain_text("Not.a.Channel")
+    for _ in range(2):
+        charts.locator(".chart-remove").last.click()
+    expect(canvas).to_have_count(1)
+    assert shown() == ["ComCcsds.comQueue.comQueueDepth.1"], f"selection list after two charts are removed: {shown()}"
+    step("Charts Load: a chart per known channel of the file, its selection list and title naming the channel plotted; "
+         "the unknown name gets no chart and is named in a line")
     step(f"Charts tab: {len(offered)} entries in identifier order, array elements by index; {COUNTER} drawn with the "
          f"vendored Chart.js from the first sample after it was chosen ({len(before)} earlier ones are not drawn), "
          "on an axis that ends at the present; a second chart of an array element; ALT and the wheel zoom (both ranges over "

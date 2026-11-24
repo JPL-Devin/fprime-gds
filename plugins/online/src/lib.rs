@@ -254,13 +254,13 @@ impl Subcommand for Records {
             let now =
                 api::seq(&cursor["seq"]).ok_or_else(|| Error::Other("the cursor has no sequence number".into()))?;
             let mut after = if args.get_flag("history") { 0 } else { now };
-            let plain = if json && self.kind == "fprime.channel" {
-                items::plain_channels(&api.get("/dictionary", &[]).await?)
-            } else {
-                Default::default()
+            let dictionary = if json { Some(api.get("/dictionary", &[]).await?) } else { None };
+            let plain = match &dictionary {
+                Some(dictionary) if self.kind == "fprime.channel" => items::plain_channels(dictionary),
+                _ => Default::default(),
             };
             let mut on_record = |record: &Value| {
-                let item = Item::from_record(record, &plain);
+                let item = Item::from_record(record, &plain, dictionary.as_ref());
                 let accepted = filter.accepts(&item, json);
                 if accepted {
                     print(&item, json);

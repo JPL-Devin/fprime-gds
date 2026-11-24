@@ -6,7 +6,7 @@ class FgdsUplink extends FilesTab {
   kind = "fprime.file.uplink";
   path = "/files/uplink";
 
-  static properties = { ...FilesTab.properties, staged: { state: true }, editing: { state: true }, packetError: { state: true } };
+  static properties = { ...FilesTab.properties, staged: { state: true }, notices: { state: true }, editing: { state: true }, packetError: { state: true } };
 
   constructor() {
     super();
@@ -38,6 +38,7 @@ class FgdsUplink extends FilesTab {
   // "Begin Uplink": every staged file goes to the queue of the GDS, which sends at once.
   async upload() {
     const directory = this.renderRoot.querySelector("#directory").value.trim();
+    this.notices = [];
     while (this.staged.length) {
       const file = this.staged[0].file;
       const query = new URLSearchParams({ name: file.name });
@@ -50,6 +51,8 @@ class FgdsUplink extends FilesTab {
         const body = await response.json().catch(() => ({}));
         throw new Error(file.name + ": " + (body.error ? body.error.message : response.statusText));
       }
+      const notice = (await response.json().catch(() => ({}))).notice;
+      if (notice) this.notices = [...(this.notices || []), notice];
       this.staged = this.staged.slice(1);
     }
   }
@@ -74,6 +77,7 @@ class FgdsUplink extends FilesTab {
         <span>Queue: <b>${data.paused ? "paused" : "running"}</b>, link: ${data.link}</span>
         <span class="error">${this.error}</span>
       </div>
+      ${(this.notices || []).map((notice) => html`<p class="note uplink-notice">${notice}</p>`)}
       ${this.editing ? html`<div class="packets" id="packet-selection">
         <h3>Uplink File Packet List</h3>
         <h4>Selecting Packets for: ${this.editing.file.name}</h4>

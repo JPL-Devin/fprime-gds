@@ -118,7 +118,7 @@ impl Handler for UplinkHandler {
                 }
             });
             // The staged copy is of no use once the transfer has ended.
-            let _ = std::fs::remove_file(self.options.uplink_dir().join(&ended.name));
+            let _ = std::fs::remove_file(self.options.uplink_dir().join(&ended.id));
             publish(&ctx, ended.record(KIND_UPLINK)).await;
             if !ended.ended() {
                 let until = tokio::time::Instant::now() + CONFIRM;
@@ -180,7 +180,7 @@ impl UplinkHandler {
 
     /// Start packet, data packets, end packet: the sequence of the Python GDS.
     async fn transfer(&mut self, ctx: &Context, transfer: &Transfer, records: &mut RecordStream) -> Result<(), Stop> {
-        let path = self.options.uplink_dir().join(&transfer.name);
+        let path = self.options.uplink_dir().join(&transfer.id);
         let mut file = std::fs::File::open(&path).map_err(|e| Stop::Failed(format!("{}: {e}", transfer.name)))?;
         let mut seq = 0;
         let start = FilePacket::Start {

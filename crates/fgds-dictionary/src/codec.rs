@@ -184,10 +184,8 @@ impl Dictionary {
                 if len > *max {
                     return fail(format!("string length {len} exceeds maximum {max}"));
                 }
-                match std::str::from_utf8(r.take(len)?) {
-                    Ok(s) => Ok(json!(s)),
-                    Err(_) => fail("string is not valid UTF-8"),
-                }
+                // Flight software cuts a string at its size, possibly inside a character: shown, never dropped.
+                Ok(json!(String::from_utf8_lossy(r.take(len)?)))
             }
             Type::Enum { name, rep, constants } => {
                 let raw = int_from_json(&self.decode(rep, r)?).unwrap_or_default();

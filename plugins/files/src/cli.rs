@@ -200,7 +200,8 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let seconds = args.get_one::<f64>("timeout").copied().unwrap_or(60.0);
     let deadline = tokio::time::Instant::now() + Duration::try_from_secs_f64(seconds).unwrap_or(Duration::ZERO);
 
-    let mut url = format!("{base}/uplink?name={}", encode(&name));
+    // The source path of the start packet is the path given here, as `fprime-cli file-uplink` sends it.
+    let mut url = format!("{base}/uplink?name={}&source={}", encode(&name), encode(&file.to_string_lossy()));
     let destination = args.get_one::<String>("destination");
     if let Some(destination) = destination {
         url += &format!("&destination={}", encode(destination));
@@ -225,6 +226,9 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     // The path that is sent.
     let shown = json["destination"].as_str().unwrap_or_default().to_string();
     println!("Queued '{}' for uplink to '{shown}'", file.display());
+    if let Some(notice) = json["notice"].as_str() {
+        println!("Note: {notice}");
+    }
     if args.get_flag("no-wait") {
         return Ok(ExitCode::SUCCESS);
     }

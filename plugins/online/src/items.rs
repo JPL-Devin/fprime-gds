@@ -5,6 +5,7 @@
 use fgds_core::clap::ArgMatches;
 use fgds_core::python_times as times;
 use fgds_core::serde_json::{json, Value};
+use fgds_offline::value::Value as Typed;
 
 /// One printed item.
 pub struct Item {
@@ -46,7 +47,12 @@ impl Item {
 
     /// A record of kind `fprime.event` or `fprime.channel`. `plain` holds the kind of the type of
     /// each channel that has no format string: its JSON shows the value, not a text.
-    pub fn from_record(record: &Value, plain: &std::collections::HashMap<u64, String>) -> Item {
+    /// `dictionary`, when given, tells which event arguments are numbers (see `typed`).
+    pub fn from_record(
+        record: &Value,
+        plain: &std::collections::HashMap<u64, String>,
+        dictionary: Option<&Value>,
+    ) -> Item {
         let body = &record["body"];
         let time = &record["flight_time"];
         let field = |name: &str| time[name].as_u64().unwrap_or(0);
@@ -55,7 +61,24 @@ impl Item {
         let name = body["name"].as_str().unwrap_or("?").to_string();
         let text = body["display_text"].as_str().unwrap_or("");
         match body["severity"].as_str() {
-            Some(severity) => event(id, name, severity, &readable, &raw, &body["args"], Some(text)),
+            Some(severity) => {
+                // The values in the order of the dictionary, without their names: the list `fprime-cli`
+                // prints (`[]` for an event with no argument), so that a script reads one shape.
+                let args = match &body["args"] {
+                    Value::Object(named) => named.values().cloned().collect(),
+                    Value::Array(values) => values.clone(),
+                    _ => Vec::new(),
+                };
+                let types = dictionary.and_then(|d| list(d, "events").find(|e| e["id"] == record["id"]));
+                let shown = match (types, dictionary) {
+                    (Some(definition), Some(dictionary)) => {
+                        let types = list(definition, "formalParams").map(|p| &p["type"]);
+                        Typed::Array(args.iter().zip(types).map(|(a, t)| typed(a, t, dictionary)).collect()).to_json()
+                    }
+                    _ => dumps(&Value::Array(args)),
+                };
+                event(id, name, severity, &readable, &raw, shown, Some(text))
+            }
             None => {
                 let shown = match (&body["display_members"], plain.get(&id).map(String::as_str), &body["value"]) {
                     (Value::Null, Some("integer" | "float"), Value::String(number)) => number.clone(),
@@ -69,7 +92,46 @@ impl Item {
     }
 }
 
-fn event(id: u64, name: String, severity: &str, time: &str, raw: &str, args: &Value, text: Option<&str>) -> Item {
+/// A value of a record as `json.dumps` of Python writes it: a 64-bit integer and a non-finite float, which
+/// a record holds as text, are numbers again (`18446744073709551615`, `Infinity`, `NaN`), by the type the
+/// dictionary gives.
+fn typed(value: &Value, of: &Value, dictionary: &Value) -> Typed {
+    let definition = || list(dictionary, "typeDefinitions").find(|t| t["qualifiedName"] == of["name"]);
+    match (text(of, "kind"), value) {
+        ("integer", Value::String(number)) => {
+            number.parse::<i128>().map_or(Typed::from_json(value), |n| Typed::Int(n.into()))
+        }
+        ("float", Value::String(number)) => {
+            number.replace("Infinity", "inf").parse::<f64>().map_or(Typed::from_json(value), Typed::Float)
+        }
+        ("qualifiedIdentifier", _) => match (definition(), value) {
+            (Some(d), _) if text(d, "kind") == "alias" => typed(value, &d["underlyingType"], dictionary),
+            (Some(d), Value::Array(items)) if text(d, "kind") == "array" => {
+                Typed::Array(items.iter().map(|i| typed(i, &d["elementType"], dictionary)).collect())
+            }
+            (Some(d), Value::Object(members)) if text(d, "kind") == "struct" => Typed::Object(
+                members
+                    .iter()
+                    .map(|(name, member)| {
+                        let of = &d["members"][name]["type"];
+                        let shown = match member {
+                            // A member that is itself several values of its type.
+                            Value::Array(items) if d["members"][name]["size"].is_u64() => {
+                                Typed::Array(items.iter().map(|i| typed(i, of, dictionary)).collect())
+                            }
+                            _ => typed(member, of, dictionary),
+                        };
+                        (name.clone(), shown)
+                    })
+                    .collect(),
+            ),
+            _ => Typed::from_json(value),
+        },
+        _ => Typed::from_json(value),
+    }
+}
+
+fn event(id: u64, name: String, severity: &str, time: &str, raw: &str, args: String, text: Option<&str>) -> Item {
     let severity = format!("EventSeverity.{severity}");
     Item {
         id,
@@ -80,7 +142,7 @@ fn event(id: u64, name: String, severity: &str, time: &str, raw: &str, args: &Va
             ("name", dumps(&json!(name))),
             ("id", id.to_string()),
             ("severity", dumps(&json!(severity))),
-            ("args", dumps(args)),
+            ("args", args),
             ("display_text", dumps(&json!(text))),
         ]),
         name,
@@ -132,7 +194,7 @@ pub fn events(dictionary: &Value) -> Vec<Item> {
     let (time, raw) = times(0, 0, 0, 0);
     let events = list(dictionary, "events").map(|e| {
         let id = e["id"].as_u64().unwrap_or(0);
-        event(id, text(e, "name").into(), text(e, "severity"), &time, &raw, &Value::Null, e["annotation"].as_str())
+        event(id, text(e, "name").into(), text(e, "severity"), &time, &raw, "null".into(), e["annotation"].as_str())
     });
     sorted(events.collect())
 }
@@ -293,6 +355,7 @@ mod tests {
                          "display_text": "Opcode 0x1 completed"},
             }),
             &Default::default(),
+            None,
         );
         assert_eq!(
             item.line(false),
@@ -300,7 +363,44 @@ mod tests {
         );
         assert_eq!(
             item.line(true),
-            r#"{"time": "2026-11-21T15:31:48.000643", "raw_time": "(2(0)-1795275108:643)", "name": "CdhCore.cmdDisp.OpCodeCompleted", "id": 16777217, "severity": "EventSeverity.COMMAND", "args": {"Opcode": 1}, "display_text": "Opcode 0x1 completed"}"#
+            r#"{"time": "2026-11-21T15:31:48.000643", "raw_time": "(2(0)-1795275108:643)", "name": "CdhCore.cmdDisp.OpCodeCompleted", "id": 16777217, "severity": "EventSeverity.COMMAND", "args": [1], "display_text": "Opcode 0x1 completed"}"#
+        );
+    }
+
+    #[test]
+    fn event_arguments_are_a_list_with_numbers_as_numbers() {
+        let dictionary = json!({
+            "typeDefinitions": [
+                {"kind": "struct", "qualifiedName": "a.S", "members": {
+                    "big": {"type": {"name": "U64", "kind": "integer"}},
+                    "three": {"type": {"name": "F32", "kind": "float"}, "size": 3}}},
+                {"kind": "array", "qualifiedName": "a.A", "elementType": {"name": "I64", "kind": "integer"}},
+                {"kind": "alias", "qualifiedName": "a.T", "underlyingType": {"name": "F64", "kind": "float"}},
+            ],
+            "events": [
+                {"id": 1, "formalParams": []},
+                {"id": 2, "formalParams": [
+                    {"name": "s", "type": {"name": "a.S", "kind": "qualifiedIdentifier"}},
+                    {"name": "a", "type": {"name": "a.A", "kind": "qualifiedIdentifier"}},
+                    {"name": "t", "type": {"name": "a.T", "kind": "qualifiedIdentifier"}},
+                    {"name": "text", "type": {"name": "string", "kind": "string"}},
+                ]},
+            ],
+        });
+        let args = |id: u64, args: Value| {
+            let record = json!({"id": id, "body": {"name": "a.b.E", "severity": "ACTIVITY_HI", "args": args}});
+            let line = Item::from_record(&record, &Default::default(), Some(&dictionary)).line(true);
+            let (_, rest) = line.split_once(r#""args": "#).unwrap();
+            rest.split_once(r#", "display_text""#).unwrap().0.to_string()
+        };
+        assert_eq!(args(1, json!({})), "[]");
+        assert_eq!(
+            args(
+                2,
+                json!({"s": {"big": "18446744073709551615", "three": [1.5, "-Infinity", "NaN"]},
+                       "a": ["-9223372036854775808", 2], "t": "Infinity", "text": "12"})
+            ),
+            r#"[{"big": 18446744073709551615, "three": [1.5, -Infinity, NaN]}, [-9223372036854775808, 2], Infinity, "12"]"#
         );
     }
 
@@ -314,6 +414,7 @@ mod tests {
         let item = Item::from_record(
             &sample(json!({"name": "a.b.Count", "value": 9, "display_text": "9 m"})),
             &Default::default(),
+            None,
         );
         assert_eq!(item.line(false), "TB_PROC_TIME: 12.000005s, context=3: a.b.Count (7) (1(3)-12:5) 9 m");
         assert_eq!(item.line(true), format!(r#"{start}"9 m"}}"#));
@@ -334,7 +435,7 @@ mod tests {
             ),
         ] {
             body["name"] = json!("a.b.Count");
-            let item = Item::from_record(&sample(body), &[(7, kind.to_string())].into());
+            let item = Item::from_record(&sample(body), &[(7, kind.to_string())].into(), None);
             assert_eq!(item.line(true), format!("{start}{shown}}}"));
         }
     }

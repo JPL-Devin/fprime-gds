@@ -674,8 +674,29 @@ def follow_replay(name, gds, capture, out):
 
 def received_event(item):
     return {"id": item["id"], "name": item["name"], "severity": item["severity"].replace("EventSeverity.", ""),
-            "time": item["raw_time"], "args": scenario.plain(list(item["args"].values()) if isinstance(item["args"], dict) else item["args"]),
+            "time": item["raw_time"], "args": scenario.plain(item["args"]),
             "display_text": item["display_text"]}
+
+
+def skeleton(value):
+    """The shape of a JSON value: names, nesting and the type of each leaf."""
+    if isinstance(value, dict):
+        return {key: skeleton(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [skeleton(item) for item in value]
+    return "number" if isinstance(value, (int, float)) and not isinstance(value, bool) else type(value).__name__
+
+
+def shapes(python, rust):
+    """`events --json`, field by field: an event of fgds has the names, nesting and leaf types of the same event of fprime-cli."""
+    ours = {(item["id"], item["raw_time"]): item for item in rust}
+    pairs = [(item, ours[item["id"], item["raw_time"]]) for item in python if (item["id"], item["raw_time"]) in ours]
+    differ = [(theirs, mine) for theirs, mine in pairs if skeleton(theirs) != skeleton(mine) or list(theirs) != list(mine)]
+    counts = {n: sum(1 for theirs, _ in pairs if min(len(theirs["args"]), 2) == n) for n in (0, 1, 2)}
+    leaves = sorted({json.dumps(skeleton(arg)) for theirs, _ in pairs for arg in theirs["args"]})
+    require(f"events --json: the {len(pairs)} events both printed have the same field names, order, nesting and value types "
+            f"({counts[0]} with no argument, {counts[1]} with one, {counts[2]} with several; argument shapes {', '.join(leaves)})",
+            pairs and not differ and all(counts.values()), f"{counts} " + json.dumps(differ[:2]))
 
 
 def received_channel(item):
@@ -1182,6 +1203,7 @@ def main():
             times = [tuple(map(int, re.fullmatch(r"\(\d+\(\d+\)-(\d+):(\d+)\)", i["raw_time"]).groups())) for i in history[subcommand]]
             require(f"fgds {subcommand} --history: the {len(times)} items are in the order of their flight times", times == sorted(times))
             subset(subcommand, [shape(i) for i in followed[subcommand]], [shape(i) for i in rust[subcommand]])
+        shapes(followed["events"], rust["events"])
     finally:
         for gds in (fgds, python):
             if gds:
