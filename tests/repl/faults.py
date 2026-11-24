@@ -7,6 +7,7 @@ and a healthy GDS do not do.
   a command the dictionary read at the start does not have is left to the GDS
   the GDS stops: one line, then silence; it starts again with another dictionary under the same version: one line, and that dictionary is used
   an error before the prompt, and the line being typed or pasted, show no control either
+  a paste is read key by key and runs nothing; an answer 503 is printed as a refusal
   a GDS that answers and refuses the stream: one line
   SIGTERM, SIGHUP, SIGQUIT, SIGINT, SIGALRM, SIGUSR1 and SIGUSR2 put the terminal back and keep the history
 
@@ -150,12 +151,40 @@ def typed_text():
             sent and fake.posts[-1] == ("/commands", {"name": "A.b.GO", "args": ["xZ"]}) and "cmd A.b.GO xZ" in terminal.rows()[-5:-1].__str__(),
             f"{fake.posts} {terminal.seen[at:]!r}")
     at = len(terminal.seen)
+    # A paste as the terminal marks it, and one that holds the marks itself: read key by key all the same.
+    for number, (begin, end) in enumerate((("\x1b[200~", "\x1b[201~"), ("\x1b[200~\x1b[200~", "\x1b[201~"))):
+        terminal.type(f"cmd A.b.GO {begin}p\u202eq\u009b31mr\x07\x1b]0;PWN\x07\x1b[2Js{end}\r")
+        sent = terminal.expect(r"CMD   A\.b\.GO \[\"[^\r\n]*\"\] by fgds-repl-\d+: sent", at)
+        argument = fake.posts[-1][1]["args"] if sent else None
+        require(f"a marked paste ({number}) leaves in the line only what is shown as it is: {argument}",
+                sent and all(c.isascii() and c.isprintable() for c in argument[0]) and argument[0].startswith("pq") and argument[0].endswith("s"),
+                f"{fake.posts[-1]} {terminal.seen[at:]!r}")
+        at = len(terminal.seen)
+    posts = len(fake.posts)
+    terminal.type("\x1b[200~cmds GO\r\ncmd A.b.GO one\ncmd A.b.GO\ttwo\x1b[201~")
+    time.sleep(1.0)
+    terminal.read()
+    require("a paste of several lines runs nothing: its line breaks and tabs are spaces in the line",
+            len(fake.posts) == posts and "cmds GO  cmd A.b.GO one cmd A.b.GO two" in terminal.rows()[-1], f"{fake.posts[posts:]} {terminal.rows()[-3:]}")
+    terminal.type("\x15")
+    time.sleep(0.2)
+    terminal.type("\x1b[200~cmds G")  # a paste whose end never comes
+    time.sleep(1.0)
+    terminal.type("O\r")
+    require("a paste without its end mark is over after a moment: Enter is Enter again", terminal.expect(r"A\.b\.GO \(0x", at), repr(terminal.seen[at:]))
+    at = len(terminal.seen)
+    fake.refuse, fake.refuse_status = "link down", 503
+    terminal.type("cmd A.b.GO\r")
+    require("an answer 503 of the GDS is printed as its refusal", terminal.expect("refused: 503 Service Unavailable: link down", at)
+            and "may have been sent" not in terminal.seen[at:], repr(terminal.seen[at:]))
+    fake.refuse, fake.refuse_status = None, 400
+    at = len(terminal.seen)
     terminal.type(b"cmds \x9b")  # one byte that is not UTF-8
     dropped = terminal.expect("line dropped: ", at)
     terminal.type("cmds GO\r")
     require("a byte that is not text drops the line, and the prompt goes on", dropped and terminal.expect(r"A\.b\.GO \(0x", at), repr(terminal.seen[at:]))
     at = len(terminal.seen)
-    terminal.type("\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A\x1b[A")
+    terminal.type("\x1b[A" * 12)
     time.sleep(0.5)
     terminal.type("\x15quit\r")
     require("quit leaves with exit code 0", terminal.ended() == 0)
@@ -260,7 +289,7 @@ def signals():
         require(f"{number.name}: the prompt ends with exit code {128 + number}", code == 128 + number, f"{code}")
         require(f"{number.name}: the terminal is in line mode with echo, as it was", terminal.line_mode())
         terminal.read()
-        require(f"{number.name}: bracketed paste is not left on", not terminal.seen.rstrip().endswith("\x1b[?2004h") and "\x1b[?2004h" not in terminal.seen,
+        require(f"{number.name}: bracketed paste is not left on", re.findall(r"\x1b\[\?2004[hl]", terminal.seen)[-1:] == ["\x1b[?2004l"],
                 repr(terminal.seen[-80:]))
         kept = os.path.exists(history) and open(history).read()
         require(f"{number.name}: the history has the line entered before", kept and f"cmds {number.name}" in kept, f"{kept!r}")

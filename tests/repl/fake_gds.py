@@ -39,6 +39,7 @@ class Fake:
         self.posts, self.delay, self.refuse, self.streams, self.opened = [], 0.0, None, [], 0
         # `fail`: a path and the (status, message) it answers with; `no_stream`: `/stream` answers 404.
         self.fail, self.no_stream = {}, False
+        self.refuse_status = 400  # of the answer `refuse` asks for
         self.records, self.seq, self.lock = [], first_seq - 1, threading.Lock()
         fake = self
 
@@ -111,7 +112,7 @@ class Fake:
                 if path == "/commands":
                     time.sleep(fake.delay)
                     if fake.refuse:
-                        return self.answer({"error": {"message": fake.refuse}}, 400)
+                        return self.answer({"error": {"message": fake.refuse}}, fake.refuse_status)
                     record = fake.emit({"kind": "fprime.command", "raw": "",
                                         "body": {"name": body["name"], "args": body["args"], "opcode": 16, "outcome": "sent",
                                                  "client": self.headers.get("x-fgds-client", "?")}})

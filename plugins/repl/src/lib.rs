@@ -337,10 +337,12 @@ impl Session {
     }
 }
 
-/// The line for a request the GDS did not answer: only one that found no GDS is known not to be sent.
+/// The line for a request that failed: one that found no GDS is known not to be sent, an error
+/// answer of the GDS (`link down`) is its refusal, and of the others nothing is known.
 fn unsent(error: &Error) -> String {
     match error {
         Error::Io(_) | Error::Invalid(_) => format!("not sent: {error}"),
+        error if api::answered(error) => format!("refused: {error}"),
         _ => format!("no answer, it may have been sent: {error}"),
     }
 }
@@ -370,6 +372,10 @@ mod tests {
         assert!(unsent(&Error::Invalid("unknown command X".into())).starts_with("not sent: "));
         let late = unsent(&Error::Other("the GDS did not answer: timed out".into()));
         assert!(late.starts_with("no answer, it may have been sent: "), "{late}");
+        assert_eq!(
+            unsent(&Error::Other("503 Service Unavailable: link down".into())),
+            "refused: 503 Service Unavailable: link down"
+        );
     }
 
     #[test]

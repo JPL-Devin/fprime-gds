@@ -66,7 +66,7 @@ is read: events, channel samples and commands are printed, one per line, until i
 - The prompt needs a running GDS; it does not start one in its own process.
 - Only records that arrive after the prompt started are printed; `fgds events` and the browser show the history.
 - A typed line longer than the terminal is wide leaves its first rows on the screen when an event is printed above it.
-- If the GDS stops, the prompt says so once, tries again after 1 s, 2 s, 4 s and so on up to 30 s, and says once that it is back. A command typed meanwhile gets `not sent` when no GDS took the connection, and `no answer, it may have been sent` when the request left and no answer came.
+- If the GDS stops, the prompt says so once, tries again after 1 s, 2 s, 4 s and so on up to 30 s, and says once that it is back. A command typed meanwhile gets `not sent` when no GDS took the connection, and `no answer, it may have been sent` when the request left and no answer came. An error answer of the GDS with a status of 500 or above (`link down`, where the GDS records the command as rejected) is printed as `refused: 503 Service Unavailable: link down`.
 - The dictionary is read again each time the stream is opened, and replaces the one in use when its content differs, whatever its version says. A name the prompt does not know is still sent: the GDS decides.
 
 ## What is printed
@@ -76,6 +76,8 @@ Control characters are printed as text (`\x1b`, `\r`, `\n`, `\t`, others `\xNN`)
 
 ## Signals
 
-An error before the prompt (no GDS at `--url`, an error answer of the GDS) is printed escaped by the same rule, also without a terminal. A character the rule would change does not enter the line being typed, typed or pasted, and Ctrl-V and Ctrl-Q insert nothing; a line of `~/.fgds_history` that holds one is not recalled. Bytes that are not UTF-8 drop the line (`line dropped: ...`) and the prompt goes on. Pasted text is read as keys (bracketed paste is not switched on), so a pasted line break enters the line before it.
+An error before the prompt (no GDS at `--url`, an error answer of the GDS) is printed escaped by the same rule, also without a terminal. A character the rule would change does not enter the line being typed, typed or pasted, and Ctrl-V and Ctrl-Q insert nothing; a line of `~/.fgds_history` that holds one is not recalled. Bytes that are not UTF-8 drop the line (`line dropped: ...`) and the prompt goes on.
 
-SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGALRM, SIGUSR1 and SIGUSR2 put the terminal back as it was before the process ends with status 128 plus the signal. Each line is added to `~/.fgds_history` when it is entered.
+A paste is read key by key between the marks the terminal puts around it (bracketed paste), marks inside the pasted text included. In a paste no key is a command: a line break or a tab becomes a space, so nothing pasted runs before Enter is pressed, and a paste of several lines is one line to look at. A paste whose end mark does not come is over half a second after its last key. On a terminal without bracketed paste, a pasted line break is Enter: the first line runs and the editor discards the lines after it.
+
+SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGALRM, SIGUSR1 and SIGUSR2, and no other signal, put the terminal back (with bracketed paste off) as it was before the process ends with status 128 plus the signal. Each line is added to `~/.fgds_history` when it is entered.

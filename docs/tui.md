@@ -63,7 +63,7 @@ rows shown and the channels received (`Channels: 1 of 23`).
 - One line is asked of the GDS at a time. A `cmd` or `raw-uplink` entered while the one before is not answered is refused on the screen and not kept; the title of the command pane names the line waited for. Lines that ask the GDS nothing (`help`, filters) run meanwhile.
 - Leaving does not wait for the answer: nothing is posted after `quit`, and the line that was not answered is named on the terminal, since the GDS may have sent it.
 - Text is escaped as in [`fgds repl`](repl.md#what-is-printed); wide characters take two columns, in the panes and for the cursor.
-- SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGALRM, SIGUSR1 and SIGUSR2 leave the alternate screen and put the terminal back, as `quit` does.
+- SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGALRM, SIGUSR1 and SIGUSR2 leave the alternate screen and put the terminal back, as `quit` does. That is the complete set: another signal that ends the process (SIGVTALRM, SIGPROF, SIGXCPU and the like, and SIGKILL) leaves the terminal as it is, and `reset` puts it back.
 - A GDS that stops, and another dictionary when it is back, are handled as in `fgds repl`.
 - No mouse, and no choice of layout: the events pane has 62% of the width.
 - `NO_COLOR` set to anything turns the colours of event severities off.

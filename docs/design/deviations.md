@@ -146,6 +146,8 @@ Review of `fgds repl` and `fgds tui` at `49ec3785` (13 findings), what is left a
 - **The retry of `tests/files` on a time-out without an abort of `Ref` (finding 11).** Kept: the time-out of the `down.bin` downlink and of the `after.bin` uplink were both seen without the abort line, and the retry was asked for on the states seen. The Python half now always prints the attempt it ended at (`Python GDS half ended at attempt 1 of 3`), so a second attempt is not read as a first-time pass.
 - **Terminals other than xterm** are not tested. Screens below 3 rows or 20 columns are drawn without a panic (unit test and `tests/tui/faults.py`) and are of no use.
 - **A typed line of `fgds repl` longer than the terminal is wide** still leaves its first rows on the screen when an event is printed above it ([repl.md](../repl.md#limits)).
+- **Signals outside the handled set** (SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGALRM, SIGUSR1, SIGUSR2), such as SIGVTALRM, SIGPROF and SIGXCPU, end the process without putting the terminal back (third review, finding 3: accepted, documented in [repl.md](../repl.md) and [tui.md](../tui.md)).
+- **A terminal without bracketed paste**: a paste of several lines into `fgds repl` runs its first line and the rest is discarded by the editor, without a word. With bracketed paste nothing pasted runs before Enter.
 - **SIGKILL and SIGSTOP** cannot be handled: the terminal is left as it was at that moment (`reset` puts it back).
 - **Names of the dictionary that hold a character the escaping rule changes** are listed escaped and are not offered by Tab completion, so that completion never puts in the line a text that is not the name.
 
