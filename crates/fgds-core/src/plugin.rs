@@ -103,6 +103,11 @@ pub trait FramingLayer: Send + Sync {
     }
     fn deframer(&self, cfg: &PluginConfig, peer: &PeerInfo) -> Box<dyn Deframe>;
     fn framer(&self, cfg: &PluginConfig) -> Box<dyn Frame>;
+    /// A framer whose frames are never sent, used to find the largest packet the layer carries. A layer whose
+    /// framers share state (a count of the frames sent) gives one here that does not share it.
+    fn trial_framer(&self, cfg: &PluginConfig) -> Box<dyn Frame> {
+        self.framer(cfg)
+    }
 }
 
 /// The packets a layer emits are the input stream of the next layer. A layer that

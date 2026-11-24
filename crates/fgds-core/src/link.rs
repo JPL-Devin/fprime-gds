@@ -77,7 +77,7 @@ pub fn max_packet(layers: &[Layer]) -> Option<usize> {
         let mut data = BytesMut::zeroed(length);
         layers.iter().rev().all(|(layer, cfg)| {
             let mut out = BytesMut::new();
-            let framed = layer.framer(cfg).frame(&data, &PacketMeta::default(), &mut out).is_ok();
+            let framed = layer.trial_framer(cfg).frame(&data, &PacketMeta::default(), &mut out).is_ok();
             data = out;
             framed
         })

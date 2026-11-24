@@ -220,6 +220,13 @@ impl FramingLayer for SpacePacketLayer {
     fn framer(&self, _: &PluginConfig) -> Box<dyn Frame> {
         self.stage()
     }
+    fn trial_framer(&self, _: &PluginConfig) -> Box<dyn Frame> {
+        // Counts of its own: a trial takes no count from the packets sent.
+        Box::new(SpacePacketFraming {
+            stream: self.stream,
+            packet: SpacePacket::sharing(self.apids.clone(), Default::default()),
+        })
+    }
 }
 
 struct SpacePacketFraming {
@@ -261,5 +268,23 @@ impl Deframe for SpacePacketFraming {
         }
         warn(warnings);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finding_the_largest_packet_takes_no_sequence_count() {
+        let counts = stage::SequenceCounts::default();
+        let packets = SpacePacketLayer { stream: false, apids: Apids::default(), counts: counts.clone() };
+        let layers: Vec<(Arc<dyn FramingLayer>, PluginConfig)> = vec![
+            (Arc::new(SpaceDataLinkLayer::default()), PluginConfig::default()),
+            (Arc::new(packets), PluginConfig::default()),
+        ];
+        // The TC frame carries at most 1016 bytes after its header; the space packet header takes 6.
+        assert_eq!(fgds_core::max_packet(&layers), Some(1010));
+        assert!(counts.lock().unwrap().is_empty(), "a trial frame took a sequence count");
     }
 }
