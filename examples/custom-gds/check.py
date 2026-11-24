@@ -126,7 +126,8 @@ try:
     # The added record kind: stored, and queryable through its route and the record API.
     assert call("/api/v1/notes", {"text": "Antenna stowed", "author": "ops"})[0] == 200
     assert call("/api/v1/notes", {"text": "Pass complete", "author": "lead"})[0] == 200
-    assert get("/api/v1/notes") == ["Antenna stowed", "Pass complete"]
+    # A record is stored after its route answers: the list is waited for.
+    wait_for("the two notes", lambda: get("/api/v1/notes") == ["Antenna stowed", "Pass complete"])
     found = get("/api/v1/records?kind=example.note&text=antenna")["records"]
     assert [r["body"]["author"] for r in found] == ["ops"], found
     found = get("/api/v1/records?kind=example.note&filter=author:eq:lead")["records"]
