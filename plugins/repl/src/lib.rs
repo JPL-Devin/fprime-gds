@@ -8,6 +8,7 @@ mod complete;
 mod filter;
 mod line;
 mod show;
+mod tui;
 
 use api::Api;
 use base64::Engine;
@@ -33,7 +34,8 @@ impl Plugin for ReplPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
-        reg.add_subcommand(Arc::new(Repl))
+        reg.add_subcommand(Arc::new(Repl))?;
+        reg.add_subcommand(Arc::new(tui::Tui))
     }
 }
 
@@ -81,8 +83,14 @@ fn view(shared: &Shared) -> std::sync::MutexGuard<'_, View> {
     shared.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// Prints the stream through `print` until the process ends, connecting again when it stops.
-async fn stream(api: Api, shared: Shared, colour: bool, mut print: impl FnMut(String)) {
+/// What the stream gives: a record, or a line about the connection.
+enum Item<'a> {
+    Record(&'a Value),
+    Note(String),
+}
+
+/// Gives the stream to `on` until the process ends, connecting again when it stops.
+async fn stream(api: Api, mut on: impl FnMut(Item)) {
     let (mut after, mut down) = (None, false);
     loop {
         if down {
@@ -90,19 +98,25 @@ async fn stream(api: Api, shared: Shared, colour: bool, mut print: impl FnMut(St
             if api.check_version().await.is_err() {
                 continue;
             }
-            print("the GDS answers again".to_string());
+            on(Item::Note("the GDS answers again".to_string()));
             down = false;
         }
-        let mut on_record = |record: &Value| {
-            let line = view(&shared).line(record, api.client(), colour);
-            line.into_iter().for_each(&mut print);
-        };
-        if let Err(error) = api.follow(KINDS, &mut after, &mut on_record).await {
-            print(format!("{error}; trying again every second"));
+        if let Err(error) = api.follow(KINDS, &mut after, &mut |record| on(Item::Record(record))).await {
+            on(Item::Note(format!("{error}; trying again every second")));
             // What the GDS recorded meanwhile is not printed: it may be another run.
             (after, down) = (None, true);
         }
     }
+}
+
+/// The stream as lines, through the filters, for `print`.
+async fn stream_lines(api: Api, shared: Shared, colour: bool, mut print: impl FnMut(String)) {
+    let own = api.client().to_string();
+    let on = |item: Item| match item {
+        Item::Record(record) => view(&shared).line(record, &own, colour).into_iter().for_each(&mut print),
+        Item::Note(note) => print(note),
+    };
+    stream(api, on).await;
 }
 
 const PROMPT: &str = "fgds> ";
@@ -215,7 +229,31 @@ struct Session {
     runtime: tokio::runtime::Runtime,
 }
 
+fn url_arg() -> Arg {
+    Arg::new("url").long("url").value_name("URL").help("Address of the running GDS [default: the configured --bind]")
+}
+
 impl Session {
+    /// Reads the dictionary of the GDS at `--url`; `name` is the subcommand, for the client name.
+    fn open(name: &str, args: &ArgMatches, env: &CliEnv) -> Result<Session> {
+        let base = match args.get_one::<String>("url") {
+            Some(url) => api::base_url(url),
+            None => (env.client)()?.base_url,
+        };
+        let api = Api::new(base, format!("fgds-{name}-{}", std::process::id()));
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
+        let dictionary = runtime.block_on(async {
+            api.check_version().await?;
+            api.get("/dictionary", &[]).await
+        })?;
+        Ok(Session { api, dictionary, shared: Shared::default(), runtime })
+    }
+
+    /// A client for the thread of the stream: a connection is not shared between two runtimes.
+    fn stream_api(&self) -> Api {
+        Api::new(self.api.base().to_string(), self.api.client().to_string())
+    }
+
     /// Does what `line` asks and returns what to print; `None` to leave.
     fn handle(&self, line: &str) -> Option<Vec<String>> {
         let parsed = match line::parse(line) {
@@ -310,11 +348,11 @@ fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
         let _ = editor.load_history(history);
     }
     println!("fgds repl on {}: `help` lists what can be typed, `quit` leaves.", session.api.base());
-    let api = Api::new(session.api.base().to_string(), session.api.client().to_string());
+    let api = session.stream_api();
     let (shared, above) = (session.shared.clone(), shown.clone());
     std::thread::spawn(move || {
         let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
-        runtime.block_on(stream(api, shared, colour, |line| print_above(&above, &line)));
+        runtime.block_on(stream_lines(api, shared, colour, |line| print_above(&above, &line)));
     });
     loop {
         *screen(&shown) = Screen { state: Row::Typed, ..Default::default() };
@@ -349,26 +387,11 @@ impl Subcommand for Repl {
                 "Type `help` at the prompt. When the standard input is not a terminal, nothing is read: \
                  events, channel samples and commands are printed until interrupted.",
             )
-            .arg(
-                Arg::new("url")
-                    .long("url")
-                    .value_name("URL")
-                    .help("Address of the running GDS [default: the configured --bind]"),
-            )
+            .arg(url_arg())
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        let base = match args.get_one::<String>("url") {
-            Some(url) => api::base_url(url),
-            None => (env.client)()?.base_url,
-        };
-        let api = Api::new(base, format!("fgds-repl-{}", std::process::id()));
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
-        let dictionary = runtime.block_on(async {
-            api.check_version().await?;
-            api.get("/dictionary", &[]).await
-        })?;
-        let shared = Shared::default();
+        let Session { api, dictionary, shared, runtime } = Session::open("repl", args, env)?;
         let colour = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
         if std::io::stdin().is_terminal() {
             return prompt(Session { api, dictionary, shared, runtime }, colour);
@@ -382,7 +405,7 @@ impl Subcommand for Repl {
         };
         runtime.block_on(async {
             tokio::select! {
-                () = stream(api, shared, colour, print) => {}
+                () = stream_lines(api, shared, colour, print) => {}
                 () = fgds_core::interrupt() => {}
             }
         });

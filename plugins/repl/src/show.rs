@@ -18,7 +18,7 @@ pub fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn flight_time(record: &Value) -> String {
+pub fn flight_time(record: &Value) -> String {
     let field = |name: &str| record["flight_time"][name].as_u64().unwrap_or(0);
     fgds_core::python_times(field("base"), field("context"), field("seconds"), field("microseconds")).0
 }

@@ -120,6 +120,7 @@ Things fgds has and the Python GDS does not.
 | Commanding at start, line after a send (round 6, 42) | `CdhCore.cmdDisp.CMD_NO_OP` selected (`command-input.js`: the first command of the dictionary whose mnemonic starts with `CMD_NO_OP`, else the first command). Nothing written after a send | The same command selected, by the same rule. After a send, a line under the form: `<command> sent (record N)` | The line is extra: it gives the record of the command in the store (API-4). No byte sent depends on it | `tests/browser/ui.py` |
 | Ground time column, paging (W3) | No ground time; 40 events per page | Ground time column that can be hidden; one table with a row limit | Intended extra (API-4). Paging changes the rows shown in one case (round 6, 44), a Python GDS defect, not reproduced: with the table on a later page, a text typed in the filter field leaves Python at that position, past the end of the filtered rows: it shows 0 rows and the position `216 - 2`, until `First` is pressed; fgds shows the rows that match | All other columns compared in `tests/browser/parity.py` |
 | `fgds repl` | None: `fprime-cli` has one command line per action, and no prompt | An interactive prompt on a running GDS: commands with Tab completion from the dictionary, events and channel samples printed above the line being typed, mutes and subscriptions ([repl.md](../repl.md)) | Asked for as an extra. It is a plugin (`plugins/repl`) on the public API: commands are checked and encoded by the GDS, as with `command-send` | `tests/repl/check.py`: the packet of a typed `CMD_NO_OP` is the packet of `fgds command-send` |
+| `fgds tui` | None | The prompt of `fgds repl` on a screen of three panes: events and commands with scrollback, the latest value of each channel, and the command line with Tab completion ([tui.md](../tui.md)) | Asked for as an extra. Same crate, client, parser, filters and completion as `fgds repl`; only the screen and its line editor are added | `tests/tui/check.py`: on the screen of a pseudo-terminal, the packet of a typed `CMD_NO_OP` is the packet of `fgds command-send` |
 | Data Products tab (W25) | None | Present, after the Python tabs | Requirement DP-5 | |
 | Reload, second window (W26, W27) | The page comes back empty | The history comes back | Requirement UI-3 | |
 
@@ -172,6 +173,7 @@ Not differences of `fgds`, but seen in the checks and handled there:
 |---|---|---|
 | `tracing-subscriber` | `fgds` | `tracing` alone prints nothing; this writes the log |
 | `rustyline` | `repl` only | Line editing, history and Tab completion of `fgds repl` |
+| `ratatui` (with its `crossterm` backend) | `repl` only | The panes and the keys of `fgds tui`; 54 packages more in `Cargo.lock`, none in the other crates |
 | `futures-util` | `fgds-shell` tests only | Reading a WebSocket in tests with `tokio-tungstenite` |
 
 `reqwest` and `tokio-tungstenite` are in section 5; here they are development dependencies of `fgds-shell` only.
