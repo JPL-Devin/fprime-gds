@@ -57,6 +57,9 @@ impl Plugin for CcsdsFramingPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_option_check(Arc::new(|cfg, _| {
+            [SCID, VCID, FRAME_SIZE].iter().try_for_each(|(name, min, max)| checked(cfg, name, *min, *max).map(|_| ()))
+        }));
         reg.add_framing_layer("ccsds-tm-tc", Arc::new(SpaceDataLinkLayer::default()))?;
         reg.add_framing_layer(
             "ccsds-space-packet",
@@ -76,21 +79,28 @@ fn constant(dict: &Dictionary, name: &str) -> Option<u64> {
     constants.iter().find(|c| c["qualifiedName"] == name)?["value"].as_u64()
 }
 
-/// A numeric option, decimal or `0x` hexadecimal. A value that is not a number in
-/// range is reported and ignored.
-fn option(cfg: &PluginConfig, name: &str, max: u64) -> Option<u64> {
-    let text = cfg.get(name)?;
+/// A numeric option, decimal or `0x` hexadecimal, from `min` to `max`.
+fn checked(cfg: &PluginConfig, name: &str, min: u64, max: u64) -> Result<Option<u64>> {
+    let Some(text) = cfg.get(name) else { return Ok(None) };
     let parsed = match text.strip_prefix("0x").or(text.strip_prefix("0X")) {
         Some(hex) => u64::from_str_radix(hex, 16),
         None => text.parse(),
     };
     match parsed {
-        Ok(value) if value <= max => Some(value),
-        _ => {
-            tracing::error!(option = name, value = %text, max, "not a number in range; option ignored");
-            None
-        }
+        Ok(value) if (min..=max).contains(&value) => Ok(Some(value)),
+        _ => Err(Error::Config(format!(
+            "[plugins.framing-ccsds] {name}: \"{text}\" is not a number from {min} to {max}"
+        ))),
     }
+}
+
+const SCID: (&str, u64, u64) = ("scid", 1, 0x3FF);
+const VCID: (&str, u64, u64) = ("vcid", 0, 0x3F);
+const FRAME_SIZE: (&str, u64, u64) = ("frame-size", (stage::TM_HEADER + stage::TM_TRAILER + 1) as u64, u32::MAX as u64);
+
+/// The option as checked when the GDS started (`add_option_check`); a value out of range is not used.
+fn option(cfg: &PluginConfig, (name, min, max): (&str, u64, u64)) -> Option<u64> {
+    checked(cfg, name, min, max).ok().flatten()
 }
 
 /// TM frames down, TC frames up (`SpaceDataLinkFramerDeframer` of the Python GDS).
@@ -104,11 +114,11 @@ pub struct SpaceDataLinkLayer {
 impl SpaceDataLinkLayer {
     fn stage(&self, cfg: &PluginConfig) -> SpaceDataLink {
         let minimum = (stage::TM_HEADER + stage::TM_TRAILER + 1) as u64;
-        let scid = option(cfg, "scid", 0x3FF).or(self.scid).filter(|scid| *scid != 0);
-        let frame_size = option(cfg, "frame-size", u64::from(u32::MAX)).or(self.frame_size).filter(|n| *n >= minimum);
+        let scid = option(cfg, SCID).or(self.scid).filter(|scid| *scid != 0);
+        let frame_size = option(cfg, FRAME_SIZE).or(self.frame_size).filter(|n| *n >= minimum);
         SpaceDataLink::new(
             scid.map_or(stage::FALLBACK_SCID, |scid| scid as u16),
-            option(cfg, "vcid", 0x3F).map_or(stage::DEFAULT_VCID, |vcid| vcid as u8),
+            option(cfg, VCID).map_or(stage::DEFAULT_VCID, |vcid| vcid as u8),
             frame_size.map_or(stage::FALLBACK_FRAME_SIZE, |n| n as usize),
         )
     }

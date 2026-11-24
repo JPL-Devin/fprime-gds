@@ -63,16 +63,29 @@ impl Options {
             },
         };
         let directory = config.get("directory").map(PathBuf::from).or_else(|| default_directory.clone());
-        let chunk = number("chunk-size", 256.0)? as usize;
-        if chunk == 0 || chunk > usize::from(u16::MAX) {
-            return Err(Error::Config("[plugins.files] chunk-size: between 1 and 65535".into()));
+        let chunk = number("chunk-size", 256.0)?;
+        if chunk.fract() != 0.0 || chunk < 1.0 || chunk > f64::from(u16::MAX) {
+            return Err(Error::Config("[plugins.files] chunk-size: a whole number between 1 and 65535".into()));
+        }
+        let chunk = chunk as usize;
+        if let Some(text) = config.get("directory") {
+            fgds_core::check_directory("[plugins.files] directory", &text)?;
+        }
+        let max_upload = number("max-upload-bytes", 64.0 * 1024.0 * 1024.0)?;
+        if max_upload.fract() != 0.0 || max_upload > f64::from(u32::MAX) {
+            let message = "[plugins.files] max-upload-bytes: a whole number of at most 4294967295 (the file packet carries the size in 32 bits)";
+            return Err(Error::Config(message.into()));
         }
         Ok(Options {
             directory,
             chunk,
             cooldown: Duration::from_secs_f64(number("cooldown", 0.01)?),
-            timeout: Duration::from_secs_f64(number("timeout", 20.0)?),
-            max_upload: number("max-upload-bytes", 64.0 * 1024.0 * 1024.0)? as usize,
+            timeout: match number("timeout", 20.0)? {
+                // Every transfer would fail at once.
+                0.0 => return Err(Error::Config("[plugins.files] timeout: more than 0 seconds".into())),
+                seconds => Duration::from_secs_f64(seconds),
+            },
+            max_upload: max_upload as usize,
         })
     }
 
@@ -255,6 +268,22 @@ pub(crate) struct Shared {
     started: u128,
 }
 
+/// Refuse a chunk size whose data packet the framing layers do not carry (`max_packet`, from the framers).
+pub(crate) fn chunk_fits(chunk: usize, max_packet: Option<usize>, dictionary: &Dictionary) -> Result<(), String> {
+    let header = packet::encode(
+        packet::descriptor_bytes(dictionary),
+        0,
+        &packet::FilePacket::Data { offset: 0, data: Vec::new() },
+    );
+    match max_packet.map(|max| max.saturating_sub(header.len()).min(usize::from(u16::MAX))) {
+        Some(limit) if chunk > limit => Err(format!(
+            "chunk size {chunk}: the configured framing carries packets of at most {} bytes, that is at most {limit} bytes of file data per packet",
+            max_packet.unwrap_or_default()
+        )),
+        _ => Ok(()),
+    }
+}
+
 impl Shared {
     pub fn state(&self) -> MutexGuard<'_, State> {
         // A poisoned lock only means a panic elsewhere; the data is still usable.
@@ -356,6 +385,12 @@ impl Plugin for FilesPlugin {
             default_directory: self.directory.clone(),
             started,
         });
+        let for_check = shared.clone();
+        reg.add_option_check(Arc::new(move |config, startup| {
+            let options = for_check.options(config)?;
+            chunk_fits(options.chunk, startup.max_packet, startup.dictionary)
+                .map_err(|e| Error::Config(format!("[plugins.files] {e}")))
+        }));
         let for_handler = shared.clone();
         reg.add_handler(Arc::new(move |config| {
             let options = for_handler.options(config)?;

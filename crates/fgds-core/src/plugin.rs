@@ -37,6 +37,38 @@ pub trait Plugin: Send + Sync + 'static {
     fn register(&self, reg: &mut Registry) -> Result<()>;
 }
 
+/// What a check of options is given besides the options: known once the dictionary and the framing are.
+pub struct Startup<'a> {
+    pub dictionary: &'a Dictionary,
+    /// The largest packet the configured framing layers carry; `None` when they set no limit.
+    pub max_packet: Option<usize>,
+}
+
+pub type OptionCheck = Arc<dyn Fn(&PluginConfig, &Startup) -> Result<()> + Send + Sync>;
+
+/// Refuse a directory option that is empty, or names a file or a place under a file: it could never be
+/// created. A directory that does not exist yet is fine.
+pub fn check_directory(option: &str, text: &str) -> Result<()> {
+    let refuse = |why: String| Err(crate::Error::Config(format!("{option}: {why}")));
+    if text.is_empty() {
+        return refuse("is empty".into());
+    }
+    match std::path::Path::new(text).ancestors().find(|path| path.exists()) {
+        Some(found) if !found.is_dir() => {
+            refuse(format!("{text:?} cannot be a directory: {} is a file", found.display()))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Refuse an address that is not `host:port`.
+pub fn check_address(option: &str, text: &str) -> Result<()> {
+    match text.rsplit_once(':') {
+        Some((host, port)) if !host.is_empty() && port.parse::<u16>().is_ok() => Ok(()),
+        _ => Err(crate::Error::Config(format!("{option}: {text:?} is not an address (host:port, port 0 to 65535)"))),
+    }
+}
+
 // Link
 
 #[derive(Debug, Clone, Default)]

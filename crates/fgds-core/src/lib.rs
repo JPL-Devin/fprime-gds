@@ -24,13 +24,15 @@ mod uplink;
 pub use config::{Config, PluginConfig, StorageConfig};
 pub use error::{Error, Result};
 pub use http::ApiError;
-pub use link::{Link, LinkError};
+pub use link::{max_packet, Link, LinkError};
 pub use pipeline::{PipelineOptions, RecordStream, Records, StreamEnd, StreamItem};
 pub use plugin::*;
 pub use record::*;
 pub use registry::Registry;
 pub use router::{keep_decoded, Router};
-pub use runtime::{framing_layers, named, open_read_only, stored_dictionary, Context, Core, ShutdownToken};
+pub use runtime::{
+    framing_layers, named, open_read_only, preflight, stored_dictionary, Context, Core, Preflight, ShutdownToken,
+};
 pub use status::{Status, StatusHandle};
 pub use supervisor::{report_fault, spawn_supervised};
 pub use uplink::{SendError, Sent, Uplink};

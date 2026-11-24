@@ -269,12 +269,9 @@ fn load_dictionary(config: &Config) -> Result<Dictionary> {
 /// `fgds check`: everything `run` does before it opens storage, the server or the link.
 fn check(registry: &Registry, config: &Config) -> Result<ExitCode> {
     let dictionary = load_dictionary(config)?;
-    let layers = fgds_core::framing_layers(registry, config)?;
-    fgds_core::named(&registry.adapters, "adapter", &config.comm)?;
-    fgds_core::named(&registry.storages, "storage", &config.storage)?;
-    // Built as `run` builds them, so a configuration `run` rejects does not pass here.
-    let decoders = registry.build_decoders(config)?;
-    registry.build_encoders(config)?;
+    // What `run` does, by the function `run` calls, so a configuration `run` refuses does not pass here.
+    let fgds_core::Preflight { layer_names: layers, decoders, .. } =
+        fgds_core::preflight(registry, config, &dictionary)?;
 
     println!("dictionary: {} (version {})", config.dictionary.display(), dictionary.version());
     let (commands, events, channels) = (dictionary.commands.len(), dictionary.events.len(), dictionary.channels.len());

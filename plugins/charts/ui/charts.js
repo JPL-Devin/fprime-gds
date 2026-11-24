@@ -33,7 +33,7 @@ export function entries(type, prefix) {
 }
 
 class ChartsTab extends LitElement {
-  static properties = { charts: { state: true }, help: { state: true }, locked: { state: true }, unknown: { state: true } };
+  static properties = { charts: { state: true }, help: { state: true }, locked: { state: true }, unknown: { state: true }, uncharted: { state: true } };
 
   constructor() {
     super();
@@ -42,6 +42,7 @@ class ChartsTab extends LitElement {
     this.help = false;
     this.locked = false;
     this.unknown = [];
+    this.uncharted = [];
     this.views = new Map(); // chart id -> {x, y}: the ranges chosen by zoom and pan; none is the first view
     this.data = new Map(); // chart id -> [{x, y}], the samples received since the channel was chosen
     this.drawn = new Map(); // chart id -> Chart
@@ -273,8 +274,12 @@ class ChartsTab extends LitElement {
     event.target.value = "";
     const last = this.charts[this.charts.length - 1];
     if (names.length && last && !last.selected) this.remove(last);
-    // A name the dictionary does not have gets no chart: it is named in a line under the buttons.
-    this.unknown = names.filter((name) => !this.names.includes(name));
+    // A name that is no entry gets no chart and is named in a line under the buttons: a channel of the
+    // dictionary that is not a number (an enumeration, text, a structure named whole), or no channel at all.
+    const channel = (name) => [...this.channels.keys()].some((c) => name === c || name.startsWith(`${c}.`));
+    const refused = names.filter((name) => !this.names.includes(name));
+    this.uncharted = refused.filter(channel);
+    this.unknown = refused.filter((name) => !channel(name));
     for (const name of names) if (this.names.includes(name)) this.add(name);
   }
 
@@ -370,6 +375,7 @@ class ChartsTab extends LitElement {
         <input id="chart-load" type="file" hidden @change=${(e) => this.load(e)}>
         <button id="chart-help" @click=${() => { this.help = !this.help; }}>Help</button>
       </div>
+      ${this.uncharted.length ? html`<p id="chart-uncharted" class="note" role="alert">Not loaded, a channel that is not a number cannot be charted: ${this.uncharted.join(", ")}</p>` : ""}
       ${this.unknown.length ? html`<p id="chart-unknown" class="note" role="alert">Not loaded, no such channel in the dictionary: ${this.unknown.join(", ")}</p>` : ""}
       ${this.help ? html`<div id="chart-help-text" class="note">
         <p><b>Zoom in and out</b> by holding <b>ALT</b> and using mouse wheel to scroll while hovering over an axis</p>

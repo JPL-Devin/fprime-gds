@@ -67,10 +67,7 @@ impl Core {
     /// With `config.read_only` no run begins, nothing is written and the link and the
     /// handlers are never started: the core only serves what the storage holds (STO-12).
     pub async fn start(registry: Registry, config: Config, dictionary: Dictionary) -> Result<Core> {
-        registry.check()?;
-        config.check_plugins(&registry)?;
-        let decoders = registry.build_decoders(&config)?;
-        let encoders = registry.build_encoders(&config)?;
+        let Preflight { layers, decoders, encoders, .. } = preflight(&registry, &config, &dictionary)?;
         let status = Status::default();
         let dictionary = Arc::new(dictionary);
         let plugins: Vec<String> = registry.manifests.iter().map(|m| m.name.to_string()).collect();
@@ -94,16 +91,8 @@ impl Core {
             None => None,
         };
 
-        let layer_names = framing_layers(&registry, &config)?;
-        let mut layers = Vec::new();
-        for name in &layer_names {
-            let (plugin, layer) = named(&registry.framing_layers, "framing layer", name)?;
-            let layer = layer.with_dictionary(&dictionary).unwrap_or_else(|| layer.clone());
-            layers.push((layer, config.plugin_config(&registry, plugin)?));
-        }
         let link = Link::with_raw_log(layers, status.clone(), raw_log);
         let uplink = Uplink::new(encoders, dictionary.clone(), link.clone(), records.clone(), run.run);
-        named(&registry.adapters, "adapter", &config.comm)?;
 
         let core = Core {
             router: Arc::new(Router::new(&decoders, &dictionary)),
@@ -282,6 +271,38 @@ async fn warn_if_dictionary_changed(storage: &dyn Storage, run: &RunInfo, status
 }
 
 /// The names of the framing layers in use, outermost first.
+/// What `fgds run` builds before it opens storage, the server or the link.
+pub struct Preflight {
+    /// The framing layers, outermost first, by name and built.
+    pub layer_names: Vec<String>,
+    pub layers: Vec<crate::link::Layer>,
+    pub decoders: Vec<(String, Arc<dyn crate::Decoder>)>,
+    pub encoders: Vec<Arc<dyn crate::Encoder>>,
+}
+
+/// Everything that can be refused before anything is opened: `Core::start` and `fgds check` both call it,
+/// so a configuration one refuses the other refuses.
+pub fn preflight(registry: &Registry, config: &Config, dictionary: &Dictionary) -> Result<Preflight> {
+    registry.check()?;
+    config.check_plugins(registry)?;
+    let decoders = registry.build_decoders(config)?;
+    let encoders = registry.build_encoders(config)?;
+    named(&registry.storages, "storage", &config.storage)?;
+    let layer_names = framing_layers(registry, config)?;
+    let mut layers = Vec::new();
+    for name in &layer_names {
+        let (plugin, layer) = named(&registry.framing_layers, "framing layer", name)?;
+        let layer = layer.with_dictionary(dictionary).unwrap_or_else(|| layer.clone());
+        layers.push((layer, config.plugin_config(registry, plugin)?));
+    }
+    named(&registry.adapters, "adapter", &config.comm)?;
+    let startup = crate::Startup { dictionary, max_packet: crate::link::max_packet(&layers) };
+    for (plugin, check) in &registry.option_checks {
+        check(&config.plugin_config(registry, plugin)?, &startup)?;
+    }
+    Ok(Preflight { layer_names, layers, decoders, encoders })
+}
+
 pub fn framing_layers(registry: &Registry, config: &Config) -> Result<Vec<String>> {
     let names = match config.framing_layers.is_empty() {
         true => named(&registry.framing_profiles, "framing profile", &config.framing)?.clone(),

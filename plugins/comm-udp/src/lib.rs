@@ -35,6 +35,14 @@ impl Plugin for UdpPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_option_check(Arc::new(|cfg, _| {
+            let address = cfg.get("address").unwrap_or_default();
+            fgds_core::check_address("comm-udp address", &address)?;
+            if address.ends_with(":0") {
+                return Err(Error::other(format!("comm-udp address: {address:?} names no port to send to")));
+            }
+            port(cfg).map(|_| ())
+        }));
         reg.add_adapter("udp", Arc::new(|cfg| Ok(Box::new(Udp::bind(cfg)?))))
     }
 }
@@ -50,11 +58,7 @@ impl Udp {
     /// Must be called inside the runtime.
     fn bind(cfg: &PluginConfig) -> Result<Udp> {
         let address = cfg.get("address").unwrap_or_default();
-        let text = cfg.get("recv-port").unwrap_or_default();
-        let port = match text.parse::<u16>() {
-            Ok(port) if port > 0 => port,
-            _ => return Err(Error::other(format!("comm-udp recv-port: {text:?} is not a port (1 to 65535)"))),
-        };
+        let port = port(cfg)?;
         let socket = |at: (&str, u16)| -> std::io::Result<Arc<UdpSocket>> {
             let socket = std::net::UdpSocket::bind(at)?;
             socket.set_nonblocking(true)?;
@@ -63,6 +67,14 @@ impl Udp {
         let receive = socket(("0.0.0.0", port)).map_err(|e| Error::other(format!("udp port {port}: {e}")))?;
         let send = socket(("0.0.0.0", 0)).map_err(|e| Error::other(format!("udp: {e}")))?;
         Ok(Udp { address, receive, send })
+    }
+}
+
+fn port(cfg: &PluginConfig) -> Result<u16> {
+    let text = cfg.get("recv-port").unwrap_or_default();
+    match text.parse::<u16>() {
+        Ok(port) if port > 0 => Ok(port),
+        _ => Err(Error::other(format!("comm-udp recv-port: {text:?} is not a port (1 to 65535)"))),
     }
 }
 

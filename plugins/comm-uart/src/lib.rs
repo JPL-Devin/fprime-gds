@@ -41,6 +41,10 @@ impl Plugin for UartPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_option_check(Arc::new(|cfg, _| match cfg.get("device") {
+            Some(device) if device.is_empty() => Err(Error::Config("comm-uart device: is empty".into())),
+            _ => speed(cfg).map(|_| ()),
+        }));
         reg.add_adapter(
             "uart",
             Arc::new(|cfg| {

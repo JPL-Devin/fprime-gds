@@ -52,6 +52,18 @@ impl Plugin for DataProductsPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_option_check(Arc::new(|config, _| {
+            if let Some(text) = config.get(OPTION_DIR) {
+                fgds_core::check_directory(&format!("[plugins.{PLUGIN}] {OPTION_DIR}"), &text)?;
+            }
+            for (name, what) in [(OPTION_SETTLE_MS, "milliseconds"), (OPTION_MAX_BYTES, "bytes")] {
+                if let Some(text) = config.get(name).filter(|text| text.parse::<u64>().is_err()) {
+                    let message = format!("[plugins.{PLUGIN}] {name}: \"{text}\" is not a whole number of {what}");
+                    return Err(fgds_core::Error::Config(message));
+                }
+            }
+            Ok(())
+        }));
         reg.add_kind(index::kind())?;
         reg.add_handler(Arc::new(|config| Ok(Box::new(index::Indexer::new(Options::from_config(config))))))?;
         reg.add_routes(index::routes())?;

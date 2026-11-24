@@ -26,6 +26,11 @@
 - `plugins/online`: `command-send`, `events` and `channels` read their command line with `fgds_core::argparse` and one table of the GDS options of `fprime-cli` (`gds_options`); `gds_options_hold` checks what those options name before anything is done, a `--list` included, and gives the dictionary that `--dictionary` or `-d` names, in which names are looked up and from which the listings are made. `tests/cli/check.py` has the option matrix through both command lines against `Ref`; the rows are in `docs/design/deviations.md`.
 - `fixtures/vectors/format_strings.json` holds 16 formatter vectors recorded from the Python GDS (`origin: recorded`) beside the 25 asserted ones.
 
+## Round 10 batch
+- 57: `max_packet` (`crates/fgds-core/src/link.rs`) derives the largest packet from the framers; `chunk_fits` (`plugins/files/src/lib.rs`) refuses a chunk size above it in the option check and in the upload route. `tests/files/chunk.py`, both framings against `Ref`. The F´ `Ref` takes only 2023 (its 2048-byte frame buffer, unknown to the GDS): listed.
+- 58: `preflight` (`crates/fgds-core/src/runtime.rs`) is the one start-up validation of `fgds run` and `fgds check`. A plugin validates its options in `reg.add_option_check`; a new plugin option needs its row in `tests/cli/options.py`.
+- Charts `Load`: a channel that is not a number is named in its own line. `seqgen` and dictionaries with sections missing: table in `docs/design/deviations.md`, "Round 10".
+
 ## Round 9 batch
 - Built: `send-raw`; `file-uplink`, `seqgen`, `prm-decode`, `prm-write` on the option table of `command-send` (`-d` included); `merge-dictionary`; Charts zoom, pan, `Reset Zoom`, `Lock Scale`, collapse; `--no-page`; the `comm-uart` plugin (`--comm uart`). `--comm tcp-client` and `--bind` were there and are now checked.
 - Listed in `docs/design/deviations.md`, group 5: `fprime-comm-bridge` (no bridge program in the tree; about one and a half days), `udp-fast`, single framing stages, `--output-unframed-data`. Group 1: Python `send-raw --no-zmq` cannot work (cause in the row).

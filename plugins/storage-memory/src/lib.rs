@@ -23,6 +23,12 @@ impl Plugin for MemoryStoragePlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_option_check(Arc::new(|cfg, _| match cfg.get("max-records") {
+            Some(text) if text.parse::<usize>().is_err() => Err(fgds_core::Error::Config(format!(
+                "storage-memory max-records: \"{text}\" is not a number of records"
+            ))),
+            _ => Ok(()),
+        }));
         reg.add_storage("memory", Arc::new(MemoryStorage::default()))
     }
 }

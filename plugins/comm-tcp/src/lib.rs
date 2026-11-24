@@ -36,6 +36,10 @@ impl Plugin for TcpPlugin {
     }
 
     fn register(&self, reg: &mut Registry) -> Result<()> {
+        reg.add_option_check(Arc::new(|cfg, _| {
+            fgds_core::check_address("comm-tcp address", &address(cfg))?;
+            keepalive(cfg).map(|_| ())
+        }));
         reg.add_adapter(
             "tcp-client",
             Arc::new(|cfg| Ok(Box::new(Client { address: address(cfg), keepalive: keepalive(cfg)? }))),

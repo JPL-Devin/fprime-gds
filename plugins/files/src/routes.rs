@@ -117,6 +117,9 @@ async fn upload(
     if upload.chunk.is_some_and(|chunk| chunk == 0 || chunk > usize::from(u16::MAX)) {
         return Err(invalid("chunk: between 1 and 65535".into()));
     }
+    // Before the file is staged or anything is sent: a data packet the framing does not carry.
+    crate::chunk_fits(upload.chunk.unwrap_or(options.chunk), ctx.uplink.max_packet(), &ctx.dictionary)
+        .map_err(invalid)?;
     let cooldown = match upload.cooldown.map(Duration::try_from_secs_f64) {
         Some(Err(_)) => return Err(invalid("cooldown: a number of seconds, not negative".into())),
         Some(Ok(cooldown)) => Some(cooldown),

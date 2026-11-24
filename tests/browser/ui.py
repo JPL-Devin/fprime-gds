@@ -903,7 +903,7 @@ def charts_and_sequences(page, gds, problems):
     expect(canvas).to_have_count(1)
     assert charts.locator(".chart-channel").first.input_value() == "ComCcsds.comQueue.comQueueDepth.1"
     # Load: one chart per known name of the file, each selection list showing the channel its chart plots.
-    listed = ["Ref.blockDrv.BD_Cycles", COUNTER, "Not.a.Channel"]
+    listed = ["Ref.blockDrv.BD_Cycles", COUNTER, "Not.a.Channel", "Ref.typeDemo.ChoiceCh", "CdhCore.version.FrameworkVersion"]
     with open(f"{gds.out}/charts.txt", "w") as file:
         file.write("\n".join(listed) + "\n")
     charts.locator("#chart-load").set_input_files(f"{gds.out}/charts.txt")
@@ -916,13 +916,15 @@ def charts_and_sequences(page, gds, problems):
     assert shown() == ["ComCcsds.comQueue.comQueueDepth.1", *listed[:2]], f"selection lists after Load: {shown()}"
     assert charts.locator(".chart-title").all_text_contents() == shown(), "titles and selection lists differ after Load"
     assert page.evaluate('() => [...document.querySelectorAll("charts-tab canvas")].map((c) => Chart.getChart(c).data.datasets[0].label)') == shown()
-    expect(charts.locator("#chart-unknown")).to_contain_text("Not.a.Channel")
+    expect(charts.locator("#chart-unknown")).to_have_text("Not loaded, no such channel in the dictionary: Not.a.Channel")
+    expect(charts.locator("#chart-uncharted")).to_have_text(
+        "Not loaded, a channel that is not a number cannot be charted: Ref.typeDemo.ChoiceCh, CdhCore.version.FrameworkVersion")
     for _ in range(2):
         charts.locator(".chart-remove").last.click()
     expect(canvas).to_have_count(1)
     assert shown() == ["ComCcsds.comQueue.comQueueDepth.1"], f"selection list after two charts are removed: {shown()}"
     step("Charts Load: a chart per known channel of the file, its selection list and title naming the channel plotted; "
-         "the unknown name gets no chart and is named in a line")
+         "the unknown name gets no chart and is named in a line, an enumeration channel and a text channel in another line")
     step(f"Charts tab: {len(offered)} entries in identifier order, array elements by index; {COUNTER} drawn with the "
          f"vendored Chart.js from the first sample after it was chosen ({len(before)} earlier ones are not drawn), "
          "on an axis that ends at the present; a second chart of an array element; ALT and the wheel zoom (both ranges over "

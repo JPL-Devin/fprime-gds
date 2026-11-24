@@ -1,7 +1,7 @@
 use crate::record::core_kinds;
 use crate::{
     AdapterFactory, Config, Decoder, DecoderFactory, Encoder, EncoderFactory, Error, FramingLayer, HandlerFactory,
-    KindSpec, Manifest, PacketMatch, Plugin, Result, Routes, Storage, Subcommand, UiBundle,
+    KindSpec, Manifest, OptionCheck, PacketMatch, Plugin, Result, Routes, Storage, Subcommand, UiBundle,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -37,6 +37,8 @@ pub struct Registry {
     pub routes: Vec<(String, Routes)>,
     pub tabs: Vec<UiBundle>,
     pub subcommands: Vec<Arc<dyn Subcommand>>,
+    /// (owning plugin, check): what `run` and `check` refuse in the options of a plugin before anything starts.
+    pub option_checks: Vec<(String, OptionCheck)>,
 }
 
 impl Registry {
@@ -195,6 +197,12 @@ impl Registry {
         self.claim("tab", tab.tab_id)?;
         self.tabs.push(tab);
         Ok(())
+    }
+
+    /// A check of the options of the plugin, run by `fgds run` and `fgds check` alike before anything is
+    /// opened: every value the plugin would refuse or ignore later is refused here.
+    pub fn add_option_check(&mut self, check: OptionCheck) {
+        self.option_checks.push((self.current.clone(), check));
     }
 
     pub fn add_subcommand(&mut self, subcommand: Arc<dyn Subcommand>) -> Result<()> {

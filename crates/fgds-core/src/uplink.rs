@@ -121,6 +121,11 @@ impl Uplink {
         result.and(seq).map(|seq| Sent { seq, entity })
     }
 
+    /// The largest packet the framing layers carry; `None` when they set no limit.
+    pub fn max_packet(&self) -> Option<usize> {
+        self.0.link.max_packet()
+    }
+
     /// Send an already encoded packet (raw send, file uplink). Every outcome is recorded
     /// as `raw.sent` with `length`, `client` and `outcome`; `raw` holds the packet only
     /// with `keep_raw`, so file content is not copied into the database. `meta` goes to

@@ -39,6 +39,7 @@ struct Shared {
     layers: Vec<Layer>,
     /// Send-direction state, innermost layer first.
     framers: std::sync::Mutex<Vec<Box<dyn Frame>>>,
+    max_packet: Option<usize>,
     writer: Mutex<Option<Box<dyn crate::LinkWriter>>>,
     enabled: watch::Sender<bool>,
     status: Status,
@@ -69,6 +70,32 @@ impl RawLog {
     }
 }
 
+/// The largest packet `layers` (outermost first) frame, found by framing packets of zeros with framers of
+/// their own, so the limit is the one the framers apply. `None`: no limit below 1 MiB, or none found.
+pub fn max_packet(layers: &[Layer]) -> Option<usize> {
+    let framed = |length: usize| {
+        let mut data = BytesMut::zeroed(length);
+        layers.iter().rev().all(|(layer, cfg)| {
+            let mut out = BytesMut::new();
+            let framed = layer.framer(cfg).frame(&data, &PacketMeta::default(), &mut out).is_ok();
+            data = out;
+            framed
+        })
+    };
+    let (mut fits, mut over) = (16, 1 << 20);
+    if !framed(fits) || framed(over) {
+        return None;
+    }
+    while over - fits > 1 {
+        let middle = (fits + over) / 2;
+        match framed(middle) {
+            true => fits = middle,
+            false => over = middle,
+        }
+    }
+    Some(fits)
+}
+
 /// The flight link: one adapter and the framing profile. Cheap to clone.
 #[derive(Clone)]
 pub struct Link(Arc<Shared>);
@@ -82,9 +109,11 @@ impl Link {
     /// A link that also writes every chunk received and sent to `raw_log` (LNK-7).
     pub fn with_raw_log(layers: Vec<Layer>, status: Status, raw_log: Option<std::fs::File>) -> Link {
         let framers = layers.iter().rev().map(|(l, cfg)| l.framer(cfg)).collect();
+        let max_packet = max_packet(&layers);
         status.set_link("disconnected", None);
         Link(Arc::new(Shared {
             layers,
+            max_packet,
             framers: std::sync::Mutex::new(framers),
             writer: Mutex::new(None),
             enabled: watch::channel(true).0,
@@ -94,6 +123,11 @@ impl Link {
             records: OnceLock::new(),
             write_timeout_ms: AtomicU64::new(WRITE_TIMEOUT.as_millis() as u64),
         }))
+    }
+
+    /// The largest packet the framing layers carry (`max_packet`).
+    pub fn max_packet(&self) -> Option<usize> {
+        self.0.max_packet
     }
 
     /// Change how long a write may take (5 s unless set).
