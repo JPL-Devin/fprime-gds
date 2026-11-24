@@ -696,6 +696,14 @@ def files_and_products(page, gds):
     expect(uplink.locator(".uplink-refused")).to_have_count(0)
     step(f"Uplink tab: `..`, good1.txt and good2.txt chosen together: the first is refused with its reason ({' '.join(refusal.split())!r}) "
          "and leaves the list, the two others reach Ref; Begin Uplink again posts nothing")
+    # G3 on the page: a backslash is part of the file name, not a separator (the Python page writes `ab.bin`).
+    uplink.locator("#files").set_input_files([payload("a\\b.bin")])
+    expect(uplink.locator("tr.staged")).to_contain_text("a\\b.bin")
+    uplink.get_by_role("button", name="Begin Uplink").click()
+    expect(uplink.locator("tr", has_text="a\\b.bin")).to_contain_text("finished", timeout=30000)
+    scenario.wait_for("Ref received a\\b.bin", lambda: open(f"{gds.out}/ref/a\\b.bin", "rb").read() == content)
+    assert not os.path.exists(f"{gds.out}/ref/b.bin") and not os.path.exists(f"{gds.out}/ref/ab.bin")
+    step("Uplink tab: `a\\b.bin` is written by Ref under its whole name")
     # Three files in the queue, as the Python GDS: the start time is when the file begins, the end time when its
     # end packet is sent, and the next file begins at once (the three start times of the Python page are equal).
     queued = ["queued1.bin", "queued2.bin", "queued3.bin"]
