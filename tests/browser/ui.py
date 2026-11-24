@@ -699,6 +699,122 @@ def files_and_products(page, gds):
          f"decoded ({products.locator('.panel table.tree tr').count()} lines, {len(shown)} characters)")
 
 
+def chart_views(page, charts, canvas):
+    """Zoom, pan, Reset Zoom, Lock Scale and collapse of the Python GDS page, each done with the pointer on two charts."""
+    def view(index):
+        chart = canvas.nth(index)
+        low, high, bottom, top = (float(chart.get_attribute(f"data-{name}")) for name in ("from", "to", "low", "high"))
+        return {"from": low, "to": high, "width": high - low, "height": top - bottom, "low": bottom, "zoomed": chart.get_attribute("data-zoomed")}
+
+    def settled(what, condition):
+        scenario.wait_for(what, condition)
+        return view(0), view(1)
+
+    def at(index, across, down):
+        box = canvas.nth(index).bounding_box()
+        return box["x"] + box["width"] * across, box["y"] + box["height"] * down
+
+    def wheel(index, across, down, notches):
+        page.mouse.move(*at(index, across, down))
+        page.keyboard.down("Alt")
+        for _ in range(abs(notches)):
+            page.mouse.wheel(0, -100 if notches > 0 else 100)
+        page.keyboard.up("Alt")
+
+    def drag(index, key, start, end):
+        page.mouse.move(*at(index, *start))
+        page.keyboard.down(key)
+        page.mouse.down()
+        page.mouse.move(*at(index, *end), steps=6)
+        page.mouse.up()
+        page.keyboard.up(key)
+
+    near = lambda value, wanted, part=0.03: abs(value - wanted) <= part * abs(wanted)
+    canvas.nth(0).scroll_into_view_if_needed()
+    first, second = view(0), view(1)
+    assert near(first["width"], 60000) and near(second["width"], 60000) and first["zoomed"] == "false", (first, second)
+    # The wheel without ALT changes nothing.
+    page.mouse.move(*at(0, 0.5, 0.5))
+    page.mouse.wheel(0, -100)
+    page.mouse.wheel(0, 100)
+    assert view(0)["zoomed"] == "false"
+
+    wheel(0, 0.5, 0.5, 3)
+    zoomed, other = settled("the chart zoomed in by ALT and the wheel", lambda: near(view(0)["width"], 60000 * 0.9 ** 3))
+    assert near(zoomed["height"], first["height"] * 0.9 ** 3) and zoomed["zoomed"] == "true", (first, zoomed)
+    assert near(other["width"], 60000) and other["zoomed"] == "false", f"the other chart changed without Lock Scale: {other}"
+    wheel(0, 0.5, 0.5, -3)
+    out, _ = settled("the chart zoomed out again by ALT and the wheel", lambda: near(view(0)["width"], 60000 * 0.9 ** 3 * 1.1 ** 3))
+    assert near(out["height"], first["height"] * 0.9 ** 3 * 1.1 ** 3), (first, out)
+    wheel(0, 0.5, 0.97, 2)  # over the time axis
+    axis, _ = settled("the time range alone zoomed over the time axis", lambda: near(view(0)["width"], out["width"] * 0.81))
+    assert near(axis["height"], out["height"], 0.001), (out, axis)
+
+    charts.locator(".chart-reset").first.click()
+    again, _ = settled("the first view after Reset Zoom", lambda: view(0)["zoomed"] == "false" and near(view(0)["width"], 60000))
+    assert near(again["height"], first["height"], 0.001) and abs(again["to"] - time.time() * 1000) < 3000, (first, again)
+
+    drag(0, "Shift", (0.4, 0.4), (0.6, 0.6))
+    moved, other = settled("the chart panned by SHIFT and a drag", lambda: view(0)["zoomed"] == "true")
+    behind = time.time() * 1000 - moved["to"]
+    assert near(moved["width"], 60000) and 7000 < behind < 20000, f"a drag over a fifth of the chart moves the time range by {behind} ms"
+    assert near(moved["height"], first["height"], 0.001) and moved["low"] > first["low"], (first, moved)
+    assert other["zoomed"] == "false", other
+    time.sleep(1.5)
+    assert near(time.time() * 1000 - view(0)["to"], behind, 0.1), "the panned range no longer scrolls with the clock"
+    charts.locator(".chart-reset").first.click()
+    settled("the first view after Reset Zoom", lambda: view(0)["zoomed"] == "false")
+
+    drag(0, "Alt", (0.3, 0.3), (0.6, 0.7))
+    chosen, _ = settled("the chart zoomed into the selection", lambda: view(0)["zoomed"] == "true")
+    assert 0.25 * 60000 < chosen["width"] < 0.45 * 60000 and 0.3 * first["height"] < chosen["height"] < 0.65 * first["height"], (first, chosen)
+    assert charts.locator(".chart-selection").count() == 0, "the selection rectangle stayed"
+    charts.locator(".chart-reset").first.click()
+    settled("the first view after Reset Zoom", lambda: view(0)["zoomed"] == "false")
+
+    lock = charts.locator("#chart-lock")
+    assert lock.get_attribute("aria-pressed") == "false"
+    lock.click()
+    assert lock.get_attribute("aria-pressed") == "true"
+    wheel(1, 0.5, 0.5, 4)
+    one, two = settled("both charts on the time range zoomed in the second", lambda: near(view(1)["width"], 60000 * 0.9 ** 4) and near(view(0)["width"], 60000 * 0.9 ** 4))
+    assert abs(one["from"] - two["from"]) < 500 and abs(one["to"] - two["to"]) < 500, (one, two)
+    drag(0, "Shift", (0.4, 0.5), (0.6, 0.5))
+    one, two = settled("both charts on the time range panned in the first", lambda: time.time() * 1000 - view(1)["to"] > 4000)
+    assert abs(one["from"] - two["from"]) < 500 and abs(one["to"] - two["to"]) < 500, (one, two)
+    pause = charts.locator(".chart-pause")
+    pause.first.click()
+    expect(pause.nth(1)).to_have_text("Resume")
+    stopped = view(1)
+    time.sleep(1)
+    assert view(1)["to"] == stopped["to"], "the other chart went on after Pause with Lock Scale"
+    pause.nth(1).click()
+    expect(pause.first).to_have_text("Pause")
+    charts.locator(".chart-reset").nth(1).click()
+    settled("the first view of both charts after Reset Zoom with Lock Scale", lambda: view(0)["zoomed"] == "false" and view(1)["zoomed"] == "false")
+    lock.click()
+    assert lock.get_attribute("aria-pressed") == "false"
+    wheel(1, 0.5, 0.5, 1)
+    one, two = settled("the second chart alone zoomed after Lock Scale is off", lambda: view(1)["zoomed"] == "true")
+    assert one["zoomed"] == "false" and near(one["width"], 60000), one
+    charts.locator(".chart-reset").nth(1).click()
+
+    collapse = charts.locator(".chart-collapse")
+    expect(charts.locator(".chart-title").first).to_have_text(COUNTER)
+    collapse.first.click()
+    expect(canvas.first).to_be_hidden()
+    expect(charts.locator(".chart-channel").first).to_be_hidden()
+    expect(collapse.first).to_have_text("Expand")
+    expect(canvas.nth(1)).to_be_visible()
+    points = int(canvas.first.get_attribute("data-points"))
+    collapse.first.click()
+    expect(canvas.first).to_be_visible()
+    assert int(canvas.first.get_attribute("data-points")) >= points > 0, "the samples of the collapsed chart are lost"
+    scenario.wait_for("the chart drawn again after Expand", lambda: page.evaluate("""() => { const c = document.querySelector("charts-tab canvas");
+        const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n += 1; return n; }""") > 100)
+
+
 def charts_and_sequences(page, gds, problems):
     """The Charts tab plots a channel as it arrives; the Sequences tab builds a sequence and sends it."""
     show(page, "charts")
@@ -744,12 +860,16 @@ def charts_and_sequences(page, gds, problems):
     expect(canvas).to_have_count(2)
     scenario.wait_for("a point of the array element", lambda: int(canvas.nth(1).get_attribute("data-points") or 0))
     assert float(canvas.nth(1).get_attribute("data-first")) in [float(r["body"]["value"][1]) for r in depth()[known - 1:]]
+    chart_views(page, charts, canvas)
     charts.locator(".chart-remove").first.click()
     expect(canvas).to_have_count(1)
     assert charts.locator(".chart-channel").first.input_value() == "ComCcsds.comQueue.comQueueDepth.1"
     step(f"Charts tab: {len(offered)} entries in identifier order, array elements by index; {COUNTER} drawn with the "
          f"vendored Chart.js from the first sample after it was chosen ({len(before)} earlier ones are not drawn), "
-         "on an axis that ends at the present; a second chart of an array element")
+         "on an axis that ends at the present; a second chart of an array element; ALT and the wheel zoom (both ranges over "
+         "the plot, the time range alone over the time axis), ALT and a dragged selection zoom into it, SHIFT and a drag "
+         "pan, Reset Zoom gives the first view back, Lock Scale gives both charts one time range, pause and reset, "
+         "Collapse hides the chart and Expand shows it again")
 
     show(page, "sequences")
     tab = page.locator("fgds-sequences")
