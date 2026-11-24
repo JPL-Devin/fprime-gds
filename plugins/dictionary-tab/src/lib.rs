@@ -87,7 +87,7 @@ impl Subcommand for MergeCommand {
         if !prefixes.is_empty() && args.get_flag("no-namespace") {
             return usage("--prefix cannot be combined with --no-namespace");
         }
-        if prefixes.first() != None
+        if !prefixes.is_empty()
             && (prefixes.first() == prefixes.last() || !prefixes.iter().all(|p| merge::is_dotted_identifier(p)))
         {
             return usage("--prefix values must be distinct dotted identifiers");

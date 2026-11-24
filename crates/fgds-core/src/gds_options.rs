@@ -44,7 +44,7 @@ pub fn options() -> Vec<Opt> {
 }
 
 /// The GDS options of `fprime-cli` that are checked here and are no option of `fgds` itself.
-const NAMING: [&str; 6] =
+pub const NAMING: [&str; 6] =
     ["packet-spec", "packet-set-name", "deployment", "hash-file", "file-storage-directory", "log-prefix"];
 
 pub fn args() -> Vec<Arg> {

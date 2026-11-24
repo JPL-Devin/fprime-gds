@@ -47,6 +47,9 @@ pub struct Config {
 
     /// Address of the HTTP server; local by default (SEC-1).
     pub bind: String,
+    /// Serve the network API alone: no page, no tab modules (`fprime-gds -g none`). The command-line
+    /// tools and clients of the API work as with the page.
+    pub no_page: bool,
     pub disabled_plugins: Vec<String>,
     /// Largest accepted request body (API-7).
     pub max_body_bytes: usize,
@@ -68,6 +71,7 @@ impl Default for Config {
             read_only: false,
             commit_timeout_ms: 2_000,
             bind: "127.0.0.1:5000".into(),
+            no_page: false,
             disabled_plugins: Vec::new(),
             max_body_bytes: 1024 * 1024,
             plugins: BTreeMap::new(),

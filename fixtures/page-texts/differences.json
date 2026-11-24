@@ -6,7 +6,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -21,7 +22,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -55,7 +57,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Events": {
@@ -73,13 +80,15 @@
   "headers": {
    "fgds": {
     "Ground time": "T5"
-   }
+   },
+   "python": {}
   },
   "placeholders": {
    "fgds": {
     "name, text, id": "T5",
     "all": "T5"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -121,7 +130,16 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Channels": {
@@ -131,18 +149,21 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "fgds": {
     "Ground time": "T6"
-   }
+   },
+   "python": {}
   },
   "placeholders": {
    "fgds": {
     "name, id, value": "T6",
     "all channels": "T6"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -175,7 +196,16 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Uplink": {
@@ -185,12 +215,14 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "labels": {
    "python": {
     "0 - 0": "T1"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -208,7 +240,24 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Downlink": {
@@ -218,12 +267,14 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "fgds": {
     "Problems": "T8"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -247,7 +298,20 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Dictionaries": {
@@ -279,7 +343,8 @@
   "labels": {
    "python": {
     "0 - 40": "T1"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "python": {
@@ -311,28 +376,42 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Charts": {
   "buttons": {
-   "python": {
-    "Lock Scale": "T10"
-   },
+   "python": {},
    "fgds": {
     "Load": "T11",
     "Pause": "T11",
-    "Remove": "T11"
+    "Remove": "T11",
+    "Collapse": "T10",
+    "Reset Zoom": "T10"
    }
   },
   "labels": {
    "python": {
     "Load": "T11"
-   }
+   },
+   "fgds": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -348,19 +427,34 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Logs": {
   "labels": {
    "fgds": {
     "Filter": "T12"
-   }
+   },
+   "python": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -380,7 +474,24 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "buttons": {
+   "python": {},
+   "fgds": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Sequences": {
@@ -395,7 +506,8 @@
   "labels": {
    "python": {
     "Open": "T11"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -410,7 +522,24 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Advanced": {
@@ -480,7 +609,8 @@
   "titles": {
    "fgds": {
     "When set, any channel received will update the displayed value. Otherwise only channels with newer timestamps update the displayed value.": "T14"
-   }
+   },
+   "python": {}
   },
   "texts": {
    "python": {
@@ -534,6 +664,14 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Top bar": {
@@ -559,7 +697,24 @@
   "title": {
    "fgds": {
     "Advanced - F Prime GDS": "T16"
-   }
+   },
+   "python": {}
+  },
+  "buttons": {
+   "python": {},
+   "fgds": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "labels": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, CdhCore.cmdDisp.CMD_TEST_CMD_1": {
@@ -569,7 +724,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -584,7 +740,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -618,7 +775,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, Ref.typeDemo.SEND_SCALARS": {
@@ -628,7 +790,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -643,7 +806,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -677,7 +841,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, CdhCore.cmdDisp.CMD_NO_OP_STRING": {
@@ -687,7 +856,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -702,7 +872,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -736,7 +907,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, FileHandling.fileManager.RemoveFile": {
@@ -746,7 +922,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -761,7 +938,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -795,7 +973,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, CdhCore.events.SET_EVENT_FILTER": {
@@ -805,7 +988,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -820,7 +1004,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -854,7 +1039,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, Ref.typeDemo.CHOICES_WITH_FRIENDS": {
@@ -864,7 +1054,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -879,7 +1070,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -913,7 +1105,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, Ref.typeDemo.CHOICE_PAIR_WITH_FRIENDS": {
@@ -923,7 +1120,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -938,7 +1136,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -972,7 +1171,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, Ref.typeDemo.GLUTTON_OF_CHOICE_WITH_FRIENDS": {
@@ -982,7 +1186,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -997,7 +1202,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -1031,7 +1237,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, sent with no Ref": {
@@ -1060,7 +1271,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -1098,42 +1310,39 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Charts, help": {
   "buttons": {
-   "python": {
-    "Lock Scale": "T10"
-   },
+   "python": {},
    "fgds": {
     "Load": "T11",
     "Pause": "T11",
-    "Remove": "T11"
+    "Remove": "T11",
+    "Collapse": "T10",
+    "Reset Zoom": "T10"
    }
   },
   "labels": {
    "python": {
     "Load": "T11"
-   }
+   },
+   "fgds": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
-   "python": {
-    "by holding": "T10",
-    "and using mouse wheel to scroll while hovering over an axis": "T10",
-    "and clicking and dragging a selection on the chart": "T10",
-    "Zoom in and out": "T10",
-    "ALT": "T10",
-    "Zoom in": "T10",
-    "and clicking and dragging the chart": "T10",
-    "Pan": "T10",
-    "SHIFT": "T10"
-   },
+   "python": {},
    "fgds": {
     "GDS": "T4",
     "running": "T4",
@@ -1148,41 +1357,45 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Charts, add": {
   "buttons": {
-   "python": {
-    "Lock Scale": "T10"
-   },
+   "python": {},
    "fgds": {
     "Load": "T11",
     "Pause": "T11",
-    "Remove": "T11"
+    "Remove": "T11",
+    "Collapse": "T10",
+    "Reset Zoom": "T10"
    }
   },
   "labels": {
    "python": {
     "Load": "T11"
-   }
+   },
+   "fgds": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
-   "python": {
-    "by holding": "T10",
-    "and using mouse wheel to scroll while hovering over an axis": "T10",
-    "and clicking and dragging a selection on the chart": "T10",
-    "Zoom in and out": "T10",
-    "ALT": "T10",
-    "Zoom in": "T10",
-    "and clicking and dragging the chart": "T10",
-    "Pan": "T10",
-    "SHIFT": "T10"
-   },
+   "python": {},
    "fgds": {
     "GDS": "T4",
     "running": "T4",
@@ -1197,43 +1410,44 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Charts, channel": {
   "buttons": {
-   "python": {
-    "Lock Scale": "T10",
-    "Reset Zoom": "T10"
-   },
+   "python": {},
    "fgds": {
     "Load": "T11",
     "Pause": "T11",
-    "Remove": "T11"
+    "Remove": "T11",
+    "Collapse": "T10"
    }
   },
   "labels": {
    "python": {
     "Load": "T11"
-   }
+   },
+   "fgds": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
-   "python": {
-    "by holding": "T10",
-    "and using mouse wheel to scroll while hovering over an axis": "T10",
-    "and clicking and dragging a selection on the chart": "T10",
-    "Zoom in and out": "T10",
-    "ALT": "T10",
-    "Zoom in": "T10",
-    "and clicking and dragging the chart": "T10",
-    "Pan": "T10",
-    "SHIFT": "T10",
-    "CdhCore.cmdDisp.CommandsDispatched": "T11"
-   },
+   "python": {},
    "fgds": {
     "GDS": "T4",
     "running": "T4",
@@ -1248,6 +1462,18 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Commanding, Ref running": {
@@ -1257,7 +1483,8 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "python": {
@@ -1272,7 +1499,8 @@
   "placeholders": {
    "fgds": {
     "Filter commands": "T3"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -1308,7 +1536,12 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Events, Ref running": {
@@ -1326,13 +1559,15 @@
   "headers": {
    "fgds": {
     "Ground time": "T5"
-   }
+   },
+   "python": {}
   },
   "placeholders": {
    "fgds": {
     "name, text, id": "T5",
     "all": "T5"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -1375,7 +1610,8 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
   },
   "titles": {
    "fgds": {
@@ -1384,6 +1620,10 @@
    "python": {
     "<inside a table cell>": "T17"
    }
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Channels, Ref running": {
@@ -1393,18 +1633,21 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "fgds": {
     "Ground time": "T6"
-   }
+   },
+   "python": {}
   },
   "placeholders": {
    "fgds": {
     "name, id, value": "T6",
     "all channels": "T6"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -1438,7 +1681,16 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Uplink, Ref running": {
@@ -1448,12 +1700,14 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "labels": {
    "python": {
     "N - N": "T1"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -1472,7 +1726,24 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Downlink, Ref running": {
@@ -1482,12 +1753,14 @@
     "<": "T1",
     ">": "T1",
     "Last": "T1"
-   }
+   },
+   "fgds": {}
   },
   "headers": {
    "fgds": {
     "Problems": "T8"
-   }
+   },
+   "python": {}
   },
   "labels": {
    "python": {
@@ -1512,7 +1785,20 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Dictionaries, Ref running": {
@@ -1544,7 +1830,8 @@
   "labels": {
    "python": {
     "N - N": "T1"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "python": {
@@ -1577,43 +1864,44 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Charts, Ref running": {
   "buttons": {
-   "python": {
-    "Lock Scale": "T10",
-    "Reset Zoom": "T10"
-   },
+   "python": {},
    "fgds": {
     "Load": "T11",
     "Pause": "T11",
-    "Remove": "T11"
+    "Remove": "T11",
+    "Collapse": "T10"
    }
   },
   "labels": {
    "python": {
     "Load": "T11"
-   }
+   },
+   "fgds": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
-   "python": {
-    "by holding": "T10",
-    "and using mouse wheel to scroll while hovering over an axis": "T10",
-    "and clicking and dragging a selection on the chart": "T10",
-    "Zoom in and out": "T10",
-    "ALT": "T10",
-    "Zoom in": "T10",
-    "and clicking and dragging the chart": "T10",
-    "Pan": "T10",
-    "SHIFT": "T10",
-    "CdhCore.cmdDisp.CommandsDispatched": "T11"
-   },
+   "python": {},
    "fgds": {
     "GDS": "T4",
     "running": "T4",
@@ -1629,18 +1917,32 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Logs, Ref running": {
   "labels": {
    "fgds": {
     "Filter": "T12"
-   }
+   },
+   "python": {}
   },
   "titles": {
    "python": {
     "Search for option": "T3"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -1661,7 +1963,24 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "buttons": {
+   "python": {},
+   "fgds": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Sequences, Ref running": {
@@ -1676,7 +1995,8 @@
   "labels": {
    "python": {
     "Open": "T11"
-   }
+   },
+   "fgds": {}
   },
   "texts": {
    "fgds": {
@@ -1692,7 +2012,24 @@
     "N B / N packets": "T4",
     "Received": "T4",
     "Decode problems": "T4"
-   }
+   },
+   "python": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "titles": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Advanced, Ref running": {
@@ -1762,7 +2099,8 @@
   "titles": {
    "fgds": {
     "When set, any channel received will update the displayed value. Otherwise only channels with newer timestamps update the displayed value.": "T14"
-   }
+   },
+   "python": {}
   },
   "texts": {
    "python": {
@@ -1819,6 +2157,14 @@
     "Received": "T4",
     "Decode problems": "T4"
    }
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "title": {
+   "python": {},
+   "fgds": {}
   }
  },
  "Top bar, Ref running": {
@@ -1844,7 +2190,24 @@
   "title": {
    "fgds": {
     "Advanced - F Prime GDS": "T16"
-   }
+   },
+   "python": {}
+  },
+  "buttons": {
+   "python": {},
+   "fgds": {}
+  },
+  "headers": {
+   "python": {},
+   "fgds": {}
+  },
+  "placeholders": {
+   "python": {},
+   "fgds": {}
+  },
+  "labels": {
+   "python": {},
+   "fgds": {}
   }
  }
 }

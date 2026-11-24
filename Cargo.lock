@@ -280,6 +280,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "comm-uart"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "fgds-core",
+ "rustix",
+ "tokio",
+]
+
+[[package]]
 name = "commands"
 version = "0.1.0"
 dependencies = [
@@ -436,6 +447,7 @@ dependencies = [
  "charts",
  "clap",
  "comm-tcp",
+ "comm-uart",
  "commands",
  "data-products",
  "dictionary-tab",

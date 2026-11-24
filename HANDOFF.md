@@ -26,6 +26,11 @@
 - `plugins/online`: `command-send`, `events` and `channels` read their command line with `fgds_core::argparse` and one table of the GDS options of `fprime-cli` (`gds_options`); `gds_options_hold` checks what those options name before anything is done, a `--list` included, and gives the dictionary that `--dictionary` or `-d` names, in which names are looked up and from which the listings are made. `tests/cli/check.py` has the option matrix through both command lines against `Ref`; the rows are in `docs/design/deviations.md`.
 - `fixtures/vectors/format_strings.json` holds 16 formatter vectors recorded from the Python GDS (`origin: recorded`) beside the 25 asserted ones.
 
+## Round 9, local batch (not pushed)
+- Built: `send-raw`; `file-uplink`, `seqgen`, `prm-decode`, `prm-write` on the option table of `command-send` (`-d` included); `merge-dictionary`; Charts zoom, pan, `Reset Zoom`, `Lock Scale`, collapse; `--no-page`; the `comm-uart` plugin (`--comm uart`). `--comm tcp-client` and `--bind` were there and are now checked.
+- Listed in `docs/design/deviations.md`, group 5: `fprime-comm-bridge` (no bridge program in the tree; about one and a half days), UDP adapters, single framing stages, `--output-unframed-data`. Group 1: Python `send-raw --no-zmq` cannot work (cause in the row).
+- The three full passes of `scripts/check.sh` are to be run once the round-9 findings are in.
+
 ## Known gaps
 - Storage: no schema migration, no integrity check at open, no database size or free space in the status, no retention (table "Not built for storage" in `docs/design/deviations.md`).
 - Table "Not built in this slice" of `docs/design/deviations.md`: `cargo deny`, macOS job, text logs, `--disable-plugin` and `--framing-layers` on the command line, fuzz targets, and others.
@@ -47,7 +52,6 @@ Access control, the stall watchdog, the load test, project rules checked before 
 Controls of the Python page that fgds does not have (`docs/design/deviations.md`, "Controls of the Python page"). None changes bytes sent to `Ref`.
 - Paging buttons (`First` `<` `>` `Last`), position field and scroll lock of the tables (Commanding history, Events, Channels, Uplink, Downlink, Dictionaries); sorting of the Commanding history and Dictionaries tables.
 - Light/dark switch.
-- Charts: zoom, pan, `Reset Zoom`, `Lock Scale`, collapse.
 - Sequences: `Build` panel, editor with completion.
 - Composite channel values as an expandable table.
 - Dashboard tab (milestone M6).

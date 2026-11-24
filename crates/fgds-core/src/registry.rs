@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 /// The options of the core: global arguments of the command line, `--<name>`.
 pub const CORE_OPTIONS: &[&str] =
-    &["config", "dictionary", "comm", "framing", "storage", "database", "logs", "read-only", "bind"];
+    &["config", "dictionary", "comm", "framing", "storage", "database", "logs", "read-only", "bind", "no-page"];
 
 /// Everything the compiled-in plugins declare, with the plugin that declared it.
 /// Each `add_` call fails when the name is already taken, naming both plugins (CUS-10).

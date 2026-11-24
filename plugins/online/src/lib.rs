@@ -579,7 +579,7 @@ mod tests {
                 out.retain(|text| {
                     text != "--log-directly"
                         && !["--timeout=0", "--timeout=-0"].contains(&text.as_str())
-                        && !NAMING.iter().any(|name| text.starts_with(&format!("--{name}=")))
+                        && !fgds_core::gds_options::NAMING.iter().any(|name| text.starts_with(&format!("--{name}=")))
                 });
                 out
             });

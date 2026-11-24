@@ -24,6 +24,7 @@ pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
         Box::new(storage_sqlite::SqliteStoragePlugin),
         Box::new(storage_memory::MemoryStoragePlugin),
         Box::new(comm_tcp::TcpPlugin),
+        Box::new(comm_uart::UartPlugin),
         Box::new(framing_fprime::FprimeFramingPlugin),
         Box::new(framing_ccsds::CcsdsFramingPlugin),
         Box::new(events::EventsPlugin),

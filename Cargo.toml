@@ -42,6 +42,7 @@ fgds-shell = { path = "crates/fgds-shell" }
 fgds-offline = { path = "crates/fgds-offline" }
 fgds = { path = "crates/fgds" }
 comm-tcp = { path = "plugins/comm-tcp" }
+comm-uart = { path = "plugins/comm-uart" }
 framing-ccsds = { path = "plugins/framing-ccsds" }
 framing-fprime = { path = "plugins/framing-fprime" }
 storage-memory = { path = "plugins/storage-memory" }

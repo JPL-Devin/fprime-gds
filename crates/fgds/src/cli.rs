@@ -87,7 +87,7 @@ pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
 /// of the core and of the plugins are accepted there too, written in full.
 fn as_argparse(registry: &Registry, args: Vec<OsString>) -> std::result::Result<Vec<OsString>, String> {
     use fgds_core::argparse::{Kind, Nargs, Opt};
-    let flags = ["read-only"];
+    let flags = ["read-only", "no-page"];
     let mut globals: Vec<String> =
         ["config"].iter().chain(OPTIONS.iter().map(|(name, _)| name)).map(|n| n.to_string()).collect();
     for manifest in &registry.manifests {
@@ -130,6 +130,10 @@ fn command(registry: &Registry) -> Command {
         .arg(global("config", "Configuration file [default: fgds.toml when present]".into()))
         .arg(
             global("read-only", "Open the database without writing to it; the link is not started".into())
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
+            global("no-page", "Serve the API alone, without the page (as `fprime-gds -g none`)".into())
                 .action(ArgAction::SetTrue),
         )
         .args(OPTIONS.iter().map(|(name, help)| global(name, help.to_string())))
@@ -181,6 +185,9 @@ fn config(matches: &ArgMatches, registry: &Registry) -> Result<Config> {
     if matches.get_flag("read-only") {
         config.read_only = true;
     }
+    if matches.get_flag("no-page") {
+        config.no_page = true;
+    }
     for (name, target) in [
         ("comm", &mut config.comm),
         ("framing", &mut config.framing),
@@ -224,7 +231,7 @@ fn check(registry: &Registry, config: &Config) -> Result<ExitCode> {
     println!("adapter: {}", config.comm);
     println!("framing: {}", layers.join(" > "));
     println!("storage: {}", config.storage);
-    println!("server: http://{}", config.bind);
+    println!("server: http://{}{}", config.bind, if config.no_page { " (API only, no page)" } else { "" });
     println!("plugins:");
     for manifest in &registry.manifests {
         println!("  {} {}", manifest.name, manifest.version);
@@ -262,7 +269,8 @@ fn serve(registry: Registry, config: Config) -> Result<ExitCode> {
         };
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
         let listener = fgds_shell::bind(&core).await?;
-        eprintln!("listening on http://{}", listener.local_addr().map_err(Error::Io)?);
+        let what = if core.config.no_page { " (API only, no page)" } else { "" };
+        eprintln!("listening on http://{}{what}", listener.local_addr().map_err(Error::Io)?);
         core.start_link()?;
         let served = fgds_shell::serve(core.clone(), listener, interrupted()).await;
         core.stop().await?;

@@ -33,11 +33,9 @@ pub fn router(core: Arc<Core>) -> Router {
         api = api.nest(&format!("/{}", routes.prefix), plugin_routes);
     }
     let not_found = || async { ApiError::new(StatusCode::NOT_FOUND, "not_found", "no such route") };
-    Router::new()
-        .nest("/api/v1", api.fallback(not_found).layer(middleware::from_fn(json_errors)))
-        .merge(ui::routes(core.clone()))
-        .layer(DefaultBodyLimit::max(core.config.max_body_bytes))
-        .layer(middleware::from_fn(security_headers))
+    let served = Router::new().nest("/api/v1", api.fallback(not_found).layer(middleware::from_fn(json_errors)));
+    let served = if core.config.no_page { served } else { served.merge(ui::routes(core.clone())) };
+    served.layer(DefaultBodyLimit::max(core.config.max_body_bytes)).layer(middleware::from_fn(security_headers))
 }
 
 /// Bind the configured address. Separate from `serve` so that a taken port stops startup.

@@ -18,6 +18,8 @@ import re
 import signal
 import socket
 import subprocess
+import threading
+import urllib.error
 import sys
 import time
 import urllib.request
@@ -75,13 +77,13 @@ def json_lines(text):
 class Fgds:
     follow_env = None
 
-    def __init__(self, out):
+    def __init__(self, out, link=None, more=()):
         os.makedirs(out, exist_ok=True)
         http, self.link_port = scenario.free_port(), scenario.free_port()
         self.url = f"http://127.0.0.1:{http}"
         self.process = scenario.start(
             [args.fgds, "run", "--framing", args.framing, "--logs", f"{out}/logs", "--dictionary", args.dictionary, "--bind", f"127.0.0.1:{http}",
-             "--comm-tcp-address", f"127.0.0.1:{self.link_port}"], open(f"{out}/gds.log", "w"))
+             *(["--comm-tcp-address", f"127.0.0.1:{self.link_port}"] if link is None else link), *more], open(f"{out}/gds.log", "w"))
         scenario.wait_for("fgds", lambda: self.get("/version"))
 
     def get(self, path):
@@ -798,8 +800,104 @@ def merges(out):
     require(f"merge-dictionary: {written} of {len(cases)} command lines write a file", written >= 20, written)
 
 
+# 7. The ways `fgds run` reaches the flight software and serves its clients, each with Ref: what `fprime-gds` does
+# with `--ip-client`, `--comm-adapter uart`, `--gui-port` and `-g none`.
+
+class Relay:
+    """Ref (a TCP client) on one side; on the other a pseudo-terminal, or a port the GDS connects to."""
+
+    def __init__(self, serial):
+        self.uplink, self.downlink = bytearray(), bytearray()
+        self.server = socket.create_server(("127.0.0.1", 0))
+        self.port = self.server.getsockname()[1]
+        if serial:
+            self.far, near = os.openpty()
+            self.device = os.ttyname(near)
+            os.close(near)
+        else:
+            self.listener = socket.create_server(("127.0.0.1", 0))
+            self.address = f"127.0.0.1:{self.listener.getsockname()[1]}"
+        threading.Thread(target=self._run, args=(serial,), daemon=True).start()
+
+    def _run(self, serial):
+        ref, _ = self.server.accept()
+        if serial:
+            def write(data):  # a pseudo-terminal takes what the reader has room for
+                while data:
+                    data = data[os.write(self.far, data):]
+            read = lambda: os.read(self.far, 4096)
+        else:
+            gds, _ = self.listener.accept()
+            read, write = (lambda: gds.recv(4096)), gds.sendall
+        threading.Thread(target=self._pump, args=(read, ref.sendall, self.uplink), daemon=True).start()
+        self._pump(lambda: ref.recv(4096), write, self.downlink)
+
+    @staticmethod
+    def _pump(read, write, log):
+        try:
+            while data := read():
+                log.extend(data)
+                write(data)
+        except OSError:
+            pass
+
+
+def capabilities(out):
+    scid = scenario.spacecraft_id(args.dictionary)
+    ways = [
+        ("the TCP server (the default)", lambda: (None, None), []),
+        ("--comm tcp-client", lambda: (Relay(False), None), []),
+        ("--comm uart over a pseudo-terminal", lambda: (Relay(True), None), []),
+        ("--no-page", lambda: (None, None), ["--no-page"]),
+    ]
+    sent = {}
+    for index, (name, make, more) in enumerate(ways):
+        relay, _ = make()
+        if relay is None:
+            link = None
+        elif hasattr(relay, "device"):
+            link = ["--comm", "uart", "--comm-uart-device", relay.device, "--comm-uart-baud", "115200"]
+        else:
+            link = ["--comm", "tcp-client", "--comm-tcp-address", relay.address]
+        gds = ref = None
+        try:
+            gds = Fgds(f"{out}/{index}", link, more)
+            if relay is None:
+                relay = scenario.Proxy(gds.link_port)
+            ref = scenario.start_ref(args.ref, relay, f"{out}/{index}")
+            code, sample, error = run(gds.cli("channels", "-t", "30", "--json"))
+            require(f"fgds run with {name}: telemetry of Ref arrives", bool(json_lines(sample)), f"{code} {error}")
+            expected = run(gds.cli("command-send", NO_OP, "--dry-run"))[1].strip()
+            code, output, error = run(gds.send(NO_OP, []))
+            scenario.wait_for("the event of the command", lambda: any(
+                "NoOpReceived" in json.dumps(item) for item in json_lines(run(gds.cli("events", "--history", "--no-follow", "--json"))[1])))
+            sent[name] = [p.hex() for p in scenario.uplink_packets(bytes(relay.uplink), args.framing, scid)]
+            require(f"fgds run with {name}: the command packet on the link is the one of `--dry-run`, and Ref answers NoOpReceived",
+                    code == 0 and sent[name] == [expected], f"{sent[name]} {expected} {error}")
+            page = urllib.request.Request(gds.url + "/")
+            try:
+                status = urllib.request.urlopen(page, timeout=10).status
+            except urllib.error.HTTPError as refused:
+                status = refused.code
+            wanted = 404 if "--no-page" in more else 200
+            require(f"fgds run with {name}: the page answers {wanted}", status == wanted, status)
+            if hasattr(relay, "device"):
+                peer = gds.get("/status")
+                lost = open(f"{out}/{index}/gds.log").read().count("received sequence count")
+                require("no packet of Ref is lost on the serial device", lost <= 1, f"{lost} gaps in the sequence counts")
+                require("the link names the device and the rate", "115200bps" in json.dumps(peer), json.dumps(peer)[:600])
+        finally:
+            for process in (ref, gds and gds.process):
+                if process:
+                    scenario.stop(process)
+    done = run([args.fgds, "run", "--dictionary", args.dictionary, "--logs", f"{out}/refused", "--bind", "127.0.0.1:0", "--comm", "uart", "--comm-uart-baud", "12345"])
+    require("fgds run --comm uart --comm-uart-baud 12345: refused when it starts", done[0] != 0 and "is not one of" in done[2], done)
+
+
 def main():
     os.makedirs(args.out, exist_ok=True)
+    print("fgds run: TCP server, TCP client, serial device, without the page")
+    capabilities(f"{args.out}/capabilities")
     print("offline tools with the dictionary options")
     offline(f"{args.out}/offline")
     print("merge-dictionary through both")
