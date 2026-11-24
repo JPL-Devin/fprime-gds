@@ -60,6 +60,10 @@ rows shown and the channels received (`Channels: 1 of 23`).
 - Those of [`fgds repl`](repl.md#limits): a running GDS is needed, and only records that arrive after the start are shown.
 - It needs a terminal on its input and output; without one it stops and names `fgds repl`, which prints the stream.
 - The history of typed lines is not kept across sessions, and is not the file of `fgds repl`.
-- Lines are run one after the other: a line typed while the GDS has not answered the one before waits for it. The screen is drawn meanwhile.
+- One line is asked of the GDS at a time. A `cmd` or `raw-uplink` entered while the one before is not answered is refused on the screen and not kept; the title of the command pane names the line waited for. Lines that ask the GDS nothing (`help`, filters) run meanwhile.
+- Leaving does not wait for the answer: nothing is posted after `quit`, and the line that was not answered is named on the terminal, since the GDS may have sent it.
+- Text is escaped as in [`fgds repl`](repl.md#what-is-printed); wide characters take two columns, in the panes and for the cursor.
+- SIGINT, SIGTERM, SIGHUP and SIGQUIT leave the alternate screen and put the terminal back, as `quit` does.
+- A GDS that stops, and another dictionary when it is back, are handled as in `fgds repl`.
 - No mouse, and no choice of layout: the events pane has 62% of the width.
 - `NO_COLOR` set to anything turns the colours of event severities off.

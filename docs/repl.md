@@ -66,4 +66,14 @@ is read: events, channel samples and commands are printed, one per line, until i
 - The prompt needs a running GDS; it does not start one in its own process.
 - Only records that arrive after the prompt started are printed; `fgds events` and the browser show the history.
 - A typed line longer than the terminal is wide leaves its first rows on the screen when an event is printed above it.
-- If the GDS stops, the prompt says so and connects again when it is back; commands typed meanwhile are refused.
+- If the GDS stops, the prompt says so once, tries again after 1 s, 2 s, 4 s and so on up to 30 s, and says once that it is back. A command typed meanwhile gets `not sent` when no GDS took the connection, and `no answer, it may have been sent` when the request left and no answer came.
+- The dictionary is read again when the GDS that answers has another dictionary version. A name the prompt does not know is still sent: the GDS decides.
+
+## What is printed
+
+Text from flight, from the GDS and from the dictionary is never written to the terminal as it is, with or without a terminal on the output.
+Control characters are printed as text (`\x1b`, `\r`, `\n`, `\t`, others `\xNN`), a backslash is doubled, and the characters that change the direction of text or have no width (U+2028, U+2029, U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069, U+200B to U+200D, U+2060, U+FEFF) are printed as `\u{XXXX}`.
+
+## Signals
+
+SIGINT, SIGTERM, SIGHUP and SIGQUIT put the terminal back as it was before the process ends with status 128 plus the signal. Each line is added to `~/.fgds_history` when it is entered.

@@ -62,16 +62,16 @@ impl View {
             })
     }
 
-    /// The line to print for a record of the stream; `None` when it is filtered out.
+    /// The line of `record`, as a terminal may be given it; `None` when the filters leave it out.
     fn line(&mut self, record: &Value, own: &str, colour: bool) -> Option<String> {
         let name = record["body"]["name"].as_str().unwrap_or("?");
         match record["kind"].as_str()? {
             "fprime.event" => {
                 (self.result_of_ours(record) || self.filter.allows(true, name)).then(|| show::event(record, colour))
             }
-            "fprime.channel" => self.filter.allows(false, name).then(|| show::channel(record)),
+            "fprime.channel" => self.filter.allows(false, name).then(|| show::visible(&show::channel(record))),
             // The prompt prints the outcome of its own commands itself.
-            "fprime.command" => (record["body"]["client"] != own).then(|| show::command(record)),
+            "fprime.command" => (record["body"]["client"] != own).then(|| show::visible(&show::command(record))),
             _ => None,
         }
     }
@@ -83,40 +83,148 @@ fn view(shared: &Shared) -> std::sync::MutexGuard<'_, View> {
     shared.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-/// What the stream gives: a record, or a line about the connection.
+/// What the stream gives: a record, a line about the connection, or the dictionary of the GDS
+/// when it is another one than the last read.
 enum Item<'a> {
     Record(&'a Value),
     Note(String),
+    Dictionary(Value),
 }
 
-/// Gives the stream to `on` until the process ends, connecting again when it stops.
-async fn stream(api: Api, mut on: impl FnMut(Item)) {
-    let (mut after, mut down) = (None, false);
+/// The waits between two attempts to open the stream: the first, and the longest.
+const WAITS: (Duration, Duration) = (Duration::from_secs(1), Duration::from_secs(30));
+/// A stream open for this long was a working one: the next wait is the first again.
+const STEADY: Duration = Duration::from_secs(10);
+
+/// The kinds of `KINDS` the GDS records, and those it does not (a GDS built without their plugin).
+async fn kinds(api: &Api) -> (Vec<&'static str>, Vec<&'static str>) {
+    let all = || KINDS.split(',');
+    match api.get("/kinds", &[]).await {
+        Ok(Value::Array(known)) => all().partition(|kind| known.iter().any(|k| k["id"] == *kind)),
+        // No answer: the stream says what is wrong.
+        _ => (all().collect(), Vec::new()),
+    }
+}
+
+/// Gives the stream to `on` until the process ends, connecting again when it stops. One note
+/// when the stream is lost and one when it is open again; the attempts in between say nothing
+/// and wait longer each time. `dictionary` is the dictionary version of `/version` last read.
+async fn stream(api: Api, mut dictionary: Value, mut on: impl FnMut(Item)) {
+    let (mut after, mut wait, mut lost) = (None, WAITS.0, false);
+    let mut without = Vec::new();
     loop {
-        if down {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            if api.check_version().await.is_err() {
-                continue;
+        // A GDS started again may have another dictionary.
+        if let Ok(version) = api.check_version().await {
+            if version["dictionary"] != dictionary {
+                if let Ok(read) = api.get("/dictionary", &[]).await {
+                    dictionary = version["dictionary"].clone();
+                    on(Item::Dictionary(read));
+                }
             }
-            on(Item::Note("the GDS answers again".to_string()));
-            down = false;
         }
-        if let Err(error) = api.follow(KINDS, &mut after, &mut |record| on(Item::Record(record))).await {
-            on(Item::Note(format!("{error}; trying again every second")));
-            // What the GDS recorded meanwhile is not printed: it may be another run.
-            (after, down) = (None, true);
+        let (kinds, missing) = kinds(&api).await;
+        if missing != without {
+            if !missing.is_empty() {
+                on(Item::Note(format!("the GDS has no records of kind {}: none are shown", missing.join(", "))));
+            }
+            without = missing;
         }
+        let mut opened = None;
+        let ended = if kinds.is_empty() {
+            Err(Error::Other("nothing to follow".to_string()))
+        } else {
+            let on = &mut |record: Option<&Value>| match record {
+                Some(record) => on(Item::Record(record)),
+                None => {
+                    opened = Some(Instant::now());
+                    if std::mem::take(&mut lost) {
+                        on(Item::Note("the GDS answers again".to_string()));
+                    }
+                }
+            };
+            api.follow(&kinds.join(","), &mut after, on).await
+        };
+        let Err(error) = ended else { continue };
+        if !lost && !kinds.is_empty() {
+            on(Item::Note(format!("{error}; trying again until the GDS answers")));
+            lost = true;
+        }
+        // What the GDS recorded meanwhile is not printed: it may be another run.
+        after = None;
+        if opened.is_some_and(|at: Instant| at.elapsed() >= STEADY) {
+            wait = WAITS.0;
+        }
+        tokio::time::sleep(wait).await;
+        wait = (wait * 2).min(WAITS.1);
     }
 }
 
 /// The stream as lines, through the filters, for `print`.
-async fn stream_lines(api: Api, shared: Shared, colour: bool, mut print: impl FnMut(String)) {
+async fn stream_lines(api: Api, session: Follower, colour: bool, mut print: impl FnMut(String)) {
     let own = api.client().to_string();
     let on = |item: Item| match item {
-        Item::Record(record) => view(&shared).line(record, &own, colour).into_iter().for_each(&mut print),
-        Item::Note(note) => print(note),
+        Item::Record(record) => view(&session.shared).line(record, &own, colour).into_iter().for_each(&mut print),
+        Item::Note(note) => print(show::visible(&note)),
+        Item::Dictionary(read) => print(reload(&session.dictionary, read)),
     };
-    stream(api, on).await;
+    stream(api, session.version, on).await;
+}
+
+/// The dictionary of the GDS as last read, with the names Tab completes.
+struct Loaded {
+    value: Value,
+    names: Names,
+}
+
+type Dictionary = Arc<Mutex<Arc<Loaded>>>;
+
+fn loaded(dictionary: &Dictionary) -> Arc<Loaded> {
+    dictionary.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+}
+
+fn load(value: Value) -> Arc<Loaded> {
+    Arc::new(Loaded { names: Names::of(&value), value })
+}
+
+/// Takes the dictionary the stream has read from a GDS that has another one; the line to print.
+fn reload(dictionary: &Dictionary, read: Value) -> String {
+    *dictionary.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = load(read);
+    "the GDS has another dictionary: names, completion and usage are from it now".to_string()
+}
+
+/// What the thread of the stream takes from a session.
+struct Follower {
+    shared: Shared,
+    dictionary: Dictionary,
+    version: Value,
+}
+
+/// On a signal that ends the process (SIGTERM, SIGHUP, SIGQUIT, SIGINT), calls `restore` to put
+/// the terminal back, then ends with 128 + the signal number. SIGKILL cannot be answered.
+fn restore_on_signal(restore: impl FnOnce() + Send + 'static) {
+    use tokio::signal::unix::{signal, SignalKind};
+    let (ready, waits) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
+        runtime.block_on(async {
+            let (got, mut signals) = tokio::sync::mpsc::channel(1);
+            let kinds = [SignalKind::terminate(), SignalKind::hangup(), SignalKind::quit(), SignalKind::interrupt()];
+            for kind in kinds {
+                let (Ok(mut arrives), got) = (signal(kind), got.clone()) else { continue };
+                tokio::spawn(async move {
+                    arrives.recv().await;
+                    let _ = got.send(kind.as_raw_value()).await;
+                });
+            }
+            let _ = ready.send(());
+            if let Some(number) = signals.recv().await {
+                restore();
+                std::process::exit(128 + number);
+            }
+        });
+    });
+    // The handlers are in place before the terminal is changed.
+    let _ = waits.recv();
 }
 
 const PROMPT: &str = "fgds> ";
@@ -161,7 +269,7 @@ fn print_above(shown: &Shown, text: &str) {
     let _ = match screen.state {
         Row::Free => writeln!(out, "{text}"),
         Row::Typed => {
-            let back = screen.line[screen.pos..].chars().count();
+            let back = unicode_width::UnicodeWidthStr::width(&screen.line[screen.pos..]);
             let back = if back > 0 { format!("\x1b[{back}D") } else { String::new() };
             write!(out, "\r\x1b[J{text}\r\n{PROMPT}{}{back}", screen.line)
         }
@@ -174,7 +282,7 @@ fn print_above(shown: &Shown, text: &str) {
 }
 
 struct Helper {
-    names: Names,
+    dictionary: Dictionary,
     shown: Shown,
 }
 
@@ -218,13 +326,15 @@ impl rustyline::completion::Completer for Helper {
     type Candidate = String;
 
     fn complete(&self, line: &str, pos: usize, _: &rustyline::Context<'_>) -> rustyline::Result<(usize, Vec<String>)> {
-        Ok(self.names.complete(line, pos))
+        Ok(loaded(&self.dictionary).names.complete(line, pos))
     }
 }
 
 struct Session {
     api: Api,
-    dictionary: Value,
+    dictionary: Dictionary,
+    /// The dictionary version of `/version` when `dictionary` was read.
+    version: Value,
     shared: Shared,
     runtime: tokio::runtime::Runtime,
 }
@@ -242,20 +352,29 @@ impl Session {
         };
         let api = Api::new(base, format!("fgds-{name}-{}", std::process::id()));
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().map_err(Error::Io)?;
-        let dictionary = runtime.block_on(async {
-            api.check_version().await?;
-            api.get("/dictionary", &[]).await
+        let (version, dictionary) = runtime.block_on(async {
+            let version = api.check_version().await?;
+            Ok::<_, Error>((version["dictionary"].clone(), api.get("/dictionary", &[]).await?))
         })?;
-        Ok(Session { api, dictionary, shared: Shared::default(), runtime })
+        let dictionary = Arc::new(Mutex::new(load(dictionary)));
+        Ok(Session { api, dictionary, version, shared: Shared::default(), runtime })
     }
 
-    /// A client for the thread of the stream: a connection is not shared between two runtimes.
-    fn stream_api(&self) -> Api {
-        Api::new(self.api.base().to_string(), self.api.client().to_string())
+    /// For the thread of the stream: a client (a connection is not shared between two runtimes)
+    /// and what the stream reads and changes.
+    fn follower(&self) -> (Api, Follower) {
+        let api = Api::new(self.api.base().to_string(), self.api.client().to_string());
+        let (shared, dictionary, version) = (self.shared.clone(), self.dictionary.clone(), self.version.clone());
+        (api, Follower { shared, dictionary, version })
     }
 
-    /// Does what `line` asks and returns what to print; `None` to leave.
+    /// Does what `line` asks and returns what to print, as a terminal may be given it; `None` to leave.
     fn handle(&self, line: &str) -> Option<Vec<String>> {
+        Some(self.answer(line)?.iter().map(|line| show::visible(line)).collect())
+    }
+
+    fn answer(&self, line: &str) -> Option<Vec<String>> {
+        let dictionary = &loaded(&self.dictionary).value;
         let parsed = match line::parse(line) {
             Ok(parsed) => parsed,
             Err(error) => return Some(vec![error]),
@@ -265,9 +384,9 @@ impl Session {
             Line::Empty => Vec::new(),
             Line::Quit => return None,
             Line::Help(None) => show::HELP.lines().map(str::to_string).collect(),
-            Line::Help(Some(name)) => show::help(&self.dictionary, &name),
+            Line::Help(Some(name)) => show::help(dictionary, &name),
             Line::Dict(which, pattern) => {
-                let mut lines = show::definitions(&self.dictionary, which, pattern.as_deref());
+                let mut lines = show::definitions(dictionary, which, pattern.as_deref());
                 if lines.is_empty() {
                     lines.push("none".to_string());
                 }
@@ -291,28 +410,30 @@ impl Session {
                 let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
                 match self.runtime.block_on(self.api.post("/raw", &json!({"data": data}))) {
                     Ok(_) => vec![format!("sent {} bytes as one packet: {}", bytes.len(), show::hex(&bytes))],
-                    Err(error) => vec![format!("not sent: {error}")],
+                    Err(error) => vec![unsent(&error)],
                 }
             }
         })
     }
 
-    /// Sends a command through the GDS, which checks and encodes it; prints its record.
+    /// Sends a command through the GDS, which checks and encodes it; prints its record. A name
+    /// the dictionary read here does not have is sent as well: the GDS is the judge.
     fn command(&self, name: &str, args: &[String]) -> Vec<String> {
-        let Some(parameters) = show::command_parameters(&self.dictionary, name) else {
-            return vec![format!("not sent: {name} is not a command of the dictionary (try `cmds {name}`)")];
-        };
-        let request = json!({"name": name, "args": line::arguments(args, &parameters)});
+        let dictionary = &loaded(&self.dictionary).value;
+        let known = show::command_parameters(dictionary, name);
+        let request = json!({"name": name, "args": line::arguments(args, known.as_deref().unwrap_or(&[]))});
         self.runtime.block_on(async {
             let sent = match self.api.post("/commands", &request).await {
                 Ok(sent) => sent,
                 Err(Error::Invalid(reason)) => {
-                    return vec![format!("not sent: {reason}"), show::usage(&self.dictionary, name)];
+                    let mut lines = vec![format!("not sent: {reason}")];
+                    lines.extend(known.map(|_| show::usage(dictionary, name)));
+                    return lines;
                 }
-                Err(error) => return vec![format!("not sent: {error}")],
+                Err(error) => return vec![unsent(&error)],
             };
             let Some(seq) = api::seq(&sent["seq"]) else { return vec!["sent".to_string()] };
-            let after = (seq - 1).to_string();
+            let after = seq.saturating_sub(1).to_string();
             let query = [("kind", "fprime.command"), ("after_seq", after.as_str()), ("limit", "1")];
             match self.api.get("/records", &query).await {
                 Ok(page) => {
@@ -325,6 +446,14 @@ impl Session {
                 Err(error) => vec![format!("sent; its record could not be read: {error}")],
             }
         })
+    }
+}
+
+/// The line for a request the GDS did not answer: only one that found no GDS is known not to be sent.
+fn unsent(error: &Error) -> String {
+    match error {
+        Error::Io(_) | Error::Invalid(_) => format!("not sent: {error}"),
+        _ => format!("no answer, it may have been sent: {error}"),
     }
 }
 
@@ -342,17 +471,24 @@ fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
         .build();
     let mut editor: Editor<Helper, DefaultHistory> = Editor::with_config(config).map_err(other)?;
     let shown = Shown::default();
-    editor.set_helper(Some(Helper { names: Names::of(&session.dictionary), shown: shown.clone() }));
+    editor.set_helper(Some(Helper { dictionary: session.dictionary.clone(), shown: shown.clone() }));
     let history = std::env::var_os("HOME").map(|home| std::path::Path::new(&home).join(".fgds_history"));
     if let Some(history) = &history {
         let _ = editor.load_history(history);
     }
-    println!("fgds repl on {}: `help` lists what can be typed, `quit` leaves.", session.api.base());
-    let api = session.stream_api();
-    let (shared, above) = (session.shared.clone(), shown.clone());
+    println!("fgds repl on {}: `help` lists what can be typed, `quit` leaves.", show::visible(session.api.base()));
+    // Ctrl-C is a key of the editor here, not a signal: SIGINT comes from another process.
+    if let Ok(modes) = nix::sys::termios::tcgetattr(std::io::stdin()) {
+        restore_on_signal(move || {
+            let _ = nix::sys::termios::tcsetattr(std::io::stdin(), nix::sys::termios::SetArg::TCSANOW, &modes);
+            let _ = std::io::stdout().write_all(b"\r\n");
+        });
+    }
+    let (api, follower) = session.follower();
+    let above = shown.clone();
     std::thread::spawn(move || {
         let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
-        runtime.block_on(stream_lines(api, shared, colour, |line| print_above(&above, &line)));
+        runtime.block_on(stream_lines(api, follower, colour, |line| print_above(&above, &line)));
     });
     loop {
         *screen(&shown) = Screen { state: Row::Typed, ..Default::default() };
@@ -360,18 +496,21 @@ fn prompt(session: Session, colour: bool) -> Result<ExitCode> {
         let held = std::mem::take(&mut *screen(&shown)).held;
         held.iter().for_each(|line| print_above(&shown, line));
         match read {
-            Ok(line) => match session.handle(&line) {
-                Some(lines) => lines.iter().for_each(|line| print_above(&shown, line)),
-                None => break,
-            },
+            Ok(line) => {
+                // After each line: a prompt ended by a signal keeps its history.
+                if let Some(history) = &history {
+                    let _ = editor.append_history(history);
+                }
+                match session.handle(&line) {
+                    Some(lines) => lines.iter().for_each(|line| print_above(&shown, line)),
+                    None => break,
+                }
+            }
             // Ctrl-C drops the line being typed.
             Err(ReadlineError::Interrupted) => continue,
             Err(ReadlineError::Eof) => break,
             Err(error) => return Err(other(error)),
         }
-    }
-    if let Some(history) = &history {
-        let _ = editor.save_history(history);
     }
     Ok(ExitCode::SUCCESS)
 }
@@ -391,11 +530,12 @@ impl Subcommand for Repl {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        let Session { api, dictionary, shared, runtime } = Session::open("repl", args, env)?;
+        let session = Session::open("repl", args, env)?;
         let colour = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
         if std::io::stdin().is_terminal() {
-            return prompt(Session { api, dictionary, shared, runtime }, colour);
+            return prompt(session, colour);
         }
+        let (api, follower) = session.follower();
         let print = |line: String| {
             let mut out = std::io::stdout().lock();
             // A closed pipe (`fgds repl | head`) ends the command, it is not an error.
@@ -403,9 +543,9 @@ impl Subcommand for Repl {
                 std::process::exit(0);
             }
         };
-        runtime.block_on(async {
+        session.runtime.block_on(async {
             tokio::select! {
-                () = stream_lines(api, shared, colour, print) => {}
+                () = stream_lines(api, follower, colour, print) => {}
                 () = fgds_core::interrupt() => {}
             }
         });
@@ -420,6 +560,15 @@ mod tests {
     fn event(name: &str, severity: &str, args: Value) -> Value {
         json!({"kind": "fprime.event", "flight_time": {"base": 2, "seconds": 1},
             "body": {"name": name, "severity": severity, "args": args, "display_text": "text"}})
+    }
+
+    #[test]
+    fn only_a_request_that_found_no_gds_is_called_not_sent() {
+        let refused = Error::Io(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "no GDS answers"));
+        assert!(unsent(&refused).starts_with("not sent: "));
+        assert!(unsent(&Error::Invalid("unknown command X".into())).starts_with("not sent: "));
+        let late = unsent(&Error::Other("the GDS did not answer: timed out".into()));
+        assert!(late.starts_with("no answer, it may have been sent: "), "{late}");
     }
 
     #[test]

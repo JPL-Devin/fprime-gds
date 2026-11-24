@@ -10,14 +10,9 @@
 The screen after the commands is kept in `<out>/screen.txt`. Standard library only.
 """
 import argparse
-import codecs
-import fcntl
 import json
 import os
-import pty
 import re
-import select
-import struct
 import subprocess
 import sys
 import termios
@@ -27,6 +22,7 @@ import urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", "compare"))
 import scenario  # noqa: E402
+from screen import Screen  # noqa: E402
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--fgds", required=True)
@@ -50,112 +46,6 @@ def require(what, condition, detail=""):
     if not condition:
         failures.append(what)
         print(f"    {detail}"[:6000])
-
-
-class Screen:
-    """A process on a pseudo-terminal of ROWS by COLUMNS, and the screen it has drawn there.
-
-    Knows what the program writes: text, cursor moves, erasing, and the switch to the alternate
-    screen and back. Colours and other modes are read and dropped.
-    """
-
-    def __init__(self, command):
-        self.master, slave = pty.openpty()
-        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLUMNS, 0, 0))
-        self.before = termios.tcgetattr(slave)
-        self.process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=ENV, start_new_session=True)
-        scenario.STARTED.append(self.process)
-        os.close(slave)
-        self.seen, self.done = "", 0
-        self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
-        self.cells = [[" "] * COLUMNS for _ in range(ROWS)]
-        self.row = self.column = 0
-        self.modes = {}
-
-    def read(self, patience=0.1):
-        if select.select([self.master], [], [], patience)[0]:
-            try:
-                self.seen += self.decoder.decode(os.read(self.master, 65536))
-            except OSError:  # the process closed its side
-                pass
-        # An escape sequence cut by the end of what was read waits for its rest.
-        cut = re.search(r"\x1b(\[[?0-9;]*)?$", self.seen)
-        whole = cut.start() if cut else len(self.seen)
-        for sequence, private, numbers, action, char in re.findall(
-                r"(\x1b\[(\??)([0-9;]*)([A-Za-z]))|([^\x1b]|\x1b[^\[])", self.seen[self.done:whole]):
-            self.done += len(sequence or char)
-            values = [int(n) for n in numbers.split(";") if n]
-            first = values[0] if values else 1
-            if char == "\r":
-                self.column = 0
-            elif char == "\n":
-                self.row = min(ROWS - 1, self.row + 1)
-            elif char == "\b":
-                self.column = max(0, self.column - 1)
-            elif char and char >= " " and len(char) == 1:
-                if self.column < COLUMNS:
-                    self.cells[self.row][self.column] = char
-                    self.column += 1
-            elif private and action in "hl":
-                for mode in values:
-                    self.modes[mode] = action == "h"
-            elif action in "Hf":
-                self.row = min(ROWS, first) - 1
-                self.column = min(COLUMNS, values[1] if len(values) > 1 else 1) - 1
-            elif action in "ABCDGd":
-                row, column = {"A": (-first, 0), "B": (first, 0), "C": (0, first), "D": (0, -first)}.get(action, (0, 0))
-                self.row = first - 1 if action == "d" else self.row + row
-                self.column = first - 1 if action == "G" else self.column + column
-                self.row, self.column = max(0, min(ROWS - 1, self.row)), max(0, min(COLUMNS - 1, self.column))
-            elif action == "J":
-                rows = range(ROWS) if not values or values[0] == 2 else range(self.row + 1, ROWS)
-                for row in rows:
-                    self.cells[row] = [" "] * COLUMNS
-            elif action == "K":
-                self.cells[self.row][self.column:] = [" "] * (COLUMNS - self.column)
-
-    def type(self, keys):
-        os.write(self.master, keys.encode())
-
-    def rows(self):
-        return ["".join(row) for row in self.cells]
-
-    def text(self):
-        return "\n".join(row.rstrip() for row in self.rows())
-
-    def split(self):
-        """The column of the border between the events pane and the channel table."""
-        return self.rows()[0].index("┐")
-
-    def events(self):
-        """The inside of the events pane as one text: a line that takes two rows is whole in it."""
-        return "".join(row[1:self.split()] for row in self.rows()[1:ROWS - 4])
-
-    def channels(self):
-        """The rows of the channel table."""
-        return [row[self.split() + 2:COLUMNS - 1].rstrip() for row in self.rows()[1:ROWS - 4]]
-
-    def channel(self, name):
-        """The value shown for the channel `name`; None when it has no row."""
-        for row in self.channels():
-            if row.startswith(name + " "):
-                return row.split()[1]
-        return None
-
-    def command_line(self):
-        return self.rows()[ROWS - 2][1:COLUMNS - 1].rstrip()
-
-    def expect(self, what, timeout=30.0):
-        """What `what()` gives once it is true; the last of it after `timeout` seconds."""
-        end = time.monotonic() + timeout
-        while True:
-            self.read()
-            try:
-                found = what()
-            except ValueError:  # a screen without its borders yet
-                found = None
-            if found or time.monotonic() > end:
-                return found
 
 
 def packets(proxy, scid):
@@ -183,7 +73,7 @@ def main():
     time.sleep(scenario.SETTLE)  # the events of that command are over before the screen starts
 
     print("the screen on a pseudo-terminal")
-    screen = Screen([args.fgds, "tui", "--url", url])
+    screen = Screen([args.fgds, "tui", "--url", url], ENV, ROWS, COLUMNS)
     try:
         titles = screen.expect(lambda: all(title in screen.text() for title in (" Events and commands ", " Channels: ", "fgds> ")))
         require("the three panes are drawn on the alternate screen", titles and screen.modes.get(1049), screen.text())

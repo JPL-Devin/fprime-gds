@@ -53,12 +53,18 @@ impl Api {
     }
 
     async fn answer(&self, request: reqwest::RequestBuilder) -> Result<Value> {
-        let response = request
-            .header("x-fgds-client", &self.client)
-            .timeout(Duration::from_secs(30))
-            .send()
-            .await
-            .map_err(|e| failed(&format!("no GDS answers at {}", self.base), e))?;
+        let response =
+            request.header("x-fgds-client", &self.client).timeout(Duration::from_secs(30)).send().await.map_err(
+                |e| {
+                    if e.is_connect() {
+                        // No connection: nothing was sent. `Error::Io` tells the caller so.
+                        let reason = format!("no GDS answers at {}: {e}", self.base);
+                        Error::Io(std::io::Error::new(std::io::ErrorKind::ConnectionRefused, reason))
+                    } else {
+                        failed(&format!("the GDS at {} did not answer", self.base), e)
+                    }
+                },
+            )?;
         let status = response.status();
         let body: Value = response.json().await.map_err(|e| failed("the answer of the GDS is not JSON", e))?;
         if status.is_success() {
@@ -80,11 +86,11 @@ impl Api {
         self.answer(self.http.post(format!("{}{path}", self.base)).json(body)).await
     }
 
-    /// Refuses a GDS that speaks another API version, naming both (API-9).
-    pub async fn check_version(&self) -> Result<()> {
+    /// What `/version` answers. Refuses a GDS that speaks another API version, naming both (API-9).
+    pub async fn check_version(&self) -> Result<Value> {
         let version = self.get("/version", &[]).await?;
         match version["api"].as_u64() {
-            Some(API_VERSION) => Ok(()),
+            Some(API_VERSION) => Ok(version),
             other => Err(Error::Other(format!(
                 "this prompt speaks API version {API_VERSION}, the GDS at {} speaks version {}",
                 self.base,
@@ -94,12 +100,19 @@ impl Api {
     }
 
     /// Live records of `kinds`, each once, in the order the GDS sends them. `*after` is the last
-    /// one seen (`None`: live only). Returns when the stream ends; the caller connects again.
-    pub async fn follow(&self, kinds: &str, after: &mut Option<u64>, on_record: &mut impl FnMut(&Value)) -> Result<()> {
+    /// one seen (`None`: live only). `on` is given `None` once the stream is open, then each
+    /// record. Returns when the stream ends; the caller connects again.
+    pub async fn follow(
+        &self,
+        kinds: &str,
+        after: &mut Option<u64>,
+        on: &mut impl FnMut(Option<&Value>),
+    ) -> Result<()> {
         let from = after.map(|seq| format!("&after_seq={seq}")).unwrap_or_default();
         let url = format!("{}/stream?kind={kinds}{from}", self.base.replacen("http", "ws", 1));
         let (mut socket, _) =
             tokio_tungstenite::connect_async(&url).await.map_err(|e| failed(&format!("no stream at {url}"), e))?;
+        on(None);
         loop {
             let text = match socket.next().await {
                 Some(Ok(Message::Text(text))) => text,
@@ -110,7 +123,7 @@ impl Api {
             let message: Value = serde_json::from_str(&text).map_err(|e| failed("the stream sent no JSON", e))?;
             let at = match message["type"].as_str() {
                 Some("record") => {
-                    on_record(&message["record"]);
+                    on(Some(&message["record"]));
                     seq(&message["record"]["seq"])
                 }
                 Some("live") => seq(&message["seq"]),
