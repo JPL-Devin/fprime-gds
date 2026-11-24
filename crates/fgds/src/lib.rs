@@ -32,6 +32,7 @@ pub fn default_plugins() -> Vec<Box<dyn Plugin>> {
         Box::new(channels::ChannelsPlugin),
         Box::new(commands::CommandsPlugin),
         Box::new(online::OnlinePlugin),
+        Box::new(repl::ReplPlugin),
         Box::new(files::FilesPlugin::default()),
         Box::new(sequences::SequencesPlugin),
         Box::new(params::ParamsPlugin),
