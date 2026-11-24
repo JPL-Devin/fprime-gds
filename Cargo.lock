@@ -361,6 +361,7 @@ name = "dictionary-tab"
 version = "0.1.0"
 dependencies = [
  "fgds-core",
+ "fgds-offline",
 ]
 
 [[package]]

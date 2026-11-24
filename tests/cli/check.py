@@ -8,6 +8,8 @@ Three parts (see README.md):
 
 Standard library only; the Python GDS is run through the executables of its virtual environment.
 """
+import copy
+import glob
 import argparse
 import difflib
 import json
@@ -718,10 +720,90 @@ def offline(out):
             require(f"{what}: both refuse and write nothing", results[0] == results[1] == (False, None), results)
 
 
+def merges(out):
+    """merge-dictionary on variants of the Ref dictionary and the dictionaries of the repository: same accept or refuse, same file."""
+    os.makedirs(out, exist_ok=True)
+    with open(args.dictionary) as file:
+        ref = json.load(file)
+
+    def variant(name, change):
+        data = copy.deepcopy(ref)
+        change(data)
+        with open(f"{out}/{name}.json", "w") as file:
+            json.dump(data, file)
+        return f"{out}/{name}.json"
+
+    def other(data):  # another deployment: same names at other identifiers, one new channel, a text that is not ASCII
+        data["metadata"]["deploymentName"] = "Other.Top"
+        for section, key in (("commands", "opcode"), ("events", "id"), ("telemetryChannels", "id"), ("parameters", "id")):
+            for entry in data[section][:5]:
+                entry[key] += 0x70000000
+        data["telemetryChannels"].append(dict(data["telemetryChannels"][0], name="Other.new", id=0x7FFF0000, annotation="d\u00e9j\u00e0 \"vu\"\n"))
+        data["constants"].append({"kind": "constant", "qualifiedName": "Other.ratio", "type": {"name": "F64", "kind": "float", "size": 64}, "value": 1e-07})
+        data["extra"] = {"limit": 1.5, "empty": [], "none": None}
+
+    def changed(data):  # same identifier, another definition; same identifier, another name; another type definition
+        data["metadata"]["deploymentName"] = "Changed"
+        data["commands"][0]["annotation"] = "changed"
+        data["telemetryChannels"][1]["name"] = "Changed.renamed"
+        data["telemetryChannels"][2]["annotation"] = "changed"
+        data["typeDefinitions"][0]["annotation"] = "changed"
+
+    def version(data):
+        data["metadata"]["deploymentName"] = "Versioned"
+        data["metadata"]["frameworkVersion"] = "v0"
+        data["metadata"]["libraryVersions"] = ["x"]
+
+    paths = {"ref": args.dictionary, "other": variant("other", other), "changed": variant("changed", changed), "version": variant("version", version),
+             "unnamed": variant("unnamed", lambda data: data["metadata"].update(deploymentName="9 lives")),
+             "no-sets": variant("no-sets", lambda data: data.pop("telemetryPacketSets")),
+             "twice": variant("twice", lambda data: data["events"].append(data["events"][0])),
+             "bad-id": variant("bad-id", lambda data: data["commands"][0].update(opcode=True)),
+             "list": variant("list", lambda data: (data.clear(), data.update(metadata=[]))), "absent": f"{out}/absent.json"}
+    with open(f"{out}/text.json", "w") as file:
+        file.write("not JSON")
+    paths["text"] = f"{out}/text.json"
+    repository = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    found = sorted(glob.glob(f"{repository}/fixtures/**/*ictionary*.json", recursive=True))
+    cases = [(first, second, options) for first, second in (("ref", "ref"), ("ref", "other"), ("other", "ref"), ("ref", "changed"), ("ref", "version"),
+                                                           ("unnamed", "other"), ("ref", "no-sets"), ("ref", "twice"), ("bad-id", "ref"),
+                                                           ("list", "ref"), ("ref", "absent"), ("text", "ref"), ("other", "changed"))
+             for options in ([], ["--prefer-primary"], ["--permissive"], ["--no-namespace"], ["--namespace-all"], ["--name", "A.b"],
+                             ["--name", "9x"], ["--prefix", "A", "--prefix", "B.c"], ["--prefer-primary", "--no-namespace", "--permissive"],
+                             ["--prefer-primary", "--namespace-all", "--permissive"])]
+    cases += [("ref", "other", options) for options in (["--prefix", "A"], ["--prefix", "A", "--prefix", "A"], ["--prefix", "A", "--prefix", "9"],
+                                                        ["--no-namespace", "--namespace-all"], ["--no-namespace", "--prefix", "A", "--prefix", "B"],
+                                                        ["--perm"], ["--p"], ["--output"], ["--unknown"])]
+    cases += [("ref", "ref", ["extra"]), ("ref", None, [])]
+    for one in found:
+        paths[one] = one
+        cases += [(one, other_path, options) for other_path in found + ["ref"] for options in ([], ["--prefer-primary", "--permissive"])]
+    written = 0
+    for first, second, options in cases:
+        results = []
+        for name, command in (("python", [f"{args.venv_bin}/fprime-merge-dictionary"]), ("rust", [args.fgds, "merge-dictionary"])):
+            path = f"{out}/{name}.out"
+            if os.path.exists(path):
+                os.remove(path)
+            code, _, _ = run(command + [paths[first]] + ([paths[second]] if second else []) + options + ([] if "--output" in options else ["--output", path]), cwd=out)
+            content = None
+            if os.path.exists(path):
+                with open(path, "rb") as file:
+                    content = file.read()
+            results.append((code == 0, content))
+        written += results[0][0]
+        short = lambda path: os.path.relpath(path, repository) if path and path.startswith(repository) else path
+        require(f"merge-dictionary {short(first)} {short(second)} {' '.join(options)}: both {'write the same file' if results[0][0] else 'refuse and write nothing'}",
+                results[0] == results[1] and (results[0][1] is None) != results[0][0], [(ok, content and len(content)) for ok, content in results])
+    require(f"merge-dictionary: {written} of {len(cases)} command lines write a file", written >= 20, written)
+
+
 def main():
     os.makedirs(args.out, exist_ok=True)
     print("offline tools with the dictionary options")
     offline(f"{args.out}/offline")
+    print("merge-dictionary through both")
+    merges(f"{args.out}/merge")
     fgds = python = None
     try:
         fgds = Fgds(f"{args.out}/rust")

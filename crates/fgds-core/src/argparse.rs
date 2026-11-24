@@ -41,12 +41,21 @@ pub struct Opt {
     pub abbreviated: bool,
     /// The long option the values are given back with; `None` for an option without a meaning here.
     pub emit: Option<String>,
+    /// Given several times, every value is kept (argparse's `append`); otherwise the last one.
+    pub append: bool,
 }
 
 impl Opt {
     pub fn new(strings: &[&str], nargs: Nargs, kind: Kind) -> Opt {
         let emit = strings.iter().find_map(|s| s.strip_prefix("--")).map(str::to_string);
-        Opt { strings: strings.iter().map(|s| s.to_string()).collect(), nargs, kind, abbreviated: true, emit }
+        Opt {
+            strings: strings.iter().map(|s| s.to_string()).collect(),
+            nargs,
+            kind,
+            abbreviated: true,
+            emit,
+            append: false,
+        }
     }
 
     /// An option of `fprime-cli` that changes nothing here: read, checked and dropped.
@@ -58,6 +67,11 @@ impl Opt {
     /// An option `fprime-cli` does not have: it is written in full.
     pub fn exact(mut self) -> Opt {
         self.abbreviated = false;
+        self
+    }
+
+    pub fn append(mut self) -> Opt {
+        self.append = true;
         self
     }
 
@@ -364,7 +378,10 @@ impl Parser {
                     converted
                         .push(Self::value(option.kind, value).map_err(|e| format!("argument {}: {e}", option.name()))?);
                 }
-                given[index] = Some(converted);
+                match &mut given[index] {
+                    Some(values) if option.append => values.extend(converted),
+                    values => *values = Some(converted),
+                }
             }
             start = stop;
         }
