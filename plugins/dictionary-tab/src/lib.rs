@@ -74,7 +74,7 @@ impl Subcommand for MergeCommand {
 
     fn run(&self, args: &ArgMatches, _env: &CliEnv) -> Result<ExitCode> {
         let usage = |problem: &str| {
-            eprintln!("fgds merge-dictionary: error: {problem}");
+            fgds_core::err!("fgds merge-dictionary: error: {problem}");
             Ok(ExitCode::from(2))
         };
         let prefixes: Vec<String> = args.get_many::<String>("prefix").into_iter().flatten().cloned().collect();
@@ -100,7 +100,7 @@ impl Subcommand for MergeCommand {
             namespace_all: args.get_flag("namespace-all"),
         };
         let failed = |problem: String| {
-            eprintln!("[ERROR] {problem}");
+            fgds_core::err!("[ERROR] {problem}");
             Ok(ExitCode::FAILURE)
         };
         let mut inputs = Vec::new();
@@ -117,10 +117,10 @@ impl Subcommand for MergeCommand {
         }
         let (merged, report) = merge::merge(&inputs[0], &inputs[1], &options);
         for warning in &report.warnings {
-            eprintln!("[WARNING] {warning}");
+            fgds_core::err!("[WARNING] {warning}");
         }
         for error in &report.errors {
-            eprintln!("[ERROR] {error}");
+            fgds_core::err!("[ERROR] {error}");
         }
         let Some(merged) = merged else {
             return failed(format!("Merge failed with {} error(s); no output written", report.errors.len()));

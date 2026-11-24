@@ -29,20 +29,62 @@ fn option_name(plugin: &str, name: &str) -> String {
     format!("{plugin}-{name}")
 }
 
+/// The error of the command line with the control characters of the arguments written out: the error
+/// of the same command line with each argument made visible first, since the message of clap has line
+/// ends of its own that an argument must not add to.
+fn shown_arguments(registry: &Registry, given: &[OsString], error: clap::Error) -> clap::Error {
+    if !error.use_stderr() {
+        return error;
+    }
+    let shown = |arg: &OsString| OsString::from(fgds_core::visible(&arg.to_string_lossy()).into_owned());
+    let args: Vec<OsString> = given.iter().map(shown).collect();
+    let again = as_argparse(registry, args).ok().map(|args| command(registry).try_get_matches_from(args));
+    match again {
+        Some(Err(again)) => again,
+        // Not the same refusal once visible: the first line of the message alone, on one line.
+        _ => {
+            let text = error.to_string();
+            let line = fgds_core::visible(text.lines().next().unwrap_or_default()).into_owned();
+            command(registry).error(error.kind(), line.trim_start_matches("error: "))
+        }
+    }
+}
+
+/// The standard error for the log lines: one line per write, its control characters written out.
+#[derive(Clone, Copy)]
+struct VisibleStderr;
+
+impl std::io::Write for VisibleStderr {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let text = String::from_utf8_lossy(buf);
+        let (line, end) = match text.strip_suffix('\n') {
+            Some(line) => (line, "\n"),
+            None => (&*text, ""),
+        };
+        std::io::stderr().write_all(format!("{}{end}", fgds_core::visible(line)).as_bytes())?;
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        std::io::stderr().flush()
+    }
+}
+
 pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
     // Registration comes first: a conflict stops every command, and the plugins'
     // options and subcommands are part of the command line.
     let registry = builder.registry(&[])?;
+    let given = args.clone();
     let args = match as_argparse(&registry, args) {
         Ok(args) => args,
         Err(error) => {
-            eprintln!("fgds: error: {error}");
+            fgds_core::err!("fgds: error: {error}");
             return Ok(ExitCode::from(2));
         }
     };
     let matches = match command(&registry).try_get_matches_from(args) {
         Ok(matches) => matches,
         Err(e) => {
+            let e = shown_arguments(&registry, &given, e);
             let _ = e.print();
             return Ok(if e.use_stderr() { ExitCode::from(2) } else { ExitCode::SUCCESS });
         }
@@ -50,7 +92,7 @@ pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
     let (name, sub) = matches.subcommand().expect("a subcommand is required");
     if let Some(subcommand) = registry.subcommands.iter().find(|s| s.command().get_name() == name) {
         if let Some(option) = not_honoured(&registry, &matches, subcommand.honours()) {
-            eprintln!("fgds: error: --{option} is an option of `fgds run`; `fgds {name}` cannot honour it");
+            fgds_core::err!("fgds: error: --{option} is an option of `fgds run`; `fgds {name}` cannot honour it");
             return Ok(ExitCode::from(2));
         }
     }
@@ -218,7 +260,7 @@ fn config(matches: &ArgMatches, registry: &Registry) -> Result<Config> {
     };
     let mut config = match &path {
         Some(path) => {
-            eprintln!("configuration: {}", path.display());
+            fgds_core::err!("configuration: {}", path.display());
             Config::load(path)?
         }
         None => Config::default(),
@@ -273,41 +315,42 @@ fn check(registry: &Registry, config: &Config) -> Result<ExitCode> {
     let fgds_core::Preflight { layer_names: layers, decoders, .. } =
         fgds_core::preflight(registry, config, &dictionary)?;
 
-    println!("dictionary: {} (version {})", config.dictionary.display(), dictionary.version());
+    fgds_core::out!("dictionary: {} (version {})", config.dictionary.display(), dictionary.version());
     let (commands, events, channels) = (dictionary.commands.len(), dictionary.events.len(), dictionary.channels.len());
-    println!("  {commands} commands, {events} events, {channels} channels");
-    println!("adapter: {}", config.comm);
-    println!("framing: {}", layers.join(" > "));
-    println!("storage: {}", config.storage);
-    println!("server: http://{}{}", config.bind, if config.no_page { " (API only, no page)" } else { "" });
-    println!("plugins:");
+    fgds_core::out!("  {commands} commands, {events} events, {channels} channels");
+    fgds_core::out!("adapter: {}", config.comm);
+    fgds_core::out!("framing: {}", layers.join(" > "));
+    fgds_core::out!("storage: {}", config.storage);
+    fgds_core::out!("server: http://{}{}", config.bind, if config.no_page { " (API only, no page)" } else { "" });
+    fgds_core::out!("plugins:");
     for manifest in &registry.manifests {
-        println!("  {} {}", manifest.name, manifest.version);
+        fgds_core::out!("  {} {}", manifest.name, manifest.version);
         for spec in &manifest.options {
             let value = match config.plugin_config(registry, manifest.name)?.get(spec.name) {
                 Some(_) if spec.secret => "<set>".to_string(),
                 Some(value) => value,
                 None => "<unset>".to_string(),
             };
-            println!("    --{} = {value}", option_name(manifest.name, spec.name));
+            fgds_core::out!("    --{} = {value}", option_name(manifest.name, spec.name));
         }
     }
     let kinds: Vec<_> = registry.kinds.iter().map(|k| k.id.as_str()).collect();
-    println!("record kinds: {}", kinds.join(", "));
-    println!("decoders: {}", decoders.len());
+    fgds_core::out!("record kinds: {}", kinds.join(", "));
+    fgds_core::out!("decoders: {}", decoders.len());
     let routes: Vec<_> = registry.routes.iter().map(|(_, r)| format!("/api/v1/{}", r.prefix)).collect();
-    println!("plugin routes: {}", routes.join(", "));
+    fgds_core::out!("plugin routes: {}", routes.join(", "));
     let tabs: Vec<_> = registry.tabs.iter().map(|t| t.tab_id).collect();
-    println!("tabs: {}", tabs.join(", "));
+    fgds_core::out!("tabs: {}", tabs.join(", "));
     let subcommands: Vec<_> = registry.subcommands.iter().map(|s| s.command().get_name().to_string()).collect();
-    println!("subcommands: {}", subcommands.join(", "));
-    println!("check passed: nothing was started");
+    fgds_core::out!("subcommands: {}", subcommands.join(", "));
+    fgds_core::out!("check passed: nothing was started");
     Ok(ExitCode::SUCCESS)
 }
 
 /// `fgds run`: the start order of section 4.4, then serve until interrupted.
 fn serve(registry: Registry, config: Config) -> Result<ExitCode> {
-    tracing_subscriber::fmt().with_writer(std::io::stderr).init();
+    // No colours: the lines hold no escape sequence, of the program or of the data.
+    tracing_subscriber::fmt().with_ansi(false).with_writer(|| VisibleStderr).init();
     let runtime = tokio::runtime::Runtime::new().map_err(Error::Io)?;
     runtime.block_on(async {
         // An old database is shown with the dictionary it was recorded with (STO-5).
@@ -318,7 +361,7 @@ fn serve(registry: Registry, config: Config) -> Result<ExitCode> {
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
         let listener = fgds_shell::bind(&core).await?;
         let what = if core.config.no_page { " (API only, no page)" } else { "" };
-        eprintln!("listening on http://{}{what}", listener.local_addr().map_err(Error::Io)?);
+        fgds_core::err!("listening on http://{}{what}", listener.local_addr().map_err(Error::Io)?);
         core.start_link()?;
         let served = fgds_shell::serve(core.clone(), listener, interrupted()).await;
         core.stop().await?;

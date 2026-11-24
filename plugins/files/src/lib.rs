@@ -269,7 +269,12 @@ pub(crate) struct Shared {
 }
 
 /// Refuse a chunk size whose data packet the framing layers do not carry (`max_packet`, from the framers).
-pub(crate) fn chunk_fits(chunk: usize, max_packet: Option<usize>, dictionary: &Dictionary) -> Result<(), String> {
+pub(crate) fn chunk_fits(
+    chunk: usize,
+    max_packet: Option<usize>,
+    said: Option<String>,
+    dictionary: &Dictionary,
+) -> Result<(), String> {
     let header = packet::encode(
         packet::descriptor_bytes(dictionary),
         0,
@@ -277,8 +282,9 @@ pub(crate) fn chunk_fits(chunk: usize, max_packet: Option<usize>, dictionary: &D
     );
     match max_packet.map(|max| max.saturating_sub(header.len()).min(usize::from(u16::MAX))) {
         Some(limit) if chunk > limit => Err(format!(
-            "chunk size {chunk}: the configured framing carries packets of at most {} bytes, that is at most {limit} bytes of file data per packet",
-            max_packet.unwrap_or_default()
+            "chunk size {chunk}: the configured framing carries packets of at most {} bytes, that is at most {limit} bytes of file data per packet{}",
+            max_packet.unwrap_or_default(),
+            said.map(|said| format!(" ({said})")).unwrap_or_default()
         )),
         _ => Ok(()),
     }
@@ -388,7 +394,7 @@ impl Plugin for FilesPlugin {
         let for_check = shared.clone();
         reg.add_option_check(Arc::new(move |config, startup| {
             let options = for_check.options(config)?;
-            chunk_fits(options.chunk, startup.max_packet, startup.dictionary)
+            chunk_fits(options.chunk, startup.max_packet, startup.packet_limit.clone(), startup.dictionary)
                 .map_err(|e| Error::Config(format!("[plugins.files] {e}")))
         }));
         let for_handler = shared.clone();

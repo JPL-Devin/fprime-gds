@@ -11,7 +11,10 @@ use fgds_offline::value::Value as Typed;
 pub struct Item {
     pub id: u64,
     pub name: String,
+    /// As decoded: what `--search` reads.
     text: String,
+    /// What is printed: `text` with its control characters written out (`fgds_core::visible`).
+    shown: String,
     json: String,
 }
 
@@ -32,11 +35,27 @@ fn or_none(text: Option<&str>) -> &str {
 }
 
 impl Item {
+    /// An item of one line.
+    fn new(id: u64, name: String, text: String, json: String) -> Item {
+        let shown = fgds_core::visible(&text).into_owned();
+        Item { id, name, text, shown, json }
+    }
+
+    /// What `--search` reads: the JSON, or the text as decoded, before its control characters are written out.
     pub fn line(&self, json: bool) -> String {
         if json {
             self.json.clone()
         } else {
             self.text.clone()
+        }
+    }
+
+    /// What is printed: the JSON as it is, the text with its control characters written out.
+    pub fn printed(&self, json: bool) -> &str {
+        if json {
+            &self.json
+        } else {
+            &self.shown
         }
     }
 
@@ -133,23 +152,19 @@ fn typed(value: &Value, of: &Value, dictionary: &Value) -> Typed {
 
 fn event(id: u64, name: String, severity: &str, time: &str, raw: &str, args: String, text: Option<&str>) -> Item {
     let severity = format!("EventSeverity.{severity}");
-    Item {
-        id,
-        text: fgds_core::python_event_line(time, &name, id, raw, &severity, text),
-        json: object(&[
-            ("time", dumps(&json!(time))),
-            ("raw_time", dumps(&json!(raw))),
-            ("name", dumps(&json!(name))),
-            ("id", id.to_string()),
-            ("severity", dumps(&json!(severity))),
-            ("args", args),
-            ("display_text", dumps(&json!(text))),
-        ]),
-        name,
-    }
+    let line = fgds_core::python_event_line(time, &name, id, raw, &severity, text);
+    let json = object(&[
+        ("time", dumps(&json!(time))),
+        ("raw_time", dumps(&json!(raw))),
+        ("name", dumps(&json!(name))),
+        ("id", id.to_string()),
+        ("severity", dumps(&json!(severity))),
+        ("args", args),
+        ("display_text", dumps(&json!(text))),
+    ]);
+    Item::new(id, name, line, json)
 }
 
-/// `shown` is the display text as JSON writes it.
 fn channel(id: u64, name: String, time: &str, raw: &str, text: &str, shown: String) -> Item {
     let json = object(&[
         ("time", dumps(&json!(time))),
@@ -158,7 +173,7 @@ fn channel(id: u64, name: String, time: &str, raw: &str, text: &str, shown: Stri
         ("id", id.to_string()),
         ("display_text", shown),
     ]);
-    Item { id, text: format!("{time}: {name} ({id}) {raw} {text}"), json, name }
+    Item::new(id, name.clone(), format!("{time}: {name} ({id}) {raw} {text}"), json)
 }
 
 /// The kind of the type of each channel without a format string (`integer`, `float`, ...).
@@ -217,8 +232,12 @@ pub fn commands(dictionary: &Value) -> Vec<Item> {
         let (component, mnemonic) = name.rsplit_once('.').unwrap_or(("", &name));
         let params: Vec<&Value> = list(c, "formalParams").collect();
         let mut lines = format!("{name} ({opcode}) | Takes {} arguments.\n", params.len());
+        // The same lines with the texts of the dictionary made visible, each on its line.
+        let v = fgds_core::visible;
+        let mut shown = format!("{} ({opcode}) | Takes {} arguments.\n", v(&name), params.len());
         if !text(c, "annotation").is_empty() {
             lines += &format!("Description: {}\n", text(c, "annotation"));
+            shown += &format!("Description: {}\n", v(text(c, "annotation")));
         }
         let mut args = Vec::new();
         for p in params {
@@ -235,15 +254,17 @@ pub fn commands(dictionary: &Value) -> Vec<Item> {
                 _ => text(of, "name").to_string(),
             };
             let description = text(p, "annotation");
-            let shown = if description.is_empty() { "--no description--" } else { description };
-            lines += &format!("\t{arg} ({kind}): {shown}\n");
-            args.push(json!({"name": arg, "description": description, "type": kind}));
+            let (annotation, description) =
+                (description, if description.is_empty() { "--no description--" } else { description });
+            lines += &format!("\t{arg} ({kind}): {description}\n");
+            shown += &format!("\t{} ({}): {}\n", v(arg), v(&kind), v(description));
+            args.push(json!({"name": arg, "description": annotation, "type": kind}));
         }
         let json = json!({
             "args": args, "comp_name": component, "description": text(c, "annotation"), "full_name": name,
             "id": opcode, "mnemonic": mnemonic, "name": mnemonic, "op_code": opcode,
         });
-        Item { id: opcode, text: lines, json: dumps(&json), name }
+        Item { id: opcode, text: lines, shown, json: dumps(&json), name }
     });
     sorted(commands.collect())
 }

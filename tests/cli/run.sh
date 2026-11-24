@@ -23,3 +23,6 @@ python3 tests/cli/check.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIO
 
 echo "== cli 4. fgds check and fgds run refuse the same plugin option values"
 python3 tests/cli/options.py --fgds "$fgds" --dictionary "$DICTIONARY" --out "$OUT/options"
+
+echo "== cli 5. no text output carries a control character of the data"
+"$VENV/bin/python" tests/cli/visible.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT/visible"

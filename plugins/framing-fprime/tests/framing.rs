@@ -4,13 +4,16 @@ use framing_fprime::FprimeFraming;
 
 fn frame(packet: &[u8]) -> Vec<u8> {
     let mut out = BytesMut::new();
-    FprimeFraming.framer(&PluginConfig::default()).frame(packet, &Default::default(), &mut out).unwrap();
+    // The largest frame of the framing itself, not the 2048 bytes of stock flight software.
+    let mut cfg = PluginConfig::default();
+    cfg.0.insert("flight-frame-size".into(), "4107".into());
+    FprimeFraming::default().framer(&cfg).frame(packet, &Default::default(), &mut out).unwrap();
     out.to_vec()
 }
 
 /// Feed the input in pieces of `step` bytes; return (packets, discarded bytes, reasons).
 fn deframe(input: &[u8], step: usize) -> (Vec<Vec<u8>>, Vec<u8>, Vec<String>) {
-    let mut deframer = FprimeFraming.deframer(&PluginConfig::default(), &PeerInfo::default());
+    let mut deframer = FprimeFraming::default().deframer(&PluginConfig::default(), &PeerInfo::default());
     let (mut buf, mut out) = (BytesMut::new(), Vec::new());
     for piece in input.chunks(step) {
         buf.extend_from_slice(piece);
@@ -103,7 +106,8 @@ fn the_largest_packet_is_4095_bytes_in_both_directions() {
     assert_eq!(deframe(&framed, 1000).0, [largest]);
     // One byte more would be taken for noise by the receiver: refused when sending.
     let mut out = BytesMut::new();
-    let refused = FprimeFraming.framer(&PluginConfig::default()).frame(&[7u8; 4096], &Default::default(), &mut out);
+    let refused =
+        FprimeFraming::default().framer(&PluginConfig::default()).frame(&[7u8; 4096], &Default::default(), &mut out);
     assert!(matches!(refused, Err(fgds_core::Error::Invalid(_))), "{refused:?}");
     assert!(out.is_empty());
     // A received length of 4,096 is not a frame.
@@ -121,4 +125,53 @@ fn a_start_word_split_across_reads_and_a_false_start_are_handled() {
         let (packets, discarded, _) = deframe(&input, step);
         assert_eq!((packets, discarded), (vec![b"one".to_vec()], vec![0xDE, 0xAD, 0xDE, 0xAD, 0xBE]), "step {step}");
     }
+}
+
+#[test]
+fn a_frame_larger_than_the_flight_software_accepts_is_not_sent() {
+    let framer = |size: Option<&str>| {
+        let mut cfg = PluginConfig::default();
+        if let Some(size) = size {
+            cfg.0.insert("flight-frame-size".into(), size.into());
+        }
+        FprimeFraming::default().framer(&cfg)
+    };
+    let sent =
+        |size, packet: usize| framer(size).frame(&vec![0; packet], &Default::default(), &mut BytesMut::new()).is_ok();
+    // Stock: frames of 2048 bytes, 12 of them around the packet.
+    assert!(sent(None, 2036) && !sent(None, 2037));
+    assert!(sent(Some("100"), 88) && !sent(Some("100"), 89));
+    assert!(sent(Some("4107"), 4095) && !sent(Some("4107"), 4096));
+}
+
+#[test]
+fn the_flight_frame_size_comes_from_the_dictionary_when_it_holds_the_constant() {
+    let text = include_str!("../../../tests/data/dictionary.json");
+    let mut json: fgds_core::serde_json::Value = fgds_core::serde_json::from_str(text).unwrap();
+    let stock = fgds_core::Dictionary::parse("dictionary.json", text).unwrap();
+    assert!(FprimeFraming::default().with_dictionary(&stock).is_none());
+    assert!(FprimeFraming::default()
+        .limit(&PluginConfig::default())
+        .unwrap()
+        .contains("2048 bytes, frameAccumulatorSize of ComFprime"));
+
+    let constant = fgds_core::serde_json::json!({
+        "kind": "constant", "qualifiedName": "ComFprimeConfig.BuffMgr.frameAccumulatorSize",
+        "type": {"name": "U64", "kind": "integer", "size": 64, "signed": false}, "value": 1024
+    });
+    match json["constants"].as_array_mut() {
+        Some(constants) => constants.push(constant),
+        None => json["constants"] = fgds_core::serde_json::json!([constant]),
+    }
+    let dictionary = fgds_core::Dictionary::parse("dictionary.json", &json.to_string()).unwrap();
+    let layer = FprimeFraming::default().with_dictionary(&dictionary).unwrap();
+    let sent = |cfg: &PluginConfig, packet: usize| {
+        layer.framer(cfg).frame(&vec![0; packet], &Default::default(), &mut BytesMut::new()).is_ok()
+    };
+    let mut cfg = PluginConfig::default();
+    assert!(sent(&cfg, 1012) && !sent(&cfg, 1013));
+    assert!(layer.limit(&cfg).unwrap().contains("1024 bytes"));
+    // The option, when given, is what counts.
+    cfg.0.insert("flight-frame-size".into(), "2048".into());
+    assert!(sent(&cfg, 2036) && !sent(&cfg, 2037));
 }

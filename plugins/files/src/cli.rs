@@ -188,7 +188,7 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     };
     let file = std::path::Path::new(text(args, "file"));
     if !file.is_file() {
-        println!("Error: File not found at {}", file.display());
+        fgds_core::out!("Error: File not found at {}", file.display());
         return Ok(ExitCode::FAILURE);
     }
     let content = std::fs::read(file).map_err(|e| Error::other(format!("{}: {e}", file.display())))?;
@@ -211,7 +211,7 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     }
     if let Some(cooldown) = args.try_get_one::<f64>("file-uplink-cooldown").ok().flatten() {
         if !(cooldown.is_finite() && *cooldown >= 0.0) {
-            println!("Error starting file uplink: --file-uplink-cooldown: a number of seconds, not negative");
+            fgds_core::out!("Error starting file uplink: --file-uplink-cooldown: a number of seconds, not negative");
             return Ok(ExitCode::FAILURE);
         }
         url += &format!("&cooldown={cooldown}");
@@ -220,14 +220,17 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let ok = response.status().is_success();
     let json: Value = response.json().await.unwrap_or(Value::Null);
     if !ok {
-        println!("Error starting file uplink: {}", json["error"]["message"].as_str().unwrap_or("the request failed"));
+        fgds_core::out!(
+            "Error starting file uplink: {}",
+            json["error"]["message"].as_str().unwrap_or("the request failed")
+        );
         return Ok(ExitCode::FAILURE);
     }
     // The path that is sent.
     let shown = json["destination"].as_str().unwrap_or_default().to_string();
-    println!("Queued '{}' for uplink to '{shown}'", file.display());
+    fgds_core::out!("Queued '{}' for uplink to '{shown}'", file.display());
     if let Some(notice) = json["notice"].as_str() {
-        println!("Note: {notice}");
+        fgds_core::out!("Note: {notice}");
     }
     if args.get_flag("no-wait") {
         return Ok(ExitCode::SUCCESS);
@@ -237,28 +240,31 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     let mut last = None;
     loop {
         if tokio::time::Instant::now() >= deadline {
-            println!("Error: uplink of '{name}' did not complete within {seconds:?} seconds");
+            fgds_core::out!("Error: uplink of '{name}' did not complete within {seconds:?} seconds");
             return Ok(ExitCode::FAILURE);
         }
         let queue = get(format!("{base}/uplink")).await?;
         let Some(entry) = queue["files"].as_array().into_iter().flatten().find(|t| t["id"] == id.as_str()) else {
-            println!("Error: '{name}' is no longer tracked by the uplinker");
+            fgds_core::out!("Error: '{name}' is no longer tracked by the uplinker");
             return Ok(ExitCode::FAILURE);
         };
         let percent = entry["done"].as_u64().unwrap_or(0) * 100 / entry["size"].as_u64().unwrap_or(0).max(1);
         match entry["state"].as_str().unwrap_or_default() {
             "transferring" if last != Some(percent) => {
-                println!("Uplinking '{name}': {percent}%");
+                fgds_core::out!("Uplinking '{name}': {percent}%");
                 last = Some(percent);
             }
             "finished" => {
-                println!("All uplink packets sent for '{name}' to '{}'", entry["destination"].as_str().unwrap_or("-"));
+                fgds_core::out!(
+                    "All uplink packets sent for '{name}' to '{}'",
+                    entry["destination"].as_str().unwrap_or("-")
+                );
                 break;
             }
             // The names of the Python uplinker for these states.
             state @ ("failed" | "canceled") => {
                 let state = if state == "failed" { "TIMEOUT" } else { "CANCELED" };
-                println!("Uplink of '{name}' failed with state {state}");
+                fgds_core::out!("Uplink of '{name}' failed with state {state}");
                 return Ok(ExitCode::FAILURE);
             }
             _ => {}
@@ -275,13 +281,13 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     loop {
         let page = get(format!("{records}/records?kind=fprime.event&after_seq={after}")).await?;
         for record in page["records"].as_array().into_iter().flatten() {
-            let line = || fgds_core::python_event_record_line(record);
+            let line = || fgds_core::visible(&fgds_core::python_event_record_line(record)).into_owned();
             if ends(record, &["FileReceived"]) {
-                println!("Flight software confirmed receipt: {}", line());
+                fgds_core::out!("Flight software confirmed receipt: {}", line());
                 return Ok(ExitCode::SUCCESS);
             }
             if ends(record, &FLIGHT_FAILURES) {
-                println!("Uplink failed on the flight side: {}", line());
+                fgds_core::out!("Uplink failed on the flight side: {}", line());
                 return Ok(ExitCode::FAILURE);
             }
             after = record["seq"].as_str().unwrap_or(&after).to_string();
@@ -292,7 +298,7 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
             None => tokio::time::sleep(Duration::from_millis(100)).await,
         }
     }
-    println!("Error: no 'FileReceived' event received before the timeout; uplink unconfirmed");
+    fgds_core::out!("Error: no 'FileReceived' event received before the timeout; uplink unconfirmed");
     Ok(ExitCode::FAILURE)
 }
 
@@ -337,18 +343,18 @@ async fn run(args: &ArgMatches, base: &str) -> Result<ExitCode> {
         let default = crate::base_name(text(sub, "name")).map_err(Error::other)?;
         let output = sub.get_one::<String>("output").map_or(default, String::as_str);
         std::fs::write(output, &body).map_err(|e| Error::other(format!("{output}: {e}")))?;
-        println!("{output}: {} bytes", body.len());
+        fgds_core::out!("{output}: {} bytes", body.len());
         return Ok(ExitCode::SUCCESS);
     }
     let json: Value = fgds_core::serde_json::from_slice(&body).unwrap_or(Value::Null);
     if !ok {
-        eprintln!("error: {}", json["error"]["message"].as_str().unwrap_or("the request failed"));
+        fgds_core::err!("error: {}", json["error"]["message"].as_str().unwrap_or("the request failed"));
         return Ok(ExitCode::FAILURE);
     }
     let rows = |list: &Value| {
         for t in list.as_array().into_iter().flatten() {
             let reason = t["reason"].as_str().map(|r| format!(" ({r})")).unwrap_or_default();
-            println!(
+            fgds_core::out!(
                 "{}  {}  {}/{} bytes  {} -> {}  {}{reason}",
                 t["id"].as_str().unwrap_or("-"),
                 t["state"].as_str().unwrap_or("-"),
@@ -364,12 +370,12 @@ async fn run(args: &ArgMatches, base: &str) -> Result<ExitCode> {
         "list" => {
             rows(&json["transfers"]);
             for file in json["files"].as_array().into_iter().flatten() {
-                println!("{}  {} bytes", file["name"].as_str().unwrap_or("-"), file["size"]);
+                fgds_core::out!("{}  {} bytes", file["name"].as_str().unwrap_or("-"), file["size"]);
             }
         }
         _ => {
             let paused = if json["paused"] == true { "paused" } else { "running" };
-            println!("queue: {paused}, link: {}", json["link"].as_str().unwrap_or("-"));
+            fgds_core::out!("queue: {paused}, link: {}", json["link"].as_str().unwrap_or("-"));
             rows(&json["files"]);
         }
     }

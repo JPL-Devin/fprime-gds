@@ -169,7 +169,7 @@ pub fn hold(args: &ArgMatches, env: &CliEnv, listing: bool) -> std::result::Resu
 
 /// A command line `fprime-cli` ends before doing anything: what is missing and its exit code.
 pub fn not_done(what: &str, (code, missing): (u8, String)) -> ExitCode {
-    eprintln!("nothing was {what}: {missing}");
+    crate::err!("nothing was {what}: {missing}");
     ExitCode::from(code)
 }
 

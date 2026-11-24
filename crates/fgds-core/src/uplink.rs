@@ -126,6 +126,11 @@ impl Uplink {
         self.0.link.max_packet()
     }
 
+    /// What sets `max_packet`, as the framing layers say it.
+    pub fn packet_limit(&self) -> Option<String> {
+        self.0.link.packet_limit()
+    }
+
     /// Send an already encoded packet (raw send, file uplink). Every outcome is recorded
     /// as `raw.sent` with `length`, `client` and `outcome`; `raw` holds the packet only
     /// with `keep_raw`, so file content is not copied into the database. `meta` goes to

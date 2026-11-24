@@ -27,7 +27,8 @@
 - `fixtures/vectors/format_strings.json` holds 16 formatter vectors recorded from the Python GDS (`origin: recorded`) beside the 25 asserted ones.
 
 ## Round 10 batch
-- 57: `max_packet` (`crates/fgds-core/src/link.rs`) derives the largest packet from the framers; `chunk_fits` (`plugins/files/src/lib.rs`) refuses a chunk size above it in the option check and in the upload route. `tests/files/chunk.py`, both framings against `Ref`. The F´ `Ref` takes only 2023 (its 2048-byte frame buffer, unknown to the GDS): listed.
+- 57: `max_packet` (`crates/fgds-core/src/link.rs`) derives the largest packet from the framers of the send direction; `FramingLayer::limit` says what sets it. `chunk_fits` (`plugins/files/src/lib.rs`) refuses a chunk size above it in the option check and in the upload route, and knows no framing. F´ framing refuses any frame above `--framing-fprime-flight-frame-size` (whole frame bytes; default from the dictionary constant `ComFprimeConfig.BuffMgr.frameAccumulatorSize`, else 2048). `tests/files/chunk.py`, both framings against `Ref`.
+- Control characters: `fgds_core::visible` (`crates/fgds-core/src/text.rs`) is applied to every text written by a subcommand (`out!`/`err!` of each plugin, `Item::printed` in `plugins/online`), to the standard error of `fgds` (`crates/fgds/src/cli.rs`) and to the text logs. `-j`, storage and the API stay exact; filters read the decoded text. A new text output needs its line in `tests/cli/visible.py`. Rules in `docs/design/deviations.md`, "Round 10".
 - 58: `preflight` (`crates/fgds-core/src/runtime.rs`) is the one start-up validation of `fgds run` and `fgds check`. A plugin validates its options in `reg.add_option_check`; a new plugin option needs its row in `tests/cli/options.py`.
 - Charts `Load`: a channel that is not a number is named in its own line. `seqgen` and dictionaries with sections missing: table in `docs/design/deviations.md`, "Round 10".
 

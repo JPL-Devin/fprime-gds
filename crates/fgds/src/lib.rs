@@ -109,7 +109,7 @@ impl GdsBuilder {
         match cli::run(&self, args.into_iter().map(Into::into).collect()) {
             Ok(code) => code,
             Err(e) => {
-                eprintln!("error: {e}");
+                fgds_core::err!("error: {e}");
                 ExitCode::FAILURE
             }
         }

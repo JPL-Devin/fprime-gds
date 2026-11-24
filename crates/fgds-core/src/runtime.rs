@@ -296,7 +296,11 @@ pub fn preflight(registry: &Registry, config: &Config, dictionary: &Dictionary) 
         layers.push((layer, config.plugin_config(registry, plugin)?));
     }
     named(&registry.adapters, "adapter", &config.comm)?;
-    let startup = crate::Startup { dictionary, max_packet: crate::link::max_packet(&layers) };
+    let startup = crate::Startup {
+        dictionary,
+        max_packet: crate::link::max_packet(&layers),
+        packet_limit: crate::link::packet_limit(&layers),
+    };
     for (plugin, check) in &registry.option_checks {
         check(&config.plugin_config(registry, plugin)?, &startup)?;
     }

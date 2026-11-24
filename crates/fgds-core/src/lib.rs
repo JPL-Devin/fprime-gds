@@ -19,6 +19,7 @@ mod runtime;
 mod status;
 mod supervisor;
 pub mod testing;
+mod text;
 mod uplink;
 
 pub use config::{Config, PluginConfig, StorageConfig};
@@ -35,6 +36,7 @@ pub use runtime::{
 };
 pub use status::{Status, StatusHandle};
 pub use supervisor::{report_fault, spawn_supervised};
+pub use text::{visible, visible_lines};
 pub use uplink::{SendError, Sent, Uplink};
 
 // Third-party types that appear in the extension-point interface (CUS-11).

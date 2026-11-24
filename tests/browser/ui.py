@@ -658,6 +658,22 @@ def files_and_products(page, gds):
     show(page, "uplink")
     step("Uplink tab: `n9 space.txt` and a 69-byte name outside ASCII reach Ref under these names; the second gives a notice; "
          "its FileReceived event, cut by Ref inside a character, is shown on the Events tab")
+    # A file name that holds HTML is shown as text: staged, in the queue, and in the event of Ref.
+    name = "<img src=x onerror=injected=1><b>x.bin"
+    shutil.copy(f"{gds.out}/up.bin", f"{gds.out}/{name}")
+    uplink.locator("#files").set_input_files(f"{gds.out}/{name}")
+    expect(uplink.locator("tr.staged")).to_contain_text(name)
+    uplink.get_by_role("button", name="Begin Uplink").click()
+    expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
+    assert uplink.locator("tr", has_text=name).locator("td").all_text_contents()[3] == name
+    assert open(f"{gds.out}/ref/{name}", "rb").read() == content
+    show(page, "events")
+    expect(page.locator("events-tab")).to_contain_text(f"Received file {name}")
+    show(page, "uplink")
+    injected = page.evaluate("""() => [window.injected === undefined,
+        document.querySelectorAll('#tab img, #tab b, #tab script').length]""")
+    assert injected == [True, 0], injected
+    step(f"Uplink tab: the file name {name!r} is shown as text when staged, in the queue and in the event; nothing ran")
     # Three files in the queue, as the Python GDS: the start time is when the file begins, the end time when its
     # end packet is sent, and the next file begins at once (the three start times of the Python page are equal).
     queued = ["queued1.bin", "queued2.bin", "queued3.bin"]

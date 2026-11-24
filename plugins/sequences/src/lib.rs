@@ -252,7 +252,7 @@ impl Subcommand for SeqgenCommand {
             Some(text) => match value::parse_int(text).and_then(|i| i.to_i128()).and_then(|i| u32::try_from(i).ok()) {
                 Some(timebase) => timebase,
                 None => {
-                    println!("Could not parse time base {text}");
+                    fgds_core::out!("Could not parse time base {text}");
                     return Ok(ExitCode::FAILURE);
                 }
             },
@@ -263,7 +263,7 @@ impl Subcommand for SeqgenCommand {
         };
         // The dictionary the options name, else the configured one; the packet set has to be in it.
         let refused = |(_, missing): (u8, String)| {
-            println!("{missing}");
+            fgds_core::out!("{missing}");
             Ok(ExitCode::FAILURE)
         };
         // The dictionary is read as this tool reads it: one with the sections a sequence needs is enough.
@@ -299,12 +299,20 @@ impl Subcommand for SeqgenCommand {
         let binary = match result {
             Ok(binary) => binary,
             Err(message) => {
-                println!("{message}");
+                // One line per error: each begins with the path of the file. A line end elsewhere is of the
+                // file name or of the sequence, and is written out.
+                let file = std::path::absolute(&input).unwrap_or_else(|_| input.clone()).display().to_string();
+                for (number, error) in message.split(&format!("\n{file}:")).enumerate() {
+                    match number {
+                        0 => fgds_core::out!("{error}"),
+                        _ => fgds_core::out!("{file}:{error}"),
+                    }
+                }
                 return Ok(ExitCode::FAILURE);
             }
         };
         if let Err(e) = std::fs::write(&output, &binary) {
-            println!("Encountered problem opening output file '{}': {e}", output.display());
+            fgds_core::out!("Encountered problem opening output file '{}': {e}", output.display());
             return Ok(ExitCode::FAILURE);
         }
         print!("{}", summary(&binary, timebase));

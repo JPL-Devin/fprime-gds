@@ -39,7 +39,7 @@ fn url_arg() -> Arg {
 
 /// A command line that argparse of `fprime-cli` refuses: its last line and its exit code.
 fn refused(error: &str) -> ExitCode {
-    eprintln!("fgds: error: {error}");
+    fgds_core::err!("fgds: error: {error}");
     ExitCode::from(2)
 }
 
@@ -64,7 +64,7 @@ fn filter_args() -> [Arg; 4] {
             .short('s')
             .long("search")
             .value_name("STRING")
-            .help("Only items whose printed line contains this"),
+            .help("Only items whose line contains this; the line is searched as decoded, before its control characters are written out"),
         Arg::new("json").short('j').long("json").action(ArgAction::SetTrue).help("Print one JSON object per item"),
     ]
 }
@@ -92,7 +92,7 @@ fn api(args: &ArgMatches, env: &CliEnv) -> Result<Api> {
 fn print(item: &Item, json: bool) {
     let mut out = std::io::stdout().lock();
     // A closed pipe (`fgds events | head`) ends the command, it is not an error.
-    if writeln!(out, "{}", item.line(json)).and_then(|()| out.flush()).is_err() {
+    if writeln!(out, "{}", item.printed(json)).and_then(|()| out.flush()).is_err() {
         std::process::exit(0);
     }
 }
@@ -381,10 +381,10 @@ impl Subcommand for CommandSend {
         let dry_run = args.get_flag("dry-run");
         // As fprime-cli: said on the standard output, and the exit code is 0.
         let unknown = |name: &str, commands: &[Item]| {
-            println!("{name} is not a known command");
+            fgds_core::out!("{name} is not a known command");
             let similar: Vec<String> = items::similar(name, commands).iter().map(|s| format!("'{s}'")).collect();
             if !similar.is_empty() {
-                println!("Similar known commands: [{}]", similar.join(", "));
+                fgds_core::out!("Similar known commands: [{}]", similar.join(", "));
             }
             ExitCode::SUCCESS
         };
@@ -413,7 +413,9 @@ impl Subcommand for CommandSend {
             match api.post("/commands", query, &body).await {
                 // `fprime-cli command-send -j` prints nothing for a command that is sent.
                 Ok(answer) if json && dry_run => println!("{answer}"),
-                Ok(answer) if dry_run => println!("{}", api::hex(answer["packet"].as_str().unwrap_or_default())?),
+                Ok(answer) if dry_run => {
+                    fgds_core::out!("{}", api::hex(answer["packet"].as_str().unwrap_or_default())?)
+                }
                 Ok(_) => {}
                 Err(error) => {
                     let dictionary = api.get("/dictionary", &[]).await?;
@@ -421,8 +423,8 @@ impl Subcommand for CommandSend {
                     let Some(command) = commands.iter().find(|c| c.name == *name) else {
                         return Ok(unknown(name, &commands));
                     };
-                    eprintln!("{error}");
-                    eprint!("{}", command.line(false));
+                    fgds_core::err!("{error}");
+                    eprint!("{}", command.printed(false));
                     return Ok(ExitCode::FAILURE);
                 }
             }
@@ -505,11 +507,11 @@ impl Subcommand for SendRaw {
                 }
             }
             if let Some(path) = args.get_one::<String>("bin-path") {
-                println!("Read {} bytes from {path}", data.len());
+                fgds_core::out!("Read {} bytes from {path}", data.len());
             }
             let hex: String = data.iter().map(|byte| format!("{byte:02x}")).collect();
             if args.get_flag("verbose") {
-                println!("Sending {} bytes of raw data: {hex}", data.len());
+                fgds_core::out!("Sending {} bytes of raw data: {hex}", data.len());
             }
             api.post("/raw", &[], &json!({"data": api::base64(&data)})).await?;
             Ok(ExitCode::SUCCESS)

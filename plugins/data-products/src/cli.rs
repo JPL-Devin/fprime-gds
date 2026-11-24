@@ -72,7 +72,7 @@ impl Subcommand for DpCommand {
             Some(("validate", args)) => {
                 let given = args.value_source("data-products-max-bytes");
                 if given == Some(fgds_core::clap::parser::ValueSource::CommandLine) {
-                    eprintln!("fgds: error: --data-products-max-bytes is an option of `fgds dp decode`; `fgds dp validate` cannot honour it");
+                    fgds_core::err!("fgds: error: --data-products-max-bytes is an option of `fgds dp decode`; `fgds dp validate` cannot honour it");
                     return Ok(ExitCode::from(2));
                 }
                 run_validate(args)
@@ -86,11 +86,12 @@ impl Subcommand for DpCommand {
                 let program =
                     Path::new(&program).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
                 let command = usage.split(' ').next().unwrap_or_default();
-                eprintln!("usage: {program} dp {usage}\n{program} dp {command}: error: {message}");
+                fgds_core::err!("usage: {program} dp {usage}");
+                fgds_core::err!("{program} dp {command}: error: {message}");
                 ExitCode::from(2)
             }
             Err(Stop::Failure(message)) => {
-                eprintln!("{message}");
+                fgds_core::err!("{message}");
                 ExitCode::FAILURE
             }
         })
@@ -147,12 +148,12 @@ fn renamed_output(dict: &DpDictionary, bin_file: &str) -> Option<String> {
     let name = path.file_name()?.to_str()?;
     let stem = path.file_stem()?.to_str()?;
     let Some((start, end, digits)) = container_id_in(stem) else {
-        eprintln!("Warning: {name} does not match Dp_<id>_<sec>_<usec> naming, keeping file name");
+        fgds_core::err!("Warning: {name} does not match Dp_<id>_<sec>_<usec> naming, keeping file name");
         return None;
     };
     let id = digits.trim_start_matches('0');
     let Some(container) = dict.containers.get(&id.parse().unwrap_or(if id.is_empty() { 0 } else { -1 })) else {
-        eprintln!(
+        fgds_core::err!(
             "Warning: container id {} ({name}) not found in dictionary, keeping file name",
             if id.is_empty() { "0" } else { id }
         );
@@ -174,7 +175,7 @@ fn decode_file(
     output: &str,
     options: DecodeOptions,
 ) -> std::result::Result<bool, String> {
-    println!("Decoding {bin_file}...");
+    fgds_core::out!("Decoding {bin_file}...");
     let run = || {
         let size = std::fs::metadata(bin_file).map_err(|e| DpError::Unexpected(io_error(&e, bin_file)))?.len();
         if size > options.max_bytes {
@@ -187,15 +188,15 @@ fn decode_file(
     };
     match run() {
         Ok(()) => {
-            println!("Decoding complete: {output}");
+            fgds_core::out!("Decoding complete: {output}");
             Ok(true)
         }
         Err(DpError::Product(message)) => {
-            eprintln!("Error: {message}");
+            fgds_core::err!("Error: {message}");
             Ok(false)
         }
         Err(DpError::Unexpected(message)) => {
-            eprintln!("Unexpected error: {message}");
+            fgds_core::err!("Unexpected error: {message}");
             Err(message)
         }
     }
@@ -248,7 +249,7 @@ fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode
         let output = output.map(str::to_string).or(renamed).unwrap_or_else(|| default_output(bin_file));
         let resolved = resolved(&output);
         if let Some(earlier) = written.get(&resolved) {
-            eprintln!("Error: skipping {bin_file}: output {} already written from {earlier}", resolved.display());
+            fgds_core::err!("Error: skipping {bin_file}: output {} already written from {earlier}", resolved.display());
             failures += 1;
             continue;
         }
@@ -256,13 +257,13 @@ fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode
             Ok(true) => drop(written.insert(resolved, bin_file)),
             Ok(false) => failures += 1,
             Err(message) => {
-                eprintln!("Error: failed to decode {bin_file}: {message}");
+                fgds_core::err!("Error: failed to decode {bin_file}: {message}");
                 failures += 1;
             }
         }
     }
     if bin_dir.is_some() {
-        println!("Decoded {}/{} data products", bin_files.len() - failures, bin_files.len());
+        fgds_core::out!("Decoded {}/{} data products", bin_files.len() - failures, bin_files.len());
     }
     Ok(if failures > 0 { ExitCode::FAILURE } else { ExitCode::SUCCESS })
 }
@@ -293,11 +294,11 @@ fn run_validate(args: &ArgMatches) -> std::result::Result<ExitCode, Stop> {
     };
     let validation = validate(&data, header_size);
     if args.get_flag("verbose") {
-        validation.verbose.iter().for_each(|line| println!("{line}"));
+        validation.verbose.iter().for_each(|line| fgds_core::out!("{line}"));
     }
     match validation.result {
         Ok(()) => {
-            println!("Validation OK!");
+            fgds_core::out!("Validation OK!");
             Ok(ExitCode::SUCCESS)
         }
         Err(Invalid::Failed(message)) => Err(Stop::Failure(message)),

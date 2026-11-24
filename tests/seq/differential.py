@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Compare the sequence compiler of fgds with the Python compiler on generated sequences.
 
-Each sequence is compiled by `seqgen.generateSequence` of the Python GDS and by `fgds seqgen`.
+Each sequence is compiled by the function `seqgen.generateSequence` of the Python GDS (not by the command
+`fprime-seqgen`, which reads the dictionary through the loaders of the whole GDS and so refuses
+dictionaries the function accepts: docs/design/deviations.md, "Round 10") and by `fgds seqgen`.
 Both must accept it with the same bytes, or both must reject it; when the Python compiler
 rejects with a message of its own (not a crash), the message of fgds must be the same text.
 Two known differences are allowed (docs/design/deviations.md): when reporting every error,

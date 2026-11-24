@@ -42,6 +42,8 @@ pub struct Startup<'a> {
     pub dictionary: &'a Dictionary,
     /// The largest packet the configured framing layers carry; `None` when they set no limit.
     pub max_packet: Option<usize>,
+    /// What sets that limit, in the words of the layers that have something to say (`FramingLayer::limit`).
+    pub packet_limit: Option<String>,
 }
 
 pub type OptionCheck = Arc<dyn Fn(&PluginConfig, &Startup) -> Result<()> + Send + Sync>;
@@ -105,6 +107,10 @@ pub trait FramingLayer: Send + Sync {
     fn framer(&self, cfg: &PluginConfig) -> Box<dyn Frame>;
     /// A framer whose frames are never sent, used to find the largest packet the layer carries. A layer whose
     /// framers share state (a count of the frames sent) gives one here that does not share it.
+    /// What limits the packets this layer frames, when an operator can change it: named in a refusal.
+    fn limit(&self, _cfg: &PluginConfig) -> Option<String> {
+        None
+    }
     fn trial_framer(&self, cfg: &PluginConfig) -> Box<dyn Frame> {
         self.framer(cfg)
     }

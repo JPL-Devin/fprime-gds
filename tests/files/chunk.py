@@ -13,10 +13,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import scenario  # noqa: E402
 from check import FILE_PACKET, Fgds, content, file_packets, ok, prepare, read  # noqa: E402
 
-LARGEST = {"ccsds": 997, "fprime": 4082}
-# What Ref itself takes: its F´ build accumulates frames in 2048 bytes (`ComFprime.frameAccumulatorSize`, not in
-# the dictionary), 2023 bytes of file data; a larger frame is dropped by Ref and the uplink is reported as failed.
-ON_REF = {"ccsds": 997, "fprime": 2023}
+# F´ framing: the largest frame the flight software accepts is an option, 2048 bytes as the stock Ref
+# (`ComFprime.frameAccumulatorSize`, not in the dictionary), that is 2023 bytes of file data.
+LARGEST = {"ccsds": 997, "fprime": 2023}
+# The largest F´ frame of all (a packet of 4095 bytes), for flight software that takes it.
+FPRIME_FRAME, FPRIME_CHUNK = 4107, 4082
 
 
 def main():
@@ -25,7 +26,8 @@ def main():
         parser.add_argument(f"--{name}", required=True)
     parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds")
     args = parser.parse_args()
-    out, largest, on_ref = f"{args.out}/chunk-{args.framing}", LARGEST[args.framing], ON_REF[args.framing]
+    out, largest = f"{args.out}/chunk-{args.framing}", LARGEST[args.framing]
+    on_ref = largest
     prepare(out)
     os.makedirs(f"{out}/local")
     size = 3 * on_ref + 10
@@ -38,6 +40,18 @@ def main():
                                "--bind", f"127.0.0.1:{scenario.free_port()}", "--comm-tcp-address", f"127.0.0.1:{scenario.free_port()}",
                                "--files-chunk-size", str(largest + 1)], capture_output=True, text=True, timeout=30)
         assert done.returncode != 0 and f"at most {largest} bytes of file data" in done.stderr, (subcommand, done)
+        # The F´ framing names what sets its limit; the CCSDS framing has its own number and nothing to add.
+        assert ("frameAccumulatorSize of ComFprime: --framing-fprime-flight-frame-size" in done.stderr) == (args.framing == "fprime"), done
+
+    if args.framing == "fprime":
+        check = lambda frame, chunk: subprocess.run(
+            [args.fgds, "check", "--framing", "fprime", "--dictionary", args.dictionary, "--framing-fprime-flight-frame-size", str(frame),
+             "--files-chunk-size", str(chunk)], capture_output=True, text=True, timeout=30)
+        assert check(FPRIME_FRAME, FPRIME_CHUNK).returncode == 0
+        done = check(FPRIME_FRAME, FPRIME_CHUNK + 1)
+        assert done.returncode != 0 and f"at most {FPRIME_CHUNK} bytes of file data" in done.stderr, done
+        assert check(FPRIME_FRAME + 1, 100).returncode != 0
+        ok(f"fprime: with --framing-fprime-flight-frame-size {FPRIME_FRAME} the chunk size {FPRIME_CHUNK} is accepted, {FPRIME_CHUNK + 1} refused")
 
     gds = Fgds(args, out, f"{out}/store", ["--files-chunk-size", str(on_ref)])
     ref = None
@@ -59,12 +73,6 @@ def main():
             assert read(f"{out}/{destination}") == content("big.bin", size), destination
         data = [p for p in packets() if p[2] == 1]
         assert len(data) == 8 and max(len(p) for p in data) == on_ref + 13, [len(p) for p in data]
-        if on_ref < largest:
-            # Carried by the framing, dropped by this Ref: the operator is told, the command fails.
-            done = uplink(on_ref + 1, "dropped.bin")
-            assert done.returncode == 1 and "Uplink failed on the flight side" in done.stdout, done
-            scenario.wait_for("the queue at rest", lambda: all(f["state"] in ("finished", "failed") for f in gds.get("/files/uplink")["files"]))
-
         # One more: refused, nothing sent, no file on Ref, no transfer listed.
         before, listed = len(packets()), len(gds.get("/files/uplink")["files"])
         done = uplink(largest + 1, "over.bin")
@@ -77,8 +85,18 @@ def main():
             assert error.code == 422 and f"at most {largest} bytes" in json.load(error)["error"]["message"]
         assert len(packets()) == before and len(gds.get("/files/uplink")["files"]) == listed
         assert not os.path.exists(f"{out}/over.bin")
+        if args.framing == "fprime":
+            # The limit is the framer's, for every packet: a raw packet of one byte more than the frame takes is not sent.
+            sent = len(proxy.uplink)
+            for length, accepted in ((2036, True), (2037, False)):
+                done = subprocess.run([args.fgds, "send-raw", "--url", gds.root, "--hex-string", "00" * length],
+                                      capture_output=True, text=True, timeout=30)
+                assert (done.returncode == 0) == accepted, (length, done)
+                assert accepted or "frameAccumulatorSize of ComFprime" in done.stdout + done.stderr, done
+            scenario.wait_for("the raw packet on the link", lambda: len(proxy.uplink) >= sent + 2048)
+            assert len(proxy.uplink) == sent + 2048, len(proxy.uplink) - sent
         gds.healthy(f"{out}/fgds.log")
-        ok(f"{args.framing}: chunk size {on_ref} reaches Ref whole, {size} bytes in {on_ref + 13}-byte packets; the largest its framers carry is {largest}; "
+        ok(f"{args.framing}: chunk size {on_ref} reaches Ref whole, {size} bytes in {on_ref + 13}-byte packets; "
            f"{largest + 1} is refused by fgds run, fgds check, fgds file-uplink and the route, with the limit in the message and nothing sent")
     finally:
         for process in (ref, gds.process):

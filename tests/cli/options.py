@@ -20,6 +20,7 @@ INVALID = {
     "framing-ccsds-scid": ["x", "0", "1024", "-1", "0x400", ""],
     "framing-ccsds-vcid": ["x", "64", "99", "-1", ""],
     "framing-ccsds-frame-size": ["x", "0", "8", "-1", "1.5", ""],
+    "framing-fprime-flight-frame-size": ["x", "0", "12", "4108", "-1", "1.5", ""],
     "files-directory": ["", "/etc/passwd", "/etc/passwd/under"],
     # 998: one more than the CCSDS framing carries (tests/files/chunk.py has both framings against Ref).
     "files-chunk-size": ["x", "0", "70000", "-1", "1.5", "998", ""],
@@ -35,7 +36,7 @@ VALID = {
     "storage-memory-max-records": "0", "comm-tcp-address": "127.0.0.1:0", "comm-tcp-keepalive-interval": "0",
     "comm-uart-device": "/dev/ttyUSB7", "comm-uart-baud": "9600", "comm-udp-address": "localhost:50000",
     "comm-udp-recv-port": "50001", "framing-ccsds-scid": "0x44", "framing-ccsds-vcid": "0",
-    "framing-ccsds-frame-size": "1024", "files-directory": "/tmp/fgds-not-made/files", "files-chunk-size": "997",
+    "framing-ccsds-frame-size": "1024", "framing-fprime-flight-frame-size": "2048", "files-directory": "/tmp/fgds-not-made/files", "files-chunk-size": "997",
     "files-cooldown": "0", "files-timeout": "0.5", "files-max-upload-bytes": "0",
     "data-products-dir": "/tmp/fgds-not-made/dp", "data-products-settle-ms": "0", "data-products-max-bytes": "0",
 }
@@ -79,7 +80,7 @@ def main():
                 assert done.returncode != 0 and done.stderr.startswith("error: "), (option, value, done)
             assert check.stderr == started.stderr, (option, value, check.stderr, started.stderr)
             # The message names the option, by its name in the plugin.
-            plugin_name = max((p for p in ("storage-memory", "comm-tcp", "comm-uart", "comm-udp", "framing-ccsds", "files", "data-products")
+            plugin_name = max((p for p in ("storage-memory", "comm-tcp", "comm-uart", "comm-udp", "framing-ccsds", "framing-fprime", "files", "data-products")
                                if option.startswith(p + "-")), key=len)
             assert plugin_name in check.stderr and option[len(plugin_name) + 1:].replace("-", " ") in check.stderr.replace("-", " "), \
                 (option, value, check.stderr)

@@ -254,7 +254,7 @@ fn finish(result: std::result::Result<(), String>) -> Result<ExitCode> {
     Ok(match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("{message}");
+            fgds_core::err!("{message}");
             ExitCode::FAILURE
         }
     })
@@ -269,10 +269,10 @@ fn begin(verb: &str, name: &str, input: &Path, dictionary: &Path, output: &Path,
     } else if !dictionary.exists() {
         format!("Unable to find {}", dictionary.display())
     } else {
-        println!("{verb} {} to {} (format: .{format})", input.display(), output.display());
+        fgds_core::out!("{verb} {} to {} (format: .{format})", input.display(), output.display());
         return None;
     };
-    println!("{refused}");
+    fgds_core::out!("{refused}");
     Some(ExitCode::FAILURE)
 }
 
@@ -282,7 +282,7 @@ fn write_file(path: &Path, bytes: &[u8]) -> std::result::Result<(), String> {
     let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     std::fs::create_dir_all(parent).map_err(failed)?;
     let resolved = parent.canonicalize().map_err(failed)?.join(path.file_name().unwrap_or_default());
-    println!("Done, writing to {}", resolved.display());
+    fgds_core::out!("Done, writing to {}", resolved.display());
     std::fs::write(path, bytes).map_err(failed)
 }
 

@@ -70,6 +70,12 @@ impl RawLog {
     }
 }
 
+/// What the layers say of their limit (`FramingLayer::limit`), outermost first.
+pub fn packet_limit(layers: &[Layer]) -> Option<String> {
+    let said: Vec<String> = layers.iter().filter_map(|(layer, cfg)| layer.limit(cfg)).collect();
+    (!said.is_empty()).then(|| said.join("; "))
+}
+
 /// The largest packet `layers` (outermost first) frame, found by framing packets of zeros with framers of
 /// their own, so the limit is the one the framers apply. `None`: no limit below 1 MiB, or none found.
 pub fn max_packet(layers: &[Layer]) -> Option<usize> {
@@ -128,6 +134,11 @@ impl Link {
     /// The largest packet the framing layers carry (`max_packet`).
     pub fn max_packet(&self) -> Option<usize> {
         self.0.max_packet
+    }
+
+    /// What sets `max_packet`, as the layers say it.
+    pub fn packet_limit(&self) -> Option<String> {
+        packet_limit(&self.0.layers)
     }
 
     /// Change how long a write may take (5 s unless set).

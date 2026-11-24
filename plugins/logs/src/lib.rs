@@ -107,8 +107,8 @@ async fn lines(
     }
 }
 
-/// One record as one line: ground time, kind, then what the body holds. Line breaks in
-/// the data are escaped so a record never spans lines.
+/// One record as one line: ground time, kind, then what the body holds, with the control
+/// characters of the data written out (`fgds_core::visible`): a record never spans lines.
 pub fn line(record: &Record) -> String {
     let mut out = format!("{} {}", record.ground_time.to_iso(), record.kind);
     if let Some(t) = record.flight_time {
@@ -144,7 +144,7 @@ pub fn line(record: &Record) -> String {
         out += ": ";
         out += &rest;
     }
-    out.replace('\\', "\\\\").replace('\n', "\\n").replace('\r', "\\r")
+    fgds_core::visible(&out).into_owned()
 }
 
 #[cfg(test)]
