@@ -1,10 +1,9 @@
-//! Command arguments given as text, read as the Python GDS reads them: `int(text, 0)`, `float(text)`
-//! and its boolean words (`CmdData.convert_arg_value`). `fixtures/command-args/table.json` holds what the
-//! Python GDS does with each text; the tests of this crate go through it.
+//! Command arguments given as text. `fixtures/command-args/table.json` holds the bytes the Python GDS
+//! sends for each text; the tests of this crate go through it.
 
-/// The text without the white space around it. Only ASCII digits are digits.
+/// The text without the ASCII white space around it.
 fn ascii(text: &str) -> &str {
-    text.trim()
+    text.trim_matches(|c: char| c.is_ascii_whitespace())
 }
 
 /// Digits of `radix` with single underscores between them (and one after a prefix when `lead`).
@@ -15,8 +14,8 @@ fn digits(text: &str, radix: u32, lead: bool) -> Option<String> {
     valid.then(|| groups.concat())
 }
 
-/// Python `int(text, 0)`: sign, then `0x`, `0o`, `0b` digits or a decimal number without leading zeros.
-pub fn python_int(text: &str) -> Option<i128> {
+/// An integer: sign, then `0x`, `0o`, `0b` digits or a decimal number without leading zeros.
+pub fn integer(text: &str) -> Option<i128> {
     let text = ascii(text);
     let (negative, rest) = match text.strip_prefix('-') {
         Some(rest) => (true, rest),
@@ -42,23 +41,8 @@ pub fn python_int(text: &str) -> Option<i128> {
     Some(if negative { -value } else { value })
 }
 
-pub fn is_decimal_digit(c: char) -> bool {
-    c.is_ascii_digit()
-}
-
-/// Python `int(text)`: a sign, then decimal digits (leading zeros allowed) with single underscores between them.
-pub fn python_decimal(text: &str) -> Option<i128> {
-    let text = ascii(text);
-    let (negative, rest) = match text.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, text.strip_prefix('+').unwrap_or(text)),
-    };
-    let value: i128 = digits(rest, 10, false)?.parse().unwrap_or(i128::MAX);
-    Some(if negative { -value } else { value })
-}
-
-/// Python `float(text)`: a decimal number, or `inf`, `infinity`, `nan` in any case, with a sign.
-pub fn python_float(text: &str) -> Option<f64> {
+/// A float: a decimal number, or `inf`, `infinity`, `nan` in any case, with a sign.
+pub fn float(text: &str) -> Option<f64> {
     let text = ascii(text);
     let (sign, rest) = match text.strip_prefix('-') {
         Some(rest) => (-1.0, rest),
@@ -94,8 +78,8 @@ pub fn python_float(text: &str) -> Option<f64> {
     value.is_finite().then_some(sign * value)
 }
 
-/// The boolean words of the Python GDS, in any case and with white space around.
-pub fn python_bool(text: &str) -> Option<bool> {
+/// The boolean words, in any case and with white space around.
+pub fn boolean(text: &str) -> Option<bool> {
     match text.to_lowercase().trim() {
         "true" | "yes" => Some(true),
         "false" | "no" => Some(false),

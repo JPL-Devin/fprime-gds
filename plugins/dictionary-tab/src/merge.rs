@@ -2,10 +2,9 @@
 //!
 //! Two deployments joined by a hub are operated with one dictionary. An identifier names an item: entries with the
 //! same identifier are one item, entries sharing a name but not an identifier are both kept under
-//! `<prefix>.<name>`. The output has the bytes Python's `json.dumps(merged, indent=2)` writes.
+//! `<prefix>.<name>`. The output is JSON indented by two spaces.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::fmt::Write as _;
 
 use fgds_core::serde_json::{Map, Value};
 
@@ -506,77 +505,4 @@ pub fn merge(primary: &Input, secondary: &Input, options: &Options) -> (Option<V
     };
     let merged = merger.merge();
     (merged, merger.report)
-}
-
-/// The text Python's `json.dumps(value, indent=2)` writes.
-pub fn dumps(value: &Value) -> String {
-    let mut out = String::new();
-    dump(value, 0, &mut out);
-    out
-}
-
-fn dump(value: &Value, depth: usize, out: &mut String) {
-    let indent = |depth: usize, out: &mut String| {
-        out.push('\n');
-        out.push_str(&"  ".repeat(depth));
-    };
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(value) => out.push_str(if *value { "true" } else { "false" }),
-        Value::Number(number) => match number.as_f64().filter(|_| number.is_f64()) {
-            Some(float) => out.push_str(&fgds_offline::value::float_repr(float)),
-            None => out.push_str(&number.to_string()),
-        },
-        Value::String(text) => string(text, out),
-        Value::Array(items) if items.is_empty() => out.push_str("[]"),
-        Value::Object(items) if items.is_empty() => out.push_str("{}"),
-        Value::Array(items) => {
-            out.push('[');
-            for (position, item) in items.iter().enumerate() {
-                if position > 0 {
-                    out.push(',');
-                }
-                indent(depth + 1, out);
-                dump(item, depth + 1, out);
-            }
-            indent(depth, out);
-            out.push(']');
-        }
-        Value::Object(items) => {
-            out.push('{');
-            for (position, (key, item)) in items.iter().enumerate() {
-                if position > 0 {
-                    out.push(',');
-                }
-                indent(depth + 1, out);
-                string(key, out);
-                out.push_str(": ");
-                dump(item, depth + 1, out);
-            }
-            indent(depth, out);
-            out.push('}');
-        }
-    }
-}
-
-fn string(text: &str, out: &mut String) {
-    out.push('"');
-    for c in text.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            ' '..='~' => out.push(c),
-            _ => {
-                for unit in c.encode_utf16(&mut [0; 2]) {
-                    let _ = write!(out, "\\u{unit:04x}");
-                }
-            }
-        }
-    }
-    out.push('"');
 }

@@ -13,14 +13,10 @@ use std::process::ExitCode;
 
 pub struct DpCommand;
 
-const DECODE_USAGE: &str = "decode [-h] (-b BIN_FILE | -B BIN_DIR) -d DICTIONARY [-o OUTPUT] [-r] [-z]";
-const VALIDATE_USAGE: &str = "validate [-h] -b BIN_FILE [-d DICTIONARY] [-s HEADER_SIZE] [-g] [-v]";
-
 impl Subcommand for DpCommand {
     fn command(&self) -> Command {
         let value = |name: &'static str, short, help: &'static str| Arg::new(name).short(short).long(name).help(help);
         let flag = |name, short, help| value(name, short, help).action(ArgAction::SetTrue);
-        // Required and exclusive arguments are checked in `run`, to answer as `fprime-dp` does.
         let decode = Command::new("decode")
             .about("Decode a data product binary into a human-readable format")
             .args_override_self(true)
@@ -30,12 +26,16 @@ impl Subcommand for DpCommand {
                 'B',
                 "Directory of data product binary files; every *.fdp file in it is decoded to <binFilename>.json",
             ))
-            .arg(value("dictionary", 'd', "Path to F Prime JSON Dictionary"))
-            .arg(value(
-                "output",
-                'o',
-                "Path to output JSON file (defaults to <binFilename>.json). Not allowed with --bin-dir",
-            ))
+            .group(fgds_core::clap::ArgGroup::new("input").args(["bin-file", "bin-dir"]).required(true))
+            .arg(value("dictionary", 'd', "Path to F Prime JSON Dictionary").required(true))
+            .arg(
+                value(
+                    "output",
+                    'o',
+                    "Path to output JSON file (defaults to <binFilename>.json). Not allowed with --bin-dir",
+                )
+                .conflicts_with("bin-dir"),
+            )
             .arg(flag(
                 "rename-id",
                 'r',
@@ -45,10 +45,11 @@ impl Subcommand for DpCommand {
         let validate = Command::new("validate")
             .about("Validate a data product")
             .args_override_self(true)
-            .arg(value("bin-file", 'b', "Path to input data product binary file (.fdp)"))
+            .arg(value("bin-file", 'b', "Path to input data product binary file (.fdp)").required(true))
             .arg(value("dictionary", 'd', "Path to F Prime JSON Dictionary"))
             .arg(
                 value("header-size", 's', "Use the provided value as the header size for the data product")
+                    .value_parser(fgds_core::clap::value_parser!(i64))
                     .allow_negative_numbers(true),
             )
             .arg(flag("guess-size", 'g', "Guess at the header size"))
@@ -81,15 +82,6 @@ impl Subcommand for DpCommand {
         };
         Ok(match outcome {
             Ok(code) => code,
-            Err(Stop::Usage(usage, message)) => {
-                let program = std::env::args().next().unwrap_or_default();
-                let program =
-                    Path::new(&program).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                let command = usage.split(' ').next().unwrap_or_default();
-                fgds_core::err!("usage: {program} dp {usage}");
-                fgds_core::err!("{program} dp {command}: error: {message}");
-                ExitCode::from(2)
-            }
             Err(Stop::Failure(message)) => {
                 fgds_core::err!("{message}");
                 ExitCode::FAILURE
@@ -99,18 +91,12 @@ impl Subcommand for DpCommand {
 }
 
 enum Stop {
-    /// A mistake in the arguments: usage, message, exit code 2.
-    Usage(&'static str, String),
     /// Exit code 1 after this text on the error output.
     Failure(String),
 }
 
 fn text<'a>(args: &'a ArgMatches, name: &str) -> Option<&'a str> {
     args.get_one::<String>(name).map(String::as_str)
-}
-
-fn required(usage: &'static str, name: &str) -> Stop {
-    Stop::Usage(usage, format!("the following arguments are required: {name}"))
 }
 
 /// A path as `str(pathlib.Path(text))` writes it.
@@ -183,8 +169,7 @@ fn decode_file(
         }
         let data = std::fs::read(bin_file).map_err(|e| DpError::Unexpected(io_error(&e, bin_file)))?;
         let decoded = decode(dict, &data, options)?;
-        std::fs::write(output, decoded.to_json().to_python_text())
-            .map_err(|e| DpError::Unexpected(io_error(&e, output)))
+        std::fs::write(output, decoded.to_json().to_text()).map_err(|e| DpError::Unexpected(io_error(&e, output)))
     };
     match run() {
         Ok(()) => {
@@ -203,28 +188,15 @@ fn decode_file(
 }
 
 fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode, Stop> {
-    let usage = |message: String| Stop::Usage(DECODE_USAGE, message);
     let (bin_file, bin_dir) = (text(args, "bin-file"), text(args, "bin-dir"));
-    if bin_file.is_some() && bin_dir.is_some() {
-        // argparse names the argument it met second.
-        let file_last = args.index_of("bin-file") > args.index_of("bin-dir");
-        let (later, earlier) =
-            if file_last { ("-b/--bin-file", "-B/--bin-dir") } else { ("-B/--bin-dir", "-b/--bin-file") };
-        return Err(usage(format!("argument {later}: not allowed with argument {earlier}")));
-    }
-    let dictionary = text(args, "dictionary").ok_or_else(|| required(DECODE_USAGE, "-d/--dictionary"))?;
-    if bin_file.is_none() && bin_dir.is_none() {
-        return Err(usage("one of the arguments -b/--bin-file -B/--bin-dir is required".into()));
-    }
+    let dictionary = text(args, "dictionary").expect("required");
     let dict = DpDictionary::load(dictionary).map_err(|e| Stop::Failure(format!("error: {e}")))?;
     let output = text(args, "output");
     let bin_files = match (bin_file, bin_dir) {
         (Some(file), _) => vec![python_path(file)],
         (None, Some(dir)) => {
-            if output.is_some() {
-                return Err(usage("--output cannot be used with --bin-dir".into()));
-            }
-            let entries = std::fs::read_dir(dir).map_err(|_| usage(format!("{dir} is not a directory")))?;
+            let entries =
+                std::fs::read_dir(dir).map_err(|_| Stop::Failure(format!("error: {dir} is not a directory")))?;
             let mut names: Vec<String> = entries
                 .filter_map(|entry| entry.ok())
                 .filter(|entry| std::fs::metadata(entry.path()).is_ok_and(|m| m.is_file()))
@@ -238,7 +210,7 @@ fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode
             }
             names.iter().map(|name| python_path(&format!("{dir}/{name}"))).collect()
         }
-        (None, None) => unreachable!("checked above"),
+        (None, None) => unreachable!("clap requires one of the two"),
     };
     let options = DecodeOptions { decompress: !args.get_flag("disable-decompression"), max_bytes };
     let mut failures = 0;
@@ -269,13 +241,8 @@ fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode
 }
 
 fn run_validate(args: &ArgMatches) -> std::result::Result<ExitCode, Stop> {
-    let header_size = match text(args, "header-size") {
-        Some(given) => given.trim().parse::<i64>().map_err(|_| {
-            Stop::Usage(VALIDATE_USAGE, format!("argument -s/--header-size: invalid int value: '{given}'"))
-        })?,
-        None => 0,
-    };
-    let bin_file = text(args, "bin-file").ok_or_else(|| required(VALIDATE_USAGE, "-b/--bin-file"))?;
+    let header_size = args.get_one::<i64>("header-size").copied().unwrap_or(0);
+    let bin_file = text(args, "bin-file").expect("required");
     let dict = match text(args, "dictionary") {
         Some(path) => Some(DpDictionary::load(path).map_err(|e| Stop::Failure(format!("error: {e}")))?),
         None => None,

@@ -260,8 +260,12 @@ def stock(browser, gds):
     show(page, "events")
     page.wait_for_function("""() => [...document.querySelectorAll('#events-table td[data-col=name]')]
         .some((cell) => cell.textContent.endsWith('NoOpStringReceived'))""")
-    text = events_named(page, "NoOpStringReceived")[-1]["text"]
-    assert text == f"Received a NO-OP string={HTML}", text
+    # The event of the empty string sent above may be the last one for a moment.
+    scenario.wait_for(
+        "the event of the string that contains HTML",
+        lambda: events_named(page, "NoOpStringReceived")[-1]["text"] == f"Received a NO-OP string={HTML}",
+        10,
+    )
     show(page, "logs")
     page.select_option("#logs-select", "fprime.event")
     expect(page.locator("#logs-text")).to_contain_text(HTML)
@@ -726,9 +730,9 @@ def files_and_products(page, gds):
     for name in queued:
         scenario.wait_for(f"Ref received {name}", lambda: open(f"{gds.out}/ref/{name}", "rb").read() == content)
     uplink.locator("th", has_text="Start Time").click()
-    # Rows of the same second keep the order of the list, newest first (the file before the three may share it).
+    # Rows of the same second keep the order of the list, newest first (a neighbour may share it).
     starts = [parsedate_to_datetime(row.locator("td").nth(0).text_content()) for row in uplink.locator("tr:has(td)").all()]
-    assert starts == sorted(starts) and destinations()[0] == "up.bin" and set(queued) <= set(destinations()[-4:]), destinations()
+    assert starts == sorted(starts) and "up.bin" in destinations()[:2] and set(queued) <= set(destinations()[-4:]), destinations()
     uplink.locator("th", has_text="Start Time").click()
     uplink.locator("th", has_text="Start Time").click()
     step(f"Uplink tab: three files of the queue begin one after the other with no wait ({[str(t[0].time()) for t in times]}); "

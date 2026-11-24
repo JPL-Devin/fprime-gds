@@ -42,11 +42,6 @@ def run(program, args, cwd):
     return result.returncode, mask(result.stdout), mask(result.stderr)
 
 
-def usage_error(stderr):
-    """The message of an argument error: the usage text and the program name are not compared."""
-    return stderr.split(": error: ", 1)[-1]
-
-
 def same_json(a, b):
     """Equal parsed values; NaN equals NaN."""
     load = lambda text: json.loads(text, parse_constant=lambda name: name)
@@ -102,10 +97,11 @@ def check_cli_cases():
                 handle.write(content)
         code, stdout, stderr = run([FGDS, "dp"], case["args"], cwd)
         name = case["name"]
-        assert (code, stdout) == (case["exit_code"], case["stdout"]), (name, code, stdout, stderr)
-        if code == 2:
-            assert usage_error(stderr) == usage_error(case["stderr"]), (name, stderr)
+        if case["exit_code"] == 2:
+            # A command line that is refused: the wording and the exit code are fgds's own.
+            assert code != 0 and stdout == "" and stderr, (name, code, stdout, stderr)
         else:
+            assert (code, stdout) == (case["exit_code"], case["stdout"]), (name, code, stdout, stderr)
             assert stderr == case["stderr"], (name, stderr)
         written = sorted(f for f in os.listdir(os.path.join(cwd, "in")) if f.endswith(".json"))
         assert written == sorted(f["name"] for f in case["json_files_written"]), (name, written)

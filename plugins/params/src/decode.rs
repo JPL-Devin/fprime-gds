@@ -1,19 +1,16 @@
-//! Reading a `.dat` file: the checks and messages of `fprime-prm-decode`.
+//! Reading a `.dat` file.
 
 use crate::{checksum, Param, ParamDictionary, DELIMITER, ID_SIZE};
 use fgds_core::dictionary::Type;
 use fgds_offline::convert::type_name;
 use fgds_offline::value::Value;
 
-/// `len` bytes at `offset`, or the message of Python's `struct.unpack_from`.
+/// `len` bytes at `offset`.
 fn take(data: &[u8], offset: usize, len: usize) -> Result<&[u8], String> {
-    offset.checked_add(len).and_then(|end| data.get(offset..end)).ok_or_else(|| {
-        format!(
-            "unpack_from requires a buffer of at least {} bytes for unpacking {len} bytes at offset {offset} (actual buffer size is {})",
-            offset.saturating_add(len),
-            data.len()
-        )
-    })
+    offset
+        .checked_add(len)
+        .and_then(|end| data.get(offset..end))
+        .ok_or_else(|| format!("{len} bytes are needed at offset {offset}, the file has {}", data.len()))
 }
 
 fn int(bytes: &[u8], signed: bool) -> i128 {

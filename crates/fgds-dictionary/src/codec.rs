@@ -1,4 +1,3 @@
-use crate::pyjson::{self, PyJson};
 use crate::types::{Time, Type};
 use crate::Dictionary;
 use serde_json::{json, Map, Value};
@@ -52,80 +51,59 @@ fn put_uint(out: &mut Vec<u8>, bits: u8, value: u64) {
 fn int_from_json(value: &Value) -> Option<i128> {
     match value {
         Value::Number(n) => n.as_i64().map(i128::from).or_else(|| n.as_u64().map(i128::from)),
-        Value::String(s) => crate::input::python_int(s),
+        Value::String(s) => crate::input::integer(s),
         // Python: `bool` is an `int`.
         Value::Bool(b) => Some(i128::from(*b)),
         _ => None,
     }
 }
 
-/// A value of JSON text without regard to a type: for what the type rule has nothing to say about.
-fn untyped(value: &PyJson) -> Value {
+/// What a JSON value is, for a message.
+fn kind(value: &Value) -> &'static str {
     match value {
-        PyJson::Null => Value::Null,
-        PyJson::Bool(b) => json!(b),
-        PyJson::Int(digits) => digits.parse::<i64>().map_or_else(|_| json!(digits), |v| json!(v)),
-        PyJson::Float(v) => float_to_json(*v),
-        PyJson::Str(s) => json!(s),
-        PyJson::List(items) => items.iter().map(untyped).collect(),
-        PyJson::Dict(members) => Value::Object(members.iter().map(|(n, v)| (n.clone(), untyped(v))).collect()),
+        Value::Null => "null",
+        Value::Bool(_) => "a Boolean",
+        Value::Number(n) if n.is_f64() => "a number with a fraction",
+        Value::Number(_) => "an integer",
+        Value::String(_) => "a string",
+        Value::Array(_) => "an array",
+        Value::Object(_) => "an object",
     }
 }
 
-/// The type rule of the Python GDS for the members of an array or a struct given as JSON text
-/// (`validate` of its types): a number where a number is expected, never its text; `true` and `false`
-/// are integers too, an integer is a float (`float(int)`, refused when beyond a double). The message is
-/// the one of `TypeMismatchException`. The result is the value `Dictionary::encode` takes for the type.
-fn python_json_value(ty: &Type, value: &PyJson) -> Result<Value, TypeError> {
-    let mismatch =
-        |name: &str| fail(format!("Type <class '{name}'> expected, type <class '{}'> found!", value.class()));
-    let list = |ty: &Type, value: &PyJson| match value {
-        PyJson::List(items) => {
-            items.iter().map(|v| python_json_value(ty, v)).collect::<Result<Vec<_>, _>>().map(Value::Array)
-        }
-        _ => fail(format!("Type <class 'list'> expected, type <class '{}'> found!", value.class())),
+/// The type rule for the members of an array or a struct given as JSON text: a number where a number
+/// is expected, never its text; `true` and `false` are integers too, an integer is a float. The result
+/// is the value `Dictionary::encode` takes for the type.
+fn typed_json(ty: &Type, value: &Value) -> Result<Value, TypeError> {
+    let mismatch = |expected: &str| fail(format!("{expected} is expected, {} found", kind(value)));
+    let list = |ty: &Type, value: &Value| match value {
+        Value::Array(items) => items.iter().map(|v| typed_json(ty, v)).collect::<Result<Vec<_>, _>>().map(Value::Array),
+        _ => fail(format!("an array is expected, {} found", kind(value))),
     };
     match (ty, value) {
-        (Type::Int { .. } | Type::Float { .. } | Type::Bool, PyJson::Bool(b)) => Ok(json!(b)),
-        // As text: `Dictionary::encode` reads it as Python `int`, whatever its size.
-        (Type::Int { .. }, PyJson::Int(digits)) => Ok(json!(digits)),
-        (Type::Int { .. }, _) => mismatch("int"),
-        (Type::Float { .. }, PyJson::Float(v)) if v.is_nan() => Ok(json!("nan")),
-        (Type::Float { .. }, PyJson::Float(v)) if v.is_infinite() => Ok(json!(if *v > 0.0 { "inf" } else { "-inf" })),
-        (Type::Float { .. }, PyJson::Float(v)) => Ok(json!(v)),
-        (Type::Float { .. }, PyJson::Int(digits)) => match digits.parse::<f64>() {
-            // An integer has no negative zero.
-            Ok(v) if v.is_finite() => Ok(json!(v + 0.0)),
-            _ => fail(format!("{digits} is too large an integer to convert to a float")),
-        },
-        (Type::Float { .. }, _) => mismatch("float"),
-        (Type::Bool, _) => mismatch("bool"),
-        (Type::String { .. } | Type::Enum { .. }, PyJson::Str(s)) => Ok(json!(s)),
-        (Type::String { .. } | Type::Enum { .. }, _) => mismatch("str"),
+        (Type::Int { .. } | Type::Float { .. } | Type::Bool, Value::Bool(_)) => Ok(value.clone()),
+        // A literal beyond 64 bits and `-0` are read as numbers with a fraction, and refused here.
+        (Type::Int { .. }, Value::Number(n)) if !n.is_f64() => Ok(value.clone()),
+        (Type::Int { .. }, _) => mismatch("an integer"),
+        (Type::Float { .. }, Value::Number(n)) => Ok(json!(n.as_f64().unwrap_or(f64::NAN))),
+        (Type::Float { .. }, _) => mismatch("a number"),
+        (Type::Bool, _) => mismatch("a Boolean"),
+        (Type::String { .. } | Type::Enum { .. }, Value::String(_)) => Ok(value.clone()),
+        (Type::String { .. } | Type::Enum { .. }, _) => mismatch("a string"),
         (Type::Array { element, .. }, _) => list(element, value),
-        (Type::Struct { members, .. }, PyJson::Dict(given)) => {
+        (Type::Struct { members, .. }, Value::Object(given)) => {
             let mut out = Map::new();
             for (name, v) in given {
                 let converted = match members.iter().find(|m| &m.name == name) {
                     Some(m) if m.count.is_some() => list(&m.ty, v)?,
-                    Some(m) => python_json_value(&m.ty, v)?,
-                    None => untyped(v),
+                    Some(m) => typed_json(&m.ty, v)?,
+                    None => v.clone(),
                 };
                 out.insert(name.clone(), converted);
             }
             Ok(Value::Object(out))
         }
-        (Type::Struct { .. }, _) => mismatch("dict"),
-    }
-}
-
-fn float_to_json(v: f64) -> Value {
-    if v.is_nan() {
-        json!("NaN")
-    } else if v.is_infinite() {
-        json!(if v > 0.0 { "Infinity" } else { "-Infinity" })
-    } else {
-        json!(v)
+        (Type::Struct { .. }, _) => mismatch("an object"),
     }
 }
 
@@ -171,8 +149,8 @@ impl Dictionary {
                     (bits, true) => json!(((raw << (64 - bits)) as i64) >> (64 - bits)),
                 })
             }
-            Type::Float { bits: 32 } => Ok(float_to_json(f32::from_bits(r.uint(32)? as u32) as f64)),
-            Type::Float { .. } => Ok(float_to_json(f64::from_bits(r.uint(64)?))),
+            Type::Float { bits: 32 } => Ok(crate::text::float_json(f32::from_bits(r.uint(32)? as u32) as f64)),
+            Type::Float { .. } => Ok(crate::text::float_json(f64::from_bits(r.uint(64)?))),
             Type::Bool => match r.uint(8)? as u8 {
                 b if b == self.bool_true => Ok(json!(true)),
                 b if b == self.bool_false => Ok(json!(false)),
@@ -213,11 +191,11 @@ impl Dictionary {
 
     /// Encode `value` as type `ty`, appending to `out`. The value is validated against the type.
     pub fn encode(&self, ty: &Type, value: &Value, out: &mut Vec<u8>) -> Result<(), TypeError> {
-        // An array or a struct given as text is JSON, as on the command line of the Python GDS.
+        // An array or a struct given as text is JSON, as on a command line.
         let parsed = match (ty, value) {
-            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => match pyjson::loads(text) {
-                Some(parsed) => Some(python_json_value(ty, &parsed)?),
-                None => None,
+            (Type::Array { .. } | Type::Struct { .. }, Value::String(text)) => match serde_json::from_str(text) {
+                Ok(parsed) => Some(typed_json(ty, &parsed)?),
+                Err(_) => None,
             },
             _ => None,
         };
@@ -242,7 +220,7 @@ impl Dictionary {
             Type::Float { bits } => {
                 let v = match value {
                     Value::Number(n) => n.as_f64(),
-                    Value::String(s) => crate::input::python_float(s),
+                    Value::String(s) => crate::input::float(s),
                     Value::Bool(b) => Some(f64::from(u8::from(*b))),
                     _ => None,
                 };
@@ -259,7 +237,7 @@ impl Dictionary {
             Type::Bool => {
                 let v = match value {
                     Value::Bool(b) => Some(*b),
-                    Value::String(s) => crate::input::python_bool(s),
+                    Value::String(s) => crate::input::boolean(s),
                     _ => None,
                 };
                 match v {

@@ -7,7 +7,6 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use fgds_core::argparse::{Kind, Nargs, Opt, Parser};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::{CliEnv, Manifest, Plugin, Registry, Result, StaticFiles, Subcommand, UiBundle};
 
@@ -55,21 +54,7 @@ impl Subcommand for MergeCommand {
         for (name, help) in FLAGS {
             command = command.arg(Arg::new(name).long(name).action(ArgAction::SetTrue).help(help));
         }
-        command
-    }
-
-    fn argparse(&self) -> Option<Parser> {
-        let mut options = vec![
-            Opt::new(&["-h", "--help"], Nargs::Flag, Kind::Str),
-            Opt::new(&["--name"], Nargs::One, Kind::Str),
-            Opt::new(&["--output"], Nargs::One, Kind::Str),
-        ];
-        options.extend(
-            ["--permissive", "--prefer-primary", "--no-namespace", "--namespace-all"]
-                .map(|f| Opt::new(&[f], Nargs::Flag, Kind::Str)),
-        );
-        options.push(Opt::new(&["--prefix"], Nargs::One, Kind::Str).append());
-        Some(Parser { options, positionals: vec![(Nargs::One, "dictionary1"), (Nargs::One, "dictionary2")] })
+        command.mut_arg("no-namespace", |arg| arg.conflicts_with_all(["namespace-all", "prefix"]))
     }
 
     fn run(&self, args: &ArgMatches, _env: &CliEnv) -> Result<ExitCode> {
@@ -78,14 +63,8 @@ impl Subcommand for MergeCommand {
             Ok(ExitCode::from(2))
         };
         let prefixes: Vec<String> = args.get_many::<String>("prefix").into_iter().flatten().cloned().collect();
-        if args.get_flag("no-namespace") && args.get_flag("namespace-all") {
-            return usage("argument --namespace-all: not allowed with argument --no-namespace");
-        }
         if !prefixes.is_empty() && prefixes.len() != 2 {
             return usage("--prefix must be given exactly twice, once per dictionary");
-        }
-        if !prefixes.is_empty() && args.get_flag("no-namespace") {
-            return usage("--prefix cannot be combined with --no-namespace");
         }
         if !prefixes.is_empty()
             && (prefixes.first() == prefixes.last() || !prefixes.iter().all(|p| merge::is_dotted_identifier(p)))
@@ -126,7 +105,7 @@ impl Subcommand for MergeCommand {
             return failed(format!("Merge failed with {} error(s); no output written", report.errors.len()));
         };
         let output = PathBuf::from(args.get_one::<String>("output").expect("has a default"));
-        match std::fs::write(&output, merge::dumps(&merged)) {
+        match std::fs::write(&output, fgds_core::serde_json::to_string_pretty(&merged).unwrap_or_default()) {
             Ok(()) => Ok(ExitCode::SUCCESS),
             Err(error) => failed(format!("{}: {error}", output.display())),
         }

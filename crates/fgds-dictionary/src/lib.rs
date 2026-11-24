@@ -7,13 +7,12 @@
 mod codec;
 mod input;
 mod load;
-mod pyjson;
 mod text;
 mod types;
 
 pub use codec::{EncodedCommand, Reader, TypeError};
-pub use input::{is_decimal_digit, python_decimal, python_float};
 pub use load::DictError;
+pub use text::{float_json, float_text};
 pub use types::{Channel, Command, Event, Member, Param, Time, Type};
 
 use serde_json::Value;

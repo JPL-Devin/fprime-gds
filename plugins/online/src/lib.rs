@@ -6,9 +6,7 @@ mod api;
 mod items;
 
 use api::Api;
-use fgds_core::argparse::{Kind, Nargs, Opt, Parser};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
-use fgds_core::gds_options::{self, has_packet_set, not_done, READ_AS_FPRIME_CLI};
 use fgds_core::serde_json::{json, Value};
 use fgds_core::{CliEnv, Error, Manifest, Plugin, Registry, Result, Subcommand};
 use items::{Filter, Item};
@@ -37,10 +35,10 @@ fn url_arg() -> Arg {
     Arg::new("url").long("url").value_name("URL").help("Address of the running GDS [default: the configured --bind]")
 }
 
-/// A command line that argparse of `fprime-cli` refuses: its last line and its exit code.
-fn refused(error: &str) -> ExitCode {
-    fgds_core::err!("fgds: error: {error}");
-    ExitCode::from(2)
+/// What was asked for is not done: why, on standard error.
+fn not_done(what: &str, missing: impl std::fmt::Display) -> ExitCode {
+    fgds_core::err!("nothing was {what}: {missing}");
+    ExitCode::FAILURE
 }
 
 fn filter_args() -> [Arg; 4] {
@@ -51,7 +49,7 @@ fn filter_args() -> [Arg; 4] {
             .value_name("ID")
             .num_args(1..)
             .action(ArgAction::Append)
-            .allow_negative_numbers(true)
+            .value_parser(fgds_core::clap::value_parser!(u32))
             .help("Only items with one of these identifiers"),
         Arg::new("components")
             .short('c')
@@ -97,65 +95,20 @@ fn print(item: &Item, json: bool) {
     }
 }
 
-/// `--list` and the filters of `fprime-cli`, after its GDS options.
-fn search_options() -> Vec<Opt> {
-    use Nargs::{Flag, One, OneOrMore};
-    vec![
-        Opt::new(&["--list"], Flag, Kind::Str),
-        Opt::new(&["-i", "--ids"], OneOrMore, Kind::Int),
-        Opt::new(&["-c", "--components"], OneOrMore, Kind::Str),
-        Opt::new(&["-s", "--search"], One, Kind::Str),
-    ]
+/// The dictionary `--dictionary` names on the command line, for the listings: they then need no running GDS.
+fn named_dictionary(args: &ArgMatches) -> std::result::Result<Option<Value>, String> {
+    let Some(path) = args.try_get_one::<String>("dictionary").ok().flatten() else { return Ok(None) };
+    let text = std::fs::read_to_string(path).map_err(|e| format!("dictionary file {path}: {e}"))?;
+    fgds_core::serde_json::from_str(&text).map(Some).map_err(|e| format!("dictionary file {path}: {e}"))
 }
 
-/// The options of `fprime-cli command-send`, then the two `fgds` adds.
-fn command_send_options() -> Vec<Opt> {
-    let mut options = gds_options::options();
-    options.push(Opt::new(&["--arguments"], Nargs::ZeroOrMore, Kind::Str));
-    options.extend(search_options());
-    options.push(Opt::new(&["-j", "--json"], Nargs::Flag, Kind::Str));
-    options.push(Opt::new(&["--url"], Nargs::One, Kind::Str).exact());
-    options.push(Opt::new(&["--dry-run"], Nargs::Flag, Kind::Str).exact());
-    options
-}
-
-/// The options of `fprime-cli events` and `fprime-cli channels`, then the three `fgds` adds.
-fn send_raw_options() -> Vec<Opt> {
-    let mut options = gds_options::options();
-    options.push(Opt::new(&["--verbose"], Nargs::Flag, Kind::Str));
-    options.push(Opt::new(&["--bin-path"], Nargs::One, Kind::Str));
-    options.push(Opt::new(&["--hex-string"], Nargs::One, Kind::Str));
-    options.push(Opt::new(&["--url"], Nargs::One, Kind::Str).exact());
-    options
-}
-
-fn records_options() -> Vec<Opt> {
-    let mut options = gds_options::options();
-    options.extend(search_options());
-    options.push(Opt::new(&["-t", "--timeout"], Nargs::One, Kind::Float));
-    options.push(Opt::new(&["-j", "--json"], Nargs::Flag, Kind::Str));
-    options.push(Opt::new(&["--url"], Nargs::One, Kind::Str).exact());
-    options.push(Opt::new(&["-H", "--history"], Nargs::Flag, Kind::Str).exact());
-    options.push(Opt::new(&["--no-follow"], Nargs::Flag, Kind::Str).exact());
-    options
-}
-
-/// The dictionary the names are looked up in: the one the options name, else the one of the running GDS,
-/// which then has to have the packet set that is named.
-async fn dictionary_of(
-    api: &Api,
-    args: &ArgMatches,
-    given: Option<Value>,
-) -> Result<std::result::Result<Value, (u8, String)>> {
+/// The dictionary the names are listed from: the one `--dictionary` names, else the one of the running GDS.
+async fn dictionary_of(api: &Api, given: Option<Value>) -> Result<Value> {
     if let Some(dictionary) = given {
-        return Ok(Ok(dictionary));
+        return Ok(dictionary);
     }
     api.check_version().await?;
-    let dictionary = api.get("/dictionary", &[]).await?;
-    Ok(match args.try_get_one::<String>("packet-set-name").ok().flatten() {
-        Some(set) => has_packet_set(&dictionary, set).map(|()| dictionary),
-        None => Ok(dictionary),
-    })
+    api.get("/dictionary", &[]).await
 }
 
 /// `fgds events` and `fgds channels`.
@@ -169,7 +122,6 @@ impl Subcommand for Records {
     fn command(&self) -> Command {
         Command::new(self.name)
             .about(format!("Print the {} a running GDS receives, as they arrive", self.what))
-            .after_help(READ_AS_FPRIME_CLI)
             .arg(url_arg())
             .arg(
                 Arg::new("list")
@@ -197,57 +149,36 @@ impl Subcommand for Records {
                     .short('t')
                     .long("timeout")
                     .value_name("SECONDS")
+                    .value_parser(fgds_core::clap::value_parser!(f64))
                     .allow_negative_numbers(true)
                     .help("Wait at most this long for the next matching item, print it and exit [default: follow until interrupted]"),
             )
-            .args(gds_options::args())
-    }
-
-    fn argparse(&self) -> Option<Parser> {
-        Some(Parser { options: records_options(), positionals: Vec::new() })
     }
 
     fn honours(&self) -> &'static [&'static str] {
-        &["dictionary", "logs", "bind"]
+        &["dictionary", "bind"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let listing = args.get_flag("list");
-        let given = match gds_options::hold(args, env, listing) {
-            Ok(given) => given,
+        let given = match named_dictionary(args) {
+            Ok(given) => given.filter(|_| listing),
             Err(missing) => return Ok(not_done(if listing { "listed" } else { "read" }, missing)),
         };
         let api = api(args, env)?;
-        let filter = match Filter::from(args) {
-            Ok(filter) => filter,
-            Err(error) => return Ok(refused(&error)),
-        };
+        let filter = Filter::from(args);
         let json = args.get_flag("json");
-        // As argparse `type=float`: its message for a text that is no number; zero and below mean no limit.
-        let timeout = match args.get_one::<String>("timeout").map(|text| (text, text.trim().parse::<f64>())) {
-            Some((text, Err(_))) => {
-                return Ok(refused(&format!("argument -t/--timeout: invalid float value: '{text}'")));
-            }
-            Some((_, Ok(seconds))) => Some(seconds).filter(|t| *t > 0.0),
-            None => None,
-        };
+        // Zero and below mean no limit.
+        let timeout = args.get_one::<f64>("timeout").copied().filter(|t| *t > 0.0);
         runtime()?.block_on(async {
             if listing {
-                let dictionary = match dictionary_of(&api, args, given).await? {
-                    Ok(dictionary) => dictionary,
-                    Err(missing) => return Ok(not_done("listed", missing)),
-                };
+                let dictionary = dictionary_of(&api, given).await?;
                 let definitions =
                     if self.kind == "fprime.event" { items::events(&dictionary) } else { items::channels(&dictionary) };
                 definitions.iter().filter(|item| filter.accepts(item, json)).for_each(|item| print(item, json));
                 return Ok(ExitCode::SUCCESS);
             }
             api.check_version().await?;
-            if given.is_none() && args.contains_id("packet-set-name") {
-                if let Err(missing) = dictionary_of(&api, args, None).await? {
-                    return Ok(not_done("read", missing));
-                }
-            }
             // The cursor is read before anything else, so nothing falls between the
             // stored records and the live ones (API-6).
             let cursor = api.get("/cursor", &[]).await?;
@@ -290,18 +221,15 @@ impl Subcommand for Records {
     }
 }
 
-/// The commands of `dictionary` that the filters accept, as `fprime-cli command-send --list` prints them.
+/// The commands of `dictionary` that the filters accept.
 fn list_commands(args: &ArgMatches, dictionary: &Value) -> ExitCode {
-    let filter = match Filter::from(args) {
-        Ok(filter) => filter,
-        Err(error) => return refused(&error),
-    };
+    let filter = Filter::from(args);
     let json = args.get_flag("json");
     items::commands(dictionary).iter().filter(|item| filter.accepts(item, json)).for_each(|item| print(item, json));
     ExitCode::SUCCESS
 }
 
-/// `fgds commands`: what `fprime-cli command-send --list` prints.
+/// `fgds commands`: the same listing as `command-send --list`.
 struct Commands;
 
 impl Subcommand for Commands {
@@ -332,16 +260,20 @@ impl Subcommand for CommandSend {
     fn command(&self) -> Command {
         Command::new("command-send")
             .about("Send a command through a running GDS")
-            .after_help(READ_AS_FPRIME_CLI)
             .arg(url_arg())
-            .arg(Arg::new("command-name").help("Full name of the command, \"<component>.<name>\""))
+            .arg(
+                Arg::new("command-name")
+                    .required_unless_present("list")
+                    .help("Full name of the command, \"<component>.<name>\""),
+            )
             .arg(
                 Arg::new("arguments")
                     .long("arguments")
                     .value_name("ARGUMENT")
                     .num_args(0..)
                     .action(ArgAction::Append)
-                    .help("The arguments of the command, in order"),
+                    .allow_negative_numbers(true)
+                    .help("The arguments of the command, in order; one that starts with a dash and is no number is written --arguments=VALUE"),
             )
             .arg(
                 Arg::new("dry-run")
@@ -356,25 +288,17 @@ impl Subcommand for CommandSend {
                     .help("List the commands instead (same as `commands`)"),
             )
             .args(filter_args())
-            .args(gds_options::args())
-    }
-
-    fn argparse(&self) -> Option<Parser> {
-        Some(Parser { options: command_send_options(), positionals: vec![(Nargs::Optional, "command-name")] })
     }
 
     fn honours(&self) -> &'static [&'static str] {
-        &["dictionary", "logs", "bind"]
+        &["dictionary", "bind"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let listing = args.get_flag("list");
         let name = args.get_one::<String>("command-name");
-        if name.is_none() && !listing {
-            return Ok(refused("One of command-name or --list is required"));
-        }
-        let given = match gds_options::hold(args, env, listing) {
-            Ok(given) => given,
+        let given = match named_dictionary(args) {
+            Ok(given) => given.filter(|_| listing),
             Err(missing) => return Ok(not_done(if listing { "listed" } else { "sent" }, missing)),
         };
         let api = api(args, env)?;
@@ -391,28 +315,12 @@ impl Subcommand for CommandSend {
         };
         runtime()?.block_on(async {
             let Some(name) = name.filter(|_| !listing) else {
-                return Ok(match dictionary_of(&api, args, given).await? {
-                    Ok(dictionary) => list_commands(args, &dictionary),
-                    Err(missing) => not_done("listed", missing),
-                });
+                return Ok(list_commands(args, &dictionary_of(&api, given).await?));
             };
-            // The name is looked up in the dictionary the options name: a command it does not have is not sent.
-            if let Some(dictionary) = &given {
-                let commands = items::commands(dictionary);
-                if !commands.iter().any(|c| c.name == *name) {
-                    return Ok(unknown(name, &commands));
-                }
-            }
             api.check_version().await?;
-            if given.is_none() && args.contains_id("packet-set-name") {
-                if let Err(missing) = dictionary_of(&api, args, None).await? {
-                    return Ok(not_done("sent", missing));
-                }
-            }
             let body = json!({"name": name, "args": arguments});
             let query: &[(&str, &str)] = if dry_run { &[("dry_run", "true")] } else { &[] };
             match api.post("/commands", query, &body).await {
-                // `fprime-cli command-send -j` prints nothing for a command that is sent.
                 Ok(answer) if json && dry_run => println!("{answer}"),
                 Ok(answer) if dry_run => {
                     fgds_core::out!("{}", api::hex(answer["packet"].as_str().unwrap_or_default())?)
@@ -448,14 +356,13 @@ fn hex_bytes(text: &str) -> std::result::Result<Vec<u8>, String> {
     Ok((0..digits.len()).step_by(2).map(|at| u8::from_str_radix(&digits[at..at + 2], 16).unwrap_or_default()).collect())
 }
 
-/// `fgds send-raw`: bytes sent as one packet, framed and nothing else, as `fprime-cli send-raw`.
+/// `fgds send-raw`: bytes sent as one packet, framed and nothing else.
 struct SendRaw;
 
 impl Subcommand for SendRaw {
     fn command(&self) -> Command {
         Command::new("send-raw")
             .about("Send bytes through a running GDS as one packet: framed, not serialized any further")
-            .after_help(READ_AS_FPRIME_CLI)
             .arg(url_arg())
             .arg(
                 Arg::new("verbose")
@@ -464,49 +371,34 @@ impl Subcommand for SendRaw {
                     .help("Print the bytes in hexadecimal before they are sent"),
             )
             .arg(Arg::new("bin-path").long("bin-path").value_name("PATH").help("File holding the bytes to send"))
+            .group(fgds_core::clap::ArgGroup::new("bytes").args(["bin-path", "hex-string"]).required(true))
             .arg(
                 Arg::new("hex-string")
                     .long("hex-string")
                     .value_name("HEX")
                     .help("The bytes to send in hexadecimal (0xDEADBEEF, deadbeef, \"de ad be ef\")"),
             )
-            .args(gds_options::args())
-    }
-
-    fn argparse(&self) -> Option<Parser> {
-        Some(Parser { options: send_raw_options(), positionals: Vec::new() })
     }
 
     fn honours(&self) -> &'static [&'static str] {
-        &["dictionary", "logs", "bind"]
+        &["dictionary", "bind"]
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
         let data = match (args.get_one::<String>("bin-path"), args.get_one::<String>("hex-string")) {
-            (Some(_), Some(_)) => {
-                return Ok(refused("argument --hex-string: not allowed with argument --bin-path"));
-            }
-            (None, None) => return Ok(refused("one of the arguments --bin-path --hex-string is required")),
+            (None, None) | (Some(_), Some(_)) => unreachable!("clap requires one of the two"),
             (Some(path), None) => std::fs::read(path).map_err(|e| format!("binary file {path}: {e}")),
             (None, Some(text)) => hex_bytes(text).map_err(|e| format!("hex string {text:?}: {e}")),
         };
-        // No bytes is no packet: `fprime-cli` sends an empty one for an empty file.
+        // No bytes is no packet.
         let data = match data {
-            Ok(data) if data.is_empty() => return Ok(not_done("sent", (1, "there are no bytes to send".into()))),
+            Ok(data) if data.is_empty() => return Ok(not_done("sent", "there are no bytes to send")),
             Ok(data) => data,
-            Err(missing) => return Ok(not_done("sent", (1, missing))),
+            Err(missing) => return Ok(not_done("sent", missing)),
         };
-        if let Err(missing) = gds_options::hold(args, env, false) {
-            return Ok(not_done("sent", missing));
-        }
         let api = api(args, env)?;
         runtime()?.block_on(async {
             api.check_version().await?;
-            if args.contains_id("packet-set-name") {
-                if let Err(missing) = dictionary_of(&api, args, None).await? {
-                    return Ok(not_done("sent", missing));
-                }
-            }
             if let Some(path) = args.get_one::<String>("bin-path") {
                 fgds_core::out!("Read {} bytes from {path}", data.len());
             }
@@ -532,86 +424,5 @@ mod tests {
         for text in ["abc", "zz", "100x20", "-1", "0x0"] {
             assert!(hex_bytes(text).is_err(), "{text}");
         }
-    }
-
-    /// `fixtures/command-line/table.json`: what argparse of `fprime-cli command-send` makes of each
-    /// command line, its message when it refuses.
-    #[test]
-    fn command_send_reads_its_command_line_as_argparse() {
-        reads_as_argparse(include_str!("../../../fixtures/command-line/table.json"), CommandSend.argparse().unwrap());
-    }
-
-    /// `fixtures/command-line/records.json`: the same for `fprime-cli events`, whose parser `channels` has too.
-    #[test]
-    fn events_and_channels_read_their_command_line_as_argparse() {
-        let events = Records { name: "events", what: "events", kind: "fprime.event" };
-        reads_as_argparse(include_str!("../../../fixtures/command-line/records.json"), events.argparse().unwrap());
-    }
-
-    fn reads_as_argparse(table: &str, mut parser: Parser) {
-        let table: Vec<Value> = fgds_core::serde_json::from_str(table).unwrap();
-        parser.options.retain(|option| option.abbreviated);
-        assert!(table.len() > 6000);
-        let mut wrong = Vec::new();
-        for row in &table {
-            let tokens: Vec<String> =
-                row["tokens"].as_array().unwrap().iter().map(|t| t.as_str().unwrap().to_string()).collect();
-            let expected = if let Some(error) = row["error"].as_str() {
-                Err(error.to_string())
-            } else if row["help"] == true {
-                Ok(vec!["--help".to_string()])
-            } else {
-                let values = &row["values"];
-                let mut out = Vec::new();
-                let texts = |value: &Value| match value {
-                    Value::Array(all) => {
-                        all.iter().map(|v| v.as_str().map(str::to_string).unwrap_or(v.to_string())).collect()
-                    }
-                    Value::String(text) => vec![text.clone()],
-                    _ => Vec::new(),
-                };
-                for (name, field) in [("logs", "logs"), ("dictionary", "dictionary"), ("arguments", "arguments")] {
-                    out.extend(texts(&values[field]).iter().map(|v| format!("--{name}={v}")));
-                }
-                if values["is_printing_list"] == true {
-                    out.push("--list".to_string());
-                }
-                for name in ["ids", "components", "search"] {
-                    out.extend(texts(&values[name]).iter().map(|v| format!("--{name}={v}")));
-                }
-                // The time limit is recorded as Python writes the number; 0.0 is also its default.
-                if let Some(limit) = values["timeout"].as_str().map(|text| text.parse::<f64>().unwrap()) {
-                    if limit != 0.0 {
-                        out.push(format!("--timeout={limit}"));
-                    }
-                }
-                if values["json"] == true {
-                    out.push("--json".to_string());
-                }
-                if let Some(name) = values["command_name"].as_str() {
-                    out.extend(["--".to_string(), name.to_string()]);
-                }
-                Ok(out)
-            };
-            // The table has no column for the options kept only to check what they name.
-            let got = parser.canonical(&tokens).map(|mut out| {
-                out.retain(|text| {
-                    text != "--log-directly"
-                        && !["--timeout=0", "--timeout=-0"].contains(&text.as_str())
-                        && !fgds_core::gds_options::NAMING.iter().any(|name| text.starts_with(&format!("--{name}=")))
-                });
-                out
-            });
-            if got != expected {
-                wrong.push(format!("{tokens:?}\n  argparse {expected:?}\n  fgds     {got:?}"));
-            }
-        }
-        assert!(
-            wrong.is_empty(),
-            "{} of {} differ:\n{}",
-            wrong.len(),
-            table.len(),
-            wrong[..wrong.len().min(25)].join("\n")
-        );
     }
 }

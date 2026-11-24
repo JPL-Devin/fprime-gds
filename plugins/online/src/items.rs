@@ -18,12 +18,19 @@ pub struct Item {
     json: String,
 }
 
-/// `json.dumps` of Python: `, ` and `: ` between items, text in ASCII, a float as `repr` writes it.
 fn dumps(value: &Value) -> String {
-    fgds_offline::value::Value::from_json(value).to_json()
+    // A line for a terminal: what is not ASCII is escaped, so that no character of the data ends the line.
+    let mut out = String::new();
+    for c in value.to_string().chars() {
+        match c.is_ascii() {
+            true => out.push(c),
+            false => c.encode_utf16(&mut [0; 2]).iter().for_each(|unit| out.push_str(&format!("\\u{unit:04x}"))),
+        }
+    }
+    out
 }
 
-/// An object of Python's `json.dumps` from keys and values already written.
+/// An object from keys and values already written.
 fn object(fields: &[(&str, String)]) -> String {
     let fields: Vec<String> = fields.iter().map(|(key, value)| format!("{}: {value}", dumps(&json!(key)))).collect();
     format!("{{{}}}", fields.join(", "))
@@ -92,7 +99,10 @@ impl Item {
                 let shown = match (types, dictionary) {
                     (Some(definition), Some(dictionary)) => {
                         let types = list(definition, "formalParams").map(|p| &p["type"]);
-                        Typed::Array(args.iter().zip(types).map(|(a, t)| typed(a, t, dictionary)).collect()).to_json()
+                        dumps(
+                            &Typed::Array(args.iter().zip(types).map(|(a, t)| typed(a, t, dictionary)).collect())
+                                .to_serde(),
+                        )
                     }
                     _ => dumps(&Value::Array(args)),
                 };
@@ -322,20 +332,12 @@ pub struct Filter {
 }
 
 impl Filter {
-    /// The error is the one of argparse for `type=int`: decimal digits only.
-    pub fn from(args: &ArgMatches) -> Result<Filter, String> {
-        let mut ids = Vec::new();
-        for id in args.get_many::<String>("ids").into_iter().flatten() {
-            match id.trim().parse::<i128>() {
-                Ok(id) => ids.push(id),
-                Err(_) => return Err(format!("argument -i/--ids: invalid int value: '{id}'")),
-            }
-        }
-        Ok(Filter {
-            ids,
+    pub fn from(args: &ArgMatches) -> Filter {
+        Filter {
+            ids: args.get_many::<u32>("ids").map(|ids| ids.map(|id| i128::from(*id)).collect()).unwrap_or_default(),
             components: args.get_many::<String>("components").map(|c| c.cloned().collect()).unwrap_or_default(),
             search: args.get_one::<String>("search").cloned(),
-        })
+        }
     }
 
     pub fn accepts(&self, item: &Item, json: bool) -> bool {
@@ -421,7 +423,7 @@ mod tests {
                 json!({"s": {"big": "18446744073709551615", "three": [1.5, "-Infinity", "NaN"]},
                        "a": ["-9223372036854775808", 2], "t": "Infinity", "text": "12"})
             ),
-            r#"[{"big": 18446744073709551615, "three": [1.5, -Infinity, NaN]}, [-9223372036854775808, 2], Infinity, "12"]"#
+            r#"[{"big":18446744073709551615,"three":[1.5,"-Infinity","NaN"]},[-9223372036854775808,2],"Infinity","12"]"#
         );
     }
 
@@ -451,8 +453,8 @@ mod tests {
             ("string", json!({"value": "a b", "display_text": "a b"}), r#""a b""#),
             (
                 "array",
-                json!({"value": [12, 1], "display_text": "['12', '1']", "display_members": ["12", "1"]}),
-                r#"["12", "1"]"#,
+                json!({"value": [12, 1], "display_text": r#"["12","1"]"#, "display_members": ["12", "1"]}),
+                r#"["12","1"]"#,
             ),
         ] {
             body["name"] = json!("a.b.Count");

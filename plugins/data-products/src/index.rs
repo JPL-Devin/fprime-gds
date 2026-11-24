@@ -464,5 +464,5 @@ async fn export(
         (header::CONTENT_TYPE, "application/json".to_string()),
         (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\"")),
     ];
-    Ok((headers, decoded.to_json().to_python_text()).into_response())
+    Ok((headers, decoded.to_json().to_text()).into_response())
 }

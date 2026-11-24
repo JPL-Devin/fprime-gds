@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# The browser checks (README.md): the page against a running Ref, then the Events and
-# Channels tables against those of the Python GDS page. Run by scripts/check.sh, from the
+# The browser checks (README.md): the page against a running Ref. Run by scripts/check.sh, from the
 # repository root, with FGDS, REF_BIN, DICTIONARY, VENV and OUT set.
 #
 # Playwright and its Chromium are installed on the first run, in target/browser-venv.

@@ -38,9 +38,8 @@ fn shown_arguments(registry: &Registry, given: &[OsString], error: clap::Error) 
     }
     let shown = |arg: &OsString| OsString::from(fgds_core::visible(&arg.to_string_lossy()).into_owned());
     let args: Vec<OsString> = given.iter().map(shown).collect();
-    let again = as_argparse(registry, args).ok().map(|args| command(registry).try_get_matches_from(args));
-    match again {
-        Some(Err(again)) => again,
+    match command(registry).try_get_matches_from(args) {
+        Err(again) => again,
         // Not the same refusal once visible: the first line of the message alone, on one line.
         _ => {
             let text = error.to_string();
@@ -74,13 +73,6 @@ pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
     // options and subcommands are part of the command line.
     let registry = builder.registry(&[])?;
     let given = args.clone();
-    let args = match as_argparse(&registry, args) {
-        Ok(args) => args,
-        Err(error) => {
-            fgds_core::err!("fgds: error: {error}");
-            return Ok(ExitCode::from(2));
-        }
-    };
     let matches = match command(&registry).try_get_matches_from(args) {
         Ok(matches) => matches,
         Err(e) => {
@@ -130,44 +122,6 @@ pub fn run(builder: &GdsBuilder, args: Vec<OsString>) -> Result<ExitCode> {
     }
 }
 
-/// The command line of a subcommand that stands for a command of `fprime-cli` (`Subcommand::argparse`),
-/// read as argparse reads it and written again without anything clap could read otherwise. The options
-/// of the core and of the plugins are accepted there too, written in full.
-fn as_argparse(registry: &Registry, args: Vec<OsString>) -> std::result::Result<Vec<OsString>, String> {
-    use fgds_core::argparse::{Kind, Nargs, Opt};
-    let flags = ["read-only", "no-page"];
-    let mut globals: Vec<String> =
-        ["config"].iter().chain(OPTIONS.iter().map(|(name, _)| name)).map(|n| n.to_string()).collect();
-    for manifest in &registry.manifests {
-        globals.extend(manifest.options.iter().map(|spec| option_name(manifest.name, spec.name)));
-    }
-    // The subcommand is the first token that is not an option of the core or its value.
-    let mut at = 1;
-    while let Some(token) = args.get(at).and_then(|a| a.to_str()) {
-        match token.strip_prefix("--") {
-            Some(name) if name.contains('=') || flags.contains(&name) => at += 1,
-            Some(name) if globals.iter().any(|g| g == name) => at += 2,
-            _ => break,
-        }
-    }
-    let name = args.get(at).and_then(|a| a.to_str());
-    let subcommand = registry.subcommands.iter().find(|s| Some(s.command().get_name()) == name);
-    let Some(mut parser) = subcommand.and_then(|s| s.argparse()) else { return Ok(args) };
-    let Some(tokens) = args[at + 1..].iter().map(|a| a.to_str().map(str::to_string)).collect::<Option<Vec<_>>>() else {
-        return Ok(args);
-    };
-    for name in globals.iter().map(String::as_str).chain(flags) {
-        let long = format!("--{name}");
-        if !parser.options.iter().any(|o| o.strings.contains(&long)) {
-            let nargs = if flags.contains(&name) { Nargs::Flag } else { Nargs::One };
-            parser.options.push(Opt::new(&[&long], nargs, Kind::Str).exact());
-        }
-    }
-    let mut out = args[..=at].to_vec();
-    out.extend(parser.canonical(&tokens)?.into_iter().map(OsString::from));
-    Ok(out)
-}
-
 /// The names of the options of the core and of the plugins, `config` apart: what configures `fgds run`.
 fn run_options(registry: &Registry) -> Vec<String> {
     let mut names: Vec<String> =
@@ -199,9 +153,7 @@ fn command(registry: &Registry) -> Command {
         .version(fgds_core::VERSION)
         .subcommand_required(true)
         .arg_required_else_help(true)
-        // As argparse, for every subcommand: a long option may be shortened while it names one option
-        // only, and of an option given twice the last value counts.
-        .infer_long_args(true)
+        // Of an option given twice the last value counts.
         .args_override_self(true)
         .arg(global("config", "Configuration file [default: fgds.toml when present]".into()))
         .arg(

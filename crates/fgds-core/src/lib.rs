@@ -4,10 +4,8 @@
 //! conflict checks, the packet router, the uplink service, status, configuration,
 //! supervised plugin tasks, the extension-point traits, and test doubles for plugins.
 
-pub mod argparse;
 mod config;
 mod error;
-pub mod gds_options;
 mod http;
 mod link;
 mod pipeline;

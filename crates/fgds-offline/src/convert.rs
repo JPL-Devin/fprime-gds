@@ -1,7 +1,7 @@
 //! From a value written in a sequence or a parameter file to the bytes of a dictionary type,
 //! accepting and rejecting what the Python GDS accepts and rejects, with its messages.
 
-use crate::value::{float_repr, parse_float, parse_int, str_repr, Int, Value};
+use crate::value::{parse_float, parse_int, str_repr, Int, Value};
 use fgds_core::dictionary::Type;
 use fgds_core::serde_json::json;
 use fgds_core::Dictionary;
@@ -133,7 +133,7 @@ fn encode(dict: &Dictionary, ty: &Type, value: &Value, out: &mut Vec<u8>) -> Res
             if *bits == 32 {
                 // Python refuses a finite value that F32 cannot hold.
                 if v.is_finite() && !(v as f32).is_finite() {
-                    return Err(format!("Value {} out of range!", float_repr(v)));
+                    return Err(format!("Value {} out of range!", fgds_core::dictionary::float_text(v)));
                 }
                 out.extend_from_slice(&(v as f32).to_be_bytes());
             } else {

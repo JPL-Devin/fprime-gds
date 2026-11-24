@@ -4,7 +4,6 @@
 //! A library, not a plugin: plugins may not depend on each other (MNT-1).
 
 pub mod convert;
-mod pyjson;
 pub mod value;
 
 use fgds_core::serde_json::{self, json};
@@ -53,8 +52,8 @@ pub fn load_dictionary(path: &Path) -> std::result::Result<Dictionary, String> {
     Dictionary::parse(&path.display().to_string(), &json.to_string()).map_err(|e| e.to_string())
 }
 
-/// The Python loader reads a type reference by its name alone; give the references that have
-/// only a name the fields the dictionary loader reads.
+/// A type reference may have its name alone (`fixtures/sequences/resources/enhanced_dictionary.json`
+/// has such): give it the fields the dictionary loader reads.
 fn complete_types(json: &mut serde_json::Value, reference: bool) {
     match json {
         serde_json::Value::Array(items) => items.iter_mut().for_each(|item| complete_types(item, false)),

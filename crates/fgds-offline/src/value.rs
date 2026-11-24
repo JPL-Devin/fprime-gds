@@ -1,5 +1,6 @@
 //! The values of sequence arguments and parameter files, with the text forms Python gives them.
 
+use fgds_core::dictionary::{float_json, float_text};
 use fgds_core::serde_json;
 use std::fmt::{self, Write};
 
@@ -119,76 +120,38 @@ impl Value {
         }
     }
 
-    /// Parse JSON text, with the message of Python's `json.loads` for text it rejects.
+    /// Parse JSON text.
     pub fn parse_json(text: &str) -> Result<Value, String> {
-        if let Some(message) = crate::pyjson::error(text) {
-            return Err(message);
-        }
         match serde_json::from_str::<serde_json::Value>(text) {
             Ok(v) => Ok(Value::from_json(&v)),
             Err(e) => Err(format!("invalid JSON: {e}")),
         }
     }
 
-    /// The text of Python's `json.dumps`.
-    pub fn to_json(&self) -> String {
-        let mut out = String::new();
-        self.write_json(&mut out, None, 0);
-        out
-    }
-
-    /// The text of Python's `json.dumps(indent=4)`.
-    pub fn to_json_pretty(&self) -> String {
-        let mut out = String::new();
-        self.write_json(&mut out, Some(4), 0);
-        out
-    }
-
-    fn write_json(&self, out: &mut String, indent: Option<usize>, depth: usize) {
-        let open = |out: &mut String, depth: usize| {
-            if let Some(n) = indent {
-                out.push('\n');
-                out.push_str(&" ".repeat(n * depth));
-            }
-        };
-        let separator = if indent.is_some() { "," } else { ", " };
+    /// As JSON: an integer beyond 64 bits and a float that is no number are text.
+    pub fn to_serde(&self) -> serde_json::Value {
+        use serde_json::Value as J;
         match self {
-            Value::Null => out.push_str("null"),
-            Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-            Value::Int(i) => out.push_str(&i.to_string()),
-            Value::Float(f) if f.is_nan() => out.push_str("NaN"),
-            Value::Float(f) if f.is_infinite() => out.push_str(if *f > 0.0 { "Infinity" } else { "-Infinity" }),
-            Value::Float(f) => out.push_str(&float_repr(*f)),
-            Value::Str(s) => json_string(out, s),
-            Value::Array(items) if items.is_empty() => out.push_str("[]"),
-            Value::Object(pairs) if pairs.is_empty() => out.push_str("{}"),
-            Value::Array(items) => {
-                out.push('[');
-                for (i, item) in items.iter().enumerate() {
-                    if i > 0 {
-                        out.push_str(separator);
-                    }
-                    open(out, depth + 1);
-                    item.write_json(out, indent, depth + 1);
-                }
-                open(out, depth);
-                out.push(']');
-            }
-            Value::Object(pairs) => {
-                out.push('{');
-                for (i, (key, value)) in pairs.iter().enumerate() {
-                    if i > 0 {
-                        out.push_str(separator);
-                    }
-                    open(out, depth + 1);
-                    json_string(out, key);
-                    out.push_str(": ");
-                    value.write_json(out, indent, depth + 1);
-                }
-                open(out, depth);
-                out.push('}');
-            }
+            Value::Null => J::Null,
+            Value::Bool(b) => J::Bool(*b),
+            Value::Int(i) => match i.to_i128() {
+                Some(v) if i64::try_from(v).is_ok() => J::from(v as i64),
+                Some(v) if u64::try_from(v).is_ok() => J::from(v as u64),
+                _ => J::String(i.to_string()),
+            },
+            Value::Float(f) => float_json(*f),
+            Value::Str(s) => J::String(s.clone()),
+            Value::Array(items) => J::Array(items.iter().map(Value::to_serde).collect()),
+            Value::Object(pairs) => J::Object(pairs.iter().map(|(k, v)| (k.clone(), v.to_serde())).collect()),
         }
+    }
+
+    pub fn to_json(&self) -> String {
+        self.to_serde().to_string()
+    }
+
+    pub fn to_json_pretty(&self) -> String {
+        serde_json::to_string_pretty(&self.to_serde()).unwrap_or_default()
     }
 
     /// The text of Python's `str()`, for scalars; containers print as JSON.
@@ -196,66 +159,10 @@ impl Value {
         match self {
             Value::Null => "None".into(),
             Value::Bool(b) => if *b { "True" } else { "False" }.into(),
-            Value::Float(f) => float_repr(*f),
+            Value::Float(f) => float_text(*f),
             Value::Str(s) => s.clone(),
             other => other.to_json(),
         }
-    }
-}
-
-fn json_string(out: &mut String, s: &str) {
-    out.push('"');
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\x08' => out.push_str("\\b"),
-            '\x0c' => out.push_str("\\f"),
-            ' '..='~' => out.push(c),
-            _ => {
-                let mut units = [0u16; 2];
-                for unit in c.encode_utf16(&mut units) {
-                    let _ = write!(out, "\\u{unit:04x}");
-                }
-            }
-        }
-    }
-    out.push('"');
-}
-
-/// Python's `repr()` of a float.
-pub fn float_repr(f: f64) -> String {
-    if f.is_nan() {
-        return "nan".into();
-    }
-    if f.is_infinite() {
-        return if f > 0.0 { "inf" } else { "-inf" }.into();
-    }
-    // Shortest digits that read back as `f`, as `d.ddde<exp>`.
-    let scientific = format!("{f:e}");
-    let (mantissa, exponent) = scientific.split_once('e').unwrap_or((&scientific, "0"));
-    let exponent: i32 = exponent.parse().unwrap_or(0);
-    let (sign, mantissa) = match mantissa.strip_prefix('-') {
-        Some(rest) => ("-", rest),
-        None => ("", mantissa),
-    };
-    let digits: String = mantissa.chars().filter(|c| *c != '.').collect();
-    if !(-4..16).contains(&exponent) {
-        let fraction = if digits.len() > 1 { format!(".{}", &digits[1..]) } else { String::new() };
-        let exponent_sign = if exponent < 0 { '-' } else { '+' };
-        return format!("{sign}{}{fraction}e{exponent_sign}{:02}", &digits[..1], exponent.abs());
-    }
-    if exponent < 0 {
-        return format!("{sign}0.{}{digits}", "0".repeat((-exponent - 1) as usize));
-    }
-    let point = exponent as usize + 1;
-    if digits.len() <= point {
-        format!("{sign}{digits}{}.0", "0".repeat(point - digits.len()))
-    } else {
-        format!("{sign}{}.{}", &digits[..point], &digits[point..])
     }
 }
 

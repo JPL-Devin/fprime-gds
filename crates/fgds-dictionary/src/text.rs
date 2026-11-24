@@ -1,46 +1,20 @@
-//! Display text: F Prime format strings filled with decoded values, written as the
-//! Python GDS writes them so that both show the same text.
+//! Display text: F Prime format strings filled with decoded values.
 
 use crate::types::Type;
 use crate::Dictionary;
 use serde_json::Value;
 
-/// A decoded value as Python's `str()` shows it; `nested` values are shown as `repr()`.
-fn plain(ty: &Type, value: &Value, nested: bool) -> String {
+/// A decoded value as text: a number and a Boolean as JSON writes them, text as it is, an array and a
+/// struct as JSON.
+fn plain(ty: &Type, value: &Value) -> String {
     match (ty, value) {
-        (Type::Bool, Value::Bool(b)) => if *b { "True" } else { "False" }.into(),
-        (Type::Float { .. }, Value::Number(n)) => float(n.as_f64().unwrap_or(0.0)),
-        (Type::Float { .. }, Value::String(s)) => match s.as_str() {
-            "Infinity" => "inf".into(),
-            "-Infinity" => "-inf".into(),
-            _ => "nan".into(),
-        },
-        (Type::Int { .. }, Value::String(s)) => s.clone(),
-        (Type::Array { element, .. }, Value::Array(items)) => {
-            let items: Vec<_> = items.iter().map(|v| plain(element, v, true)).collect();
-            format!("[{}]", items.join(", "))
-        }
-        (Type::Struct { members, .. }, Value::Object(fields)) => {
-            let fields: Vec<_> = members
-                .iter()
-                .filter_map(|m| Some((m, fields.get(&m.name)?)))
-                .map(|(m, v)| match (m.count, v) {
-                    (Some(_), Value::Array(items)) => {
-                        let items: Vec<_> = items.iter().map(|v| plain(&m.ty, v, true)).collect();
-                        format!("'{}': [{}]", m.name, items.join(", "))
-                    }
-                    _ => format!("'{}': {}", m.name, plain(&m.ty, v, true)),
-                })
-                .collect();
-            format!("{{{}}}", fields.join(", "))
-        }
-        (_, Value::String(s)) if nested => format!("'{s}'"),
+        (Type::Float { .. }, Value::Number(n)) => float_text(n.as_f64().unwrap_or(0.0)),
         (_, Value::String(s)) => s.clone(),
         (_, other) => other.to_string(),
     }
 }
 
-/// A channel value as the Python GDS shows it: in arrays and structs every leaf is
+/// A channel value for display: in arrays and structs every leaf is
 /// text, filled into the format string of its array element or struct member.
 fn leaves_as_text(dict: &Dictionary, ty: &Type, value: &Value, format: Option<&str>) -> Value {
     let list = |ty: &Type, items: &[Value], format: Option<&str>| {
@@ -60,81 +34,24 @@ fn leaves_as_text(dict: &Dictionary, ty: &Type, value: &Value, format: Option<&s
         ),
         _ => Value::String(match format {
             Some(format) => dict.format(format, &[(ty, value)]),
-            None => plain(ty, value, false),
+            None => plain(ty, value),
         }),
     }
 }
 
-/// Lists, dictionaries and text as Python's `str()` shows a list or a dictionary.
-fn python_text(value: &Value) -> String {
-    match value {
-        Value::Array(items) => format!("[{}]", items.iter().map(python_text).collect::<Vec<_>>().join(", ")),
-        Value::Object(fields) => {
-            let fields: Vec<_> = fields.iter().map(|(name, v)| format!("'{name}': {}", python_text(v))).collect();
-            format!("{{{}}}", fields.join(", "))
-        }
-        Value::String(text) => format!("'{text}'"),
-        other => other.to_string(),
-    }
+/// The shortest text that reads back as `v`; `NaN`, `Infinity` and `-Infinity` for what is no number.
+pub fn float_text(v: f64) -> String {
+    float_json(v).as_str().map_or_else(|| float_json(v).to_string(), str::to_string)
 }
 
-/// The shortest decimal digits that give `v` back, and the decimal exponent of the first one, as Python
-/// chooses them: where two texts of that length are equally near the value, the one ending in an even digit
-/// (Rust takes the upper one: 1.1888198852539063 for an F32 that Python shows as 1.1888198852539062).
-fn shortest(v: f64) -> (String, i32) {
-    let text = format!("{:e}", v.abs());
-    let (mantissa, exp) = text.split_once('e').unwrap_or((&text, "0"));
-    let exp: i32 = exp.parse().unwrap_or(0);
-    let digits = mantissa.replace('.', "");
-    let count = digits.len();
-    // 800 digits hold every digit of a double.
-    let exact = format!("{:.800e}", v.abs());
-    let (exact_mantissa, exact_exp) = exact.split_once('e').unwrap_or((&exact, "0"));
-    let exact_digits = exact_mantissa.replace('.', "");
-    let (head, rest) = exact_digits.split_at(count);
-    let tie = rest.starts_with('5') && rest[1..].bytes().all(|b| b == b'0');
-    let even = head.as_bytes()[count - 1] % 2 == 0;
-    match (tie, head.parse::<u128>()) {
-        (true, Ok(low)) => {
-            let chosen = (if even { low } else { low + 1 }).to_string();
-            let exp = exact_exp.parse().unwrap_or(exp) + (chosen.len() as i32 - count as i32);
-            (chosen[..count].to_string(), exp)
-        }
-        _ => (digits, exp),
-    }
-}
-
-/// A float as Python's `repr()` shows it.
-pub(crate) fn float(v: f64) -> String {
-    if !v.is_finite() {
-        return if v.is_nan() {
-            "nan".into()
-        } else if v > 0.0 {
-            "inf".into()
-        } else {
-            "-inf".into()
-        };
-    }
-    let sign = if v.is_sign_negative() { "-" } else { "" };
-    if v == 0.0 {
-        return format!("{sign}0.0");
-    }
-    let (digits, exp) = shortest(v);
-    let digits = digits.trim_end_matches('0');
-    let digits = if digits.is_empty() { "0" } else { digits };
-    if !(-4..16).contains(&exp) {
-        let fraction = if digits.len() > 1 { format!(".{}", &digits[1..]) } else { String::new() };
-        let (exp_sign, exp) = if exp < 0 { ('-', -exp) } else { ('+', exp) };
-        return format!("{sign}{}{fraction}e{exp_sign}{exp:02}", &digits[..1]);
-    }
-    if exp < 0 {
-        return format!("{sign}0.{}{digits}", "0".repeat((-exp - 1) as usize));
-    }
-    let whole = exp as usize + 1;
-    if digits.len() <= whole {
-        format!("{sign}{digits}{}.0", "0".repeat(whole - digits.len()))
+/// A float as the network API carries it (API-4): a number, or `"NaN"`, `"Infinity"`, `"-Infinity"`.
+pub fn float_json(v: f64) -> Value {
+    if v.is_nan() {
+        Value::from("NaN")
+    } else if v.is_infinite() {
+        Value::from(if v > 0.0 { "Infinity" } else { "-Infinity" })
     } else {
-        format!("{sign}{}.{}", &digits[..whole], &digits[whole..])
+        Value::from(v)
     }
 }
 
@@ -265,14 +182,14 @@ fn convert(spec: &str, ty: &Type, value: &Value) -> Option<String> {
 impl Dictionary {
     /// The value as text, without a format string.
     pub fn display(&self, ty: &Type, value: &Value) -> String {
-        plain(ty, value, false)
+        plain(ty, value)
     }
 
     /// The value of a channel as text, without a format string.
     pub fn display_channel(&self, ty: &Type, value: &Value) -> String {
         match ty {
-            Type::Array { .. } | Type::Struct { .. } => python_text(&leaves_as_text(self, ty, value, None)),
-            _ => plain(ty, value, false),
+            Type::Array { .. } | Type::Struct { .. } => leaves_as_text(self, ty, value, None).to_string(),
+            _ => plain(ty, value),
         }
     }
 
@@ -299,7 +216,7 @@ impl Dictionary {
             }
             let end = tail.find('}').unwrap_or(0);
             let filled = match (tail.starts_with('{') && end > 0, values.next()) {
-                (true, Some((ty, value))) if end == 1 => Some(plain(ty, value, false)),
+                (true, Some((ty, value))) if end == 1 => Some(plain(ty, value)),
                 (true, Some((ty, value))) => convert(&tail[1..end], ty, value),
                 _ => None,
             };
@@ -316,22 +233,5 @@ impl Dictionary {
         }
         out.push_str(rest);
         out
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    /// `fixtures/float-text/table.json`: the text Python `repr()` gives for each double.
-    #[test]
-    fn floats_are_written_as_python_writes_them() {
-        let table = include_str!("../../../fixtures/float-text/table.json");
-        let mut checked = 0;
-        for line in table.lines() {
-            let row: serde_json::Value = serde_json::from_str(line).unwrap();
-            let bits = u64::from_str_radix(row["bits"].as_str().unwrap(), 16).unwrap();
-            assert_eq!(super::float(f64::from_bits(bits)), row["text"].as_str().unwrap(), "{bits:016x}");
-            checked += 1;
-        }
-        assert!(checked > 5000, "{checked} rows");
     }
 }

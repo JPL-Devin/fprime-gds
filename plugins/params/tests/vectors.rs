@@ -112,7 +112,7 @@ fn every_type_round_trips() {
     // Encoding the decoded JSON gives the same file.
     assert_eq!(dict.to_dat(&dict.select(&json, false).unwrap()).unwrap(), dat);
     assert!(to_text(&decoded).contains(
-        "\n\nComponent: c\n  A = {\"name\": \"M.Three\", \"type\": \"M.Three\", \"size\": 3, \"format\": \"{}\", \"value_type\": \"F32\", \"values\": [1.0, 0.5, -2.0]} (type: M.Three, id: 5)\n  E = \"ON\" (type: M.Mode, id: 4)"
+        "\n\nComponent: c\n  A = {\"name\":\"M.Three\",\"type\":\"M.Three\",\"size\":3,\"format\":\"{}\",\"value_type\":\"F32\",\"values\":[1.0,0.5,-2.0]} (type: M.Three, id: 5)\n  E = \"ON\" (type: M.Mode, id: 4)"
     ));
     assert!(to_csv(&decoded).contains("c,T,\"a \"\"b\"\", c\",String_16,7"));
     assert_eq!(
@@ -120,7 +120,7 @@ fn every_type_round_trips() {
         "; Autocoded sequence file from JSON\nR00:00:00 a.b.B_PRM_SET true\na.b.B_PRM_SAVE\nR00:00:00 a.b.F_PRM_SET 2.5\na.b.F_PRM_SAVE"
     );
     // The quotes inside a struct are doubled: the file is valid CSV.
-    assert!(to_csv(&decoded).contains("c,S,\"{\"\"x\"\": {\"\"format\"\": \"\"{}\"\", "), "{}", to_csv(&decoded));
+    assert!(to_csv(&decoded).contains("c,S,\"{\"\"x\"\":{\"\"format\"\":\"\"{}\"\","), "{}", to_csv(&decoded));
 }
 
 #[test]

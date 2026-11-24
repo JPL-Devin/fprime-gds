@@ -270,11 +270,6 @@ pub struct UiBundle {
 
 pub trait Subcommand: Send + Sync {
     fn command(&self) -> clap::Command;
-    /// For a subcommand that stands for a command of `fprime-cli`: its options as argparse has them.
-    /// Its command line is then read by `argparse::Parser::canonical` before clap sees it.
-    fn argparse(&self) -> Option<crate::argparse::Parser> {
-        None
-    }
     /// The options of the core and of the plugins (`dictionary`, `bind`, `files-chunk-size`, ...) this
     /// subcommand honours. Any other one given on its command line is refused: it configures `fgds run`,
     /// and would be accepted here without effect.

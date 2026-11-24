@@ -112,7 +112,7 @@ pub fn read_header(dict: &DpDictionary, data: &[u8]) -> Result<Header, DpError> 
     };
     let dp_state = match plain(&Ty::Bool, &fields[6]) {
         Json::Str(name) => name,
-        other => other.to_python_text(),
+        other => other.to_text(),
     };
     // The checksum covers the header up to the checksum itself.
     let computed_checksum = crc32(&bytes[..bytes.len().saturating_sub(CHECKSUM_LEN)]);
@@ -232,7 +232,7 @@ fn decompress(dict: &DpDictionary, records: &[Record], max_bytes: u64) -> Result
         let (value, _) = dict.deserialize(&metadata, header, 0).map_err(unexpected)?;
         let algorithm = match plain(&metadata, &value).get("algorithm") {
             Some(Json::Str(name)) => name.clone(),
-            Some(other) => other.to_python_text(),
+            Some(other) => other.to_text(),
             None => return Err(unexpected("'algorithm'".into())),
         };
         let rest = &bytes[cursor.at..];

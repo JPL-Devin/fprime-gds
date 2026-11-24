@@ -15,14 +15,12 @@ pub use fgds_offline::{
 };
 
 use convert::{convert, type_name, Source};
-use fgds_core::argparse::{Kind, Nargs, Opt, Parser};
 use fgds_core::axum::extract::State;
 use fgds_core::axum::http::StatusCode;
 use fgds_core::axum::routing::post;
 use fgds_core::axum::{Json, Router};
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::dictionary::Type;
-use fgds_core::gds_options;
 use fgds_core::serde_json::json;
 use fgds_core::serde_json::Value;
 use fgds_core::{
@@ -230,19 +228,6 @@ impl Subcommand for SeqgenCommand {
                     .action(ArgAction::SetTrue)
                     .help("Report every error of the sequence, not only the first"),
             )
-            .after_help(
-                "The dictionary options of `fprime-seqgen` are accepted and checked: `-d/--deployment` \
-                (its `dict` directory holds the dictionary when `--dictionary` is not given), `--packet-spec`, \
-                `--packet-set-name`.",
-            )
-            .args(gds_options::args())
-    }
-
-    fn argparse(&self) -> Option<Parser> {
-        let mut options = gds_options::dictionary_options();
-        options.push(Opt::new(&["-t", "--timebase"], Nargs::One, Kind::Str));
-        options.push(Opt::new(&["--all-errors"], Nargs::Flag, Kind::Str).exact());
-        Some(Parser { options, positionals: vec![(Nargs::One, "sequence"), (Nargs::Optional, "output")] })
     }
 
     /// Messages go to the standard output, as with `fprime-seqgen`.
@@ -266,40 +251,7 @@ impl Subcommand for SeqgenCommand {
             Some(output) => PathBuf::from(output),
             None => input.with_extension("bin"),
         };
-        // The dictionary the options name, else the configured one; the packet set has to be in it.
-        let refused = |(_, missing): (u8, String)| {
-            fgds_core::out!("{missing}");
-            Ok(ExitCode::FAILURE)
-        };
-        // The dictionary is read as this tool reads it: one with the sections a sequence needs is enough.
-        let offline = || {
-            let path = args.get_one::<String>("dictionary").map(PathBuf::from).unwrap_or_default();
-            load_dictionary(&path).map(std::sync::Arc::new).map_err(fgds_core::Error::Config)
-        };
-        let env = &CliEnv {
-            config: env.config,
-            registry: env.registry,
-            dictionary: &offline,
-            storage: env.storage,
-            client: env.client,
-        };
-        if let Err(missing) = gds_options::hold(args, env, true) {
-            return refused(missing);
-        }
-        let dictionary = match args.get_one::<String>("deployment").filter(|d| !d.is_empty()) {
-            Some(deployment) if !args.contains_id("dictionary") => match gds_options::deployment_dictionary(deployment)
-            {
-                Ok(path) => path,
-                Err(missing) => return refused(missing),
-            },
-            _ => dictionary_path(env)?,
-        };
-        if let Some(set) = args.get_one::<String>("packet-set-name") {
-            let read = std::fs::read(&dictionary).ok().and_then(|bytes| fgds_core::serde_json::from_slice(&bytes).ok());
-            if let Some(Err(missing)) = read.map(|d: Value| gds_options::has_packet_set(&d, set)) {
-                return refused(missing);
-            }
-        }
+        let dictionary = dictionary_path(env)?;
         let result = compile_file(&input, &dictionary, timebase, args.get_flag("all-errors"));
         let binary = match result {
             Ok(binary) => binary,
