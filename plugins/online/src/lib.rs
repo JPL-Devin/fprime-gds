@@ -28,7 +28,8 @@ impl Plugin for OnlinePlugin {
         reg.add_subcommand(Arc::new(Records { name: "events", what: "events", kind: "fprime.event" }))?;
         reg.add_subcommand(Arc::new(Records { name: "channels", what: "channel samples", kind: "fprime.channel" }))?;
         reg.add_subcommand(Arc::new(Commands))?;
-        reg.add_subcommand(Arc::new(CommandSend))
+        reg.add_subcommand(Arc::new(CommandSend))?;
+        reg.add_subcommand(Arc::new(SendRaw))
     }
 }
 
@@ -152,6 +153,15 @@ fn command_send_options() -> Vec<Opt> {
 }
 
 /// The options of `fprime-cli events` and `fprime-cli channels`, then the three `fgds` adds.
+fn send_raw_options() -> Vec<Opt> {
+    let mut options = gds_options();
+    options.push(Opt::new(&["--verbose"], Nargs::Flag, Kind::Str));
+    options.push(Opt::new(&["--bin-path"], Nargs::One, Kind::Str));
+    options.push(Opt::new(&["--hex-string"], Nargs::One, Kind::Str));
+    options.push(Opt::new(&["--url"], Nargs::One, Kind::Str).exact());
+    options
+}
+
 fn records_options() -> Vec<Opt> {
     let mut options = gds_options();
     options.extend(search_options());
@@ -576,9 +586,101 @@ impl Subcommand for CommandSend {
     }
 }
 
+/// The bytes a text of hexadecimal digits names: `0x` before a group and the spaces between groups are
+/// left out, as in `0xDEADBEEF`, `de ad be ef`, `0xDE 0xAD`.
+fn hex_bytes(text: &str) -> std::result::Result<Vec<u8>, String> {
+    let digits: String =
+        text.split_whitespace().map(|group| group.trim_start_matches("0x").trim_start_matches("0X")).collect();
+    if let Some(other) = digits.chars().find(|c| !c.is_ascii_hexdigit()) {
+        return Err(format!("{other:?} is not a hexadecimal digit"));
+    }
+    if digits.len() & 1 == 1 {
+        return Err(format!("{} hexadecimal digits are not a whole number of bytes", digits.len()));
+    }
+    Ok((0..digits.len()).step_by(2).map(|at| u8::from_str_radix(&digits[at..at + 2], 16).unwrap_or_default()).collect())
+}
+
+/// `fgds send-raw`: bytes sent as one packet, framed and nothing else, as `fprime-cli send-raw`.
+struct SendRaw;
+
+impl Subcommand for SendRaw {
+    fn command(&self) -> Command {
+        Command::new("send-raw")
+            .about("Send bytes through a running GDS as one packet: framed, not serialized any further")
+            .after_help(READ_AS_FPRIME_CLI)
+            .arg(url_arg())
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .action(ArgAction::SetTrue)
+                    .help("Print the bytes in hexadecimal before they are sent"),
+            )
+            .arg(Arg::new("bin-path").long("bin-path").value_name("PATH").help("File holding the bytes to send"))
+            .arg(
+                Arg::new("hex-string")
+                    .long("hex-string")
+                    .value_name("HEX")
+                    .help("The bytes to send in hexadecimal (0xDEADBEEF, deadbeef, \"de ad be ef\")"),
+            )
+            .args(gds_args())
+    }
+
+    fn argparse(&self) -> Option<Parser> {
+        Some(Parser { options: send_raw_options(), positionals: Vec::new() })
+    }
+
+    fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
+        let data = match (args.get_one::<String>("bin-path"), args.get_one::<String>("hex-string")) {
+            (Some(_), Some(_)) => {
+                return Ok(refused("argument --hex-string: not allowed with argument --bin-path"));
+            }
+            (None, None) => return Ok(refused("one of the arguments --bin-path --hex-string is required")),
+            (Some(path), None) => std::fs::read(path).map_err(|e| format!("binary file {path}: {e}")),
+            (None, Some(text)) => hex_bytes(text).map_err(|e| format!("hex string {text:?}: {e}")),
+        };
+        // No bytes is no packet: `fprime-cli` sends an empty one for an empty file.
+        let data = match data {
+            Ok(data) if data.is_empty() => return Ok(not_done("sent", (1, "there are no bytes to send".into()))),
+            Ok(data) => data,
+            Err(missing) => return Ok(not_done("sent", (1, missing))),
+        };
+        if let Err(missing) = gds_options_hold(args, env, false) {
+            return Ok(not_done("sent", missing));
+        }
+        let api = api(args, env)?;
+        runtime()?.block_on(async {
+            api.check_version().await?;
+            if args.contains_id("packet-set-name") {
+                if let Err(missing) = dictionary_of(&api, args, None).await? {
+                    return Ok(not_done("sent", missing));
+                }
+            }
+            if let Some(path) = args.get_one::<String>("bin-path") {
+                println!("Read {} bytes from {path}", data.len());
+            }
+            let hex: String = data.iter().map(|byte| format!("{byte:02x}")).collect();
+            if args.get_flag("verbose") {
+                println!("Sending {} bytes of raw data: {hex}", data.len());
+            }
+            api.post("/raw", &[], &json!({"data": api::base64(&data)})).await?;
+            Ok(ExitCode::SUCCESS)
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hexadecimal_text_names_bytes() {
+        assert_eq!(hex_bytes("0xDEADBEEF"), Ok(vec![0xde, 0xad, 0xbe, 0xef]));
+        assert_eq!(hex_bytes(" de ad 0Xbe 0xef "), Ok(vec![0xde, 0xad, 0xbe, 0xef]));
+        assert_eq!(hex_bytes(""), Ok(Vec::new()));
+        for text in ["abc", "zz", "100x20", "-1", "0x0"] {
+            assert!(hex_bytes(text).is_err(), "{text}");
+        }
+    }
 
     /// `fixtures/command-line/table.json`: what argparse of `fprime-cli command-send` makes of each
     /// command line, its message when it refuses.

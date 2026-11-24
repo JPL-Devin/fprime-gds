@@ -24,9 +24,23 @@ pub fn seq(value: &Value) -> Option<u64> {
     value.as_u64().or_else(|| value.as_str()?.parse().ok())
 }
 
+const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/// Bytes to base64.
+pub fn base64(bytes: &[u8]) -> String {
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let bits = chunk.iter().fold(0u32, |bits, byte| (bits << 8) | u32::from(*byte)) << (8 * (3 - chunk.len()));
+        for at in 0..4 {
+            let shown = at <= chunk.len();
+            out.push(if shown { ALPHABET[(bits >> (18 - 6 * at)) as usize & 63] as char } else { '=' });
+        }
+    }
+    out
+}
+
 /// Base64 to hexadecimal.
 pub fn hex(base64: &str) -> Result<String> {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let (mut bits, mut count, mut out) = (0u32, 0, String::new());
     for c in base64.bytes().filter(|c| *c != b'=') {
         let value =
@@ -210,6 +224,14 @@ fn by_flight_time(records: &mut [Value]) {
 mod tests {
     use super::*;
     use fgds_core::serde_json::json;
+
+    #[test]
+    fn bytes_are_written_as_base64_and_read_back() {
+        for (bytes, text) in [(&b""[..], ""), (b"\x01\x02", "AQI="), (b"f", "Zg=="), (b"foobar", "Zm9vYmFy")] {
+            assert_eq!(base64(bytes), text);
+            assert_eq!(hex(text).unwrap(), bytes.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        }
+    }
 
     #[test]
     fn base64_packets_print_as_hexadecimal() {

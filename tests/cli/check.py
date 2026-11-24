@@ -104,12 +104,14 @@ class PythonGds:
     # JSON serializable"); tests/cli/patch makes its json.dumps write such values as text.
     follow_env = {**ENV, "PYTHONPATH": os.path.join(HERE, "patch")}
 
-    def __init__(self, out):
+    def __init__(self, out, zmq=False):
         os.makedirs(out, exist_ok=True)
         self.out = out
         self.link_port, tts = scenario.free_port(), scenario.free_port()
-        self.shared = ["--dictionary", args.dictionary, "--no-zmq", "--tts-port", str(tts), "--tts-addr", "127.0.0.1",
-                       "--file-storage-directory", f"{out}/files"]
+        # send-raw of fprime-cli reaches the link only through ZeroMQ (deviations.md); the sockets are files.
+        self.sockets = [f"/tmp/fgds-cli-check-{os.getpid()}-{way}" for way in ("in", "out")] if zmq else []
+        transport = ["--zmq-transport", *(f"ipc://{path}" for path in self.sockets)] if zmq else ["--no-zmq", "--tts-port", str(tts), "--tts-addr", "127.0.0.1"]
+        self.shared = ["--dictionary", args.dictionary, *transport, "--file-storage-directory", f"{out}/files"]
         self.process = scenario.start(
             [PYTHON_GDS, "-n", "-g", "none", "--ip-address", "127.0.0.1", "--ip-port", str(self.link_port),
              "--framing-selection", "fprime" if args.framing == "fprime" else "space-packet-space-data-link", "--logs", f"{out}/gds-logs", *self.shared],
@@ -367,6 +369,64 @@ def compare_standard(lines, python, rust):
     require(f"the option matrix has lines of every outcome: {ended}", all(ended.get(code, 0) >= 20 for code in (0, 1, 2)))
 
 
+# `send-raw`: bytes sent as one packet. {packet} is the packet of CMD_NO_OP, {out} holds the files.
+RAW_SENT = [  # both send the same packet
+    ["--hex-string", "{packet}"], ["--hex-string", "0x{packet}"], ["--hex-string", "{PACKET}"], ["--hex-string", "{spaced}"],
+    ["--hex", "{packet}"], ["--hex-string={packet}"], ["--verbose", "--hex-string", "{packet}"], ["--bin-path", "{out}/no-op.bin"],
+    ["--bin", "{out}/no-op.bin", "--verbose"],
+    ["--hex-string", "{packet}", "--dictionary", "{dictionary}"], ["--hex-string", "{packet}", "--log-to-stdout"],
+    ["--hex-string", "{packet}", "-l", "{out}/logs"], ["--hex-string", "{packet}", "--log-prefix", "{out}/prefix"],
+]
+RAW_REFUSED = [  # both refuse, nothing sent
+    [], ["--verbose"], ["--hex-string"], ["--bin-path"], ["--hex-string", "{packet}", "--bin-path", "{out}/no-op.bin"],
+    ["--hex-string", "zz"], ["--hex-string", "abc"], ["--hex-string", ""], ["--hex-string", "-1"],
+    ["--bin-path", "{out}/absent.bin"], ["--bin-path", "{out}"], ["--bin-path", ""], ["{packet}"],
+    ["--hex-string", "{packet}", "--arguments"], ["--hex-string", "{packet}", "--list"],
+    ["--hex-string", "{packet}", "-l", "/etc"], ["--hex-string", "{packet}", "--file-storage-directory", "/etc"],
+    ["--hex-string", "{packet}", "--dictionary", "/nonexistent.json"], ["--hex-string", "{packet}", "--hash-file", "/nonexistent/x"],
+    ["--hex-string", "{packet}", "--packet-set-name", "x"], ["--hex-string", "{packet}", "--packet-spec", "/nonexistent.xml"],
+]
+# fprime-cli ends with exit code 0, fgds refuses (deviations.md): no bytes at all (an empty file, `0x`
+# alone); `0x` taken out of the middle of the text.
+RAW_PYTHON_ONLY = [["--bin-path", "{out}/empty.bin"], ["--hex-string", "0x"], ["--hex-string", "100x20"]]
+# Bytes that are no packet of the CCSDS framing (the first two name no packet type): fgds refuses them;
+# fprime-cli ends with exit code 0, nothing reaches the link, and the uplink thread of the Python GDS ends
+# with TypeRangeException, so that nothing is sent afterwards (deviations.md). These lines are the last ones.
+RAW_NO_PACKET = [["--hex-string", "deadbeef"], ["--hex-string", "{packet}"]]
+
+
+def raw(out, packet):
+    """The command lines of send-raw, the files they name made."""
+    os.makedirs(out, exist_ok=True)
+    open(f"{out}/no-op.bin", "wb").write(bytes.fromhex(packet))
+    open(f"{out}/empty.bin", "wb").close()
+    spaced = " ".join(packet[at:at + 2] for at in range(0, len(packet), 2))
+    return [["send-raw"] + [t.format(out=out, packet=packet, PACKET=packet.upper(), spaced=spaced, dictionary=args.dictionary) for t in tokens]
+            for tokens in RAW_SENT + RAW_REFUSED + RAW_PYTHON_ONLY + RAW_NO_PACKET]
+
+
+def compare_raw(lines, python, rust):
+    json.dump([lines, python, rust], open(f"{args.out}/raw.json", "w"), indent=1)
+    for at, (tokens, expected, got) in enumerate(zip(lines, python, rust)):
+        what = " ".join(tokens)
+        if at < len(RAW_SENT):
+            require(f"{what}: both end with exit code 0 and put the same packet on the link",
+                    expected["exit"] == got["exit"] == 0 and len(got["packets"]) == 1 and got["packets"] == expected["packets"], f"{expected} {got}")
+        elif at < len(RAW_SENT) + len(RAW_REFUSED):
+            require(f"{what}: both refuse (fprime-cli exit code {expected['exit']}, fgds {got['exit']}), nothing sent",
+                    expected["exit"] != 0 and got["exit"] != 0 and (expected["exit"] == 2) == (got["exit"] == 2)
+                    and not got["packets"] + expected["packets"], f"{expected} {got}")
+        elif at < len(lines) - len(RAW_NO_PACKET):
+            require(f"{what}: fprime-cli ends with exit code 0, fgds refuses and sends nothing",
+                    expected["exit"] == 0 and got["exit"] not in (0, 2) and not got["packets"], f"{expected} {got}")
+    if args.framing == "ccsds":
+        (what, packet), (bad, after), (refused, sent) = [" ".join(line) for line in lines[-2:]], python[-2:], rust[-2:]
+        require(f"{what}: fgds refuses and sends nothing, and sends the packet of the next line", refused["exit"] not in (0, 2)
+                and not refused["packets"] and sent["exit"] == 0 and len(sent["packets"]) == 1, f"{refused} {sent}")
+        require(f"{what}: fprime-cli ends with exit code 0 with nothing on the link, and the Python GDS sends nothing afterwards ({packet})",
+                bad["exit"] == after["exit"] == 0 and not bad["packets"] + after["packets"], f"{bad} {after}")
+
+
 def dashes(name, gds, out, lines=None, subcommand="command-send"):
     """Each command line of DASHES: exit code, standard output, the message, the command packets it put on the link."""
     lines = DASHES if lines is None else lines
@@ -619,6 +679,18 @@ def main():
         python = PythonGds(f"{args.out}/python-standard")
         compare_standard(lines, dashes("fprime-cli", python, f"{args.out}/python-standard", tokens, None), rust_standard)
         scenario.stop(python.process)
+        fgds = Fgds(f"{args.out}/rust-raw")
+        packet = run(fgds.cli("command-send", NO_OP, "--dry-run"))[1].strip()
+        lines = raw(f"{args.out}/raw", packet)
+        print(f"send-raw: {len(lines)} command lines through both against Ref")
+        rust_raw = dashes("fgds", fgds, f"{args.out}/rust-raw", lines, None)
+        scenario.stop(fgds.process)
+        python = PythonGds(f"{args.out}/python-raw", zmq=True)
+        compare_raw(lines, dashes("fprime-cli", python, f"{args.out}/python-raw", lines, None), rust_raw)
+        scenario.stop(python.process)
+        for path in python.sockets:
+            if os.path.exists(path):
+                os.remove(path)
         # Without `--dictionary`, so without the options every other fprime-cli line of this check has: no GDS is asked.
         for options in (["-d", "/nonexistent"], ["--deployment", f"{args.out}/named"]):
             expected = run([PYTHON_CLI, "command-send", NO_OP, *options])
