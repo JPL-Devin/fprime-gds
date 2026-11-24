@@ -212,8 +212,11 @@ def stock(browser, gds):
     page.wait_for_selector("body[data-ready=true]")
     show(page, "commands")
     choose(page, "FileHandling.fileManager.RemoveFile")
-    assert page.input_value("[data-arg=ignoreErrors]") == "true", "a Boolean nobody touched is not True"
-    assert page.input_value("#command-string") == 'FileHandling.fileManager.RemoveFile, "", true'
+    assert page.input_value("[data-arg=ignoreErrors]") == "", "a Boolean nobody touched has a value"
+    shown, raw = typed({"fileName": "nofile.bin"})
+    assert raw is None, "RemoveFile was sent with a Boolean nobody chose"
+    page.select_option("[data-arg=ignoreErrors]", "true")
+    assert page.input_value("#command-string") == 'FileHandling.fileManager.RemoveFile, "nofile.bin", true'
     shown, raw = typed({"fileName": "nofile.bin"})
     assert raw is not None and raw.hex() in untouched, raw and raw.hex()
     for text, elements in (("Ref.typeDemo.CHOICES, [ONE]", (0, 0)), ("Ref.typeDemo.CHOICES, [ONE, TWO]", (0, 1)),
@@ -223,7 +226,7 @@ def stock(browser, gds):
         shown, raw = typed({})
         assert raw is not None and raw.endswith(struct.pack(">ii", *elements)), (text, raw and raw.hex())
     assert raw.hex() in kept, raw.hex()
-    step("a Boolean nobody touched is True and RemoveFile is sent with the bytes of the Python GDS page; "
+    step("a Boolean nobody touched has no value and nothing is sent; chosen, RemoveFile is sent with its bytes; "
          "`CHOICES, [ONE]` sends [ONE, ONE] on a new form and [ONE, TWO] after [ONE, TWO] was sent, its bytes")
     choose(page, "CdhCore.events.SET_EVENT_FILTER")
     options = page.eval_on_selector("select[data-arg=filterLevel]", "(s) => [...s.options].map((o) => o.value)")
@@ -235,15 +238,18 @@ def stock(browser, gds):
     step(f"CMD_TEST_CMD_1 with a text for an I32 and 300 for a U8 is refused in the page; "
          f"SET_EVENT_FILTER sent with enum inputs ({', '.join(options)})")
 
-    # An empty text and one too long are refused with the message of the Python GDS page.
+    # A text longer than the type holds is refused; an empty text is a value and is sent.
     choose(page, NO_OP_STRING)
-    for text in ("", "x" * 60):
-        page.fill("[data-arg=arg1]", text)
-        sent = len(rows(page, "#command-history"))
-        page.click("#command-send")
-        assert page.text_content("[data-error-for=arg1]") == "Supply general text of less than 40 characters", text
-        assert len(rows(page, "#command-history")) == sent, f"the string {text!r} was sent"
-    step("CMD_NO_OP_STRING: an empty text and 60 characters are refused, as in the Python GDS page")
+    page.fill("[data-arg=arg1]", "x" * 60)
+    sent = len(rows(page, "#command-history"))
+    page.click("#command-send")
+    assert page.text_content("[data-error-for=arg1]") == "Supply general text of less than 40 characters"
+    assert len(rows(page, "#command-history")) == sent, "a string of 60 characters was sent"
+    page.fill("[data-arg=arg1]", "")
+    page.click("#command-send")
+    scenario.wait_for("the empty string in the history", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
+    assert rows(page, "#command-history")[0]["string"] == f'{NO_OP_STRING}, ""'
+    step("CMD_NO_OP_STRING: 60 characters are refused; an empty text is sent")
     # A string that contains HTML is shown as text everywhere it appears.
     choose(page, NO_OP_STRING)
     page.fill("[data-arg=arg1]", HTML)
@@ -282,7 +288,7 @@ def stock(browser, gds):
     scenario.wait_for("the refused command in the history", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
     row = rows(page, "#command-history")[0]
     assert row["string"] == f"{refused}, 1, 1e+39, 1" and row["outcome"].startswith("rejected"), row
-    step(f"a refused command ({refused} with 1e39 for an F32) has a history row with the text of the Python page: {row['string']!r}")
+    step(f"a refused command ({refused} with 1e39 for an F32) has a history row: {row['string']!r}")
 
     # A Command String that is not a command with its arguments, after a command was loaded and sent: the send
     # button sends nothing (no command record in the GDS, no command counted by Ref), and the page says so.

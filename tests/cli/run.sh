@@ -17,9 +17,8 @@ echo "== cli 2. Ref integration tests through fgds_client"
 "$VENV/bin/python" tests/cli/ref_int.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT/ref-int" \
     --tests "${FPRIME:?}/TestDeploymentsProject/Ref/test/int" --deselect test_fpy.py::test_fpy_sequence
 
-echo "== cli 3. fgds subcommands against fprime-cli"
-python3 tests/cli/check.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" \
-    --venv-bin "$VENV/bin" --out "$OUT/cli"
+echo "== cli 3. fgds subcommands against Ref"
+python3 tests/cli/check.py --fgds "$fgds" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT/cli"
 
 echo "== cli 4. fgds check and fgds run refuse the same plugin option values"
 python3 tests/cli/options.py --fgds "$fgds" --dictionary "$DICTIONARY" --out "$OUT/options"

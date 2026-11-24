@@ -39,8 +39,7 @@ pub fn router(core: Arc<Core>) -> Router {
 }
 
 /// Bind the configured address. Separate from `serve` so that a taken port stops startup.
-pub async fn bind(core: &Core) -> Result<TcpListener> {
-    let address = &core.config.bind;
+pub async fn bind(address: &str) -> Result<TcpListener> {
     TcpListener::bind(address).await.map_err(|e| Error::Config(format!("cannot listen on {address}: {e}")))
 }
 

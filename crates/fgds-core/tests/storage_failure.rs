@@ -68,31 +68,28 @@ async fn a_hanging_storage_is_cut_by_the_commit_time_out() {
 }
 
 #[tokio::test]
-async fn uplink_records_are_stored_ahead_of_queued_telemetry() {
+async fn a_subscriber_misses_no_record_when_uplink_records_join_a_backlog() {
     let (storage, records, _) = start().await;
     let mut live = records.subscribe(Filter::default(), None);
-    // Hold the commit task on a first batch, then queue telemetry and one uplink record.
+    // Hold the commit task on a first batch, then queue more than one batch of telemetry with
+    // uplink records among it.
     storage.set(Fault::Hang);
     publish(&records, 0).await;
     tokio::time::sleep(Duration::from_millis(20)).await;
     storage.set(Fault::None);
-    for n in 1..=700 {
-        publish(&records, n).await;
+    let mut last = 0;
+    for n in 1..=1400 {
+        last = match n % 100 {
+            0 => records.publish_uplink(NewRecord::new("t.kind", json!({"uplink": true}))).unwrap(),
+            _ => publish(&records, n).await,
+        };
     }
-    let uplink = records.publish_uplink(NewRecord::new("t.kind", json!({"uplink": true}))).unwrap();
-    assert_eq!(uplink, 702);
-    // The uplink record is in the first batch after the hang, before 200 older records
-    // that are still queued; within a batch the order is by sequence number.
-    let mut position = 0;
-    loop {
-        let record = live.next().await.unwrap();
-        position += 1;
-        if record.seq == uplink {
-            break;
-        }
+    // Every number once, in order: none is skipped because a later one was delivered first.
+    for expected in 1..=last {
+        assert_eq!(live.next().await.unwrap().seq, expected);
     }
-    assert!(position <= 501, "delivered at position {position}");
     records.flush().await;
-    let page = records.query(Query { limit: 1000, ..Default::default() }).await.unwrap();
-    assert!(page.records.windows(2).all(|w| w[0].seq < w[1].seq));
+    let page = records.query(Query { limit: 2000, ..Default::default() }).await.unwrap();
+    // The record the storage hung on is the only one not stored.
+    assert!(page.records.iter().map(|r| r.seq).eq(2..=last));
 }

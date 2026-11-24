@@ -167,16 +167,16 @@ pub fn flight_path_notice(path: &str) -> Option<String> {
     })
 }
 
-/// The path on the spacecraft of an uplinked file, by the rule of the Python GDS for every entry point:
-/// a destination is sent as given; without one it is `os.path.join(directory, name)`, where the directory is
-/// `/` unless given (`fprime-cli file-uplink SRC` sends `/SRC`; the page gives the text of its field, so an
-/// empty field sends the name alone and `.` sends `./name`).
-pub fn uplink_destination(destination: Option<&str>, directory: Option<&str>, name: &str) -> String {
-    match (destination.filter(|d| !d.is_empty()), directory.unwrap_or("/")) {
-        (Some(destination), _) => destination.to_string(),
-        (None, "") => name.to_string(),
-        (None, directory) if directory.ends_with('/') => format!("{directory}{name}"),
-        (None, directory) => format!("{directory}/{name}"),
+/// The path on the spacecraft of an uplinked file: a destination is sent as given; without one the name is
+/// joined to the directory given (an empty directory sends the name alone, `.` sends `./name`). Without
+/// either the upload is refused: nothing is sent to a place the operator did not name.
+pub fn uplink_destination(destination: Option<&str>, directory: Option<&str>, name: &str) -> Result<String, String> {
+    match (destination.filter(|d| !d.is_empty()), directory) {
+        (Some(destination), _) => Ok(destination.to_string()),
+        (None, None) => Err(format!("no destination on the spacecraft is given for {name}")),
+        (None, Some("")) => Ok(name.to_string()),
+        (None, Some(directory)) if directory.ends_with('/') => Ok(format!("{directory}{name}")),
+        (None, Some(directory)) => Ok(format!("{directory}/{name}")),
     }
 }
 
@@ -503,20 +503,20 @@ mod tests {
     }
 
     #[test]
-    fn destination_as_python() {
-        // (destination, directory, result): `os.path.join` of the Python uplinker.
+    fn destination_is_given_or_joined_to_a_directory() {
         for (destination, directory, expected) in [
-            (None, None, "/a.bin"),
             (None, Some(""), "a.bin"),
             (None, Some("."), "./a.bin"),
             (None, Some("/"), "/a.bin"),
             (None, Some("dir"), "dir/a.bin"),
             (None, Some("dir/"), "dir/a.bin"),
-            (None, Some("dir//"), "dir//a.bin"),
             (Some("x/y.bin"), Some("dir"), "x/y.bin"),
-            (Some(""), None, "/a.bin"),
+            (Some("x/y.bin"), None, "x/y.bin"),
         ] {
-            assert_eq!(super::uplink_destination(destination, directory, "a.bin"), expected);
+            assert_eq!(super::uplink_destination(destination, directory, "a.bin").unwrap(), expected);
         }
+        // Neither a destination nor a directory: refused, not sent to the root of the spacecraft.
+        assert!(super::uplink_destination(None, None, "a.bin").is_err());
+        assert!(super::uplink_destination(Some(""), None, "a.bin").is_err());
     }
 }

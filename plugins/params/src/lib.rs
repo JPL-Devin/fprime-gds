@@ -203,13 +203,12 @@ pub fn to_text(values: &[(&Param, Value)]) -> String {
 pub fn to_csv(values: &[(&Param, Value)]) -> String {
     let mut lines = vec!["Component,Parameter,Value,Type,ID".to_string()];
     for (param, value) in values {
-        // As the Python tool, the quotes inside the JSON of an array or struct are not doubled.
         let mut shown = match &shown(param, value) {
-            Value::Str(s) => s.replace('"', "\"\""),
+            Value::Str(s) => s.clone(),
             other => other.python_str(),
         };
-        if shown.contains([',', '"', '\n']) {
-            shown = format!("\"{shown}\"");
+        if shown.contains([',', '"', '\n', '\r']) {
+            shown = format!("\"{}\"", shown.replace('"', "\"\""));
         }
         lines.push(format!("{},{},{shown},{},{}", param.component, param.name, shown_type(param), param.id));
     }
@@ -260,7 +259,7 @@ fn finish(result: std::result::Result<(), String>) -> Result<ExitCode> {
     })
 }
 
-/// The checks of the Python tools before they start, with their lines on the standard output.
+/// The checks before a tool starts; a refusal goes to the standard error.
 fn begin(verb: &str, name: &str, input: &Path, dictionary: &Path, output: &Path, format: &str) -> Option<ExitCode> {
     let refused = if !input.exists() {
         format!("Unable to find {}", input.display())
@@ -272,7 +271,7 @@ fn begin(verb: &str, name: &str, input: &Path, dictionary: &Path, output: &Path,
         fgds_core::out!("{verb} {} to {} (format: .{format})", input.display(), output.display());
         return None;
     };
-    fgds_core::out!("{refused}");
+    fgds_core::err!("{refused}");
     Some(ExitCode::FAILURE)
 }
 

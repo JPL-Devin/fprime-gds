@@ -362,8 +362,9 @@ fn serve(registry: Registry, config: Config) -> Result<ExitCode> {
             true => fgds_core::stored_dictionary(&registry, &config).await?,
             false => load_dictionary(&config)?,
         };
+        // Before the run directory and the storage exist: a refused address leaves nothing behind.
+        let listener = fgds_shell::bind(&config.bind).await?;
         let core = Arc::new(Core::start(registry, config, dictionary).await?);
-        let listener = fgds_shell::bind(&core).await?;
         let what = if core.config.no_page { " (API only, no page)" } else { "" };
         fgds_core::err!("listening on http://{}{what}", listener.local_addr().map_err(Error::Io)?);
         core.start_link()?;

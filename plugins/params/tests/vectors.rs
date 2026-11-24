@@ -119,7 +119,8 @@ fn every_type_round_trips() {
         to_seq(&values[..2], true),
         "; Autocoded sequence file from JSON\nR00:00:00 a.b.B_PRM_SET true\na.b.B_PRM_SAVE\nR00:00:00 a.b.F_PRM_SET 2.5\na.b.F_PRM_SAVE"
     );
-    assert!(to_csv(&decoded).contains("c,S,\"{\"x\": {\"format\": \"{}\", \"description\": \"\", \"value\": 18446744073709551615, \"type\": \"U64\"}, "), "{}", to_csv(&decoded));
+    // The quotes inside a struct are doubled: the file is valid CSV.
+    assert!(to_csv(&decoded).contains("c,S,\"{\"\"x\"\": {\"\"format\"\": \"\"{}\"\", "), "{}", to_csv(&decoded));
 }
 
 #[test]

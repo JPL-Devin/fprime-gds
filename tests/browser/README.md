@@ -1,8 +1,8 @@
 # Browser checks
 
 `run.sh` is run by `scripts/check.sh` (or alone, from the repository root, with `FGDS`,
-`REF_BIN`, `DICTIONARY`, `VENV` and `OUT` set). It installs Playwright 1.60.0 and its
-Chromium in `target/browser-venv` on the first run and runs two scripts against the stock
+`REF_BIN`, `DICTIONARY` and `OUT` set). It installs Playwright 1.60.0 and its
+Chromium in `target/browser-venv` on the first run and runs `ui.py` against the stock
 binary `$FGDS` and the stock `Ref` (CCSDS framing).
 
 `examples/browser-gds` is the stock GDS plus a tab whose element throws; only the check
@@ -27,32 +27,3 @@ of a failing tab runs it.
 - with the broken tab: an error panel names its plugin, the other tabs work, Events stays live.
 
 Screenshots of each tab are written to `$OUT/ui`.
-
-## `parity.py`: the same rows as the Python GDS page
-
-A `Ref` session (the commands of `tests/compare/scenario.py` and a `CMD_NO_OP_STRING` that
-contains HTML) is captured once through the proxy of `tests/compare`. The bytes are then
-replayed into the new GDS and into the Python GDS (`fprime-gds -g html`), each with its
-page open. For the new page, half arrives before a reload and half after, so the table is
-built from the history and from the stream. The script reads the Events table (time,
-identifier, name, severity, text, colour) and the Channels table (last sample time, identifier,
-name, value, colour) of both pages and requires the same rows in the same order. Both tables are in
-`$OUT/parity/tables.json`.
-
-### Accepted differences
-
-None in the cells compared. Rows are compared in the order shown (events oldest first,
-channels by identifier), cell text as rendered (`innerText` of a visible tab) and the
-background colour of each row, the four green in-limit channel rows included.
-
-Presentation differences that stay:
-
-1. The new page has a Ground time column. Its box hides it (kept across a reload); the
-   remaining headers must be those of the Python GDS page.
-2. The Python page shows 40 events per page; the new page shows them in one table
-   (row limit setting). The script walks the Python pages.
-3. An array or struct value is one cell of text in the new page (the heading text of the
-   Python nested table, same quotes and spacing); the Python page can also expand it.
-4. CSS class names and text colours differ; background colours are equal.
-
-Event arguments are compared as part of the text: neither page has a column for them.

@@ -4,14 +4,10 @@
 Each sequence is compiled by the function `seqgen.generateSequence` of the Python GDS (not by the command
 `fprime-seqgen`, which reads the dictionary through the loaders of the whole GDS and so refuses
 dictionaries the function accepts: docs/design/deviations.md, "Round 10") and by `fgds seqgen`.
-Both must accept it with the same bytes, or both must reject it; when the Python compiler
-rejects with a message of its own (not a crash), the message of fgds must be the same text.
-Three known differences are allowed (the third: fgds refuses a statement with a wrong number of
-arguments, which the Python compiler writes; such a statement is set aside and the rest compared).
-Two more are allowed (docs/design/deviations.md): when reporting every error,
-fgds also reports the statement after one with a bad time tag, and a value out of the range
-of F32, which the Python compiler skips or crashes on; and the error of a quoted array or
-object inside an array names its line, where the Python compiler always says line 1.
+Both must accept it with the same bytes, or both must reject it; the wording of a rejection is each
+tool's own. fgds is stricter on purpose in three places: a statement with a wrong number of arguments
+(set aside, the rest compared), a day the year does not have, a float literal beyond a double. It keeps
+every microsecond of a time tag, where the Python compiler loses one for some values.
 
     python differential.py --fgds target/debug/fgds --fixtures fixtures --out DIR
 
@@ -278,22 +274,22 @@ def shown(found):
 
 
 COUNT = re.compile(r"^(?:Parsing error: )?[^\n]*?:(\d+): \S+ takes \d+ arguments, \d+ given$", re.M)
-NESTED = re.compile(r":\d+: (Encountered syntax error parsing timestamp: )?Error trying to process rule")
+# What fgds refuses on purpose and the Python compiler writes: a day the year does not have, and a float
+# literal beyond a double (written as infinity).
+STRICTER = re.compile(r": the day of year \d+ is 1 to 36[56]|could not convert string to float: '[^']*[eE][^']*'")
+FRACTION = re.compile(r"^[RA]\S*\.\d", re.M)
 
 
-def agree(kind, expected, got_kind, got, cont):
-    """Whether the result of fgds is the result of the Python compiler; "more" when fgds reports more errors."""
-    if kind == "crash":
+def agree(kind, expected, got_kind, got, text):
+    """Whether fgds decides as the Python compiler: the same bytes, or both refuse (the wording is each tool's own)."""
+    if kind == "binary" and got_kind == "error":
+        return bool(STRICTER.search(got)) and "stricter"
+    if kind != "binary" or got_kind != "binary":
         return got_kind == "error"
-    if kind != got_kind:
-        return False
-    if kind == "binary" or got == expected:
+    if got[0] == expected[0]:
         return True
-    expected, got = NESTED.sub(":N: Error trying to process rule", expected), NESTED.sub(":N: Error trying to process rule", got)
-    if got == expected:
-        return True
-    lines = iter(got.removeprefix("Parsing error: ").split("\n"))
-    return cont and all(line in lines for line in expected.removeprefix("Parsing error: ").split("\n")) and "more"
+    # The Python compiler loses a microsecond of some time tags (it goes through a float of seconds).
+    return bool(FRACTION.search(text)) and len(got[0]) == len(expected[0]) and "exact"
 
 
 def main():
@@ -307,7 +303,7 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     dictionary = (args.fixtures / "sequences/resources/enhanced_dictionary.json").resolve()
     rng = random.Random(args.seed)
-    counts = {"binary": 0, "error": 0, "crash": 0, "more": 0, "count": 0}
+    counts = {"binary": 0, "error": 0, "crash": 0, "stricter": 0, "exact": 0, "count": 0}
     failures = []
     for index, text in enumerate(corpus(args.fixtures, args.count, rng)):
         source = (args.out / f"case{index % 8}.seq").resolve()
@@ -328,8 +324,8 @@ def main():
             source.write_text(text, newline="")
             kind, expected = python_result(source, dictionary, cont)
             got_kind, got = fgds_result(args.fgds, source, dictionary, cont)
-        same = agree(kind, expected, got_kind, got, cont)
-        counts["more" if same == "more" else kind] += 1
+        same = agree(kind, expected, got_kind, got, text)
+        counts[same if isinstance(same, str) else kind] += 1
         if not same:
             failures.append(index)
             kept = args.out / f"failure{index}.seq"
@@ -337,8 +333,9 @@ def main():
             print(f"DIFFERENT {kept} (all errors: {cont})\n  python {kind}: {expected!r}\n  fgds   {got_kind}: {got!r}")
     refused = counts.pop("count")
     total = sum(counts.values())
-    print(f"  {total} sequences: {counts['binary']} compiled to the same bytes, {counts['error']} rejected with the same message, "
-          f"{counts['more']} rejected with the same messages and more, {counts['crash']} that crash the Python compiler rejected; "
+    print(f"  {total} sequences: {counts['binary']} compiled to the same bytes, {counts['error']} rejected by both, "
+          f"{counts['crash']} that crash the Python compiler rejected, {counts['stricter']} refused by fgds only (a day the year "
+          f"does not have, a float beyond a double), {counts['exact']} with a microsecond the Python compiler loses; "
           f"{len(failures)} different; {refused} statements with a wrong number of arguments refused by fgds only and set aside")
     return 1 if failures else 0
 

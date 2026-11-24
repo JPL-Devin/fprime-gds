@@ -3,8 +3,8 @@
 ## State
 - Design baseline approved by the user on 2026-11-21: `docs/design/requirements-and-architecture.md`.
 - First slice built (M0 and the smallest part of M1): the Cargo workspace of section 4.10 with `fgds-dictionary`, `fgds-core`, `fgds-shell`, `fgds`, the plugins `comm-tcp`, `framing-fprime`, `storage-memory`, `events`, `channels`, `commands`, and `examples/custom-gds`.
-- `scripts/check.sh` runs every check and passes locally: format, lints, tests; `fgds` against `Ref` (commands, events, channels, WebSocket replay then live); the comparison with the Python GDS, live and on replayed bytes (`tests/compare/README.md` lists the accepted differences); the example binary.
-- `.github/workflows/check.yml` calls the same script. It failed on `4778afbd` (run 45389134110); the cause has not been looked at. The local runs below are the evidence.
+- `scripts/check.sh` runs every check: format, lints, tests; `fgds` against `Ref` (commands, events, channels, WebSocket replay then live); the example binary; every `tests/*/run.sh`. With `COMPARE=1` it also compares with the Python GDS the bytes sent to flight and the data decoded, live and on replayed bytes (`tests/compare/README.md`), and the binaries of `seqgen` and `prm-write` (`tests/seq`).
+- `.github/workflows/check.yml` calls the same script with `COMPARE=1`. It failed on `4778afbd` (run 45389134110) in `tests/files/repeat.py`, which required stock `Ref` to crash when file packets arrive in one piece; `Ref` did not. That assertion is removed: the check now requires that a transfer shown as finished has the whole file on `Ref`. CI has not been seen green since; look at the run of the latest push.
 - Where the code differs from the design, and what to change in the design before more plugins are built: `docs/design/deviations.md`. The design document itself is unchanged.
 
 ## Checkpoint, end of round 10
@@ -14,23 +14,30 @@
 - Not verified: UDP against flight software that speaks UDP itself; UART on a real serial device; the Python retry in `tests/cli` (runs only when Python misses a handshake); a deployment with a frame accumulator smaller than 2048 bytes.
 - One test of `ref_integration_test.py` (`test_seqgen_complex_args`) failed once in that run because `Ref` did not send an event it printed, and passed on the retry the check makes for that state.
 
-## Next: cleanup pass (not started)
-Scope and order are in two reviews made on `4778afbd`, kept by the requesting session: `fgds-python-isms-review.md` (code that exists only to equal the Python GDS; follow its section 4 order, keep its section 3) and `fgds-rust-review.md` (3 MUST FIX, 8 SHOULD).
-- The user wants a solid, maintainable GDS, similar to the Python one, not identical. Python comparisons stay only for bytes sent to flight and data decoded.
-- Step 1: reword SEQ-1, decision 7, section 6.1/MNT-11 in the design.
-- Step 2: the unsafe copied behaviours (U1 to U9; U1 is done) and, each with a test: live subscribers miss stored records when a send happens under a backlog (`crates/fgds-core/src/pipeline.rs`); a downlink truncates the earlier ground copy of the same name (`plugins/files/src/downlink.rs`); an uplink refused with `FileOpenError` is shown as `finished` (`plugins/files/src/uplink.rs`); the CI failure above. Cheap SHOULD items: invalid plugin options ignored, validate every option before storage opens, `scripts/check.sh` runnable without the Python GDS.
-- Step 3: `clap` alone (delete `crates/fgds-core/src/argparse.rs` and `Plugin::argparse`), `serde_json` alone (delete `crates/fgds-dictionary/src/pyjson.rs`; U64/I64 exact at full range, out-of-range or wrong-typed members refused), one JSON writer and one float writer, plain value text. Stop and report after this step (lines removed, check duration before and after).
-- Steps 4 and 5 wait for confirmation: one encoder, data products on the shared dictionary types, hand-written sequence parser; simpler Commanding page, CLI output from the record, parity harness reduced to bytes and data, `deviations.md` as a short list for someone coming from fprime-gds.
-- Messages: one that reads sensibly stays. Replace only wording that names Python or its classes (`NoneType`, `invalid literal for int() with base 0`); remove code whose only purpose is to equal Python.
-- Wire formats, binary file formats and the dictionary format stay byte-equal for valid input; the byte fixtures are the guard. One push per step, the reduced check passing first.
-- SHOULD items not taken go under "Known gaps".
+## Cleanup pass
+Scope and order are in two reviews made on `4778afbd`, kept by the requesting session: `fgds-python-isms-review.md` (code that exists only to equal the Python GDS; its section 4 order, its section 3 kept) and `fgds-rust-review.md` (3 MUST FIX, 8 SHOULD). The user wants a solid, maintainable GDS, similar to the Python one, not identical. Python comparisons stay only for bytes sent to flight and data decoded. A message that reads sensibly stays; only wording that names Python or its classes is replaced. Wire formats, binary file formats and the dictionary format stay byte-equal for valid input; the byte fixtures are the guard.
+- Step 1, done: SEQ-1, decision 7, section 6.1 and MNT-11 reworded in the design.
+- Step 2, done. Copied behaviours:
+  - U1 (argument count of a sequence statement) was already fixed.
+  - U2: a finite literal beyond the float type is refused (`fgds-dictionary` `input.rs`, `fgds-offline` `value.rs`, sequences `parser.rs`); `inf` and `nan` by name are taken. Digits are ASCII only.
+  - U3: `command-send` of an unknown command writes to standard error and ends with 1. `events -t` with no event ends with 1. `prm-write` refusals go to standard error.
+  - U4: sequence times are computed in integers (microseconds kept); day 366 of a year that has none is refused.
+  - U5 to U7 (page): flight time with six digits; flight text shown as it is; `Command String` read by a small parser that keeps numbers as typed (64-bit integers exact); a Boolean has no value until chosen; an empty string is a value; counters are not capped; events are filtered on their text.
+  - U8: an upload with no destination and no directory is refused (route, `file-uplink`, `files upload`); `file-uplink` no longer names `/tmp/<user>` as the storage directory.
+  - U9: `prm-decode` CSV quotes fields; `file-uplink` prints the state and the reason of a failed transfer.
+- Step 2, MUST FIX of the robustness review, each with a test:
+  - M1: one queue in sequence order for every record (`crates/fgds-core/src/pipeline.rs`; `a_subscriber_misses_no_record_when_uplink_records_join_a_backlog`).
+  - M2: a downlink is written to `<name>.part` and takes its name when it has finished, `<name>.<n>` if the name is taken; a failed or canceled one stays `.part` (`plugins/files/src/downlink.rs`).
+  - M3: an uplink is `finished` on the `FileReceived` event of its destination, `failed` with the event as the reason on a refusal of the flight software (`FileOpenError` and the others of `REFUSALS`), and `sent` when nothing confirms it in time (`plugins/files/src/uplink.rs`). The event carries the name cut at the size of its string: `names` takes a cut name of 36 bytes or more as the start of the destination.
+- Step 2, SHOULD: S3 (invalid plugin options refused; was already so on this head, now tested), S4 (the listener is bound and every option checked before storage opens; `a_refused_option_of_run_leaves_no_run_directory`), S6 (`scripts/check.sh` without the Python GDS; `COMPARE=1` for the comparison). The checks that pinned the wording, the option reading and the page texts of the Python GDS are deleted: `tests/cli/check.py` is now a short check of the online subcommands against `Ref`; `tests/browser` keeps `ui.py`; `fixtures/command-messages`, `command-string`, `page-texts` are gone.
+- Step 3: `clap` alone (delete `crates/fgds-core/src/argparse.rs`, `gds_options.rs` and `Subcommand::argparse`), `serde_json` alone (delete both `pyjson.rs`; U64/I64 exact at full range), one JSON writer and one float writer, plain value text. Stop and report after this step.
+- Steps 4 and 5 wait for the user's confirmation: one encoder, data products on the shared dictionary types, hand-written sequence parser; simpler Commanding page, CLI output from the record, parity harness reduced to bytes and data, `deviations.md` as a short list for someone coming from fprime-gds.
 
 ## Pass criterion (user, round 9)
 - The Python GDS is the reference only where it is correct or neutral: do not copy its bugs, and do not reproduce its checks 1-to-1. A difference is a defect of fgds only if (a) data shown or stored or bytes sent to `Ref` differ for an input both should accept, (b) fgds accepts what a sensible tool refuses or refuses what it should accept, (c) a Python feature, control or option is missing or does something else. Wording, exit code values among non-zero ones, the order of reported errors and the timing of validation marks are recorded only. The head of "Differences from the Python GDS" in `docs/design/deviations.md` states it; the rows are in five groups.
-- Checks follow it: `tests/cli/check.py` option matrix compares accept-or-refuse, packets and listings (not the exit code value or message of a refusal, argparse's exit 2 apart); `--hash-file ''` is refused by fgds. What is already equal text for text (argparse port, page messages) is kept, not extended.
 
 ## How to run
-- `FPRIME=<fprime checkout with fprime-venv> scripts/check.sh`. The first run builds `Ref` under `target/ref` (several minutes).
+- `FPRIME=<fprime checkout with fprime-venv> scripts/check.sh`. The first run builds `Ref` under `target/ref` (several minutes). `COMPARE=1` adds the comparison with the Python GDS, which must be installed in that virtual environment.
 - `Ref` is built twice: as it is (CCSDS framing, the main build of `scripts/check.sh` and of every `tests/*/run.sh`, under `target/ref-ccsds`) and with F Prime framing (the second profile: `scripts/build-ref.sh` switches a copy of fprime from `ComCcsds` to `ComFprime`, under `target/ref`). Both are compared with the Python GDS.
 - `cargo run -p fgds -- run --dictionary <RefTopologyDictionary.json>`, then `Ref -a 127.0.0.1 -p 50000`; the API is on `http://127.0.0.1:5000/api/v1`. Records go to `logs/<start time>/gds.db`; `--database <file>` keeps one file across runs, `--storage memory` keeps nothing.
 - `cargo run -p fgds -- run --replay <file>` serves an old database without a link.
@@ -69,6 +76,12 @@ Scope and order are in two reviews made on `4778afbd`, kept by the requesting se
 - Storage: no schema migration, no integrity check at open, no database size or free space in the status, no retention (table "Not built for storage" in `docs/design/deviations.md`).
 - Table "Not built in this slice" of `docs/design/deviations.md`: `cargo deny`, macOS job, text logs, `--disable-plugin` and `--framing-layers` on the command line, fuzz targets, and others.
 - The UI is the page shell and the tabs of the first slice; it does not offer a choice of run.
+- SHOULD items of `fgds-rust-review.md` not taken:
+  - S1: a storage that hangs throttles live delivery (each batch waits the commit time-out) and the queue grows without bound.
+  - S2: a history query with a field or text filter has no row limit, and all reads share one connection.
+  - S7: the link listens on `0.0.0.0:50000`; the adapter writes `sitting well` into the command link every 0.5 s; downlinked files go to `/tmp/<user>/fprime-downlink` (a plugin is not told the run directory: this needs a field in `PluginConfig`, a core interface).
+  - S8: `charts`, `sequences` and the uplink handler do not declare the kinds and routes they need.
+- The uplink and downlink handlers have unit tests of their decisions only (`seen`, `keep`); the transfers are covered by `tests/files` against `Ref`.
 
 ## Rules for every session working here
 - The design document is the reference. A change to a core interface (section 4.2 to 4.5) or to a requirement goes through the orchestrating session, not into a feature branch on its own.
@@ -91,15 +104,8 @@ Controls of the Python page that fgds does not have (`docs/design/deviations.md`
 - Dashboard tab (milestone M6).
 - Advanced tab: polling intervals, `event_buffer_size`, `command_buffer_size`, `response_object_limit`, `compact_commanding`, the statistics tables and the error list with `Clear Errors` (`channels_display_last_received` is built).
 
-## Checks of the page against the Python page
-`tests/browser/run.sh` (part of `scripts/check.sh`) compares with texts and frames recorded from the Python GDS 4.4.0 page, under `fixtures/`:
-- `command-messages`: the messages of the argument fields when a form is shown, before and after `Send Command` (`messages.py`).
-- `command-string`: lines typed in `Command String` (`line.py`), lines that give part of the values a form holds (`held.py`), refused then taken lines each followed by the send button, with the frames (`refused.py`: 15 sequences; a line that leaves arguments out is applied only to the command the form shows and then sent as Python sends it, such a line for another command sends nothing and leaves that command's form alone; the send button clicked with no Enter (a click that makes the page read a whole line of another command than the one shown sends nothing for any argument type, the next click sends; the Python page sends there only when its button stays under the pointer, row R6-3); enum constants in another case, the box rewritten to the constant also when the form already held it; boolean texts; a name alone).
-- `page-texts`: buttons, headers, placeholders, labels, hover texts (`title`, `alt`, `aria-label` of every element; that of a list entry or a table cell by its kind), other texts and the window title in 34 states (each tab without and with `Ref`, the top bar, eight command forms, a send with no `Ref`, Charts with help, a chart and a channel); a report since round 9: unlisted one-sided texts are printed as notes, and only a button or table header of the Python page that is missing and not listed fails (`texts.py`; rows T1 to T19 of `docs/design/deviations.md`; `texts.py record` reads the Python page again).
-- `parity.py` runs both pages on the same bytes: rows, sorting, filters, `channels_display_last_received`.
-Each script has a `record` mode to write its fixture again from a running Python page.
-The address of the page names the tab as the Python page does (`#Channels`).
-
+## Checks of the page
+`tests/browser/run.sh` (part of `scripts/check.sh`) runs `ui.py`: the page of fgds in a browser, against `Ref`.
 ## Next steps
 1. Review `docs/design/deviations.md` and update the design ("To change in the design").
 2. Then one branch per plugin crate, per the milestones of section 6.3.

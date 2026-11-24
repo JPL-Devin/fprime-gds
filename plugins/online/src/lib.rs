@@ -259,10 +259,12 @@ impl Subcommand for Records {
                 Some(dictionary) if self.kind == "fprime.channel" => items::plain_channels(dictionary),
                 _ => Default::default(),
             };
+            let shown = std::cell::Cell::new(false);
             let mut on_record = |record: &Value| {
                 let item = Item::from_record(record, &plain, dictionary.as_ref());
                 let accepted = filter.accepts(&item, json);
                 if accepted {
+                    shown.set(true);
                     print(&item, json);
                 }
                 accepted
@@ -280,8 +282,8 @@ impl Subcommand for Records {
             };
             tokio::select! {
                 result = follow => result.map(|()| ExitCode::SUCCESS),
-                // `fprime-cli` ends with exit code 0 when nothing came in time.
-                () = limit => Ok(ExitCode::SUCCESS),
+                // Nothing in time is a failure, so that a script can wait for an event.
+                () = limit => Ok(if shown.get() { ExitCode::SUCCESS } else { ExitCode::FAILURE }),
                 () = fgds_core::interrupt() => Ok(ExitCode::SUCCESS),
             }
         })
@@ -379,14 +381,13 @@ impl Subcommand for CommandSend {
         let json = args.get_flag("json");
         let arguments: Vec<&String> = args.get_many::<String>("arguments").map(Iterator::collect).unwrap_or_default();
         let dry_run = args.get_flag("dry-run");
-        // As fprime-cli: said on the standard output, and the exit code is 0.
         let unknown = |name: &str, commands: &[Item]| {
-            fgds_core::out!("{name} is not a known command");
+            fgds_core::err!("{name} is not a known command");
             let similar: Vec<String> = items::similar(name, commands).iter().map(|s| format!("'{s}'")).collect();
             if !similar.is_empty() {
-                fgds_core::out!("Similar known commands: [{}]", similar.join(", "));
+                fgds_core::err!("Similar known commands: [{}]", similar.join(", "));
             }
-            ExitCode::SUCCESS
+            ExitCode::FAILURE
         };
         runtime()?.block_on(async {
             let Some(name) = name.filter(|_| !listing) else {

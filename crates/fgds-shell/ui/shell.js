@@ -136,30 +136,20 @@ const format = {
     const row = cells.map(String).join(" ").toLowerCase();
     return all.every((words) => words.some((word) => row.includes(word)));
   },
-  // Flight time as the Python GDS shows it: a calendar time when the time base is the
-  // workstation clock (2), `seconds.microseconds` otherwise. Microseconds are kept.
-  // The text the Python GDS page writes: calendar time to the millisecond for the workstation
-  // time base, otherwise seconds, a point and the microseconds as a number.
+  // Flight time, always with the six digits of its microseconds: a calendar time when the time base is
+  // the workstation clock (2), seconds otherwise.
   flightTime(time) {
     if (!time) return "";
+    const micros = String(time.microseconds).padStart(6, "0");
     if (time.base === 2) {
-      return new Date(time.seconds * 1000 + time.microseconds / 1000).toISOString();
+      return `${new Date(time.seconds * 1000).toISOString().slice(0, 19)}.${micros}Z`;
     }
-    return `${time.seconds}.${time.microseconds}`;
+    return `${time.seconds}.${micros}`;
   },
   // An array or a structure as the Python GDS page writes it: the members as JSON over several
   // lines, which a table cell shows on one line (`[ "0", "2" ]`).
   composite(value) {
     return typeof value === "object" && value !== null ? JSON.stringify(value, null, 2) : format.value(value);
-  },
-  // A text of the flight software. The Python GDS page escapes `<` and `>` and sets the result as HTML, so
-  // `&amp;` reads `&` there: the same is read here from an inert template, nothing runs. That page also puts
-  // headings and spans back as elements; here their tags stay visible as the characters that were sent.
-  flightText(text) {
-    if (typeof text !== "string" || !text.includes("&")) return text;
-    const inert = document.createElement("template");
-    inert.innerHTML = text.replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-    return inert.content.textContent;
   },
   groundTime(iso) { return iso || ""; },
   hexId(id) { return id === null || id === undefined ? "" : "0x" + BigInt(id).toString(16); },
@@ -261,7 +251,7 @@ function renderStatus() {
     ${item("Records", s ? s.cursor : "")}
     ${item("Received", `${counters.bytes_received || 0} B / ${counters.packets_received || 0} packets`)}
     ${item("Decode problems", errors ? badge(errors, false) : "0")}
-    <span id="dictionary-versions">${`Dictionary Version: ${metadata.projectVersion || "unknown"} Dictionary Schema: ${metadata.frameworkVersion || "unknown"}`}</span>
+    <span id="dictionary-versions">${`Dictionary Version: ${metadata.projectVersion || "unknown"} Framework Version: ${metadata.frameworkVersion || "unknown"}`}</span>
   `, document.querySelector("#status"));
 }
 
@@ -414,14 +404,13 @@ function blame(error) {
   const tab = tabs.find((t) => stack.includes(`/ui/plugins/${t.id}/`));
   if (tab && !tab.error) fail(tab, error);
 }
-// The counters of the Python GDS page: the events of these two severities the page received, and the
-// errors of the page itself; "99+" from 99 on.
+// The events of these two severities the page received, and the errors of the page itself.
 const counts = { WARNING_HI: 0, FATAL: 0, GDS_Errors: 0 };
 function showCounts() {
   document.querySelector("#counters").replaceChildren(...Object.entries(counts).map(([name, count]) => {
     const counter = document.createElement("span");
     counter.dataset.counter = name;
-    counter.textContent = `${name.replace("_", " ")}: ${count >= 99 ? "99+" : count}`;
+    counter.textContent = `${name.replace("_", " ")}: ${count}`;
     return counter;
   }));
 }

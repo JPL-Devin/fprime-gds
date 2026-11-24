@@ -379,12 +379,33 @@ fn a_command_float_beyond_f32_is_rejected() {
     assert!(d.encode(&Type::Float { bits: 64 }, &json!(1e39), &mut Vec::new()).is_ok());
 }
 
+#[test]
+fn digits_of_another_script_are_not_a_number() {
+    let d = dict();
+    let u8 = Type::Int { bits: 8, signed: false };
+    assert!(d.encode(&u8, &json!("\u{661}\u{662}"), &mut Vec::new()).is_err());
+    assert!(d.encode(&Type::Float { bits: 32 }, &json!("\u{661}.5"), &mut Vec::new()).is_err());
+    assert!(d.encode(&u8, &json!(" 12 "), &mut Vec::new()).is_ok());
+}
+
+#[test]
+fn a_float_literal_beyond_a_double_is_refused() {
+    let d = dict();
+    for bits in [32, 64] {
+        let encode = |text: &str| d.encode(&Type::Float { bits }, &json!(text), &mut Vec::new());
+        for text in ["1e400", "-1e400", "1e999"] {
+            assert!(encode(text).is_err(), "F{bits} {text}");
+        }
+        assert!(encode("inf").is_ok() && encode("-inf").is_ok() && encode("nan").is_ok());
+    }
+}
+
 /// Every text of `fixtures/command-args/table.json` gives the bytes the Python GDS sends, or is refused as it refuses it.
 #[test]
 fn argument_text_is_read_as_the_python_gds_reads_it() {
     let d = dict();
     let table = include_str!("../../../fixtures/command-args/table.json");
-    let mut checked = 0;
+    let (mut checked, mut overflow, mut foreign) = (0, 0, 0);
     for line in table.lines() {
         let row: Value = serde_json::from_str(line).unwrap();
         let name = row["type"].as_str().unwrap();
@@ -399,10 +420,25 @@ fn argument_text_is_read_as_the_python_gds_reads_it() {
             .encode(&ty, &row["text"], &mut out)
             .ok()
             .map(|_| out.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        // On purpose: a literal beyond a double is refused here, the Python GDS sends infinity.
+        let text = row["text"].as_str().unwrap_or_default().to_lowercase();
+        let infinity = ["7f800000", "ff800000", "7ff0000000000000", "fff0000000000000"];
+        if ours.is_none() && !text.contains("inf") && row["bytes"].as_str().is_some_and(|b| infinity.contains(&b)) {
+            overflow += 1;
+            continue;
+        }
+        // On purpose: only ASCII digits and ASCII white space are read, the Python GDS takes those of any script.
+        if ours.is_none() && !row["text"].as_str().unwrap_or_default().trim().is_ascii() {
+            foreign += 1;
+            continue;
+        }
         assert_eq!(ours.as_deref(), row["bytes"].as_str(), "{name} given {}", row["text"]);
         checked += 1;
     }
-    assert!(checked > 800, "{checked} rows");
+    assert!(
+        checked > 800 && overflow > 0 && foreign > 0,
+        "{checked} rows, {overflow} overflowing, {foreign} not ASCII"
+    );
 }
 
 /// Every number of `fixtures/command-args/json-table.json`, written in the JSON text of a struct or given as
@@ -432,8 +468,13 @@ fn json_numbers_are_read_as_the_python_gds_reads_them() {
             .encode(&ty, &row["text"], &mut out)
             .ok()
             .map(|_| out.iter().map(|b| format!("{b:02x}")).collect::<String>());
-        assert_eq!(ours.as_deref(), row["bytes"].as_str(), "{} given {}", row["type"], row["text"]);
         checked += 1;
+        // On purpose: a literal beyond a double is refused here, the Python GDS sends infinity.
+        let infinity = ["7f800000", "ff800000", "7ff0000000000000", "fff0000000000000"];
+        if ours.is_none() && row["bytes"].as_str().is_some_and(|b| infinity.iter().any(|i| b.ends_with(i))) {
+            continue;
+        }
+        assert_eq!(ours.as_deref(), row["bytes"].as_str(), "{} given {}", row["type"], row["text"]);
         refused += usize::from(ours.is_none());
     }
     assert!(checked == 3500 && refused > 1000, "{checked} rows, {refused} refused");

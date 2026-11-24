@@ -70,3 +70,22 @@ fn mistakes_stop_startup_with_a_message() {
         assert!(stderr.contains(message), "{args:?}: {stderr}");
     }
 }
+
+#[test]
+fn a_refused_option_of_run_leaves_no_run_directory() {
+    let dir = scratch("refused");
+    for options in [
+        &["--bind", "1.2.3.4:99999"][..],
+        &["--comm", "pigeon"],
+        &["--framing", "x"],
+        &["--comm-tcp-address", "nonsense"],
+        &["--framing", "ccsds", "--framing-ccsds-vcid", "abc"],
+        &["--framing", "ccsds", "--framing-ccsds-frame-size", "3"],
+        &["--data-products-max-bytes", "abc"],
+    ] {
+        let (output, _, stderr) = fgds(&[&["run", "--dictionary", DICTIONARY], options].concat(), &dir);
+        assert!(!output.status.success(), "{options:?}");
+        assert!(stderr.contains("error: configuration:"), "{options:?}: {stderr}");
+        assert!(!dir.join("logs").exists(), "{options:?} left a run directory");
+    }
+}

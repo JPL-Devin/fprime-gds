@@ -7,6 +7,12 @@ set -euo pipefail
 mkdir -p "$OUT"
 
 
+# Both parts compare binaries with those of `fprime-seqgen` and `fprime-prm-write` of the Python GDS.
+if [ -z "${COMPARE:-}" ]; then
+    echo "  skipped: set COMPARE=1 to compare with the Python GDS (the fixture binaries are checked by cargo test)"
+    exit 0
+fi
+
 echo "  -- generated sequences, fixture dictionary"
 "$VENV/bin/python" tests/seq/differential.py --fgds "$FGDS" --fixtures fixtures --out "$OUT/differential" \
     --count "${SEQ_COUNT:-1500}"

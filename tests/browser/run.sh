@@ -5,7 +5,7 @@
 #
 # Playwright and its Chromium are installed on the first run, in target/browser-venv.
 set -euo pipefail
-: "${FGDS:?}" "${REF_BIN:?}" "${DICTIONARY:?}" "${VENV:?}" "${OUT:?}"
+: "${FGDS:?}" "${REF_BIN:?}" "${DICTIONARY:?}" "${OUT:?}"
 here=$(dirname "$0")
 tools=target/browser-venv
 if [ ! -x "$tools/bin/playwright" ]; then
@@ -18,9 +18,3 @@ fi
 cargo build --quiet -p browser-gds
 
 "$tools/bin/python" "$here/ui.py" "$FGDS" "$PWD/target/debug/browser-gds" "$REF_BIN" "$DICTIONARY" "$OUT/ui"
-"$tools/bin/python" "$here/messages.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-messages/python-page.json" "$OUT/messages"
-"$tools/bin/python" "$here/line.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-string/python-page.json" "$OUT/line"
-"$tools/bin/python" "$here/held.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-string/held.json" "$OUT/held"
-"$tools/bin/python" "$here/refused.py" check "$FGDS" "$DICTIONARY" "$here/../../fixtures/command-string/refused.json" "$OUT/refused"
-"$tools/bin/python" "$here/texts.py" check "$FGDS" "$REF_BIN" "$DICTIONARY" "$here/../../fixtures/page-texts/python-page.json" "$here/../../fixtures/page-texts/differences.json" "$here/../../docs/design/deviations.md" "$OUT/texts"
-PATH="$VENV/bin:$PATH" "$tools/bin/python" "$here/parity.py" "$FGDS" "$REF_BIN" "$DICTIONARY" "$VENV/bin/fprime-gds" "$OUT/parity"

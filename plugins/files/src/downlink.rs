@@ -16,6 +16,8 @@ struct Active {
     transfer: Transfer,
     /// `None`: the file could not be created; its packets are discarded until the end.
     file: Option<File>,
+    /// Where the bytes are written until the transfer is finished: `<name>.part`.
+    part: std::path::PathBuf,
     /// Sequence index of the next packet.
     expected: u32,
     /// Where the next data packet starts when none is lost.
@@ -114,10 +116,13 @@ impl DownlinkHandler {
             cooldown: None,
         };
         let directory = self.options.downlink_dir();
+        let mut part = std::path::PathBuf::new();
         let created =
             downlink_name(&transfer.destination).and_then(|name| path_inside(&directory, &name)).and_then(|path| {
                 transfer.name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                let open = || File::options().read(true).write(true).create(true).truncate(true).open(&path);
+                // A file received earlier under this name is not touched before this one is whole.
+                part = directory.join(format!("{}.part", transfer.name));
+                let open = || File::options().read(true).write(true).create(true).truncate(true).open(&part);
                 std::fs::create_dir_all(&directory).and_then(|_| open()).map_err(|e| e.to_string())
             });
         let file = match created {
@@ -134,8 +139,14 @@ impl DownlinkHandler {
             State::trim(&mut state.downlinks);
         }
         publish(ctx, transfer.record(KIND_DOWNLINK)).await;
-        self.active =
-            Some(Active { transfer, file, expected: seq.wrapping_add(1), seek: None, last_packet: Instant::now() });
+        self.active = Some(Active {
+            transfer,
+            file,
+            part,
+            expected: seq.wrapping_add(1),
+            seek: None,
+            last_packet: Instant::now(),
+        });
     }
 
     /// A sequence index that is not the next one: a lost, duplicated or reordered packet.
@@ -223,8 +234,18 @@ impl DownlinkHandler {
     async fn end(&mut self, ctx: &Context, state: &'static str, reason: Option<String>) {
         let Some(mut active) = self.active.take() else { return };
         // A transfer whose file could not be created has failed already.
-        if active.file.is_some() {
+        if active.file.take().is_some() {
             (active.transfer.state, active.transfer.reason) = (state, reason);
+            // Only a finished file takes a final name; anything else stays as `<name>.part`.
+            if state == "finished" {
+                match keep(&active.part, &active.transfer.name) {
+                    Ok(name) => active.transfer.name = name,
+                    Err(e) => {
+                        active.transfer.state = "failed";
+                        active.transfer.reason = Some(format!("the received file could not be named: {e}"));
+                    }
+                }
+            }
             active.transfer.ended = Transfer::now();
             self.set(&active.transfer);
             publish(ctx, active.transfer.record(KIND_DOWNLINK)).await;
@@ -249,6 +270,23 @@ impl DownlinkHandler {
     }
 }
 
+/// Give the finished file `part` its name in the same directory and return that name: `name`, or
+/// `name.1`, `name.2`, ... when earlier files of that name are there, which stay as they are.
+fn keep(part: &std::path::Path, name: &str) -> std::io::Result<String> {
+    let directory = part.parent().unwrap_or(std::path::Path::new("."));
+    let mut free = name.to_string();
+    for n in 1u32.. {
+        // `hard_link` fails when the name exists, so no file is ever replaced.
+        match std::fs::hard_link(part, directory.join(&free)) {
+            Ok(()) => break,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => free = format!("{name}.{n}"),
+            Err(e) => return Err(e),
+        }
+    }
+    std::fs::remove_file(part)?;
+    Ok(free)
+}
+
 /// The CFDP checksum and the length of what was written.
 fn checksum_of(file: &mut File) -> std::io::Result<(Checksum, u64)> {
     file.flush()?;
@@ -262,5 +300,26 @@ fn checksum_of(file: &mut File) -> std::io::Result<(Checksum, u64)> {
                 offset += n as u64;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_finished_file_never_replaces_an_earlier_one() {
+        let dir = std::env::temp_dir().join(format!("fgds-keep-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let part = dir.join("a.bin.part");
+        for (content, name) in [("first", "a.bin"), ("second", "a.bin.1"), ("third", "a.bin.2")] {
+            std::fs::write(&part, content).unwrap();
+            assert_eq!(super::keep(&part, "a.bin").unwrap(), name);
+            assert!(!part.exists());
+        }
+        // A transfer that starts and does not finish writes `a.bin.part` only.
+        std::fs::write(&part, "partial").unwrap();
+        for (name, content) in [("a.bin", "first"), ("a.bin.1", "second"), ("a.bin.2", "third")] {
+            assert_eq!(std::fs::read_to_string(dir.join(name)).unwrap(), content);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

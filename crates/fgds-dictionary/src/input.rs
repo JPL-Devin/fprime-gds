@@ -2,32 +2,9 @@
 //! and its boolean words (`CmdData.convert_arg_value`). `fixtures/command-args/table.json` holds what the
 //! Python GDS does with each text; the tests of this crate go through it.
 
-/// The first code point of each run of ten decimal digits beyond ASCII (Unicode 15.0.0, category Nd).
-const DIGIT_ZEROS: &[u32] = &[
-    0x660, 0x6F0, 0x7C0, 0x966, 0x9E6, 0xA66, 0xAE6, 0xB66, 0xBE6, 0xC66, 0xCE6, 0xD66, 0xDE6, 0xE50, 0xED0, 0xF20,
-    0x1040, 0x1090, 0x17E0, 0x1810, 0x1946, 0x19D0, 0x1A80, 0x1A90, 0x1B50, 0x1BB0, 0x1C40, 0x1C50, 0xA620, 0xA8D0,
-    0xA900, 0xA9D0, 0xA9F0, 0xAA50, 0xABF0, 0xFF10, 0x104A0, 0x10D30, 0x11066, 0x110F0, 0x11136, 0x111D0, 0x112F0,
-    0x11450, 0x114D0, 0x11650, 0x116C0, 0x11730, 0x118E0, 0x11950, 0x11C50, 0x11D50, 0x11DA0, 0x11F50, 0x16A60,
-    0x16AC0, 0x16B50, 0x1D7CE, 0x1D7D8, 0x1D7E2, 0x1D7EC, 0x1D7F6, 0x1E140, 0x1E2F0, 0x1E4F0, 0x1E950, 0x1FBF0,
-];
-
-/// What Python `str.strip()` removes.
-fn is_space(c: char) -> bool {
-    matches!(c, '\u{9}'..='\u{d}' | '\u{1c}'..='\u{20}' | '\u{85}') || (c.is_whitespace() && !c.is_ascii())
-}
-
-/// The text with decimal digits of any script as ASCII digits, and without the white space around it.
-fn ascii(text: &str) -> String {
-    let digit = |c: char| {
-        let code = c as u32;
-        match DIGIT_ZEROS.binary_search(&code) {
-            Ok(_) => '0',
-            Err(0) => c,
-            Err(at) if code - DIGIT_ZEROS[at - 1] < 10 => char::from(b'0' + (code - DIGIT_ZEROS[at - 1]) as u8),
-            Err(_) => c,
-        }
-    };
-    text.trim_matches(is_space).chars().map(digit).collect()
+/// The text without the white space around it. Only ASCII digits are digits.
+fn ascii(text: &str) -> &str {
+    text.trim()
 }
 
 /// Digits of `radix` with single underscores between them (and one after a prefix when `lead`).
@@ -43,7 +20,7 @@ pub fn python_int(text: &str) -> Option<i128> {
     let text = ascii(text);
     let (negative, rest) = match text.strip_prefix('-') {
         Some(rest) => (true, rest),
-        None => (false, text.strip_prefix('+').unwrap_or(&text)),
+        None => (false, text.strip_prefix('+').unwrap_or(text)),
     };
     let prefixed = |radix: u32, lower: &str, upper: &str| {
         let body = rest.strip_prefix(lower).or_else(|| rest.strip_prefix(upper))?;
@@ -65,11 +42,8 @@ pub fn python_int(text: &str) -> Option<i128> {
     Some(if negative { -value } else { value })
 }
 
-/// Whether Python `\d` matches the character: a decimal digit of any script.
 pub fn is_decimal_digit(c: char) -> bool {
-    let code = c as u32;
-    let zero = DIGIT_ZEROS.partition_point(|zero| *zero <= code).checked_sub(1).map(|at| DIGIT_ZEROS[at]);
-    c.is_ascii_digit() || zero.is_some_and(|zero| code - zero < 10)
+    c.is_ascii_digit()
 }
 
 /// Python `int(text)`: a sign, then decimal digits (leading zeros allowed) with single underscores between them.
@@ -77,7 +51,7 @@ pub fn python_decimal(text: &str) -> Option<i128> {
     let text = ascii(text);
     let (negative, rest) = match text.strip_prefix('-') {
         Some(rest) => (true, rest),
-        None => (false, text.strip_prefix('+').unwrap_or(&text)),
+        None => (false, text.strip_prefix('+').unwrap_or(text)),
     };
     let value: i128 = digits(rest, 10, false)?.parse().unwrap_or(i128::MAX);
     Some(if negative { -value } else { value })
@@ -88,7 +62,7 @@ pub fn python_float(text: &str) -> Option<f64> {
     let text = ascii(text);
     let (sign, rest) = match text.strip_prefix('-') {
         Some(rest) => (-1.0, rest),
-        None => (1.0, text.strip_prefix('+').unwrap_or(&text)),
+        None => (1.0, text.strip_prefix('+').unwrap_or(text)),
     };
     match rest.to_ascii_lowercase().as_str() {
         "inf" | "infinity" => return Some(sign * f64::INFINITY),
@@ -115,12 +89,14 @@ pub fn python_float(text: &str) -> Option<f64> {
         }
         None => String::new(),
     };
-    format!("{whole}.{fraction}{exponent}").replace(".e", ".0e").parse::<f64>().ok().map(|v| sign * v)
+    // A literal beyond a double is refused: only `inf` spelled out is infinity.
+    let value = format!("{whole}.{fraction}{exponent}").replace(".e", ".0e").parse::<f64>().ok()?;
+    value.is_finite().then_some(sign * value)
 }
 
 /// The boolean words of the Python GDS, in any case and with white space around.
 pub fn python_bool(text: &str) -> Option<bool> {
-    match text.to_lowercase().trim_matches(is_space) {
+    match text.to_lowercase().trim() {
         "true" | "yes" => Some(true),
         "false" | "no" => Some(false),
         _ => None,

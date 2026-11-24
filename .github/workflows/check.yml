@@ -28,4 +28,4 @@ jobs:
       - name: Rust
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy && rustup default stable
       - name: Check
-        run: FPRIME=$PWD/target/fprime scripts/check.sh
+        run: FPRIME=$PWD/target/fprime COMPARE=1 scripts/check.sh

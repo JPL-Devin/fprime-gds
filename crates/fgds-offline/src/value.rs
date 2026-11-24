@@ -310,7 +310,8 @@ pub fn parse_float(text: &str) -> Option<f64> {
     if !valid {
         return None;
     }
-    t.replace('_', "").parse().ok()
+    // A literal beyond a double is refused: only `inf` spelled out is infinity.
+    t.replace('_', "").parse().ok().filter(|v: &f64| v.is_finite())
 }
 
 /// Python's `int(text, 0)`: a sign, then decimal digits without a leading zero, or digits

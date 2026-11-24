@@ -433,8 +433,9 @@ def uploaded_names(gds, out, store):
         (dict(name=""), "not a usable file name"), (dict(name=".."), "not a usable file name"),
         (dict(name="."), "not a usable file name"), (dict(name="a/.."), "not a usable file name"),
         (dict(name="a/"), "not a usable file name"), (dict(name="nul\0.bin"), "not a usable file name"),
-        # The name is the default destination: a control character is refused there.
-        (dict(name="line\n.bin"), "destination path holds a control character"),
+        # The name is the destination in a directory: a control character is refused there.
+        (dict(name="line\n.bin", directory=""), "destination path holds a control character"),
+        (dict(name="a.bin"), "no destination on the spacecraft is given"),
         (dict(name="a.bin", destination="d\0.bin"), "destination path holds a control character"),
         (dict(name="a.bin", destination="d\x1f.bin"), "destination path holds a control character"),
         (dict(name="a.bin", destination="d\x7f.bin"), "destination path holds a control character"),
@@ -512,8 +513,7 @@ def file_uplink(gds, out, proxy=None):
     """`fgds file-uplink` and `fgds files upload`: the lines, the wait and the exit codes of `fprime-cli file-uplink`."""
     with open(f"{out}/local/waited.bin", "wb") as file:
         file.write(content("waited.bin", 5000))
-    receipt = (r"Flight software confirmed receipt: \d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{6}: "
-               r"FileHandling\.fileUplink\.FileReceived \(83886082\) \(2\(0\)-\d+:\d+\) EventSeverity\.ACTIVITY_HI : Received file %s\n")
+    receipt = r"Flight software confirmed receipt: .*FileHandling\.fileUplink\.FileReceived.*Received file %s\n"
     for command, name in ((["file-uplink", "--url", gds.root, "local/waited.bin", "waited-1.bin"], "waited-1.bin"),
                           (["files", "--url", gds.root, "upload", "local/waited.bin", "-d", "waited-2.bin"], "waited-2.bin")):
         done = subprocess.run([gds.binary, *command], capture_output=True, text=True, cwd=out, timeout=90)
@@ -524,23 +524,28 @@ def file_uplink(gds, out, proxy=None):
         assert re.fullmatch(expected, lines), done.stdout
         # It returned after the flight side had the file.
         assert read(f"{out}/{name}") == content("waited.bin", 5000)
-    quick = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "--no-wait", "local/waited.bin"],
+    quick = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "--no-wait", "local/waited.bin", "waited.bin"],
                            capture_output=True, text=True, cwd=out, timeout=30)
-    assert (quick.returncode, quick.stdout) == (0, "Queued 'local/waited.bin' for uplink to '/waited.bin'\n"), quick
-    scenario.wait_for("the file queued without waiting", lambda: gds.uplink("waited.bin")["state"] in ("finished", "failed"), 60)
-    # No destination: `/<name>` is announced and sent, as `fprime-cli file-uplink SRC`; Ref cannot write there.
+    assert (quick.returncode, quick.stdout) == (0, "Queued 'local/waited.bin' for uplink to 'waited.bin'\n"), quick
+    scenario.wait_for("the file queued without waiting", lambda: gds.uplink("waited.bin")["state"] == "finished", 60)
+    # No destination: refused, nothing is queued and nothing is sent.
     with open(f"{out}/local/rooted.bin", "wb") as file:
         file.write(content("rooted.bin", 50))
+    packets = lambda: file_packets(proxy.uplink, gds.args.framing, scenario.spacecraft_id(gds.args.dictionary)) if proxy else []
+    sent = len(packets())
     rooted = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "local/rooted.bin"],
                             capture_output=True, text=True, cwd=out, timeout=60)
-    lines = re.sub(r"Uplinking 'rooted\.bin': \d+%\n", "", rooted.stdout).splitlines()
-    assert rooted.returncode == 1 and lines[0] == "Queued 'local/rooted.bin' for uplink to '/rooted.bin'" \
-        and lines[-1].startswith("Uplink failed on the flight side: ") \
-        and lines[-1].endswith("Could not open file /rooted.bin"), rooted
-    assert not os.path.exists(f"{out}/rooted.bin")
-    if proxy:
-        starts = [p for p in file_packets(proxy.uplink, gds.args.framing, scenario.spacecraft_id(gds.args.dictionary)) if p[2] == 0]
-        assert starts[-1].endswith(bytes([len("/rooted.bin")]) + b"/rooted.bin"), starts[-1].hex()
+    assert rooted.returncode == 1 and "no destination on the spacecraft is given for rooted.bin" in rooted.stdout, rooted
+    assert not [f for f in gds.get("/files/uplink")["files"] if f["name"] == "rooted.bin"] and len(packets()) == sent
+    # A destination Ref cannot open: the transfer has failed, with the event of Ref as the reason, and the
+    # command line says so.
+    refused = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "local/rooted.bin", "/nonexistent-dir/sub/rooted.bin"],
+                             capture_output=True, text=True, cwd=out, timeout=60)
+    entry = gds.uplink("rooted.bin")
+    assert entry["state"] == "failed" and "FileOpenError" in entry["reason"], entry
+    assert refused.returncode == 1 and "Uplink of 'rooted.bin' failed: " in refused.stdout and "FileOpenError" in refused.stdout, refused
+    ok("an uplink without a destination is refused and sends nothing; one Ref cannot open (FileOpenError) is shown as "
+       "failed with the event as the reason, by the route and by fgds file-uplink")
     if proxy:
         # "Send Cancel Packet" with no file being sent: packet index 0, the bytes of the Python GDS (its frame
         # after a 400000-byte file: 20440413001003c61d0006 0003 03 00000000 3571; its index starts again at
@@ -560,7 +565,7 @@ def file_uplink(gds, out, proxy=None):
     scenario.wait_for("the file that was held", lambda: os.path.exists(f"{out}/late.bin") and read(f"{out}/late.bin") == content("waited.bin", 5000), 60)
     missing = subprocess.run([gds.binary, "file-uplink", "--url", gds.root, "local/none.bin"], capture_output=True, text=True, cwd=out)
     assert (missing.returncode, missing.stdout, missing.stderr) == (1, "Error: File not found at local/none.bin\n", ""), missing
-    ok("fgds file-uplink and fgds files upload print the lines of fprime-cli file-uplink (queued, all packets sent, the "
+    ok("fgds file-uplink and fgds files upload say what happens (queued, all packets sent, the "
        "FileReceived event) and return once the flight side has the file; --no-wait returns at once; a timeout gives exit code 1")
 
 
@@ -672,13 +677,13 @@ def bad_packets(args, out):
             detail = f"transfer {state}" + (f" ({reason})" if reason else "") if expected else "no transfer"
             ok(f"{what}: {detail}, {new} report(s)")
         assert sorted(os.listdir(f"{store}/downlink")) == sorted(
-            ["good.bin", "dup.bin", "order.bin", "lost.bin", "corrupt.bin", "past.bin", "short.bin", "cancel.bin",
-             "first.bin", "second.bin", ".._.._.._outside.bin"])
+            ["good.bin", "dup.bin", "order.bin", "lost.bin.part", "corrupt.bin.part", "past.bin.part", "short.bin",
+             "cancel.bin.part", "first.bin.part", "second.bin", ".._.._.._outside.bin"])
         assert not os.path.exists(f"{out}/outside.bin") and not os.path.exists(f"{store}/outside.bin")
         whole = a + b + c
         for name in ("good.bin", "dup.bin", "order.bin"):
             assert read(f"{store}/downlink/{name}") == whole, name
-        ok("FIL-3: every file is directly inside the downlink directory; reordered and duplicated data gives the right file")
+        ok("FIL-3: every file is directly inside the downlink directory, a failed or canceled one as <name>.part; reordered and duplicated data gives the right file")
 
         for path in ("/files/downlink/..%2F..%2Ffgds.log", "/files/downlink/%2Fetc%2Fpasswd", "/files/downlink/..", "/files/downlink/nothing"):
             assert gds.status_of(path) == 404, path
@@ -698,7 +703,7 @@ def bad_packets(args, out):
         for name, size in (("stuck.bin", 30_000_000), ("next.bin", 10)):
             with open(f"{out}/local/{name}", "wb") as file:
                 file.write(content(name, size))
-            gds.cli("upload", f"local/{name}")
+            gds.cli("upload", f"local/{name}", "--destination", name)
         gds.cli("resume")
         stuck = scenario.wait_for("the uplink without progress to fail", lambda: gds.uplink("stuck.bin")["state"] == "failed" and gds.uplink("stuck.bin"), 60)
         assert "no progress" in stuck["reason"], stuck
@@ -752,7 +757,7 @@ def cancel_and_pause(args, out):
         assert len(cancels()) == 3 and cancels()[1:] != [0, 0], cancels()
         by_hand("after a canceled file", 4)
         gds.cli("resume")
-        scenario.wait_for("c.bin to finish", lambda: gds.uplink("c.bin")["state"] == "finished")
+        scenario.wait_for("c.bin to end", lambda: gds.uplink("c.bin")["state"] == "sent")
         time.sleep(0.3)
         kinds = [p[2] for p in file_packets(received)]
         sequences = [int.from_bytes(p[3:7], "big") for p in file_packets(received)]
@@ -761,9 +766,8 @@ def cancel_and_pause(args, out):
         chunks = [len(p) - 13 for p in file_packets(received) if p[2] == 1]
         assert set(chunks[:-1]) <= {256, 88} and chunks[-3:] == [256, 256, 88], chunks[-3:]
         by_hand("after a finished file", 5)
-        # `Select Packets` of the Python GDS page: a list of data packets, numbered from 1. What is sent is what
-        # `TransmitFile.read` and the uplinker of the Python GDS give for the same file and list.
-        from fprime_gds.common.files.helpers import TransmitFile, TransmitFileState
+        # A list of data packets, numbered from 1: packet `n` is the chunk at `(n - 1) * 256`, in the order of the
+        # sorted list, and the file ends at the first one beyond its end.
         selected = content("s.bin", 2000)
         with open(f"{out}/local/s.bin", "wb") as file:
             file.write(selected)
@@ -771,26 +775,24 @@ def cancel_and_pause(args, out):
             before = len(file_packets(received))
             query = urllib.parse.urlencode({"name": "s.bin", "destination": f"/flight/s{number}.bin", "packets": typed})
             gds.request(f"/files/uplink?{query}", selected, method="POST")
-            scenario.wait_for("s.bin to finish", lambda: gds.uplink("s.bin")["state"] == "finished")
+            scenario.wait_for("s.bin to end", lambda: gds.uplink("s.bin")["state"] == "sent")
             time.sleep(0.3)
             sent = file_packets(received)[before:]
-            source = TransmitFile(f"{out}/local/s.bin", "", packets=packets)
-            source.open(TransmitFileState.READ)
             wanted = []
-            while chunk := source.read(256):
-                source.checksum.update(chunk, source.seek)
-                wanted.append((source.seek, chunk))
-            source.close()
+            for n in sorted(set(packets)):
+                if not selected[(n - 1) * 256:n * 256]:
+                    break
+                wanted.append(((n - 1) * 256, selected[(n - 1) * 256:n * 256]))
             assert [p[2] for p in sent] == [0] + [1] * len(wanted) + [2], (typed, [p[2] for p in sent])
             assert [int.from_bytes(p[3:7], "big") for p in sent] == list(range(len(wanted) + 2)), typed
             assert [(int.from_bytes(p[7:11], "big"), bytes(p[13:])) for p in sent[1:-1]] == wanted, typed
-            assert int.from_bytes(sent[-1][7:11], "big") == source.checksum.value, typed
+            assert sent[-1][7:11] == end(0, [chunk for _, chunk in wanted])[7:11], typed
             assert gds.uplink("s.bin")["packets"] == sorted(set(packets))
         assert gds.status_of("/files/uplink?name=s.bin&packets=1,x", selected) == 422
         ok("an uplink with a list of packets (1, 3, 8; 2, 9, 3 where 9 is beyond the end; 8): the data packets, their "
-           "offsets and the checksum of the end packet are those of TransmitFile of the Python GDS")
+           "offsets and the checksum of the end packet are those of the chunks listed")
         ok("a cancel packet sent by hand has packet index 0 before any file, after a canceled file and after a "
-           "finished file, as the Python GDS; it is refused (409) while a file is being sent")
+           "finished file; it is refused (409) while a file is being sent")
         ok(f"FIL-1: cancel and pause each end the active uplink with a cancel packet on the link; "
            f"after resume the next file is sent ({len(kinds)} file packets, {kinds.count(3)} cancel)")
         gds.healthy(f"{out}/fgds.log")
@@ -803,58 +805,41 @@ def main():
     for name in ("fgds", "ref", "dictionary", "out"):
         parser.add_argument(f"--{name}", required=True)
     parser.add_argument("--framing", choices=["ccsds", "fprime"], default="ccsds", help="the framing Ref was built with")
+    parser.add_argument("--compare", action="store_true", help="also compare the file packets with the Python GDS")
     args = parser.parse_args()
     store = f"{args.out}/store"
     shutil.rmtree(store, ignore_errors=True)
 
-    python = python_side(args, f"{args.out}/python", f"{store}/uplink")
+    # The file packets and the files of the Python GDS, when the comparison is asked for (scripts/check.sh).
+    python = python_side(args, f"{args.out}/python", f"{store}/uplink") if args.compare else None
     rust, gds, ref, _ = rust_side(args, f"{args.out}/rust", store)
     try:
         json.dump({"python": python, "rust": rust}, open(f"{args.out}/results.json", "w"), indent=1)
-        assert len(python["uplink_packets"]) == len(rust["uplink_packets"]), \
-            (len(python["uplink_packets"]), len(rust["uplink_packets"]))
-        # The source path of a start packet is the name in the uplink directory of the GDS. The Python
-        # uplinker of this check is given the files in the uplink directory of fgds, so the packets are
-        # equal whole (without an option both have `/tmp/<user>/fprime-uplink`: tests/cli/check.py).
-        for index, (p, r) in enumerate(zip(python["uplink_packets"], rust["uplink_packets"])):
-            assert p == r, f"file packet {index} differs:\n python {p}\n fgds   {r}"
         sources = [(raw := bytes.fromhex(r))[12:12 + raw[11]].decode() for r in rust["uplink_packets"] if bytes.fromhex(r)[2] == 0]
         assert sources == [f"{store}/uplink/{name}" for name, _ in UPLINKS], sources
-        ok(f"uplink: {len(rust['uplink_packets'])} file packets on the link, byte-identical to the Python GDS, the source path of each start packet (<uplink directory>/<name>) included "
-           f"({sum(len(p) // 2 for p in rust['uplink_packets'])} bytes)")
+        ok(f"uplink: {len(rust['uplink_packets'])} file packets on the link, the source path of each start packet is <uplink directory>/<name>")
         if args.framing == "ccsds":
-            for side, found in (("python", python), ("fgds", rust)):
-                counts = found["sequence"]
-                assert counts["down"] > 0 and counts["last"] == counts["expected"], (side, counts)
-            # Every file packet sent up, one by one: its count is the number of file packets sent up before it, plus
-            # those that had come down by then (none, or all of them: the two sides downlink different files).
-            ahead = {}
-            for side, found in (("python", python), ("fgds", rust)):
-                counts, down = found["sequence"]["counts"], found["sequence"]["down"]
-                ahead[side] = [count - index for index, count in enumerate(counts)]
-                assert set(ahead[side]) == {0, down} and ahead[side] == sorted(ahead[side]), (side, ahead[side])
-            # fgds sent one file more before the first.
-            early = rust["early"]
-            assert [a > 0 for a in ahead["fgds"][early:]] == [a > 0 for a in ahead["python"]]
-            ok(f"sequence count of each of the {python['sequence']['up']} file packets sent up equal to the Python GDS; of one sent after files came down: python {python['sequence']['last']} "
-               f"after {python['sequence']['up'] - 1} up and {python['sequence']['down']} down, fgds "
-               f"{rust['sequence']['last']} after {rust['sequence']['up'] - 1} up and {rust['sequence']['down']} down; "
-               "Ref reported no unexpected sequence count with either")
+            counts = rust["sequence"]
+            assert counts["down"] > 0 and counts["last"] == counts["expected"], counts
+            ok("Ref reported no unexpected sequence count of the file packets sent up")
         expected = {name: digest(content(name, size)) for name, size in UPLINKS}
-        assert python["ref_files"] == rust["ref_files"] == expected
-        ok(f"uplink: the {len(UPLINKS)} files on the Ref side are identical with both and equal to the originals "
-           f"(sizes {[s for _, s in UPLINKS]})")
+        assert rust["ref_files"] == expected
+        ok(f"uplink: the {len(UPLINKS)} files on the Ref side are equal to the originals (sizes {[s for _, s in UPLINKS]})")
         want = [DOWN_SIZE, digest(content("down", DOWN_SIZE))]
-        assert python["downlinked"]["down.bin"] == rust["downlinked"]["down.bin"] == want
-        ok(f"downlink (fileDownlink.SendFile): down.bin, {DOWN_SIZE} bytes, sha256 {want[1][:16]}..., same with both")
-        for side, found in (("python", python), ("fgds", rust)):
-            size, sha = found["downlinked"][ground_name(found["product"])]
-            assert sha == found["product_on_ref"] and size == found["product_size"], side
-        assert python["product_size"] == rust["product_size"]
-        assert sorted(python["downlinked"]) == sorted(["down.bin", ground_name(python["product"])])
+        assert rust["downlinked"]["down.bin"] == want
+        ok(f"downlink (fileDownlink.SendFile): down.bin, {DOWN_SIZE} bytes, sha256 {want[1][:16]}...")
+        size, sha = rust["downlinked"][ground_name(rust["product"])]
+        assert sha == rust["product_on_ref"] and size == rust["product_size"]
         assert sorted(rust["downlinked"]) == sorted(["down.bin", "part.bin", ground_name(rust["product"])])
-        ok(f"data product (dpDemo.Dp, dpCat.START_XMIT_CATALOG): python {python['product']}, fgds {rust['product']}; "
-           f"each downlinked as ._DpCat_<name>, {rust['product_size']} bytes, identical to the file Ref wrote")
+        ok(f"data product (dpDemo.Dp, dpCat.START_XMIT_CATALOG): {rust['product']} downlinked as ._DpCat_<name>, "
+           f"{rust['product_size']} bytes, identical to the file Ref wrote")
+        if python:
+            # The Python uplinker is given the files in the uplink directory of fgds, so the packets are equal whole.
+            assert python["uplink_packets"] == rust["uplink_packets"], "the file packets differ from the Python GDS"
+            assert python["ref_files"] == expected and python["downlinked"]["down.bin"] == want
+            assert python["product_size"] == rust["product_size"]
+            ok(f"uplink: the {len(rust['uplink_packets'])} file packets are byte-identical to those of the Python GDS "
+               f"({sum(len(p) // 2 for p in rust['uplink_packets'])} bytes); the files up and down are the same with both")
         link_loss(gds, ref, f"{args.out}/rust")
         gds.healthy(f"{args.out}/rust/fgds.log")
     finally:

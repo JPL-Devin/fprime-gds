@@ -78,7 +78,7 @@ def main():
         done = uplink(largest + 1, "over.bin")
         assert done.returncode != 0 and f"at most {largest} bytes of file data" in done.stdout + done.stderr, done
         try:
-            request = urllib.request.Request(f"{gds.api}/files/uplink?name=over.bin&chunk={largest + 1}", b"x", method="POST")
+            request = urllib.request.Request(f"{gds.api}/files/uplink?name=over.bin&destination=over.bin&chunk={largest + 1}", b"x", method="POST")
             urllib.request.urlopen(request, timeout=20)
             raise AssertionError("the route accepted the chunk size")
         except urllib.error.HTTPError as error:

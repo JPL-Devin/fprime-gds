@@ -73,7 +73,11 @@ impl Builder {
                         let digits = t.text.replacen("0x", "", 1).replacen("0X", "", 1);
                         Int::parse(&digits, 16).map_or(Value::Null, Value::Int)
                     }
-                    "FLOAT_NUMBER" => Value::Float(t.text.replace('_', "").parse().unwrap_or(f64::NAN)),
+                    // A literal beyond a double stays text, which no numeric argument takes.
+                    "FLOAT_NUMBER" => match t.text.replace('_', "").parse::<f64>() {
+                        Ok(v) if v.is_finite() => Value::Float(v),
+                        _ => Value::Str(t.text),
+                    },
                     "STRING" => Value::Str(t.text.chars().skip(1).take(t.text.chars().count() - 2).collect()),
                     kind => Value::Bool(kind == "CONST_TRUE"),
                 }),

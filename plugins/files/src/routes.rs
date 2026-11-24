@@ -67,8 +67,7 @@ struct Upload {
     name: String,
     /// Path on the spacecraft, passed unchanged.
     destination: Option<String>,
-    /// Without a destination: the directory on the spacecraft the base name is joined to, `/` when absent
-    /// (`uplink_destination`).
+    /// Without a destination: the directory on the spacecraft the base name is joined to (`uplink_destination`).
     directory: Option<String>,
     /// The file storage directory an operator named for this uplink (`--file-storage-directory` of
     /// `file-uplink`): the source path of the start packet is then `<store>/fprime-uplink/<name>`, as
@@ -95,7 +94,8 @@ async fn upload(
     // identifier of the transfer, so that no text of the request reaches the file system of the GDS host.
     let name = crate::upload_name(&upload.name).map_err(invalid)?.to_string();
     let directory = options.uplink_dir();
-    let destination = crate::uplink_destination(upload.destination.as_deref(), upload.directory.as_deref(), &name);
+    let destination = crate::uplink_destination(upload.destination.as_deref(), upload.directory.as_deref(), &name)
+        .map_err(invalid)?;
     crate::flight_path("destination", &destination).map_err(invalid)?;
     // The source path of the start packet, as the Python GDS sends it: the name in the uplink directory
     // of the GDS (or of `store`), whatever directory of the operator's machine the file was read from.

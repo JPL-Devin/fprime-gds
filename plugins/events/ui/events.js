@@ -55,17 +55,16 @@ class EventsTab extends LitElement {
       this.flat(record)], this.text);
   }
 
-  // The text the Python GDS page hands to the description cell, where a command name is a span element: its
-  // filter and its sorting read this text.
+  // The message as one text, the mnemonic in place of the opcode: the filter and the sorting read it.
   flat(r) {
-    const [before, name, after, opcode] = this.parts(r);
-    return name === undefined ? before : `${before}<span title="${opcode}">${name}</span>${after}`;
+    const [before, name, after] = this.parts(r);
+    return name === undefined ? before : `${before}${name}${after}`;
   }
 
   // The message, with the opcode of a command event followed by its mnemonic as the
   // Python GDS shows it. Everything is text: nothing from the link is parsed as HTML.
   parts(record) {
-    const text = this.gds.format.flightText(record.body.display_text);
+    const text = record.body.display_text;
     const found = record.body.severity === "COMMAND" ? text.match(OPCODE) : null;
     if (!found) return [text];
     const name = this.commands.get(parseInt(found[1], 16)) || "UNKNOWN";

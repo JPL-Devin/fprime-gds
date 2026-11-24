@@ -40,8 +40,6 @@ struct State {
     next_seq: u64,
     /// The hand-off queue, in `seq` order.
     pending: VecDeque<Record>,
-    /// Records of the uplink service and of the core itself: taken first, never waiting.
-    uplink: VecDeque<Record>,
     flushes: Vec<oneshot::Sender<()>>,
     /// Storage is failed: publishers do not wait and records are broadcast unstored.
     failed: bool,
@@ -92,7 +90,6 @@ impl Records {
             state: Mutex::new(State {
                 next_seq: run.first_seq,
                 pending: VecDeque::new(),
-                uplink: VecDeque::new(),
                 flushes: Vec::new(),
                 failed: false,
                 closed: options.read_only,
@@ -126,11 +123,10 @@ impl Records {
         loop {
             let batch: Vec<Record> = {
                 let mut state = self.state();
-                // Uplink records first; the batch is put back in `seq` order below.
-                let n = state.uplink.len().min(BATCH);
-                let mut batch: Vec<Record> = state.uplink.drain(..n).collect();
-                let n = state.pending.len().min(BATCH - batch.len());
-                batch.extend(state.pending.drain(..n));
+                // One queue, committed and broadcast in `seq` order: a subscriber that has seen a
+                // record has seen every record before it (API-5).
+                let n = state.pending.len().min(BATCH);
+                let batch: Vec<Record> = state.pending.drain(..n).collect();
                 if batch.is_empty() {
                     for done in state.flushes.drain(..) {
                         let _ = done.send(());
@@ -189,8 +185,8 @@ impl Records {
         tracing::error!(first_seq = first, last_seq = last, "storage recovered; these records were not stored");
         self.0.status.set_storage("ok");
         let lost = json!({"first_seq": first.to_string(), "last_seq": last.to_string()});
-        let _ = self.enqueue(NewRecord::new(KIND_STORAGE_GAP, lost), true);
-        let _ = self.enqueue(NewRecord::new(KIND_STORAGE_RECOVERED, json!({})), true);
+        let _ = self.enqueue(NewRecord::new(KIND_STORAGE_GAP, lost));
+        let _ = self.enqueue(NewRecord::new(KIND_STORAGE_RECOVERED, json!({})));
     }
 
     /// Keep the reservation in storage ahead of the numbers handed out (STO-14).
@@ -207,9 +203,8 @@ impl Records {
         }
     }
 
-    fn broadcast(&self, mut batch: Vec<Record>, stored: impl Fn(&Record) -> bool) {
+    fn broadcast(&self, batch: Vec<Record>, stored: impl Fn(&Record) -> bool) {
         self.0.status.count("records", batch.len() as u64);
-        batch.sort_by_key(|r| r.seq);
         for mut record in batch {
             record.stored = stored(&record);
             self.0.cursor.fetch_max(record.seq, Ordering::SeqCst);
@@ -231,19 +226,19 @@ impl Records {
                 !state.failed && !state.closed && state.pending.len() >= QUEUE
             };
             if !full {
-                return self.enqueue(new, false);
+                return self.enqueue(new);
             }
             space.await;
         }
     }
 
-    /// Publish a record of the uplink service: its queue is drained first and it never
-    /// waits, so commanding does not wait behind telemetry (LNK-11).
+    /// Publish a record of the uplink service: it never waits for room in the queue, so
+    /// commanding does not wait behind telemetry (LNK-11).
     pub fn publish_uplink(&self, new: NewRecord) -> Result<u64> {
-        self.enqueue(new, true)
+        self.enqueue(new)
     }
 
-    fn enqueue(&self, new: NewRecord, uplink: bool) -> Result<u64> {
+    fn enqueue(&self, new: NewRecord) -> Result<u64> {
         if !self.0.kinds.contains_key(&new.kind) {
             return Err(Error::Invalid(format!("record kind \"{}\" is not registered", new.kind)));
         }
@@ -268,10 +263,7 @@ impl Records {
                 meta: new.meta,
                 body: new.body,
             };
-            match uplink {
-                true => state.uplink.push_back(record),
-                false => state.pending.push_back(record),
-            }
+            state.pending.push_back(record);
             seq
         };
         self.0.work.notify_one();

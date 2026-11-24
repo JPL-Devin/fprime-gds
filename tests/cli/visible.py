@@ -155,7 +155,7 @@ def main():
         run("file-uplink, no file", "file-uplink", f"{hostile_dir}/absent.bin", *url, shows=["\\x1b"])
         run("file-uplink, destination", "file-uplink", f"{hostile_dir}/file.bin", f"up{HOSTILE}", *url)
         run("file-uplink, non-ASCII", "file-uplink", f"{marked}/file.bin", "\u00e9\u200b.bin", *url, shows=["\\u{200b}"])
-        run("files upload", "files", "upload", f"{marked}/file.bin", *url, shows=["\\u{202e}"])
+        run("files upload", "files", "upload", f"{marked}/file.bin", "-d", "up2.bin", *url, shows=["\\u{202e}"])
         for sub in ("queue", "list", "pause", "resume"):
             run(f"files {sub}", "files", sub, *url)
         run("files cancel", "files", "cancel", HOSTILE, *url)

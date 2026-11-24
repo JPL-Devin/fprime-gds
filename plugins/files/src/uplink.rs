@@ -10,29 +10,60 @@ use std::time::Duration;
 /// How often the link state is looked at when nothing else happens.
 const POLL: Duration = Duration::from_millis(100);
 
-/// How long after the end packet the flight side is watched before a transfer counts as finished;
-/// the next file of the queue is sent meanwhile, as the Python GDS sends it at once.
-/// A write to a peer that is about to go away succeeds, and Ref takes about a second to end after
-/// an assert; `FileReceived` of `Svc.FileUplink` for the destination ends the wait at once.
+/// How long after the end packet the flight side is watched for its answer; the next file of the queue
+/// is sent meanwhile. `FileReceived` of `Svc.FileUplink` for the destination ends the wait as `finished`,
+/// a refusal as `failed`; without either the transfer ends as `sent`: nothing says the file arrived.
 const CONFIRM: Duration = Duration::from_secs(2);
 
+/// The warnings of `Svc.FileUplink` that say a file is not received as sent.
+const REFUSALS: [&str; 7] = [
+    "BadChecksum",
+    "FileOpenError",
+    "FileWriteError",
+    "InvalidReceiveMode",
+    "PacketOutOfBounds",
+    "PacketOutOfOrder",
+    "DecodeError",
+];
+
 /// What an event says about the transfer in progress.
-enum Seen {
+#[derive(Debug, PartialEq)]
+pub(crate) enum Seen {
     Received,
-    Fatal(String),
+    Failed(String),
 }
 
-fn seen(record: &Record, destination: &str) -> Option<Seen> {
+/// What an event record says about the uplink to `destination`. A refusal that names a file counts for
+/// that file only; one that names none counts for the transfer the flight software is receiving.
+pub(crate) fn seen(record: &Record, destination: &str) -> Option<Seen> {
     if record.kind != "fprime.event" {
         return None;
     }
     let name = record.body["name"].as_str().unwrap_or_default();
+    let text = record.body["display_text"].as_str().unwrap_or_default();
+    let reason = || Seen::Failed(format!("the flight software reported {name}: {text}"));
     if record.body["severity"] == "FATAL" {
-        let text = record.body["display_text"].as_str().unwrap_or_default();
-        return Some(Seen::Fatal(format!("the flight software reported {name}: {text}")));
+        return Some(reason());
     }
-    let named = record.body["args"].as_object().is_some_and(|args| args.values().any(|v| v == destination));
-    (name.ends_with(".FileReceived") && named).then_some(Seen::Received)
+    let short = name.rsplit('.').next().unwrap_or_default();
+    let args = record.body["args"].as_object();
+    let file = args.and_then(|args| args.get("fileName")).and_then(|v| v.as_str());
+    if short == "FileReceived" {
+        return file.is_some_and(|file| names(file, destination)).then_some(Seen::Received);
+    }
+    let warning = record.body["severity"] == "WARNING_HI" && REFUSALS.contains(&short);
+    (warning && file.is_none_or(|file| names(file, destination))).then(reason)
+}
+
+/// The shortest file name of an event that is taken as the start of a longer destination: the flight
+/// software cuts the name to the size of the event string (40 bytes in stock F Prime), possibly inside
+/// a character, which then reads as U+FFFD.
+const CUT: usize = 36;
+
+/// Whether the file name of an event is `destination`, whole or cut by the flight software.
+fn names(file: &str, destination: &str) -> bool {
+    let kept = file.trim_end_matches('\u{fffd}');
+    file == destination || (kept.len() >= CUT && destination.starts_with(kept))
 }
 
 pub(crate) struct UplinkHandler {
@@ -151,18 +182,18 @@ impl UplinkHandler {
         }
     }
 
-    /// After an end packet: finished on `FileReceived` or when `CONFIRM` has passed with the link
-    /// connected; failed when the link goes away or the flight software reports a fatal event.
+    /// After an end packet: finished on `FileReceived`; failed when the link goes away or the flight
+    /// software refuses the file; `sent` when `CONFIRM` has passed without either.
     async fn settle(&mut self, ctx: &Context, record: Option<&Record>) {
         let connected = ctx.status.link() == "connected";
         let now = tokio::time::Instant::now();
         let mut waiting = Vec::new();
         for item in std::mem::take(&mut self.unconfirmed) {
             let outcome = match record.and_then(|r| seen(r, &item.destination)) {
-                _ if !connected => Some(Err("the link is not connected".to_string())),
+                _ if !connected => Some(Err(Some("the link is not connected".to_string()))),
                 Some(Seen::Received) => Some(Ok(())),
-                Some(Seen::Fatal(reason)) => Some(Err(reason)),
-                None if now >= item.until => Some(Ok(())),
+                Some(Seen::Failed(reason)) => Some(Err(Some(reason))),
+                None if now >= item.until => Some(Err(None)),
                 None => None,
             };
             let Some(outcome) = outcome else {
@@ -171,7 +202,11 @@ impl UplinkHandler {
             };
             let ended = self.update(&item.id, |t| match outcome {
                 Ok(()) => t.state = "finished",
-                Err(reason) => (t.state, t.reason) = ("failed", Some(reason)),
+                Err(Some(reason)) => (t.state, t.reason) = ("failed", Some(reason)),
+                Err(None) => {
+                    t.state = "sent";
+                    t.reason = Some("every packet is sent; the flight software did not confirm the file".into());
+                }
             });
             publish(ctx, ended.record(KIND_UPLINK)).await;
         }
@@ -209,7 +244,7 @@ impl UplinkHandler {
             }
             while let Ok(Some(record)) = tokio::time::timeout(Duration::ZERO, records.next()).await {
                 self.settle(ctx, Some(&record)).await;
-                if let Some(Seen::Fatal(reason)) = seen(&record, &transfer.destination) {
+                if let Some(Seen::Failed(reason)) = seen(&record, &transfer.destination) {
                     return Err(Stop::Failed(reason));
                 }
             }
@@ -264,4 +299,49 @@ fn read_chunk(file: &mut std::fs::File, chunk: &mut [u8]) -> std::io::Result<usi
         }
     }
     Ok(filled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{seen, Seen};
+    use fgds_core::serde_json::{json, Value};
+    use fgds_core::{Record, Timestamp};
+
+    fn event(name: &str, severity: &str, args: Value) -> Record {
+        let body = json!({"name": name, "severity": severity, "display_text": "text", "args": args});
+        Record {
+            seq: 1,
+            run: 1,
+            ground_time: Timestamp(0),
+            kind: "fprime.event".into(),
+            flight_time: None,
+            id: None,
+            entity: None,
+            stored: true,
+            raw: Default::default(),
+            meta: Default::default(),
+            body,
+        }
+    }
+
+    #[test]
+    fn only_the_event_of_the_flight_software_ends_an_uplink() {
+        let long = format!("n9-ab{}.bin", "\u{e9}".repeat(30));
+        assert!(super::names(&format!("n9-ab{}\u{fffd}", "\u{e9}".repeat(17)), &long));
+        assert!(!super::names("n9", &long));
+        assert!(!super::names("other.bin", "a.bin") && super::names("a.bin", "a.bin"));
+        let to = "/dir/up.bin";
+        let received = event("f.fileUplink.FileReceived", "ACTIVITY_HI", json!({"fileName": to}));
+        assert_eq!(seen(&received, to), Some(Seen::Received));
+        assert_eq!(seen(&received, "/other.bin"), None);
+        // Stock Ref for a destination it cannot open: the transfer has failed, it is not finished.
+        let refused = event("f.fileUplink.FileOpenError", "WARNING_HI", json!({"fileName": to}));
+        assert!(matches!(seen(&refused, to), Some(Seen::Failed(reason)) if reason.contains("FileOpenError")));
+        assert_eq!(seen(&refused, "/other.bin"), None);
+        let mode = event("f.fileUplink.InvalidReceiveMode", "WARNING_HI", json!({"packetType": 1, "mode": 0}));
+        assert!(matches!(seen(&mode, to), Some(Seen::Failed(_))));
+        // A warning of another component says nothing about the file.
+        assert_eq!(seen(&event("f.cmdDisp.OpCodeError", "WARNING_HI", json!({})), to), None);
+        assert!(matches!(seen(&event("f.x.Stop", "FATAL", json!({})), to), Some(Seen::Failed(_))));
+    }
 }

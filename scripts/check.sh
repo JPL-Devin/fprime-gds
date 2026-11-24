@@ -3,15 +3,15 @@
 #
 #   1. format, lints and tests
 #   2. fgds against a running Ref: commands, events, channels, WebSocket
-#   3. comparison with the Python GDS, live and on replayed bytes (tests/compare/README.md)
-#   4. the example project binary
-#   5. every tests/*/run.sh
+#   3. the example project binary
+#   4. every tests/*/run.sh
+#   5. with COMPARE=1 only: comparison with the Python GDS of the bytes sent to the flight software and
+#      of the data decoded, live and on replayed bytes (tests/compare/README.md)
 #
-# Items 2, 3 and 5 need F Prime: set FPRIME to a checkout of fprime that has its virtual
-# environment in fprime-venv (fprime-util and fprime-gds installed). Ref is built from
-# copies of it, on the first run only: as it is (CCSDS framing, the main build, under
-# target/ref-ccsds) and with F Prime framing (the second profile of items 2 and 3, under
-# target/ref).
+# Items 2 and 4 need F Prime: set FPRIME to a checkout of fprime that has its virtual environment in
+# fprime-venv (fprime-util, to build Ref). Item 5 also needs fprime-gds installed there. Ref is built
+# from copies of the checkout, on the first run only: as it is (CCSDS framing, the main build, under
+# target/ref-ccsds) and with F Prime framing (the second profile, under target/ref).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${FPRIME:?set FPRIME to an fprime checkout with its fprime-venv}"
@@ -63,23 +63,14 @@ python3 tests/ref/check.py "$fgds" "$ref/bin/Ref" "$dictionary" "$PWD/$out/ref" 
 echo "== 2. fgds against Ref with F Prime framing"
 python3 tests/ref/check.py "$fgds" "$ref_fprime/bin/Ref" "$dictionary_fprime" "$PWD/$out/ref-fprime" fprime
 
-echo "== 3. comparison with the Python GDS"
-PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" --ref "$ref/bin/Ref" --framing ccsds \
-    --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/compare"
-echo "== 3. comparison with the Python GDS, Ref with F Prime framing"
-PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" --ref "$ref_fprime/bin/Ref" --framing fprime \
-    --dictionary "$dictionary_fprime" --python "$venv/bin/python" --out "$PWD/$out/compare-fprime"
-echo "== 3. comparison with the Python GDS on every event and channel of the dictionary"
-PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" \
-    --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/synthetic"
-
-echo "== 4. example project binary"
+echo "== 3. example project binary"
 python3 examples/custom-gds/check.py target/debug tests/data/dictionary.json "$PWD/$out/example"
 
 # Each part of the GDS adds its own checks as tests/<name>/run.sh, without editing this
 # file. A script runs from the repository root with FGDS, REF_BIN, DICTIONARY, VENV and
 # OUT (its own directory for output) set, and fails with a non-zero exit code. REF_BIN and
-# DICTIONARY are the stock Ref (CCSDS framing, the default of fgds).
+# DICTIONARY are the stock Ref (CCSDS framing, the default of fgds). With COMPARE set, a script
+# also runs its comparison with the Python GDS.
 for script in tests/*/run.sh; do
     [ -e "$script" ] || continue
     name=$(basename "$(dirname "$script")")
@@ -88,6 +79,18 @@ for script in tests/*/run.sh; do
     FGDS="$fgds" REF_BIN="$ref/bin/Ref" DICTIONARY="$dictionary" VENV="$venv" \
         OUT="$PWD/$out/$name" bash "$script"
 done
+
+if [ -n "${COMPARE:-}" ]; then
+    echo "== 5. comparison with the Python GDS"
+    PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" --ref "$ref/bin/Ref" --framing ccsds \
+        --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/compare"
+    echo "== 5. comparison with the Python GDS, Ref with F Prime framing"
+    PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" --ref "$ref_fprime/bin/Ref" --framing fprime \
+        --dictionary "$dictionary_fprime" --python "$venv/bin/python" --out "$PWD/$out/compare-fprime"
+    echo "== 5. comparison with the Python GDS on every event and channel of the dictionary"
+    PATH="$venv/bin:$PATH" python3 tests/compare/compare.py --fgds "$fgds" \
+        --dictionary "$dictionary" --python "$venv/bin/python" --out "$PWD/$out/synthetic"
+fi
 
 echo "== nothing left behind"
 # Databases and logs go to the output directory of each check, never into the tree.

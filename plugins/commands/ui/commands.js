@@ -4,13 +4,13 @@ import { LitElement, html, nothing } from "/ui/lit.js";
 
 const KIND = "fprime.command";
 
-// The value an input of `type` holds when the page opens, as the Python GDS gives it to its page: an enum its
-// default constant, a boolean `True`, a number nothing (null, which the page tells from a text typed and
-// removed, ""). `cleared` is what `Clear Arguments` leaves: the same, but a boolean with nothing chosen.
+// The value an input of `type` holds when the page opens: an enum its default constant, a boolean nothing
+// chosen, a number nothing (null, which the page tells from a text typed and removed, ""). `cleared` is
+// what `Clear Arguments` leaves.
 function initial(type, cleared = false) {
   switch (type.kind) {
     case "enum": return type.constants.some((c) => c.name === type.default) && !cleared ? type.default : type.constants[0].name;
-    case "bool": return cleared ? null : "true";
+    case "bool": return null;
     case "array": return Array.from({ length: type.size }, () => initial(type.element, cleared));
     case "struct":
       return Object.fromEntries(type.members.map((m) => [
@@ -43,8 +43,6 @@ function fromRecord(type, value) {
 // `<FILL-VALUE>` where nothing is typed yet. A line typed there fills the form; it does not send.
 const FILL_NEEDED = "<FILL-VALUE>";
 const COMMAND_FORMAT_SPEC = "FULL_COMMAND_NAME[[[, ARG1], ARG2], ...] where ARGN is a decimal number, quoted string, or an enumerated constant";
-// The expression of the Python page, as its template string leaves it: names get quotes, then the line is JSON.
-const STRING_PREPROCESSOR = /(?:"((?:[^"]|")*)")|([a-zA-Z_][a-zA-Z_0-9.]*)|(<FILL-VALUE>)/g;
 
 function lineText(type, state) {
   switch (type.kind) {
@@ -69,15 +67,59 @@ function lineText(type, state) {
   } catch (e) { return FILL_NEEDED; }
 }
 
-// The tokens of a line: its name and its arguments, a number as the text the Python page gives its input
-// (an integer of any size in full, any other number as JavaScript writes it).
+// The tokens of a line: its name and its arguments. A number stays the text that was typed, so an integer
+// of 64 bits is never rounded; an array is a list, a struct an object of its members.
 function lineTokens(text) {
-  const tokens = JSON.parse(`[${text.replace(STRING_PREPROCESSOR, '"$1$2$3"')}]`, (key, value, context) => {
-    if (typeof value !== "number") return value;
-    const source = context && context.source;
-    return source && /^-?\d+$/.test(source) && !Number.isSafeInteger(value) ? source : String(value);
-  });
-  if (typeof tokens[0] !== "string") throw new SyntaxError("no command name");
+  let at = 0;
+  const fail = () => { throw new SyntaxError("not a command string"); };
+  const space = () => { while (/\s/.test(text[at] ?? "")) at += 1; };
+  const value = () => {
+    space();
+    if (text[at] === '"') {
+      let out = "";
+      for (at += 1; text[at] !== '"'; at += 1) {
+        if (at >= text.length) fail();
+        if (text[at] === "\\" && text[at + 1] === '"') at += 1;
+        out += text[at];
+      }
+      at += 1;
+      return out;
+    }
+    if (text[at] === "[" || text[at] === "{") {
+      const [close, list] = text[at] === "[" ? ["]", []] : ["}", {}];
+      at += 1;
+      space();
+      if (text[at] === close) { at += 1; return list; }
+      for (;;) {
+        if (close === "]") list.push(value());
+        else {
+          const name = value();
+          space();
+          if (typeof name !== "string" || text[at] !== ":") fail();
+          at += 1;
+          list[name] = value();
+        }
+        space();
+        if (text[at] === close) { at += 1; return list; }
+        if (text[at] !== ",") fail();
+        at += 1;
+      }
+    }
+    const from = at;
+    while (at < text.length && !',]}:"[{'.includes(text[at])) at += 1;
+    const bare = text.slice(from, at).trim();
+    if (bare === "" || /\s/.test(bare)) fail();
+    return bare;
+  };
+  const tokens = [];
+  for (;;) {
+    tokens.push(value());
+    space();
+    if (at >= text.length) break;
+    if (text[at] !== ",") fail();
+    at += 1;
+  }
+  if (typeof tokens[0] !== "string") fail();
   return tokens;
 }
 
@@ -140,8 +182,8 @@ function validate(type, holder, key, path, errors, groups = true) {
     case "bool": return state !== null && ["yes", "no", "true", "false"].includes(String(state).toLowerCase());
     case "string": {
       const bytes = new TextEncoder().encode(state ?? "").length;
-      // The Python GDS page refuses an empty text and one longer than the type holds.
-      const fits = bytes > 0 && (type.max === undefined || bytes <= type.max);
+      // An empty text is a value; one longer than the type holds is not.
+      const fits = type.max === undefined || bytes <= type.max;
       return scalar(fits ? "" : `Supply general text of less than ${type.max} characters`);
     }
     case "enum": {
@@ -163,7 +205,7 @@ function pythonName(type) {
 
 // Whether the browser refuses the input of a scalar: `required`, and the pattern of an integer.
 function refused(type, state) {
-  if (type.kind === "enum" || type.kind === "bool") return false;
+  if (type.kind === "enum" || type.kind === "bool" || type.kind === "string") return false;
   if (state === null || state === "") return true;
   if (type.kind !== "integer") return false;
   return !(type.signed ? /^(-?[1-9]\d*|0)$/ : /^(0[bB][01]+|0[oO][0-7]+|0[xX][0-9a-fA-F]+|[1-9]\d*|0)$/).test(state);

@@ -202,20 +202,15 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
 
     // Only the name goes to the GDS: the source path of the start packet is that name in its uplink directory.
     let mut url = format!("{base}/uplink?name={}", encode(&name));
-    let destination = args.get_one::<String>("destination");
-    if let Some(destination) = destination {
-        url += &format!("&destination={}", encode(destination));
-    }
-    // `file-uplink` names the file storage directory as `fprime-cli` does, `/tmp/<user>` without the option;
-    // `files upload` has no such option and the GDS names its own uplink directory.
-    if let Ok(store) = args.try_get_one::<String>("file-storage-directory") {
-        let store = store.cloned().unwrap_or_else(|| {
-            let user = ["LOGNAME", "USER", "LNAME", "USERNAME"]
-                .iter()
-                .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()));
-            format!("/tmp/{}", user.unwrap_or_default())
-        });
-        url += &format!("&store={}", encode(&store));
+    // Refused here as the GDS refuses it, before the file is sent to it.
+    let Some(destination) = args.get_one::<String>("destination") else {
+        fgds_core::out!("Error: no destination on the spacecraft is given for {name}");
+        return Ok(ExitCode::FAILURE);
+    };
+    url += &format!("&destination={}", encode(destination));
+    // Without the option the GDS names its own uplink directory.
+    if let Some(store) = args.try_get_one::<String>("file-storage-directory").ok().flatten() {
+        url += &format!("&store={}", encode(store));
     }
     if let Some(chunk) = args.try_get_one::<u16>("file-uplink-chunk-size").ok().flatten() {
         url += &format!("&chunk={chunk}");
@@ -272,10 +267,16 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
                 );
                 break;
             }
-            // The names of the Python uplinker for these states.
+            // Every packet is sent and the flight software said nothing about the file.
+            "sent" => {
+                fgds_core::out!("Error: no 'FileReceived' event received for '{name}'; uplink unconfirmed");
+                return Ok(ExitCode::FAILURE);
+            }
             state @ ("failed" | "canceled") => {
-                let state = if state == "failed" { "TIMEOUT" } else { "CANCELED" };
-                fgds_core::out!("Uplink of '{name}' failed with state {state}");
+                match entry["reason"].as_str() {
+                    Some(reason) => fgds_core::out!("Uplink of '{name}' {state}: {}", fgds_core::visible(reason)),
+                    None => fgds_core::out!("Uplink of '{name}' {state}"),
+                }
                 return Ok(ExitCode::FAILURE);
             }
             _ => {}

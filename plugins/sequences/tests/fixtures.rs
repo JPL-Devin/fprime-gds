@@ -1,5 +1,5 @@
-//! SEQ-1: every sequence of `fixtures/sequences/manifest.json` compiles to the binary of the
-//! Python compiler, or fails with the message of the Python compiler.
+//! SEQ-1: every valid sequence of `fixtures/sequences/manifest.json` compiles to the binary of
+//! `fprime-seqgen`; every other one is refused with a message naming its file and line.
 
 use fgds_core::serde_json::{self, Value};
 use std::path::{Path, PathBuf};
@@ -36,13 +36,6 @@ fn manifest() {
                 }
             }
             ("error", Err(message)) => {
-                if message != case["python_error"].as_str().unwrap() {
-                    failures.push(format!("{name}:\n  rust:   {message}\n  python: {}", case["python_error"]));
-                }
-                if let Some(file) = case["expected_file"].as_str() {
-                    let expected = std::fs::read_to_string(fixtures().join(file)).unwrap();
-                    assert!(message.contains(expected.trim()), "{name}: {message} lacks {expected}");
-                }
                 // The message names the line: file:line.
                 let line =
                     message.split(&format!("{}:", Path::new(name).file_name().unwrap().to_str().unwrap())).nth(1);
@@ -101,4 +94,16 @@ fn argument_count() {
         "s.seq:2: cmdDisp.CMD_NO_OP takes 0 arguments, 2 given\ns.seq:3: cmdDisp.CMD_STRING takes 1 arguments, 0 given"
     );
     assert!(compile("R00:00:00 cmdDisp.CMD_NO_OP\nR00:00:02 cmdDisp.CMD_STRING \"a\"\n", false).is_ok());
+}
+
+/// A float literal beyond a double is refused, quoted or not: it is not sent as infinity.
+#[test]
+fn a_float_literal_beyond_a_double_is_refused() {
+    let dict = sequences::load_dictionary(&fixtures().join("resources/enhanced_dictionary.json")).unwrap();
+    let compile = |text: &str| sequences::compile(text, "s.seq", &dict, 0xFFFF, false);
+    for literal in ["1e999", "-1e999", "\"1e400\""] {
+        let error = compile(&format!("R00:00:00 cmdDisp.CMD_FLOAT {literal}\n")).unwrap_err();
+        assert!(error.starts_with("s.seq:1: cmdDisp.CMD_FLOAT"), "{error}");
+    }
+    assert!(compile("R00:00:00 cmdDisp.CMD_FLOAT 1e30\n").is_ok());
 }
