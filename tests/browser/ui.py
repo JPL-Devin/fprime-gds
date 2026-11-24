@@ -674,6 +674,28 @@ def files_and_products(page, gds):
         document.querySelectorAll('#tab img, #tab b, #tab script').length]""")
     assert injected == [True, 0], injected
     step(f"Uplink tab: the file name {name!r} is shown as text when staged, in the queue and in the event; nothing ran")
+    # F10-4: one selection of `..`, good1.txt, good2.txt. The refused file is named with the reason and leaves
+    # the staged rows; the two others reach Ref; a second Begin Uplink posts nothing.
+    payload = lambda name: {"name": name, "mimeType": "application/octet-stream", "buffer": content}
+    uplink.locator("#files").set_input_files([payload(".."), payload("good1.txt"), payload("good2.txt")])
+    expect(uplink.locator("tr.staged")).to_have_count(3)
+    posts = []
+    page.on("request", lambda request: posts.append(request.url) if "/files/uplink?" in request.url else None)
+    uplink.get_by_role("button", name="Begin Uplink").click()
+    for name in ("good1.txt", "good2.txt"):
+        expect(uplink.locator("tr", has_text=name)).to_contain_text("finished", timeout=30000)
+        scenario.wait_for(f"Ref received {name}", lambda: open(f"{gds.out}/ref/{name}", "rb").read() == content)
+    expect(uplink.locator("tr.staged")).to_have_count(0)
+    expect(uplink.locator(".uplink-refused")).to_have_count(1)
+    refusal = uplink.locator(".uplink-refused").text_content()
+    assert "REFUSED" in refusal and '".."' in refusal and "not a usable file name" in refusal, refusal
+    uplink.get_by_role("button", name="Begin Uplink").click()
+    page.wait_for_timeout(500)
+    assert len(posts) == 3, posts
+    uplink.locator(".uplink-refused button").click()
+    expect(uplink.locator(".uplink-refused")).to_have_count(0)
+    step(f"Uplink tab: `..`, good1.txt and good2.txt chosen together: the first is refused with its reason ({' '.join(refusal.split())!r}) "
+         "and leaves the list, the two others reach Ref; Begin Uplink again posts nothing")
     # Three files in the queue, as the Python GDS: the start time is when the file begins, the end time when its
     # end packet is sent, and the next file begins at once (the three start times of the Python page are equal).
     queued = ["queued1.bin", "queued2.bin", "queued3.bin"]
@@ -965,6 +987,16 @@ def charts_and_sequences(page, gds, problems):
     wrong = f"{staged}/page.seq:1: 'Not.a.COMMAND' does not match any command in the command dictionary."
     expect(tab.locator("#sequence-result")).to_have_value(wrong)
     refused = wrong
+    # Round 10, F10-2: a wrong number of arguments is refused as by `fgds seqgen` and `command-send`, with the
+    # line and the command; nothing is built or uplinked.
+    uplinks = len(gds.get("/files/uplink")["files"])
+    tab.locator("#sequence-text").fill("R00:00:00 CdhCore.cmdDisp.CMD_NO_OP\nR00:00:01 CdhCore.cmdDisp.CMD_TEST_CMD_1\n"
+                                       "R00:00:02 CdhCore.cmdDisp.CMD_NO_OP 1, 2\n")
+    tab.locator("#sequence-uplink").click()
+    expect(tab.locator("#sequence-result")).to_have_value(
+        f"{staged}/page.seq:2: CdhCore.cmdDisp.CMD_TEST_CMD_1 takes 3 arguments, 0 given\n"
+        f"{staged}/page.seq:3: CdhCore.cmdDisp.CMD_NO_OP takes 0 arguments, 2 given")
+    assert len(gds.get("/files/uplink")["files"]) == uplinks
     # The browser logs the refusal of the route; it is the one error expected in the console.
     assert [p for p in problems if "422" not in p] == [], problems
     problems.clear()
@@ -1000,7 +1032,7 @@ def charts_and_sequences(page, gds, problems):
                                                    if e["body"]["name"] == "Ref.cmdSeq.CS_SequenceComplete"])
     ran = [e["body"]["name"].rsplit(".", 1)[1] for e in gds.records("fprime.event")[before:]]
     assert "NoOpStringReceived" in ran, ran
-    step(f"Sequences tab: a sequence with an unknown command is refused ({refused.strip()[:60]!r}); one opened from a file is saved, built "
+    step(f"Sequences tab: a sequence with an unknown command is refused ({refused.strip()[:60]!r}), one with a command given too few or too many arguments is refused naming line and command; one opened from a file is saved, built "
          f"({len(built)} bytes, equal to `fgds seqgen`), uplinked with the messages of the Python GDS page, and run with "
          f"the Run button: {', '.join(ran)}")
 

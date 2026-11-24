@@ -87,3 +87,18 @@ fn damaged_sequences_never_panic() {
     }
     assert!(compiled > 1000 && rejected > 1000, "{compiled} compiled, {rejected} rejected");
 }
+
+/// A statement with fewer or more arguments than its command takes is refused, naming the line and the
+/// command, as a command that is sent (the Python compiler writes such a sequence).
+#[test]
+fn argument_count() {
+    let dict = sequences::load_dictionary(&fixtures().join("resources/enhanced_dictionary.json")).unwrap();
+    let compile = |text: &str, all: bool| sequences::compile(text, "s.seq", &dict, 0xFFFF, all);
+    let text = "R00:00:00 cmdDisp.CMD_NO_OP\nR00:00:01 cmdDisp.CMD_NO_OP 1, 2\nR00:00:02 cmdDisp.CMD_STRING\n";
+    assert_eq!(compile(text, false).unwrap_err(), "s.seq:2: cmdDisp.CMD_NO_OP takes 0 arguments, 2 given");
+    assert_eq!(
+        compile(text, true).unwrap_err(),
+        "s.seq:2: cmdDisp.CMD_NO_OP takes 0 arguments, 2 given\ns.seq:3: cmdDisp.CMD_STRING takes 1 arguments, 0 given"
+    );
+    assert!(compile("R00:00:00 cmdDisp.CMD_NO_OP\nR00:00:02 cmdDisp.CMD_STRING \"a\"\n", false).is_ok());
+}

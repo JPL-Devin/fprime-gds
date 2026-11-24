@@ -58,7 +58,12 @@ fn record(
     let mut packet = Vec::new();
     put(dict, "FwPacketDescriptorType", Type::U16, 0, &mut packet)?;
     put(dict, "FwOpcodeType", Type::U32, u64::from(command.opcode), &mut packet)?;
-    // As the Python tool: arguments beyond the command's are ignored, missing ones are not written.
+    // The Python tool ignores arguments beyond the command's and writes a packet without the missing ones;
+    // here the count is checked as for a command that is sent (`Dictionary::encode_command`).
+    if statement.args.len() != command.params.len() {
+        let (takes, given) = (command.params.len(), statement.args.len());
+        return Err(format!("{} takes {takes} arguments, {given} given", statement.mnemonic));
+    }
     let mut errors = Vec::new();
     for (param, value) in command.params.iter().zip(&statement.args) {
         errors.push(match convert(dict, &param.ty, value, Source::Argument, &mut packet) {

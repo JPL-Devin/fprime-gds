@@ -960,6 +960,26 @@ def capabilities(out):
             sent[name] = [p.hex() for p in scenario.uplink_packets(bytes(relay.uplink), args.framing, scid)]
             require(f"fgds run with {name}: the command packet on the link is the one of `--dry-run`, and Ref answers NoOpReceived",
                     code == 0 and sent[name] == [expected], f"{sent[name]} {expected} {error}")
+            # Round 10, G1: the source path of the start packet is `/tmp/<user>/fprime-uplink/<name>` as the Python
+            # GDS sends it, whatever the operator typed (a relative path, an absolute one) and from the route the
+            # page posts to; the local directory is not sent.
+            here = os.path.abspath(f"{out}/{index}")
+            with open(f"{here}/up.bin", "wb") as file:
+                file.write(bytes(range(256)) + b"g1")
+            typed = []
+            for path, destination in (("up.bin", "g1-relative.bin"), ("./up.bin", "g1-dot.bin"), (f"{here}/up.bin", "g1-absolute.bin")):
+                done = subprocess.run(gds.cli("file-uplink", path, destination), capture_output=True, text=True, cwd=here, timeout=90)
+                typed.append((path, done.returncode))
+            post = urllib.request.Request(f"{gds.url}/api/v1/files/uplink?name=up.bin&directory=", data=open(f"{here}/up.bin", "rb").read(), method="POST")
+            urllib.request.urlopen(post, timeout=10).close()
+            scenario.wait_for("the file posted as the page posts it", lambda: all(
+                item["state"] == "finished" for item in gds.get("/files/uplink")["files"]), 60)
+            starts = [p for p in scenario.uplink_packets(bytes(relay.uplink), args.framing, scid) if p[:3] == b"\x00\x03\x00"]
+            sources = [p[12:12 + p[11]].decode() for p in starts]
+            wanted = f"/tmp/{getpass.getuser()}/fprime-uplink/up.bin"
+            require(f"fgds run with {name}: the start packets of `file-uplink up.bin`, `./up.bin`, the absolute path and of the route "
+                    f"of the page carry the source path {wanted}", sources == [wanted] * 4 and all(code == 0 for _, code in typed),
+                    f"{sources} {typed}")
             page = urllib.request.Request(gds.url + "/")
             try:
                 status = urllib.request.urlopen(page, timeout=10).status

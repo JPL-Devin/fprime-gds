@@ -6,7 +6,9 @@ Each sequence is compiled by the function `seqgen.generateSequence` of the Pytho
 dictionaries the function accepts: docs/design/deviations.md, "Round 10") and by `fgds seqgen`.
 Both must accept it with the same bytes, or both must reject it; when the Python compiler
 rejects with a message of its own (not a crash), the message of fgds must be the same text.
-Two known differences are allowed (docs/design/deviations.md): when reporting every error,
+Three known differences are allowed (the third: fgds refuses a statement with a wrong number of
+arguments, which the Python compiler writes; such a statement is set aside and the rest compared).
+Two more are allowed (docs/design/deviations.md): when reporting every error,
 fgds also reports the statement after one with a bad time tag, and a value out of the range
 of F32, which the Python compiler skips or crashes on; and the error of a quoted array or
 object inside an array names its line, where the Python compiler always says line 1.
@@ -262,9 +264,20 @@ def fgds_result(fgds, source, dictionary, cont):
         return "binary", (output.read_bytes(), done.stdout)
     if done.returncode != 1 or done.stderr or output.exists():
         return "crash", done.stderr
-    return "error", done.stdout.rstrip("\n")
+    return "error", VISIBLE.sub(shown, done.stdout.rstrip("\n"))
 
 
+# fgds prints a text with its control characters and backslashes made visible (docs/design/deviations.md,
+# control bytes); the messages are compared with those of the Python compiler after the reverse.
+VISIBLE = re.compile(r"\\(\\|n|r|t|x[0-9a-fA-F]{2}|u\{[0-9a-fA-F]+\})")
+
+
+def shown(found):
+    text = found.group(1)
+    return {"\\": "\\", "n": "\n", "r": "\r", "t": "\t"}.get(text) or chr(int(text.strip("xu{}"), 16))
+
+
+COUNT = re.compile(r"^(?:Parsing error: )?[^\n]*?:(\d+): \S+ takes \d+ arguments, \d+ given$", re.M)
 NESTED = re.compile(r":\d+: (Encountered syntax error parsing timestamp: )?Error trying to process rule")
 
 
@@ -294,7 +307,7 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     dictionary = (args.fixtures / "sequences/resources/enhanced_dictionary.json").resolve()
     rng = random.Random(args.seed)
-    counts = {"binary": 0, "error": 0, "crash": 0, "more": 0}
+    counts = {"binary": 0, "error": 0, "crash": 0, "more": 0, "count": 0}
     failures = []
     for index, text in enumerate(corpus(args.fixtures, args.count, rng)):
         source = (args.out / f"case{index % 8}.seq").resolve()
@@ -302,6 +315,19 @@ def main():
         cont = index % 3 == 2
         kind, expected = python_result(source, dictionary, cont)
         got_kind, got = fgds_result(args.fgds, source, dictionary, cont)
+        # Round 10, F10-2: fgds refuses a statement with a wrong number of arguments, which the Python compiler
+        # writes (arguments beyond the command's ignored, missing ones left out of the packet). Such statements
+        # are counted, replaced by a comment, and the rest of the sequence is compared.
+        while got_kind == "error" and (named := COUNT.findall(got)):
+            refused = {int(line) for line in named}
+            counts["count"] += len(refused)
+            rows = text.split("\n")
+            for line in refused:
+                rows[line - 1] = ";" + ("\r" if rows[line - 1].endswith("\r") else "")
+            text = "\n".join(rows)
+            source.write_text(text, newline="")
+            kind, expected = python_result(source, dictionary, cont)
+            got_kind, got = fgds_result(args.fgds, source, dictionary, cont)
         same = agree(kind, expected, got_kind, got, cont)
         counts["more" if same == "more" else kind] += 1
         if not same:
@@ -309,10 +335,11 @@ def main():
             kept = args.out / f"failure{index}.seq"
             kept.write_text(text, newline="")
             print(f"DIFFERENT {kept} (all errors: {cont})\n  python {kind}: {expected!r}\n  fgds   {got_kind}: {got!r}")
+    refused = counts.pop("count")
     total = sum(counts.values())
     print(f"  {total} sequences: {counts['binary']} compiled to the same bytes, {counts['error']} rejected with the same message, "
           f"{counts['more']} rejected with the same messages and more, {counts['crash']} that crash the Python compiler rejected; "
-          f"{len(failures)} different")
+          f"{len(failures)} different; {refused} statements with a wrong number of arguments refused by fgds only and set aside")
     return 1 if failures else 0
 
 

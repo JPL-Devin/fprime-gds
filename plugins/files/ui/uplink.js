@@ -6,10 +6,11 @@ class FgdsUplink extends FilesTab {
   kind = "fprime.file.uplink";
   path = "/files/uplink";
 
-  static properties = { ...FilesTab.properties, staged: { state: true }, notices: { state: true }, editing: { state: true }, packetError: { state: true } };
+  static properties = { ...FilesTab.properties, staged: { state: true }, refused: { state: true }, notices: { state: true }, editing: { state: true }, packetError: { state: true } };
 
   constructor() {
     super();
+    this.refused = []; // files the GDS refused at Begin Uplink, with the reason
     this.staged = []; // files chosen and not yet sent to the GDS: `NOT STARTED`, as in the Python GDS page
   }
 
@@ -49,7 +50,14 @@ class FgdsUplink extends FilesTab {
       const response = await fetch("/api/v1/files/uplink?" + query, { method: "POST", body: file });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(file.name + ": " + (body.error ? body.error.message : response.statusText));
+        const reason = body.error ? body.error.message : response.statusText;
+        // A file the GDS refuses for what it is (its name, its destination, its size, its packets) leaves
+        // the staged rows and is named with the reason; the files after it are still sent. Anything else
+        // (no GDS, a queue that takes no file now) stops here with the file still staged.
+        if (response.status !== 422 && response.status !== 413) throw new Error(file.name + ": " + reason);
+        this.refused = [...this.refused, { name: file.name, reason }];
+        this.staged = this.staged.slice(1);
+        continue;
       }
       const notice = (await response.json().catch(() => ({}))).notice;
       if (notice) this.notices = [...(this.notices || []), notice];
@@ -78,6 +86,8 @@ class FgdsUplink extends FilesTab {
         <span class="error">${this.error}</span>
       </div>
       ${(this.notices || []).map((notice) => html`<p class="note uplink-notice">${notice}</p>`)}
+      ${this.refused.map((item, n) => html`<p class="error uplink-refused">REFUSED, not uplinked: ${item.name}: ${item.reason}
+        <button title="Remove this line" @click=${() => { this.refused = this.refused.filter((_, i) => i !== n); }}>Dismiss</button></p>`)}
       ${this.editing ? html`<div class="packets" id="packet-selection">
         <h3>Uplink File Packet List</h3>
         <h4>Selecting Packets for: ${this.editing.file.name}</h4>
