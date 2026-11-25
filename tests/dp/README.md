@@ -5,7 +5,7 @@
 | Step | What is compared | Ground truth |
 |---|---|---|
 | 1 | `cargo test -p data-products`: `fixtures.rs` (library on every product and mode), `index.rs` (watched directory), `robustness.rs` (truncated, corrupted and random inputs never panic) | `fixtures/dp/expected` |
-| 2 | `fgds dp` on 18 products x 10 modes and on the 22 cases of `cli_cases.json`: exit code, stdout, stderr, files written | `fixtures/dp/expected` |
+| 2 | `fgds dp` on 18 products x 10 modes and on the 22 cases of `cli_cases.json`: exit code, decoded values, files written | `fixtures/dp/expected` |
 | 3 | A running GDS with a watched directory: tab and assets, list, duplicate content, symbolic link, invalid product, export, missing and changed files | `fixtures/dp/expected` for the exported JSON |
 | 4 | `fgds dp` and a live `fprime-dp` on 648 damaged products (seeded), only when `FPRIME_DP` is set | `fprime-dp` of the commit in `fixtures/README.md` |
 
@@ -13,14 +13,12 @@ Steps 2 to 4 run `$FGDS`, the stock binary.
 
 ## Comparison rules
 
-Decoded JSON is compared twice: as parsed values (`NaN`, `Infinity` and `-Infinity`, which Python writes and strict JSON does not have, compare by name), and as bytes. Both hold for every fixture, so no value is normalised.
+`fgds dp decode` writes the decoded values: a scalar is its value, an array a list, a struct an object of its members. `fprime-dp` writes each value with a description of its type (`{"value": ..., "type": ...}`, `{"values": [...], "value_type": ...}`, the format and description of each struct member, the Python class of a record). The checks take the values out of the `fprime-dp` document and compare them with the `fgds` document; the name of a record type is not compared (`U32` here, `U32Type` there).
 
-What is not compared, or is rewritten before comparing:
+What else is not compared:
 
-- The scratch directory in stdout and stderr is replaced by `<WORKDIR>`, as `fixtures/README.md` does.
-- For an argument error (exit code 2), only the message after `: error: ` is compared. The usage text before it is written by `argparse` for `fprime-dp` and names a different program.
-- `--help` output is not compared (not in the fixtures).
-- Step 4 only: when `fprime-dp` ends with a Python traceback (an exception it does not catch, on some damaged inputs), the exit code and stdout are compared and the stderr text is not. When it reports a fault of the product (`Error: ...`, checksum messages), stderr is compared in full.
-- The API detail route (`GET /api/v1/data-products/<hash>`) returns strict JSON, so a non-finite float is the string `"NaN"`, `"Infinity"` or `"-Infinity"` there. The export route returns the `fprime-dp` bytes.
+- The text of an error: both tools must refuse the same products, each in its words. `fgds` checks the data checksum before it reads the records.
+- `--help` output and the text of a refused command line.
+- The API detail route (`GET /api/v1/data-products/<hash>`) gives integers beyond 2^53 as text; the export route gives the file `fgds dp decode` writes.
 
 In step 4 every damaged product is rejected by both tools (648 of 648), so that step compares failures only; decoded output is compared in steps 1 to 3.
