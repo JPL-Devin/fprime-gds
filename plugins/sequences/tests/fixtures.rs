@@ -107,3 +107,51 @@ fn a_float_literal_beyond_a_double_is_refused() {
     }
     assert!(compile("R00:00:00 cmdDisp.CMD_FLOAT 1e30\n").is_ok());
 }
+
+/// The line format: optional commas between arguments, a comment, a continued line, and what is refused.
+#[test]
+fn line_format() {
+    use fgds_core::serde_json::json;
+    let parse = |text: &str| sequences::parser::parse(text);
+    let statements = parse(
+        "; a comment\n\nR00:00:01.5 a.B 1, -0x10 2.5e1 \"t;x\" 'q' NAME true [1, [2, 3],] \\\n  {x: 1, y: \"[4]\", x: 5} ; end\r\nA2025-015T12:00:00 c.D",
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 2);
+    let first = &statements[0];
+    assert_eq!(
+        (first.line, first.relative, first.time.as_str(), first.mnemonic.as_str()),
+        (3, true, "00:00:01.5", "a.B")
+    );
+    let expected = [
+        json!(1),
+        json!(-16),
+        json!(25.0),
+        json!("t;x"),
+        json!("q"),
+        json!("NAME"),
+        json!(true),
+        json!([1, [2, 3]]),
+        json!({"x": 5, "y": [4]}),
+    ];
+    assert_eq!(first.args, expected);
+    assert_eq!(
+        (statements[1].line, statements[1].relative, statements[1].time.as_str()),
+        (5, false, "2025-015T12:00:00")
+    );
+    assert_eq!(parse("R00:00:00 a.B 18446744073709551615").unwrap()[0].args, [json!(u64::MAX)]);
+    for (text, line, column) in [
+        ("R00:00:00 a.B\nX00:00:00 a.B", 2, 1),
+        ("R00:00:0 a.B", 1, 9),
+        ("R00:00:00 a.B [1 2]", 1, 18),
+        ("R00:00:00 a.B \"open", 1, 20),
+        ("R00:00:00 a.B 0o17", 1, 15),
+        ("R00:00:00 a.B 12ab", 1, 15),
+        ("R00:00:00 a.B {\"x\": 1}", 1, 16),
+        ("R00:00:00 a.B 1,", 1, 17),
+        ("R00:00:00 a.B [1,\n2]", 1, 18),
+    ] {
+        let error = parse(text).unwrap_err();
+        assert_eq!((error.line, error.column), (line, column), "{text}");
+    }
+}

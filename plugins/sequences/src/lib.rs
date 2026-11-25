@@ -1,20 +1,16 @@
 //! Compiler for classic `Svc::CmdSequencer` sequence files: the function of `fprime-seqgen`
 //! (SEQ-1, CLI-5), as a library and as the `fgds seqgen` subcommand.
 //!
-//! The result is byte-identical to the Python tool for every file it accepts, and an error
-//! naming the file and line for every file it rejects. The grammar is the one of the Python
-//! GDS: the parser runs the tables Lark builds from it (`tools/gen_tables.py`).
+//! The result is the binary `fprime-seqgen` writes for a valid file (`fixtures/sequences`), and an
+//! error naming the file and line for every file that is refused.
 
-pub mod lexer;
 pub mod parser;
-mod tables;
 pub mod time;
 
 pub use fgds_offline::{
-    convert, crc32, dictionary_path, load_dictionary, read_dictionary_json, read_file, value, MAX_INPUT,
+    crc32, dictionary_path, json_line, load_dictionary, read_dictionary_json, read_file, MAX_INPUT,
 };
 
-use convert::{convert, type_name, Source};
 use fgds_core::axum::extract::State;
 use fgds_core::axum::http::StatusCode;
 use fgds_core::axum::routing::post;
@@ -64,9 +60,16 @@ fn record(
     }
     let mut errors = Vec::new();
     for (param, value) in command.params.iter().zip(&statement.args) {
-        errors.push(match convert(dict, &param.ty, value, Source::Argument, &mut packet) {
+        // An array or object goes on as JSON text: read against the type of an array or struct
+        // argument, the text itself for any other.
+        let value = match (value, &param.ty) {
+            (Value::Array(_) | Value::Object(_), Type::Array { .. } | Type::Struct { .. }) => json!(value.to_string()),
+            (Value::Array(_) | Value::Object(_), _) => json!(json_line(value)),
+            _ => value.clone(),
+        };
+        errors.push(match dict.encode(&param.ty, &value, &mut packet) {
             Ok(()) => String::new(),
-            Err(e) => format!("{}[{}]: {e}", param.name, type_name(&param.ty)),
+            Err(e) => format!("{}: {}", param.name, e.0),
         });
     }
     if errors.iter().any(|e| !e.is_empty()) {
@@ -94,11 +97,12 @@ pub fn compile(
     continue_on_error: bool,
 ) -> std::result::Result<Vec<u8>, String> {
     let statements = parser::parse(text).map_err(|e| {
-        let token = match &e.token {
-            Some((kind, text)) => format!(": unexpected token 'Token('{kind}', {})'", value::str_repr(text)),
-            None => String::new(),
+        let found = match e.found {
+            Some('\n') => ": unexpected end of line".to_string(),
+            Some(c) => format!(": unexpected {c:?}"),
+            None => ": unexpected end of file".to_string(),
         };
-        format!("Parsing error: {file}:{}:{}: Encountered syntax error parsing{token}", e.line, e.column)
+        format!("{file}:{}:{}: syntax error{found}", e.line, e.column)
     })?;
 
     let mut records = Vec::new();
@@ -239,7 +243,7 @@ impl Subcommand for SeqgenCommand {
         let input = PathBuf::from(args.get_one::<String>("sequence").expect("required"));
         let timebase = match args.get_one::<String>("timebase") {
             None => TIMEBASE_ANY,
-            Some(text) => match value::parse_int(text).and_then(|i| i.to_i128()).and_then(|i| u32::try_from(i).ok()) {
+            Some(text) => match fgds_core::dictionary::input::integer(text).and_then(|i| u32::try_from(i).ok()) {
                 Some(timebase) => timebase,
                 None => {
                     fgds_core::out!("Could not parse time base {text}");

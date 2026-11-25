@@ -20,6 +20,12 @@ pub fn crc32(bytes: &[u8]) -> u32 {
     CRC32.checksum(bytes)
 }
 
+/// JSON on one line with `, ` and `: ` between the parts and ASCII only: what a sequence carries in a
+/// string argument, so that the bytes sent to flight stay those of `fprime-seqgen`.
+pub fn json_line(value: &serde_json::Value) -> String {
+    value::Value::from_json(value).to_json()
+}
+
 /// Read a file of at most `MAX_INPUT` bytes.
 pub fn read_file(path: &Path) -> std::result::Result<Vec<u8>, String> {
     let meta = std::fs::metadata(path).map_err(|_| format!("Can't open file '{}'. ", path.display()))?;

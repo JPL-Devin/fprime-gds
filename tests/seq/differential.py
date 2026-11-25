@@ -274,9 +274,11 @@ def shown(found):
 
 
 COUNT = re.compile(r"^(?:Parsing error: )?[^\n]*?:(\d+): \S+ takes \d+ arguments, \d+ given$", re.M)
-# What fgds refuses on purpose and the Python compiler writes: a day the year does not have, and a float
-# literal beyond a double (written as infinity).
-STRICTER = re.compile(r": the day of year \d+ is 1 to 36[56]|could not convert string to float: '[^']*[eE][^']*'")
+# What fgds refuses on purpose and the Python compiler writes: a day the year does not have, a float
+# literal beyond a double (written as infinity); a number with a fraction for an integer (cut to its
+# whole part); two values written without a blank between them (`214748R3648`).
+STRICTER = re.compile(r": the day of year \d+ is 1 to 36[56]|: \S+ is not a number \(F\d+\)"
+                      r"|: [-+\d.eE]+ is not an integer \([IU]\d+\)|:\d+:\d+: syntax error: unexpected '\w'")
 FRACTION = re.compile(r"^[RA]\S*\.\d", re.M)
 
 
@@ -335,7 +337,7 @@ def main():
     total = sum(counts.values())
     print(f"  {total} sequences: {counts['binary']} compiled to the same bytes, {counts['error']} rejected by both, "
           f"{counts['crash']} that crash the Python compiler rejected, {counts['stricter']} refused by fgds only (a day the year "
-          f"does not have, a float beyond a double), {counts['exact']} with a microsecond the Python compiler loses; "
+          f"does not have, a float beyond a double, a fraction for an integer, two values run together), {counts['exact']} with a microsecond the Python compiler loses; "
           f"{len(failures)} different; {refused} statements with a wrong number of arguments refused by fgds only and set aside")
     return 1 if failures else 0
 
