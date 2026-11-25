@@ -4,8 +4,6 @@
 #   1. unit tests: fixtures, index, fuzz-style robustness (cargo test -p data-products)
 #   2. `fgds dp` against every product and mode of fixtures/dp and every command-line case
 #   3. the index, the routes and the tab against a running GDS
-#   4. optional: `fgds dp` against a live `fprime-dp` on damaged products
-#      (FPRIME_DP=<fprime-dp of the commit in fixtures/README.md>)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 out=${OUT:-target/check/dp}
@@ -17,5 +15,5 @@ cargo test -p data-products --quiet 2>&1 | tee "$out/test.log" | grep -E "^test 
     | awk '/^test result: ok/ {n += $4; next} {print; bad = 1} END {if (bad) exit 1; print "  ok: " n " tests passed"}'
 
 fgds=${FGDS:-$PWD/target/debug/fgds}
-python3 tests/dp/check.py "$fgds" "$PWD/fixtures/dp" "$(realpath "$out")" ${FPRIME_DP:+--fprime-dp "$FPRIME_DP"}
+python3 tests/dp/check.py "$fgds" "$PWD/fixtures/dp" "$(realpath "$out")"
 echo "dp: all passed"

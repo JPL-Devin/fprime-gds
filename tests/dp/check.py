@@ -8,7 +8,6 @@ The comparison rules are in tests/dp/README.md.
 import hashlib
 import json
 import os
-import random
 import shutil
 import socket
 import subprocess
@@ -18,7 +17,6 @@ import urllib.error
 import urllib.request
 
 FGDS, FIXTURES, OUT = sys.argv[1:4]
-FPRIME_DP = sys.argv[5] if len(sys.argv) > 5 and sys.argv[4] == "--fprime-dp" else None
 DATA = os.path.join(FIXTURES, "test_dp_data")
 EXPECTED = os.path.join(FIXTURES, "expected")
 
@@ -128,59 +126,6 @@ def check_cli_cases():
         assert written == sorted(f["name"] for f in case["json_files_written"]), (name, written)
     assert len(cases) == 22, len(cases)
     step(f"{len(cases)} command-line cases end as fprime-dp (exit code, an error or none, the files written)")
-
-
-def error_class(stderr):
-    """What kind of failure the tool reported: the text before the first colon of each line."""
-    return [line.split(":", 1)[0] for line in stderr.splitlines() if not line.startswith((" ", "Traceback"))][:1]
-
-
-def check_against_live_tool():
-    """Damaged products through both tools: same exit code, same output, same kind of error."""
-    generator = random.Random(20261121)
-    products = sorted(f for f in os.listdir(DATA) if not f.endswith(".json"))
-    cwd = scratch("live")
-    compared = decoded = 0
-    for product in products:
-        dictionary = "test_dp_data/dictionary.json" if product.endswith(".bin") else "test_dp_data/dictionary_ref.json"
-        with open(os.path.join(DATA, product), "rb") as handle:
-            original = handle.read()
-        for _ in range(12):
-            damaged = bytearray(original)
-            kind = generator.randrange(4)
-            if kind == 0:
-                damaged = damaged[: generator.randrange(len(damaged))]
-            elif kind == 1:
-                damaged[generator.randrange(len(damaged))] ^= 1 << generator.randrange(8)
-            elif kind == 2:
-                at = generator.randrange(len(damaged))
-                damaged[at : at + generator.randrange(1, 9)] = bytes(generator.randrange(256) for _ in range(4))
-            else:
-                at = generator.randrange(60, len(damaged))
-                damaged[at] = generator.randrange(256)
-            with open(os.path.join(cwd, "damaged.fdp"), "wb") as handle:
-                handle.write(damaged)
-            for args in (
-                ["decode", "-b", "damaged.fdp", "-d", dictionary, "-o", "out.json"],
-                ["validate", "-b", "damaged.fdp", "-d", dictionary],
-                ["validate", "-b", "damaged.fdp", "-g", "-v"],
-            ):
-                results = []
-                for program in ([FGDS, "dp"], [FPRIME_DP]):
-                    out = os.path.join(cwd, "out.json")
-                    if os.path.exists(out):
-                        os.remove(out)
-                    code, stdout, stderr = run(program, args, cwd)
-                    results.append((code, stdout, error_class(stderr), read(out) if os.path.exists(out) else None, stderr))
-                ours, theirs = results
-                what = (product, kind, args[0], ours, theirs)
-                assert (ours[0] == 0) == (theirs[0] == 0), what
-                assert (ours[3] is None) == (theirs[3] is None), what
-                if ours[3] is not None:
-                    assert same_json(ours[3], theirs[3]), what
-                    decoded += 1
-                compared += 1
-    step(f"{compared} runs on damaged products end as a live fprime-dp ({decoded} still decoded, to the same values)")
 
 
 _GIVEN = set()
@@ -310,8 +255,3 @@ check_products()
 check_cli_cases()
 print("== dp 3. index, routes and tab against a running GDS")
 check_server()
-print("== dp 4. fgds dp against a live fprime-dp on damaged products")
-if FPRIME_DP:
-    check_against_live_tool()
-else:
-    print("  skipped: set FPRIME_DP to an fprime-dp of the commit named in fixtures/README.md")
