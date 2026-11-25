@@ -115,40 +115,31 @@ def stock(browser, gds):
     page.fill("[data-arg=arg1]", "not a number")
     page.fill("[data-arg=arg2]", "2.5")
     page.fill("[data-arg=arg3]", "300")
-    sent = len(rows(page, "#command-history"))
+    flown = lambda: [r for r in gds.get("/records?kind=fprime.command&limit=10000")["records"] if r["body"]["outcome"] != "rejected"]
+    sent = len(flown())
     page.click("#command-send")
-    expect(page.locator("[data-error-for=arg1]")).to_be_visible()
-    expect(page.locator("[data-error-for=arg3]")).to_be_visible()
-    assert len(rows(page, "#command-history")) == sent, "an invalid command was sent"
-    # The inputs take and refuse what the Python GDS page takes and refuses, with its messages.
-    signed = "Supply signed decimal integer  between -2147483648 and 2147483647"
-    unsigned = "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
-    # "0x10", "007" and " 4 " for a signed integer, "007" and " 4 " for an unsigned one, and no text: the Python
-    # GDS page marks the field and sends nothing, without a message (its validate.js reads them with BigInt; the
-    # pattern of the input refuses them).
-    cases = [("arg1", "-5", None), ("arg1", "0", None), ("arg1", "0x10", ""), ("arg1", "007", ""),
-             ("arg1", " 4 ", ""), ("arg1", "", ""), ("arg1", "2147483648", signed), ("arg1", "abc", signed),
+    expect(page.locator("#command-message.error-text")).to_contain_text("CMD_TEST_CMD_1 was not sent: arg1")
+    assert len(flown()) == sent, "an invalid command was sent"
+    # The GDS checks the values: the page shows its answer, and marks an input left empty.
+    cases = [("arg1", "-5", None), ("arg1", "0", None), ("arg1", "", "an argument has no value"),
+             ("arg1", "2147483648", "out of range for I32"), ("arg1", "abc", "not an integer"),
              ("arg3", "0b101", None), ("arg3", "0o17", None), ("arg3", "0x10", None), ("arg3", "255", None),
-             ("arg3", "007", ""), ("arg3", "256", unsigned), ("arg3", "-1", unsigned), ("arg3", " 4 ", "")]
+             ("arg3", "256", "out of range for U8"), ("arg3", "-1", "out of range for U8")]
     assert page.get_attribute("[data-arg=arg2]", "type") == "number", "a float is a number input"
     for name, text, message in cases:
         for key, good in (("arg1", "1"), ("arg2", "-2.5"), ("arg3", "1")):
             page.fill(f"[data-arg={key}]", text if key == name else good)
-        sent = len(rows(page, "#command-history"))
+        sent = len(flown())
         page.click("#command-send")
         if message is None:
-            scenario.wait_for(f"{name}={text!r} sent", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
+            expect(page.locator("#command-message")).to_contain_text("CMD_TEST_CMD_1 sent")
+            assert len(flown()) == sent + 1, (name, text)
         else:
-            assert "invalid" in page.get_attribute(f"[data-arg={name}]", "class"), (name, text)
-            if message:
-                assert page.text_content(f"[data-error-for={name}]") == message, (name, text)
-                assert page.locator("#command-message").count() == 0, "a line under the form and a message"
-            else:
-                # No message in the Python GDS page (the browser explains): the field is marked, nothing more.
-                assert page.locator(f"[data-error-for={name}]").count() == 0, (name, text)
-            assert len(rows(page, "#command-history")) == sent, f"{name}={text!r} was sent"
-    step(f"command inputs: {len(cases)} integer texts taken or refused as in the Python GDS page, with its messages; "
-         "a negative float is sent")
+            expect(page.locator("#command-message.error-text")).to_contain_text(message)
+            assert ("invalid" in page.get_attribute(f"[data-arg={name}]", "class")) == (text == ""), (name, text)
+            assert len(flown()) == sent, f"{name}={text!r} was sent"
+    step(f"command inputs: {len(cases)} integer texts sent, or refused by the GDS with its message under the form; "
+         "an input left empty is marked; a negative float is sent")
     # Every form of number the Python GDS page takes, typed key by key; what is compared is the packet sent.
     def last_command():
         return gds.get("/records?kind=fprime.command&limit=10000")["records"][-1]
@@ -161,10 +152,10 @@ def stock(browser, gds):
             page.locator(f'[data-arg="{key}"]').press_sequentially(text)
         shown = {key: page.input_value(f'[data-arg="{key}"]') for key in values}
         page.click("#command-send")
-        try:
-            scenario.wait_for("the command", lambda: last_command()["seq"] != before, 2)
-        except TimeoutError:
+        expect(page.locator("#command-message")).to_be_visible()
+        if "error-text" in (page.get_attribute("#command-message", "class") or ""):
             return shown, None
+        scenario.wait_for("the command", lambda: last_command()["seq"] != before, 10)
         return shown, base64.b64decode(last_command()["raw"])
 
     floats = [("1e3", 1000.0), ("1E3", 1000.0), ("-2.5e-3", -0.0025), ("1e-2", 0.01), (".5", 0.5), ("-.5", -0.5),
@@ -183,10 +174,9 @@ def stock(browser, gds):
     # A text that is not a number, in a float field: the field stays empty and nothing is sent.
     for text in ("abc", "e", "1e", "--1", "-Infinity", "1e400", "NaN", "-inf"):
         # A valid command first: the message of the text before is gone.
-        assert typed({"arg1": "1", "arg2": "2", "arg3": "5"})[1] is not None and not page.query_selector("[data-error-for=arg2]")
+        assert typed({"arg1": "1", "arg2": "2", "arg3": "5"})[1] is not None
         shown, raw = typed({"arg1": "1", "arg2": text, "arg3": "5"})
         assert raw is None, f"{text!r} was sent as {raw.hex()}"
-        assert page.text_content("[data-error-for=arg2]") == "Supply floating point number", text
     choose(page, "Ref.typeDemo.SEND_SCALARS")
     members = {"i8": "-8", "i16": "-16", "i32": "-32", "i64": "-64", "u8": "0x8", "u16": "0b10000", "u32": "0o40",
                "u64": "64", "f32": "2.5e1", "f64": "-2.5e-3"}
@@ -196,12 +186,9 @@ def stock(browser, gds):
     # A member out of range: its own message, and the sentence the Python page writes under the struct.
     shown, raw = typed({f"scalar_input.{name}": text for name, text in {**members, "u64": "18446744073709551616"}.items()})
     assert raw is None, raw and raw.hex()
-    assert page.text_content("[data-error-for='scalar_input.u64']") == \
-        "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 18446744073709551615"
-    assert page.text_content("[data-error-for=scalar_input]") == "Error in field/index: u64."
+    assert "u64" in page.text_content("#command-message"), page.text_content("#command-message")
     shown, raw = typed({"scalar_input.u64": "64", "scalar_input.i8": "200", "scalar_input.f32": "x"})
-    assert raw is None and page.text_content("[data-error-for=scalar_input]") == \
-        "Error in field/index: i8. Error in field/index: f32.", page.text_content("[data-error-for=scalar_input]")
+    assert raw is None, raw and raw.hex()
     step(f"numbers typed key by key: {len(floats)} float texts (exponent, sign, leading dot), {len(integers)} integer "
          "texts (binary, octal, hexadecimal, decimal) and the ten members of SEND_SCALARS are sent with the bytes "
          "of the value; 4 texts that are not numbers are refused")
@@ -241,13 +228,14 @@ def stock(browser, gds):
     # A text longer than the type holds is refused; an empty text is a value and is sent.
     choose(page, NO_OP_STRING)
     page.fill("[data-arg=arg1]", "x" * 60)
-    sent = len(rows(page, "#command-history"))
+    sent = len(flown())
     page.click("#command-send")
-    assert page.text_content("[data-error-for=arg1]") == "Supply general text of less than 40 characters"
-    assert len(rows(page, "#command-history")) == sent, "a string of 60 characters was sent"
+    expect(page.locator("#command-message.error-text")).to_contain_text("exceeds maximum 40")
+    assert len(flown()) == sent, "a string of 60 characters was sent"
     page.fill("[data-arg=arg1]", "")
     page.click("#command-send")
-    scenario.wait_for("the empty string in the history", lambda: len(rows(page, "#command-history")) == sent + 1, 10)
+    expect(page.locator("#command-message")).to_contain_text("CMD_NO_OP_STRING sent")
+    scenario.wait_for("the empty string in the history", lambda: rows(page, "#command-history")[0]["string"] == f'{NO_OP_STRING}, ""', 10)
     assert rows(page, "#command-history")[0]["string"] == f'{NO_OP_STRING}, ""'
     step("CMD_NO_OP_STRING: 60 characters are refused; an empty text is sent")
     # A string that contains HTML is shown as text everywhere it appears.
@@ -301,7 +289,7 @@ def stock(browser, gds):
     page.fill("#command-string", "CdhCore.cmdDisp.CMD_TEST_CMD_1, 5, 1.5, 7")
     page.press("#command-string", "Tab")
     assert page.input_value("#command-select") == "CdhCore.cmdDisp.CMD_TEST_CMD_1", page.input_value("#command-select")
-    commands = lambda: len(gds.get("/records?kind=fprime.command&limit=10000")["records"])
+    commands = lambda: len(flown())
     dispatched = lambda: next(r["body"]["value"] for r in gds.get("/records/latest?kind=fprime.channel")["records"]
                               if r["body"].get("name") == COUNTER)
     page.click("#command-send")
@@ -379,10 +367,10 @@ def stock(browser, gds):
     assert len(numbers) == 2, kinds
     fields.nth(numbers[1]).fill("300")
     page.click("#command-send")
-    said = page.eval_on_selector_all("#command-form span[data-error-for]", "(all) => all.map((e) => e.textContent.trim())")
-    u8 = "Supply binary, octal, decimal, or hexadecimal unsigned integer  between 0 and 255"
-    assert said == [u8, u8], said
-    step("CHOICES_WITH_FRIENDS with one U8 empty and the other 300: the message of the Python GDS page under both")
+    expect(page.locator("#command-message.error-text")).to_contain_text("an argument has no value")
+    marked = fields.evaluate_all("(all) => all.map((e) => e.classList.contains('invalid'))")
+    assert [i for i, mark in enumerate(marked) if mark] == [numbers[0]], marked
+    step("CHOICES_WITH_FRIENDS with one U8 empty and the other 300: nothing is sent and the empty input is marked")
 
     # "Show Parameter Commands": ticked at start; without it the _PRM_SET and _PRM_SAVE commands leave the list,
     # but for the one selected.
