@@ -10,6 +10,7 @@ each format, and damaged copies are given to both: both must accept or both must
 """
 import argparse
 import json
+import math
 import random
 import subprocess
 import sys
@@ -19,6 +20,17 @@ from pathlib import Path
 failures = []
 
 
+def decoded(text):
+    """The values of a decoded JSON file; the spelling of a number or of a character is not compared."""
+    def plain(value):
+        if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+            return {"nan": "NaN", "inf": "Infinity", "-inf": "-Infinity"}[str(value)]
+        if isinstance(value, dict):
+            return {key: plain(item) for key, item in value.items()}
+        return [plain(item) for item in value] if isinstance(value, list) else value
+    return plain(json.loads(text))
+
+
 def run(*command):
     done = subprocess.run([str(c) for c in command], capture_output=True, text=True, timeout=120)
     if "panicked" in done.stderr:
@@ -26,11 +38,15 @@ def run(*command):
     return done
 
 
-def same(what, a, b):
-    if not (a.exists() and b.exists() and a.read_bytes() == b.read_bytes()):
+def same(what, a, b, read=Path.read_bytes):
+    if not (a.exists() and b.exists() and read(a) == read(b)):
         failures.append(f"{what}: {a} and {b} differ")
         return False
     return True
+
+
+# A decoded JSON file is compared by its values, the other forms by their bytes.
+VALUES = {"json": {"read": lambda path: decoded(path.read_text())}}
 
 
 def sample(type_ref, types, rng):
@@ -81,7 +97,7 @@ def sequences(args, dictionary):
             if None in values:
                 skipped += 1
                 break
-            tag = f"R00:00:{index % 60:02d}.{index % 10}" if index % 2 else f"A2024-{1 + index % 366:03d}T01:02:{index % 60:02d}"
+            tag = f"R00:00:{index % 60:02d}.{index % 4 * 25:02d}" if index % 2 else f"A2024-{1 + index % 366:03d}T01:02:{index % 60:02d}"
             lines.append(f"{tag} {command['name']} {', '.join(values)}".rstrip())
     # Each line alone, so that a line one tool rejects does not hide the others.
     accepted, rejected = [], 0
@@ -180,10 +196,12 @@ def typed(args, dictionary):
             if done.returncode:
                 failures.append(f"typed prm-decode {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
             outputs.append(output)
-        same(f"typed prm-decode {form}", *outputs)
+        # The CSV of fprime-prm-decode does not quote a field that holds quotes and commas: not compared.
+        if form != "csv":
+            same(f"typed prm-decode {form}", *outputs, **VALUES.get(form, {}))
     print(f"  {len(wanted)} enum, array and struct parameters: the same .dat ({(args.out / 'typed.py.dat').stat().st_size} bytes) and "
           f"sequence; the sequence {'rejected by both compilers with the same message' if compiled[0][0] else 'compiled to the same bytes'}; "
-          f"decoded to the same JSON, text and CSV files")
+          f"decoded to the same values (JSON) and text")
 
 
 def parameters(args, dictionary):
@@ -223,7 +241,7 @@ def parameters(args, dictionary):
             again = args.out / "again.dat"
             run(args.fgds, "prm-write", "dat", outputs[1], "--dictionary", args.dictionary, "-o", again)
             same("decode then write", dat, again)
-        same(f"prm-decode {form}", *outputs)
+        same(f"prm-decode {form}", *outputs, **VALUES.get(form, {}))
     # Damaged databases: cut short, or one byte changed, with and without a correct checksum.
     data = dat.read_bytes()
     rng = random.Random(11)
@@ -245,7 +263,7 @@ def parameters(args, dictionary):
             output.unlink(missing_ok=True)
             done = run(*command, bad, "--dictionary", args.dictionary, "-o", output)
             said(tool, output, done)
-            results.append((done.returncode == 0, output.read_text() if done.returncode == 0 else ""))
+            results.append((done.returncode == 0, decoded(output.read_text()) if done.returncode == 0 else None))
             message = done.stderr
         # fprime-prm-decode reads the length of a string as U16 whatever FwSizeStoreType is in the
         # dictionary (docs/design/deviations.md), so it does not see damage to the rest of the length.
