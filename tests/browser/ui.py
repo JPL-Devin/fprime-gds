@@ -118,7 +118,7 @@ def stock(browser, gds):
     flown = lambda: [r for r in gds.get("/records?kind=fprime.command&limit=10000")["records"] if r["body"]["outcome"] != "rejected"]
     sent = len(flown())
     page.click("#command-send")
-    expect(page.locator("#command-message.error-text")).to_contain_text("CMD_TEST_CMD_1 was not sent: arg1")
+    expect(page.locator("#command-message.error-text")).to_contain_text("CMD_TEST_CMD_1 was not sent: argument arg1")
     assert len(flown()) == sent, "an invalid command was sent"
     # The GDS checks the values: the page shows its answer, and marks an input left empty.
     cases = [("arg1", "-5", None), ("arg1", "0", None), ("arg1", "", "an argument has no value"),

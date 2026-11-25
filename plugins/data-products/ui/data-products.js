@@ -33,7 +33,8 @@ function rows(value, label, depth, out) {
     if (label !== null) out.push([depth, label, Array.isArray(value) ? `${value.length} elements` : ""]);
     for (const [key, item] of Object.entries(value)) rows(item, Array.isArray(value) ? `[${key}]` : key, depth + 1, out);
   } else {
-    out.push([depth, label, String(value)]);
+    // A record that is one scalar has no label.
+    out.push([Math.max(depth, 0), label ?? "", String(value)]);
   }
   return out;
 }
