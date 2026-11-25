@@ -94,7 +94,7 @@ fi
 
 echo "== nothing left behind"
 # Databases and logs go to the output directory of each check, never into the tree.
-left=$(git status --porcelain --ignored | grep -v -e '^!! target/$' -e '__pycache__/$' || true)
+left=$(git status --porcelain --ignored=matching | grep -v -e '^!! target/$' -e '__pycache__/$' || true)
 if [ -n "$left" ]; then
     echo "files left in the repository tree:"; echo "$left"; exit 1
 fi

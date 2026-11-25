@@ -29,8 +29,7 @@ pub fn hex(bytes: &[u8]) -> String {
 }
 
 pub fn flight_time(record: &Value) -> String {
-    let field = |name: &str| record["flight_time"][name].as_u64().unwrap_or(0);
-    fgds_core::python_times(field("base"), field("context"), field("seconds"), field("microseconds")).0
+    fgds_core::flight_time_text(&record["flight_time"]).0
 }
 
 /// Whether `c` may enter a line being typed: it is shown as it is. A backslash is, and is doubled
