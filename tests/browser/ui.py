@@ -879,6 +879,8 @@ def chart_views(page, charts, canvas):
     pause = charts.locator(".chart-pause")
     pause.first.click()
     expect(pause.nth(1)).to_have_text("Resume")
+    # The frame under way when Pause is pressed may still be drawn: the view is read after it.
+    time.sleep(0.5)
     stopped = view(1)
     time.sleep(1)
     assert view(1)["to"] == stopped["to"], "the other chart went on after Pause with Lock Scale"

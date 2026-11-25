@@ -126,7 +126,7 @@ class RefEnded(Exception):
     """Stock Ref ended under the Python GDS: its file uplink asserts when file packets arrive in one piece."""
 
 
-def python_side(args, out, staging, attempts=3):
+def python_side(args, out, staging, attempts=5):
     """The run of the Python GDS, begun again from a new Ref when its uplinker missed a handshake or Ref ended.
 
     `FileUplinker.send` (fprime_gds/common/files/uplinker.py) hands the packet to the encoder and only then
