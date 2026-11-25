@@ -162,8 +162,8 @@ fn damaged_dictionaries_never_panic() {
     let recursive = serde_json::json!({"typeDefinitions": [
         {"kind": "array", "qualifiedName": "A", "size": 2, "elementType": {"name": "A", "kind": "qualifiedIdentifier"}}
     ]});
-    let dict = DpDictionary::from_json(&recursive).unwrap();
-    assert!(dict.get_type("A").unwrap_err().contains("contains itself"));
+    let Err(refused) = DpDictionary::from_json(&recursive) else { panic!("a type that contains itself was accepted") };
+    assert!(refused.contains("contains itself"), "{refused}");
 }
 
 #[test]

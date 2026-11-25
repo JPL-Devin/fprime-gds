@@ -4,7 +4,6 @@
 
 mod decode;
 
-use decode::type_name;
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::dictionary::Type;
 use fgds_core::serde_json::Value;
@@ -115,7 +114,7 @@ impl ParamDictionary {
             let mut bytes = Vec::new();
             self.types
                 .encode(&param.ty, value, &mut bytes)
-                .map_err(|e| format!("{} [{}]: {}", param.full_name(), type_name(&param.ty), e.0))?;
+                .map_err(|e| format!("{} [{}]: {}", param.full_name(), param.ty.name(), e.0))?;
             let size = u32::try_from(ID_SIZE + bytes.len()).map_err(|_| format!("{}: too long", param.full_name()))?;
             data.push(DELIMITER);
             data.extend_from_slice(&size.to_be_bytes());
@@ -182,7 +181,7 @@ pub fn to_text(values: &[(&Param, Value)]) -> String {
             Value::String(text) => format!("\"{text}\""),
             other => other.to_string(),
         };
-        lines.push(format!("  {} = {shown} (type: {}, id: {})", param.name, type_name(&param.ty), param.id));
+        lines.push(format!("  {} = {shown} (type: {}, id: {})", param.name, param.ty.name(), param.id));
     }
     lines.join("\n")
 }
@@ -195,7 +194,7 @@ pub fn to_csv(values: &[(&Param, Value)]) -> String {
         if shown.contains([',', '"', '\n', '\r']) {
             shown = format!("\"{}\"", shown.replace('"', "\"\""));
         }
-        lines.push(format!("{},{},{shown},{},{}", param.component, param.name, type_name(&param.ty), param.id));
+        lines.push(format!("{},{},{shown},{},{}", param.component, param.name, param.ty.name(), param.id));
     }
     lines.join("\n")
 }

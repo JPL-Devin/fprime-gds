@@ -2,9 +2,9 @@
 //! and compressed products. Same steps, in the same order, as `fprime-dp decode`, so
 //! the same input gives the same document or the same error.
 
-use crate::json::Json;
-use crate::types::{plain, to_jsonable, DpDictionary, RecordDef, Ty, Val};
-use std::sync::Arc;
+use crate::types::{DpDictionary, RecordDef};
+use fgds_core::dictionary::{exact, Reader, Type};
+use fgds_core::serde_json::{json, Value};
 
 /// Length of the CRC-32 that ends the header and the data.
 pub const CHECKSUM_LEN: usize = 4;
@@ -50,31 +50,17 @@ fn crc_error(section: &str, expected: u32, calculated: u32) -> DpError {
 }
 
 /// A file read front to back, as the Python decoder reads its file handle.
-struct Cursor<'a> {
-    data: &'a [u8],
-    at: usize,
-}
-
-impl<'a> Cursor<'a> {
-    /// Up to `n` bytes: fewer at the end of the data, as `file.read(n)`.
-    fn read(&mut self, n: u64) -> &'a [u8] {
-        let end = self.data.len().min(self.at.saturating_add(usize::try_from(n).unwrap_or(usize::MAX)));
-        let bytes = &self.data[self.at..end];
-        self.at = end;
-        bytes
-    }
-}
-
-/// The decoded header, with the fields the index lists.
+/// The decoded header and the fields the index shows.
 #[derive(Debug, Clone)]
 pub struct Header {
-    pub json: Json,
+    pub json: Value,
+    /// Its size in bytes.
     pub size: usize,
-    pub id: i128,
-    pub priority: i128,
+    pub id: u64,
+    pub priority: u64,
     /// Time base, context, seconds, microseconds.
-    pub time: [i128; 4],
-    pub proc_types: i128,
+    pub time: [u64; 4],
+    pub proc_types: u64,
     pub dp_state: String,
     pub data_size: u64,
     pub checksum: u32,
@@ -87,157 +73,124 @@ impl Header {
     }
 }
 
-/// Read the header at the start of `data`. Its checksum is computed, not judged:
-/// see `Header::checksum_error`.
+/// One value of `ty`, with its 64-bit integers as numbers.
+fn read(dict: &DpDictionary, ty: &Type, reader: &mut Reader) -> Result<Value, DpError> {
+    dict.dict.decode(ty, reader).map(|value| exact(ty, value)).map_err(|e| unexpected(e.0))
+}
+
 pub fn read_header(dict: &DpDictionary, data: &[u8]) -> Result<Header, DpError> {
-    let ty = Ty::Struct(dict.header_type().map_err(unexpected)?);
-    let size = dict.max_size(&ty).map_err(unexpected)?;
-    let bytes = Cursor { data, at: 0 }.read(size);
-    let (value, _) = dict.deserialize(&ty, bytes, 0).map_err(unexpected)?;
-    let json = to_jsonable(&ty, &value);
-    let Val::Struct(fields) = &value else { unreachable!("the header is a struct") };
-    let int = |index: usize| match &fields[index] {
-        Val::Int(i) => Ok(*i),
-        _ => Err(unexpected(format!("header field {index} is not an integer"))),
-    };
-    let time = match &fields[3] {
-        Val::Time(parts) => {
-            let part = |v: &Val| match v {
-                Val::Int(i) | Val::Enum(_, i) => *i,
-                _ => 0,
-            };
-            [part(&parts[0]), part(&parts[1]), part(&parts[2]), part(&parts[3])]
-        }
-        _ => [0; 4],
-    };
-    let dp_state = match plain(&Ty::Bool, &fields[6]) {
-        Json::Str(name) => name,
-        other => other.to_text(),
-    };
-    // The checksum covers the header up to the checksum itself.
-    let computed_checksum = crc32(&bytes[..bytes.len().saturating_sub(CHECKSUM_LEN)]);
+    let ty = dict.header_type().map_err(unexpected)?;
+    let size = dict.header_size().map_err(unexpected)?;
+    let bytes =
+        data.get(..size).ok_or_else(|| unexpected(format!("the header is {size} bytes, the file {}", data.len())))?;
+    let json = read(dict, ty, &mut Reader::new(bytes))?;
+    let int = |value: &Value| value.as_u64().unwrap_or(0);
+    let time = &json["Time"];
     Ok(Header {
+        size,
+        id: int(&json["Id"]),
+        priority: int(&json["Priority"]),
+        time: [int(&time["base"]), int(&time["context"]), int(&time["seconds"]), int(&time["microseconds"])],
+        proc_types: int(&json["ProcTypes"]),
+        dp_state: json["DpState"].as_str().unwrap_or_default().to_string(),
+        data_size: int(&json["DataSize"]),
+        checksum: int(&json["Checksum"]) as u32,
+        computed_checksum: crc32(&bytes[..size - CHECKSUM_LEN]),
         json,
-        size: bytes.len(),
-        id: int(1)?,
-        priority: int(2)?,
-        time,
-        proc_types: int(4)?,
-        dp_state,
-        data_size: u64::try_from(int(7)?).map_err(|_| unexpected("negative data size".into()))?,
-        checksum: int(8)? as u32,
-        computed_checksum,
     })
 }
 
-struct Record {
-    def: Arc<RecordView>,
-    ty: Ty,
-    value: Val,
+struct Record<'a> {
+    def: &'a RecordDef,
+    value: Value,
 }
 
-/// What the output shows of a record definition.
-struct RecordView {
-    name: String,
-    json: Json,
-}
-
-fn record_view(def: &RecordDef) -> RecordView {
-    let entries = [
-        ("record_id", Json::Int(def.id)),
-        ("record_name", Json::str(&def.name)),
-        ("record_type_name", Json::str(def.ty.class_name())),
-        ("record_type", Json::str(def.ty.class_text())),
-        ("is_array", Json::Bool(def.is_array)),
-        ("description", def.description.as_ref().map_or(Json::Null, Json::str)),
-    ];
-    RecordView {
-        name: def.name.clone(),
-        json: Json::Map(entries.into_iter().map(|(k, v)| (k.to_string(), v)).collect()),
+impl Record<'_> {
+    fn to_json(&self) -> Value {
+        let def = self.def;
+        json!({
+            "Record": {
+                "record_id": def.id,
+                "record_name": def.name,
+                "record_type_name": def.ty.name(),
+                "is_array": def.is_array,
+                "description": def.description,
+            },
+            "Data": self.value,
+        })
     }
 }
 
-impl Record {
-    fn to_json(&self) -> Json {
-        Json::Map(vec![("Record".into(), self.def.json.clone()), ("Data".into(), to_jsonable(&self.ty, &self.value))])
-    }
-}
+/// Arrays of zero-size elements are refused above this length (LNK-9): they cost
+/// memory without consuming input.
+const MAX_EMPTY_ELEMENTS: u64 = 65_536;
 
-/// One element at the cursor: at most its largest size is looked at, and the cursor
-/// moves by the size it really has.
-fn read_element(dict: &DpDictionary, cursor: &mut Cursor, ty: &Ty) -> Result<Val, DpError> {
-    let start = cursor.at;
-    let buffer = cursor.read(dict.max_size(ty).map_err(unexpected)?);
-    let (value, size) = dict.deserialize(ty, buffer, 0).map_err(unexpected)?;
-    cursor.at = start + size;
-    Ok(value)
-}
-
-/// Records until `data_size` bytes are consumed.
-fn read_records(dict: &DpDictionary, cursor: &mut Cursor, data_size: u64) -> Result<Vec<Record>, DpError> {
-    let id_type = dict.get_type("FwDpIdType").map_err(unexpected)?;
-    let id_size = dict.max_size(&id_type).map_err(unexpected)?;
-    let start = cursor.at;
-    let mut views: std::collections::HashMap<i128, Arc<RecordView>> = Default::default();
+/// The records of `data`, which is nothing but records.
+fn read_records<'a>(dict: &'a DpDictionary, data: &[u8]) -> Result<Vec<Record<'a>>, DpError> {
+    let id_type =
+        dict.dict.types.get("FwDpIdType").ok_or_else(|| unexpected("the dictionary has no type FwDpIdType".into()))?;
+    let mut reader = Reader::new(data);
     let mut records = Vec::new();
-    while ((cursor.at - start) as u64) < data_size {
-        let id_bytes = cursor.read(id_size);
-        if id_bytes.is_empty() {
-            return Err(DpError::Product("End of file reached while processing data product".into()));
-        }
-        let (id, _) = dict.deserialize(&id_type, id_bytes, 0).map_err(unexpected)?;
-        let id = id.int().ok_or_else(|| unexpected("FwDpIdType is not an integer".into()))?;
+    while reader.remaining() > 0 {
+        let id = read(dict, id_type, &mut reader)?
+            .as_u64()
+            .ok_or_else(|| unexpected("FwDpIdType is not an unsigned integer".into()))?;
         let Some(def) = dict.records.get(&id) else {
             return Err(DpError::Product(format!("Record ID {id} not found in dictionary")));
         };
-        let ty = if def.is_array {
-            // An array record: the number of elements, then the elements.
-            let count_type = dict.get_type("FwSizeStoreType").map_err(unexpected)?;
-            let count_bytes = cursor.read(dict.max_size(&count_type).map_err(unexpected)?);
-            let (count, _) = dict.deserialize(&count_type, count_bytes, 0).map_err(unexpected)?;
-            let len = count.int().and_then(|n| u64::try_from(n).ok());
-            let len = len.ok_or_else(|| unexpected("FwSizeStoreType is not an unsigned integer".into()))?;
-            let name = format!("{}_{len}", def.name);
-            Ty::Array(Arc::new(crate::types::ArrayTy { name, len, format: "{}".into(), element: def.ty.clone() }))
+        let value = if def.is_array {
+            let count = read(dict, &dict.size_type(), &mut reader)?.as_u64().unwrap_or(0);
+            if count > MAX_EMPTY_ELEMENTS && dict.dict.max_size(&def.ty) == 0 {
+                return Err(unexpected(format!(
+                    "Array of {count} empty elements is over the limit of {MAX_EMPTY_ELEMENTS}"
+                )));
+            }
+            let mut items = Vec::new();
+            for index in 0..count {
+                let item = read(dict, &def.ty, &mut reader);
+                items.push(item.map_err(|e| unexpected(format!("{}[{index}]: {e}", def.name)))?);
+            }
+            Value::Array(items)
         } else {
-            def.ty.clone()
+            read(dict, &def.ty, &mut reader).map_err(|e| unexpected(format!("{}: {e}", def.name)))?
         };
-        let value = read_element(dict, cursor, &ty)?;
-        let def = views.entry(id).or_insert_with(|| Arc::new(record_view(def))).clone();
-        records.push(Record { def, ty, value });
+        records.push(Record { def, value });
     }
     Ok(records)
 }
 
-/// A record written by the compression processor: `...dpCompressProc<any character>CompressionRecord`.
+/// A record of the compression processor: its name ends with `dpCompressProc`, one character, `CompressionRecord`.
 fn is_compression_record(record: &Record) -> bool {
     let Some(prefix) = record.def.name.strip_suffix("CompressionRecord") else { return false };
     let mut chars = prefix.chars();
-    chars.next_back().is_some_and(|separator| separator != '\n') && chars.as_str().ends_with("dpCompressProc")
+    chars.next_back().is_some() && chars.as_str().ends_with("dpCompressProc")
 }
 
-/// The data inside compression records; `None` when a record is not one of them.
+/// The data the compression records hold, decompressed; `None` when a record is not one of them.
 fn decompress(dict: &DpDictionary, records: &[Record], max_bytes: u64) -> Result<Option<Vec<u8>>, DpError> {
     let mut out = Vec::new();
-    let metadata = dict.get_type("Svc.CompressionMetadata").map_err(unexpected)?;
+    let metadata = "Svc.CompressionMetadata";
+    let metadata =
+        dict.dict.types.get(metadata).ok_or_else(|| unexpected(format!("the dictionary has no type {metadata}")))?;
     for record in records {
         if !is_compression_record(record) {
             return Ok(None);
         }
-        let Val::List(items) = &record.value else { return Err(unexpected("'values'".into())) };
-        let bytes: Option<Vec<u8>> = items.iter().map(|item| item.int().and_then(|i| u8::try_from(i).ok())).collect();
-        let bytes = bytes.ok_or_else(|| unexpected("bytes must be in range(0, 256)".into()))?;
-        let mut cursor = Cursor { data: &bytes, at: 0 };
-        let header = cursor.read(dict.max_size(&metadata).map_err(unexpected)?);
-        let (value, _) = dict.deserialize(&metadata, header, 0).map_err(unexpected)?;
-        let algorithm = match plain(&metadata, &value).get("algorithm") {
-            Some(Json::Str(name)) => name.clone(),
-            Some(other) => other.to_text(),
-            None => return Err(unexpected("'algorithm'".into())),
-        };
-        let rest = &bytes[cursor.at..];
+        let items = record
+            .value
+            .as_array()
+            .ok_or_else(|| unexpected(format!("{} is not an array of bytes", record.def.name)))?;
+        let bytes: Option<Vec<u8>> =
+            items.iter().map(|item| item.as_u64().and_then(|i| u8::try_from(i).ok())).collect();
+        let bytes = bytes.ok_or_else(|| unexpected(format!("{} is not an array of bytes", record.def.name)))?;
+        let mut reader = Reader::new(&bytes);
+        let header = read(dict, metadata, &mut reader)?;
+        let algorithm = header["algorithm"]
+            .as_str()
+            .ok_or_else(|| unexpected("the compression metadata names no algorithm".into()))?;
+        let rest = &bytes[bytes.len() - reader.remaining()..];
         let room = usize::try_from(max_bytes).unwrap_or(usize::MAX).saturating_sub(out.len());
-        match algorithm.as_str() {
+        match algorithm {
             "UNCOMPRESSED" if rest.len() <= room => out.extend_from_slice(rest),
             "ZLIB_DEFLATE" => match miniz_oxide::inflate::decompress_to_vec_zlib_with_limit(rest, room) {
                 Ok(data) => out.extend(data),
@@ -261,15 +214,14 @@ pub fn over_limit(max_bytes: u64) -> DpError {
 #[derive(Debug, Clone)]
 pub struct Decoded {
     pub header: Header,
-    pub records: Vec<Json>,
+    /// Each `{"Record": the definition, "Data": the value}`.
+    pub records: Vec<Value>,
 }
 
 impl Decoded {
-    pub fn to_json(&self) -> Json {
-        Json::Map(vec![
-            ("Header".into(), self.header.json.clone()),
-            ("Records".into(), Json::List(self.records.clone())),
-        ])
+    /// The document `fgds dp decode` writes.
+    pub fn to_json(&self) -> Value {
+        json!({"Header": self.header.json, "Records": self.records})
     }
 }
 
@@ -286,7 +238,8 @@ impl Default for DecodeOptions {
     }
 }
 
-/// Decode a whole product file. Never panics, whatever `data` holds (MNT-6).
+/// Decode a whole product: header, records, both checksums; compressed records are opened unless
+/// `options.decompress` is off.
 pub fn decode(dict: &DpDictionary, data: &[u8], options: DecodeOptions) -> Result<Decoded, DpError> {
     if data.len() as u64 > options.max_bytes {
         return Err(over_limit(options.max_bytes));
@@ -295,22 +248,22 @@ pub fn decode(dict: &DpDictionary, data: &[u8], options: DecodeOptions) -> Resul
     if let Some(error) = header.checksum_error() {
         return Err(error);
     }
-    let mut cursor = Cursor { data, at: header.size };
-    let start = cursor.at;
-    let mut records = read_records(dict, &mut cursor, header.data_size)?;
-    // Python asserts this; the message of its AssertionError is empty.
-    if (cursor.at - start) as u64 != header.data_size {
-        return Err(unexpected(String::new()));
+    let rest = &data[header.size..];
+    let size = usize::try_from(header.data_size).ok().filter(|size| rest.len() >= size.saturating_add(CHECKSUM_LEN));
+    let Some(size) = size else {
+        return Err(DpError::Product("End of file reached while processing data product".into()));
+    };
+    let (body, stored) = (&rest[..size], &rest[size..size + CHECKSUM_LEN]);
+    let (stored, computed) = (u32::from_be_bytes(stored.try_into().expect("four bytes")), crc32(body));
+    if stored != computed {
+        return Err(crc_error("Data", stored, computed));
     }
-    let checksum_type = Ty::Int { bits: 32, signed: false };
-    let (stored, _) = dict.deserialize(&checksum_type, cursor.read(CHECKSUM_LEN as u64), 0).map_err(unexpected)?;
-    let computed = crc32(&data[start..cursor.at - CHECKSUM_LEN]);
-    if stored != Val::Int(i128::from(computed)) {
-        return Err(crc_error("Data", stored.int().unwrap_or(0) as u32, computed));
-    }
+    let mut records = read_records(dict, body)?;
+    let inner;
     if options.decompress && records.first().is_some_and(is_compression_record) {
-        if let Some(inner) = decompress(dict, &records, options.max_bytes)? {
-            records = read_records(dict, &mut Cursor { data: &inner, at: 0 }, inner.len() as u64)?;
+        if let Some(data) = decompress(dict, &records, options.max_bytes)? {
+            inner = data;
+            records = read_records(dict, &inner)?;
         }
     }
     Ok(Decoded { header, records: records.iter().map(Record::to_json).collect() })

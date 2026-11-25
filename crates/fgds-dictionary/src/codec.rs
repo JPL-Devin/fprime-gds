@@ -107,6 +107,30 @@ fn typed_json(ty: &Type, value: &Value) -> Result<Value, TypeError> {
     }
 }
 
+/// A decoded value with its 64-bit integers as JSON numbers, for a file: `decode` gives them as text,
+/// for pages that hold numbers as doubles.
+pub fn exact(ty: &Type, value: Value) -> Value {
+    match (ty, value) {
+        (Type::Int { .. }, Value::String(text)) => match (text.parse::<i64>(), text.parse::<u64>()) {
+            (Ok(number), _) => number.into(),
+            (_, Ok(number)) => number.into(),
+            _ => text.into(),
+        },
+        (Type::Array { element, .. }, Value::Array(items)) => items.into_iter().map(|v| exact(element, v)).collect(),
+        (Type::Struct { members, .. }, Value::Object(map)) => map
+            .into_iter()
+            .map(|(name, v)| match (members.iter().find(|m| m.name == name), v) {
+                (Some(member), Value::Array(items)) if member.count.is_some() => {
+                    (name, items.into_iter().map(|v| exact(&member.ty, v)).collect())
+                }
+                (Some(member), v) => (name, exact(&member.ty, v)),
+                (None, v) => (name, v),
+            })
+            .collect(),
+        (_, value) => value,
+    }
+}
+
 impl Dictionary {
     /// A time tag: time base, time context, seconds, microseconds.
     pub fn decode_time(&self, r: &mut Reader) -> Result<Time, TypeError> {

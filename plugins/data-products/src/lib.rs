@@ -1,7 +1,7 @@
 //! F Prime data products (design section 3.6 and CLI-5).
 //!
 //! - `decode`, `validate`: the decoder and validator, a library usable without a GDS.
-//!   Their output is the output of the Python `fprime-dp` tool (`tests/dp/README.md`).
+//!   The decoded values are those of `fprime-dp` (`tests/dp/README.md`).
 //! - `fgds dp decode` and `fgds dp validate`: the same command line as `fprime-dp`.
 //! - Kind `fprime.data_product`: one entity per product found in the watched
 //!   directory, with its header fields and validation result.
@@ -16,7 +16,6 @@ pub mod validate;
 
 pub use decode::{decode, DecodeOptions, Decoded, DpError};
 pub use index::{Index, Options, KIND};
-pub use json::Json;
 pub use types::DpDictionary;
 
 use fgds_core::{Manifest, OptionSpec, Plugin, Registry, Result, StaticFiles, UiBundle};

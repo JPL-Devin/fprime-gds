@@ -142,10 +142,10 @@ fn summarize(dict: &DpDictionary, path: &Path, size: u64, max_bytes: u64) -> Sum
     let [base, context, seconds, microseconds] = header.time;
     summary.fields = json!({
         "container": container.map(|c| c.name.clone()),
-        "container_id": header.id as i64,
-        "priority": header.priority as i64,
-        "time": {"base": base as i64, "context": context as i64, "seconds": seconds as i64, "microseconds": microseconds as i64},
-        "proc_types": header.proc_types as i64,
+        "container_id": header.id,
+        "priority": header.priority,
+        "time": {"base": base, "context": context, "seconds": seconds, "microseconds": microseconds},
+        "proc_types": header.proc_types,
         "dp_state": header.dp_state,
         "data_size": header.data_size,
     });
@@ -438,7 +438,7 @@ async fn detail(
 ) -> ApiResult<Json<Value>> {
     let body = entry(&ctx, &hash).await?;
     let (decoded, error) = match decoded(&ctx, &body, &query) {
-        Ok(Ok(decoded)) => (decoded.to_json().to_api(), Value::Null),
+        Ok(Ok(decoded)) => (crate::json::for_api(&decoded.to_json()), Value::Null),
         Ok(Err(e)) => (Value::Null, json!({"code": "decode_failed", "message": e.to_string()})),
         Err(e) if e.code == "missing" => (Value::Null, json!({"code": e.code, "message": e.message})),
         Err(e) => return Err(e),
@@ -464,5 +464,5 @@ async fn export(
         (header::CONTENT_TYPE, "application/json".to_string()),
         (header::CONTENT_DISPOSITION, format!("attachment; filename=\"{name}\"")),
     ];
-    Ok((headers, decoded.to_json().to_text()).into_response())
+    Ok((headers, fgds_core::serde_json::to_string_pretty(&decoded.to_json()).unwrap_or_default()).into_response())
 }

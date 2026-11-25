@@ -128,7 +128,8 @@ fn renamed_output(dict: &DpDictionary, bin_file: &str) -> Option<String> {
         return None;
     };
     let id = digits.trim_start_matches('0');
-    let Some(container) = dict.containers.get(&id.parse().unwrap_or(if id.is_empty() { 0 } else { -1 })) else {
+    let number: Option<u64> = if id.is_empty() { Some(0) } else { id.parse().ok() };
+    let Some(container) = number.and_then(|id| dict.containers.get(&id)) else {
         fgds_core::err!(
             "Warning: container id {} ({name}) not found in dictionary, keeping file name",
             if id.is_empty() { "0" } else { id }
@@ -159,7 +160,8 @@ fn decode_file(
         }
         let data = std::fs::read(bin_file).map_err(|e| DpError::Unexpected(io_error(&e, bin_file)))?;
         let decoded = decode(dict, &data, options)?;
-        std::fs::write(output, decoded.to_json().to_text()).map_err(|e| DpError::Unexpected(io_error(&e, output)))
+        std::fs::write(output, fgds_core::serde_json::to_string_pretty(&decoded.to_json()).unwrap_or_default())
+            .map_err(|e| DpError::Unexpected(io_error(&e, output)))
     };
     match run() {
         Ok(()) => {
@@ -241,11 +243,7 @@ fn run_validate(args: &ArgMatches) -> std::result::Result<ExitCode, Stop> {
     let header_size = match (header_size, &dict) {
         (size, _) if size > 0 => HeaderSize::Given(size as usize),
         // A file too small for any header is reported as such before the dictionary is used.
-        (_, Some(dict)) if data.len() >= MIN_PRODUCT => {
-            let header =
-                dict.header_type().and_then(|ty| dict.max_size(&crate::types::Ty::Struct(ty))).map_err(crash)?;
-            HeaderSize::Dictionary(header as usize)
-        }
+        (_, Some(dict)) if data.len() >= MIN_PRODUCT => HeaderSize::Dictionary(dict.header_size().map_err(crash)?),
         _ => HeaderSize::Guess,
     };
     let validation = validate(&data, header_size);

@@ -46,6 +46,17 @@ pub struct Member {
 }
 
 impl Type {
+    /// The name of the type as FPP writes it: `U32`, `F64`, `bool`, `string`, or the qualified name.
+    pub fn name(&self) -> String {
+        match self {
+            Type::Int { bits, signed } => format!("{}{bits}", if *signed { 'I' } else { 'U' }),
+            Type::Float { bits } => format!("F{bits}"),
+            Type::Bool => "bool".into(),
+            Type::String { .. } => "string".into(),
+            Type::Enum { name, .. } | Type::Array { name, .. } | Type::Struct { name, .. } => name.clone(),
+        }
+    }
+
     pub const U8: Type = Type::Int { bits: 8, signed: false };
     pub const U16: Type = Type::Int { bits: 16, signed: false };
     pub const U32: Type = Type::Int { bits: 32, signed: false };

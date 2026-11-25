@@ -10,7 +10,7 @@ mod load;
 mod text;
 mod types;
 
-pub use codec::{EncodedCommand, Reader, TypeError};
+pub use codec::{exact, EncodedCommand, Reader, TypeError};
 pub use load::DictError;
 pub use text::{float_json, float_text};
 pub use types::{Channel, Command, Event, Member, Param, Time, Type};

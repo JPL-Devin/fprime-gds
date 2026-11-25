@@ -176,6 +176,13 @@ fn count(v: &Value, key: &str) -> Result<usize, String> {
     usize::try_from(u64_field(v, key)?).map_err(|_| format!("\"{key}\" is too large"))
 }
 
+impl Dictionary {
+    /// The type a reference of this dictionary names: `{"name": "U32", "kind": "integer", ...}`.
+    pub fn type_of(&self, reference: &Value) -> Result<Type, String> {
+        Resolver::new(&self.json)?.resolve(reference, &mut Vec::new()).and_then(bounded)
+    }
+}
+
 /// Refuse a type too large to be a real one, before anything allocates for it.
 fn bounded(ty: Type) -> Result<Type, String> {
     match wire_size(&ty) {

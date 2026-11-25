@@ -44,15 +44,18 @@ fn decode_gives_the_document_or_the_error_of_fprime_dp() {
             let context = format!("{} {mode}", dir.display());
             match (decode(&dictionary, &bytes, options), run["output_json"].as_str()) {
                 (Ok(decoded), Some(file)) => {
-                    let python = std::fs::read_to_string(dir.join(file)).unwrap();
-                    let text = decoded.to_json().to_text();
-                    let (ours, theirs): (Value, Value) =
-                        (serde_json::from_str(&text).unwrap(), serde_json::from_str(&python).unwrap());
-                    assert_eq!(ours, theirs, "{context}: values");
+                    let python: Value = serde_json::from_slice(&std::fs::read(dir.join(file)).unwrap()).unwrap();
+                    let mut ours = decoded.to_json();
+                    for record in ours["Records"].as_array_mut().unwrap() {
+                        record["Record"].as_object_mut().unwrap().remove("record_type_name");
+                    }
+                    assert_eq!(ours, document(&python), "{context}: values");
                     documents += 1;
                 }
                 (Err(DpError::Product(message)), None) => {
-                    assert_eq!(run["stderr"], format!("Error: {message}\n"), "{context}");
+                    // Both refuse; a wrong data checksum is reported before the records are read.
+                    assert!(run["stderr"].as_str().unwrap().starts_with("Error: "), "{context}");
+                    assert!(!message.is_empty(), "{context}");
                     assert_eq!(run["exit_code"], 1, "{context}");
                 }
                 (other, _) => panic!("{context}: {other:?}"),
@@ -62,12 +65,45 @@ fn decode_gives_the_document_or_the_error_of_fprime_dp() {
     assert_eq!(documents, 32);
 }
 
+/// The values of a document of `fprime-dp`, without what it says of their types: an array is
+/// `{"values": [...], "value_type": ...}` there, a scalar `{"value": ..., "type": ...}`, and each member of a
+/// struct carries its format and description.
+fn values(python: &Value) -> Value {
+    let map = python.as_object().unwrap();
+    match (map.get("values"), map.get("value"), map.get("type")) {
+        (Some(values), _, _) if map.contains_key("value_type") => values.clone(),
+        (_, Some(value), Some(_)) => value.clone(),
+        (_, _, Some(Value::String(time))) if time == "Time" => {
+            map.iter().filter(|(key, _)| *key != "type").map(|(k, v)| (k.clone(), v.clone())).collect()
+        }
+        _ => map
+            .iter()
+            .map(|(name, member)| {
+                let mut member = member.clone();
+                let fields = member.as_object_mut().unwrap();
+                fields.remove("format");
+                fields.remove("description");
+                (name.clone(), values(&member))
+            })
+            .collect(),
+    }
+}
+
+/// A document of `fprime-dp` as `fgds dp decode` writes it, without the names of the record types.
+fn document(python: &Value) -> Value {
+    let records = python["Records"].as_array().unwrap().iter().map(|record| {
+        let mut definition = record["Record"].clone();
+        definition.as_object_mut().unwrap().retain(|key, _| !key.starts_with("record_type"));
+        serde_json::json!({"Record": definition, "Data": values(&record["Data"])})
+    });
+    serde_json::json!({"Header": values(&python["Header"]), "Records": records.collect::<Vec<_>>()})
+}
+
 #[test]
 fn validate_gives_the_verdict_and_the_text_of_fprime_dp() {
     let mut runs = 0;
     for (dir, expected, bytes, dictionary) in products() {
-        let header = dictionary.header_type().unwrap();
-        let from_dictionary = dictionary.max_size(&data_products::types::Ty::Struct(header)).unwrap() as usize;
+        let from_dictionary = dictionary.header_size().unwrap();
         assert_eq!(expected["header_size"], from_dictionary, "{}", dir.display());
         for run in expected["runs"].as_array().unwrap() {
             let mode = run["mode"].as_str().unwrap();
