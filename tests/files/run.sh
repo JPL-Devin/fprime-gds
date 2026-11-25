@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # File uplink and downlink against Ref, compared with the Python GDS (tests/files/README.md).
 set -euo pipefail
-python3 tests/files/check.py --fgds "$FGDS" --ref "$REF_BIN" \
-    --dictionary "$DICTIONARY" --out "$OUT" ${COMPARE:+--compare}
+if [ -n "${COMPARE:-}" ]; then
+    # The Python GDS is imported from the virtual environment of F Prime.
+    PATH="$VENV/bin:$PATH" "$VENV/bin/python" tests/files/check.py --fgds "$FGDS" --ref "$REF_BIN" \
+        --dictionary "$DICTIONARY" --out "$OUT" --compare
+else
+    python3 tests/files/check.py --fgds "$FGDS" --ref "$REF_BIN" --dictionary "$DICTIONARY" --out "$OUT"
+fi
 python3 tests/files/repeat.py --fgds "$FGDS" --ref "$REF_BIN" \
     --dictionary "$DICTIONARY" --out "$OUT"
 # The largest chunk size of each framing (the F´ Ref of scripts/check.sh, when it is built).
