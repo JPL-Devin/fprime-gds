@@ -40,7 +40,7 @@ ROWS, COLUMNS = 30, 120
 ENV = {**os.environ, "TERM": "xterm", "NO_COLOR": "1"}
 COLOUR = {name: value for name, value in ENV.items() if name != "NO_COLOR"}
 HOSTILE = "a\x1b]0;TITLE\x07b\x1b[2Jc\x9b31md\r\ne\\f\u202eg"
-SHOWN = "a\\x1b]0;TITLE\\x07b\\x1b[2Jc\\x9b31md\\r\\ne\\\\f\\u{202E}g"
+SHOWN = "a\\x1b]0;TITLE\\x07b\\x1b[2Jc\\u{9b}31md\\r\\ne\\\\f\\u{202e}g"
 LOST, BACK, OTHER = "trying again until the GDS answers", "the GDS answers again", "the GDS has another dictionary"
 
 

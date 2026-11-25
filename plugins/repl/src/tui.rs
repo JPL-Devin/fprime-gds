@@ -521,7 +521,8 @@ impl Subcommand for Tui {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        tui(args, env).map_err(crate::shown)
+        // The error is printed by `fgds`, through `fgds_core::visible`.
+        tui(args, env)
     }
 }
 

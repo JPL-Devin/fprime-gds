@@ -347,15 +347,6 @@ fn unsent(error: &Error) -> String {
     }
 }
 
-/// `error` as a terminal may be given it: its text may come from the GDS or from `--url`.
-fn shown(error: Error) -> Error {
-    match error {
-        Error::Invalid(text) => Error::Invalid(show::visible(&text)),
-        Error::Io(error) => Error::Io(std::io::Error::new(error.kind(), show::visible(&error.to_string()))),
-        other => Error::Other(show::visible(&other.to_string())),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

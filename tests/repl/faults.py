@@ -40,7 +40,7 @@ COLOUR = {name: value for name, value in ENV.items() if name != "NO_COLOR"}
 # A window title, a cleared screen, a C1 control, a line break, a backslash, a reversal of direction.
 # and one of each other class of the rule: NUL, backspace, DEL, a C1 line break, a tab, a mark without width, an isolate, a BOM.
 HOSTILE = "a\x1b]0;TITLE\x07b\x1b[2Jc\x9b31md\r\ne\\f\u202eg\x00\x08\x7f\x85\t\u200b\u2066\ufeffh"
-SHOWN = "a\\x1b]0;TITLE\\x07b\\x1b[2Jc\\x9b31md\\r\\ne\\\\f\\u{202E}g\\x00\\x08\\x7f\\x85\\t\\u{200B}\\u{2066}\\u{FEFF}h"
+SHOWN = "a\\x1b]0;TITLE\\x07b\\x1b[2Jc\\u{9b}31md\\r\\ne\\\\f\\u{202e}g\\x00\\x08\\x7f\\u{85}\\t\\u{200b}\\u{2066}\\u{feff}h"
 LOST, BACK, OTHER = "trying again until the GDS answers", "the GDS answers again", "the GDS has another dictionary"
 
 
