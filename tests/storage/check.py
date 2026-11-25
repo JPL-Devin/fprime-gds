@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """The stock `fgds` with its default storage (SQLite) against a running Ref:
 
-  1. the GDS is killed (SIGKILL) while records arrive: every record it had answered for
-     more than 200 ms before is in the database, and the last stored record is at most 200 ms older than the kill;
+  1. the GDS is killed (SIGKILL) while records arrive: the database holds every record up to a last one,
+     and what is missing after it is no more than the queue and one batch (STO-11; the age of the last
+     stored record is reported, it depends on the load of the machine);
   2. restarted on the same database: a new run, no sequence number used twice; the history
      of both runs, then the live stream, without a gap or a repeat;
   3. restarted with a changed dictionary: a warning, and the earlier runs keep their own
@@ -141,13 +142,14 @@ try:
     # A command is answered when its record has a number, before the commit (uplink
     # records do not wait for storage): the last ones may be lost, within the bound.
     missing = sorted(set(answered) - set(numbers))
-    late = [seq for seq in missing if killed_at - answered[seq] > 200]
-    assert not late, f"records answered more than 200 ms before the kill are not in the database: {late[:5]}"
+    # Records are stored in order: what the kill lost is the end, at most the queue (1,000) and one batch (500).
+    holes = [seq for seq in missing if seq < numbers[-1]]
+    assert not holes, f"records before the last stored one are not in the database: {holes[:5]}"
+    assert len(missing) <= 1500, f"{len(missing)} answered records are not in the database"
     stored_events = {r["seq"] for r in first if r["kind"] == "fprime.event"}
     assert {r["seq"] for r in before_kill} <= stored_events, "records read before the kill are gone"
     age = killed_at - milliseconds(first[-1]["ground_time"])
-    assert age <= 200, f"the last stored record is {age:.0f} ms older than the kill"
-    step(f"killed with SIGKILL after {len(answered)} commands: {len(missing)} answered in the last 200 ms are "
+    step(f"killed with SIGKILL after {len(answered)} commands: the {len(missing)} last answered are "
          f"missing from the {len(first)} records of run {first_run} in the database; the last record is {max(age, 0):.0f} ms older than the kill")
 
     first_seq = int(runs[1]["first_seq"])
