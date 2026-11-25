@@ -66,7 +66,7 @@ Each GDS drives its own run of `Ref`, so the two runs are not the same data. Acc
 | Flight time and ground time | Two runs at two moments | Everything else in the compared items |
 | Events not caused by the scenario (start-up, health pings, rate groups) | Their number depends on when the GDS connected | Every event of `CdhCore.cmdDisp`, `CdhCore.health`, `FileHandling.fileManager`, `Ref.SG1`, `Ref.typeDemo`: identifier, name, severity, text |
 | Order of the command dispatcher's events between two commands | A command may complete after the next one is dispatched | The events sorted by opcode, same order within one opcode |
-| Event arguments | The REST endpoint of the Python GDS gives the text only | The text, which is formatted from the arguments; arguments are compared in the replay |
+| Event arguments | The REST endpoint of the Python GDS gives the text only | Identifier, name and severity; arguments are compared in the replay |
 | Channel values and number of samples | Counters and system resources depend on the instant sampled | The set of channel names, and the last sample of `CommandsDispatched` and of the `Ref.typeDemo` channels |
 | Bytes between frames on the uplink | The Python GDS writes a keep-alive text between frames, `fgds` does not; flight software discards it | The command packets or TC frames, byte for byte, in order |
 | Text of a refusal | Two programs, two wordings | That the same requests are refused, and that nothing is sent for them |
@@ -84,7 +84,7 @@ discarded byte.
 Needs no `Ref`. For every event and every channel of the dictionary, the Python encoders (`EventEncoder`,
 `ChEncoder`) build seven packets, each with one boundary value in every field: minimum, maximum, negative, NaN,
 positive and negative infinity for floats, empty and full strings, first and last enum constants. The Python
-decoders and `fgds` decode them; every field must be equal, the formatted text included.
+decoders and `fgds` decode them; every field of data must be equal; the formatted text is each tool's own and is not compared.
 
 ## Not compared
 

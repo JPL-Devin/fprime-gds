@@ -63,13 +63,18 @@ def only(items, *keys):
     return [{key: item[key] for key in keys} for item in items]
 
 
+def data(items):
+    """The decoded data of events or samples; the text made of it is each tool's own."""
+    return [{key: value for key, value in item.items() if key != "display_text"} for item in items]
+
+
 def decoded(what, python, rust):
     """Both decodings of one capture: identical, and how much of the dictionary they cover."""
     assert python["events"] and python["channels"], "the capture holds no events or no channels"
-    check(f"{what}: {len(python['events'])} events (identifier, name, severity, time, argument names and values, text)",
-          python["events"], rust["events"])
-    check(f"{what}: {len(python['channels'])} channel samples (identifier, name, time, value, text)",
-          python["channels"], rust["channels"])
+    check(f"{what}: {len(python['events'])} events (identifier, name, severity, time, argument names and values)",
+          data(python["events"]), data(rust["events"]))
+    check(f"{what}: {len(python['channels'])} channel samples (identifier, name, time, value)",
+          data(python["channels"]), data(rust["channels"]))
     shapes.coverage("events", shapes.events, [e["id"] for e in rust["events"]], failures)
     shapes.coverage("channels", shapes.channels, [c["id"] for c in rust["channels"]], failures)
 
@@ -107,14 +112,14 @@ def live():
         # A command may complete after the next one is dispatched (the health component answers
         # on its next cycle): the dispatcher's events are compared command by command.
         events = [sorted(run, key=lambda e: (OPCODE.search(e["display_text"]) or [""])[0]) for run in events]
-        check(f"the {len(events[0])} events of {component} (identifier, name, severity, text)", *events)
+        check(f"the {len(events[0])} events of {component} (identifier, name, severity)", *map(data, events))
     errors = [e["display_text"] for e in python["events"] if e["name"].endswith("OpCodeError")]
     assert len(errors) == 1, errors
     print(f"    the command that fails on board: {errors[0]!r}")
-    last = [{c["name"]: {k: c[k] for k in ("id", "value", "display_text")} for c in run["channels"]
+    last = [{c["name"]: {k: c[k] for k in ("id", "value")} for c in run["channels"]
              if c["name"] == SCENARIO_CHANNEL or c["name"].startswith(SCENARIO_CHANNELS)} for run in (python, rust)]
     assert SCENARIO_CHANNEL in last[0] and len(last[0]) > 1, sorted(last[0])
-    check(f"last sample of {SCENARIO_CHANNEL} and of {len(last[0]) - 1} channels of {SCENARIO_CHANNELS[:-1]} (value, text)", *last)
+    check(f"last sample of {SCENARIO_CHANNEL} and of {len(last[0]) - 1} channels of {SCENARIO_CHANNELS[:-1]} (value)", *last)
     names = [sorted({c["name"] for c in run["channels"]}) for run in (python, rust)]
     check(f"the set of {len(names[0])} channels received", *names)
 
