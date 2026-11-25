@@ -174,15 +174,14 @@ def typed(args, dictionary):
             outputs.append(output)
         same(f"typed prm-write {form}", *outputs)
     # The sequence form of a struct value is not sequence syntax (quoted member names): both
-    # compilers must say the same of it.
+    # compilers must refuse it (the wording is each tool's own).
     compiled = []
     for tool, command in (("py", ["fprime-seqgen"]), ("rs", [args.fgds, "seqgen"])):
         output = args.out / f"typed.seq.{tool}.bin"
         output.unlink(missing_ok=True)
         done = run(*command, args.out / "typed.py.seq", output, "--dictionary", args.dictionary)
         said(tool, output, done)
-        message = (done.stdout + done.stderr).strip().split("\n")[-1]
-        compiled.append((done.returncode != 0, message if done.returncode else output.read_bytes()))
+        compiled.append((done.returncode != 0, None if done.returncode else output.read_bytes()))
     if compiled[0] != compiled[1]:
         failures.append(f"the typed parameter sequence, compiled: {compiled[0]} and {compiled[1]}")
     # Decoded: the files of both tools are the same bytes (an array or struct is shown by the Python
@@ -200,7 +199,7 @@ def typed(args, dictionary):
         if form != "csv":
             same(f"typed prm-decode {form}", *outputs, **VALUES.get(form, {}))
     print(f"  {len(wanted)} enum, array and struct parameters: the same .dat ({(args.out / 'typed.py.dat').stat().st_size} bytes) and "
-          f"sequence; the sequence {'rejected by both compilers with the same message' if compiled[0][0] else 'compiled to the same bytes'}; "
+          f"sequence; the sequence {'rejected by both compilers' if compiled[0][0] else 'compiled to the same bytes'}; "
           f"decoded to the same values (JSON) and text")
 
 
