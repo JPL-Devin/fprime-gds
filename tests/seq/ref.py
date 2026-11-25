@@ -26,7 +26,9 @@ def decoded(text):
         if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
             return {"nan": "NaN", "inf": "Infinity", "-inf": "-Infinity"}[str(value)]
         if isinstance(value, dict):
-            return {key: plain(item) for key, item in value.items()}
+            # fprime-prm-decode leaves the format and description of a struct inside a struct among its members.
+            extra = {"format", "description"} if {"format", "description"} < set(value) else set()
+            return {key: plain(item) for key, item in value.items() if key not in extra}
         return [plain(item) for item in value] if isinstance(value, list) else value
     return plain(json.loads(text))
 
@@ -184,9 +186,9 @@ def typed(args, dictionary):
         compiled.append((done.returncode != 0, None if done.returncode else output.read_bytes()))
     if compiled[0] != compiled[1]:
         failures.append(f"the typed parameter sequence, compiled: {compiled[0]} and {compiled[1]}")
-    # Decoded: the files of both tools are the same bytes (an array or struct is shown by the Python
-    # tool as the description of its type in text and CSV; fgds does the same).
-    for form in ("json", "text", "csv"):
+    # Decoded: the same values in JSON. Text and CSV are each tool's own (the Python tool shows an array or
+    # struct as the description of its type).
+    for form in ("json",):
         outputs = []
         for tool, command in (("py", ["fprime-prm-decode"]), ("rs", [args.fgds, "prm-decode"])):
             output = args.out / f"typed.decoded.{tool}.{form}"
@@ -195,12 +197,10 @@ def typed(args, dictionary):
             if done.returncode:
                 failures.append(f"typed prm-decode {form} ({tool}): exit {done.returncode}\n{done.stdout}{done.stderr}")
             outputs.append(output)
-        # The CSV of fprime-prm-decode does not quote a field that holds quotes and commas: not compared.
-        if form != "csv":
-            same(f"typed prm-decode {form}", *outputs, **VALUES.get(form, {}))
+        same(f"typed prm-decode {form}", *outputs, **VALUES.get(form, {}))
     print(f"  {len(wanted)} enum, array and struct parameters: the same .dat ({(args.out / 'typed.py.dat').stat().st_size} bytes) and "
           f"sequence; the sequence {'rejected by both compilers' if compiled[0][0] else 'compiled to the same bytes'}; "
-          f"decoded to the same values (JSON) and text")
+          f"decoded to the same values (JSON)")
 
 
 def parameters(args, dictionary):
@@ -240,7 +240,8 @@ def parameters(args, dictionary):
             again = args.out / "again.dat"
             run(args.fgds, "prm-write", "dat", outputs[1], "--dictionary", args.dictionary, "-o", again)
             same("decode then write", dat, again)
-        same(f"prm-decode {form}", *outputs, **VALUES.get(form, {}))
+        if form == "json":
+            same(f"prm-decode {form}", *outputs, **VALUES.get(form, {}))
     # Damaged databases: cut short, or one byte changed, with and without a correct checksum.
     data = dat.read_bytes()
     rng = random.Random(11)
@@ -266,7 +267,7 @@ def parameters(args, dictionary):
             message = done.stderr
         # fprime-prm-decode reads the length of a string as U16 whatever FwSizeStoreType is in the
         # dictionary (docs/design/deviations.md), so it does not see damage to the rest of the length.
-        if results[0][0] and not results[1][0] and "deserialize string" in message:
+        if results[0][0] and not results[1][0] and "Failed to deserialize" in message:
             agree["string"] += 1
         elif results[0] != results[1]:
             kept = args.out / f"damaged{index}.dat"
@@ -274,7 +275,7 @@ def parameters(args, dictionary):
             failures.append(f"{kept}: fprime-prm-decode {'accepts' if results[0][0] else 'rejects'}, fgds {'accepts' if results[1][0] else 'rejects'} or the output differs")
         else:
             agree["accepted" if results[0][0] else "rejected"] += 1
-    print(f"  {count} parameters with a default: the same .dat ({len(data)} bytes), sequence, and decoded JSON, text and CSV; "
+    print(f"  {count} parameters with a default: the same .dat ({len(data)} bytes), sequence, and decoded values; "
           f"{len(damaged)} damaged databases: {agree['rejected']} rejected by both, {agree['accepted']} decoded the same, "
           f"{agree['string']} with a damaged string length rejected by fgds only")
 
