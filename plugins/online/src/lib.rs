@@ -185,14 +185,9 @@ impl Subcommand for Records {
             let now =
                 api::seq(&cursor["seq"]).ok_or_else(|| Error::Other("the cursor has no sequence number".into()))?;
             let mut after = if args.get_flag("history") { 0 } else { now };
-            let dictionary = if json { Some(api.get("/dictionary", &[]).await?) } else { None };
-            let plain = match &dictionary {
-                Some(dictionary) if self.kind == "fprime.channel" => items::plain_channels(dictionary),
-                _ => Default::default(),
-            };
             let shown = std::cell::Cell::new(false);
             let mut on_record = |record: &Value| {
-                let item = Item::from_record(record, &plain, dictionary.as_ref());
+                let item = Item::from_record(record);
                 let accepted = filter.accepts(&item, json);
                 if accepted {
                     shown.set(true);

@@ -258,7 +258,7 @@ async fn upload(args: &ArgMatches, base: &str) -> Result<ExitCode> {
     loop {
         let page = get(format!("{records}/records?kind=fprime.event&after_seq={after}")).await?;
         for record in page["records"].as_array().into_iter().flatten() {
-            let line = || fgds_core::visible(&fgds_core::python_event_record_line(record)).into_owned();
+            let line = || fgds_core::visible(&fgds_core::event_line(record)).into_owned();
             if ends(record, &["FileReceived"]) {
                 fgds_core::out!("Flight software confirmed receipt: {}", line());
                 return Ok(ExitCode::SUCCESS);

@@ -2,8 +2,6 @@
 //! accept it, the JSON a sequence carries, and the checksum of their output.
 //! A library, not a plugin: plugins may not depend on each other (MNT-1).
 
-pub mod value;
-
 use fgds_core::serde_json::{self, json};
 use fgds_core::{CliEnv, Dictionary, Error, Result};
 use std::path::{Path, PathBuf};
@@ -21,7 +19,42 @@ pub fn crc32(bytes: &[u8]) -> u32 {
 /// JSON on one line with `, ` and `: ` between the parts and ASCII only: what a sequence carries in a
 /// string argument, so that the bytes sent to flight stay those of `fprime-seqgen`.
 pub fn json_line(value: &serde_json::Value) -> String {
-    value::Value::from_json(value).to_json()
+    use serde::Serialize;
+    let mut out = Vec::new();
+    match value.serialize(&mut serde_json::Serializer::with_formatter(&mut out, Spaced)) {
+        Ok(()) => String::from_utf8(out).unwrap_or_default(),
+        Err(_) => String::new(),
+    }
+}
+
+struct Spaced;
+
+impl serde_json::ser::Formatter for Spaced {
+    fn begin_array_value<W: ?Sized + std::io::Write>(&mut self, w: &mut W, first: bool) -> std::io::Result<()> {
+        w.write_all(if first { b"" } else { b", " })
+    }
+
+    fn begin_object_key<W: ?Sized + std::io::Write>(&mut self, w: &mut W, first: bool) -> std::io::Result<()> {
+        w.write_all(if first { b"" } else { b", " })
+    }
+
+    fn begin_object_value<W: ?Sized + std::io::Write>(&mut self, w: &mut W) -> std::io::Result<()> {
+        w.write_all(b": ")
+    }
+
+    fn write_string_fragment<W: ?Sized + std::io::Write>(&mut self, w: &mut W, text: &str) -> std::io::Result<()> {
+        for c in text.chars() {
+            match c.is_ascii() {
+                true => w.write_all(&[c as u8])?,
+                false => {
+                    for unit in c.encode_utf16(&mut [0; 2]) {
+                        write!(w, "\\u{unit:04x}")?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Read a file of at most `MAX_INPUT` bytes.

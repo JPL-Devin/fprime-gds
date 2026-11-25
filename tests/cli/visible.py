@@ -129,11 +129,11 @@ def main():
         run("commands", "commands", *url, shows=["No-op \\x1b]0;T\\x07\\x1b[2J"])
         # JSON is exact: the strings of the events, the format of the channel, the annotation of the command.
         events = [json.loads(line) for line in run("events -j", "events", "-j", *history, exact=True).splitlines()]
-        assert [e["display_text"] for e in events if e["name"] == RECEIVED] == [event["format"].format(s) for s in STRINGS], events
+        assert [e["body"]["display_text"] for e in events if e["body"]["name"] == RECEIVED] == [event["format"].format(s) for s in STRINGS], events
         channels = [json.loads(line) for line in run("channels -j", "channels", "-j", *history, exact=True).splitlines()]
-        assert any(c["display_text"].endswith(" \x1b[2J\r\nfake") for c in channels if c["name"] == DISPATCHED), channels[:3]
+        assert any(c["body"]["display_text"].endswith(" \x1b[2J\r\nfake") for c in channels if c["body"]["name"] == DISPATCHED), channels[:3]
         commands = [json.loads(line) for line in run("commands -j", "commands", "-j", *url, exact=True).splitlines()]
-        assert [c for c in commands if c["full_name"] == NO_OP_STRING][0]["description"] == command["annotation"], commands[:3]
+        assert [c for c in commands if c["name"] == NO_OP_STRING][0]["annotation"] == command["annotation"], commands[:3]
         # --search reads the text as decoded, not as printed.
         found = run("events --search, decoded", "events", *history, "--search", "c\x1b[31mR\r\nfake")
         assert len([line for line in found.split("\n") if RECEIVED in line]) == 1, found

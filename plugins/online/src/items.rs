@@ -1,11 +1,8 @@
-//! What is printed: received events and channel samples, and the definitions of the
-//! dictionary. Text and JSON are the lines of `fprime-cli` (`get_str` and `json.dumps(get_dict())` of
-//! the Python GDS), apart from what docs/design/deviations.md lists.
+//! What is printed: received events and channel samples, and the definitions of the dictionary. A text
+//! line for a person; with `--json` the record of the API, or the definition of the dictionary, on one line.
 
 use fgds_core::clap::ArgMatches;
-use fgds_core::python_times as times;
-use fgds_core::serde_json::{json, Value};
-use fgds_offline::value::Value as Typed;
+use fgds_core::serde_json::Value;
 
 /// One printed item.
 pub struct Item {
@@ -18,8 +15,8 @@ pub struct Item {
     json: String,
 }
 
+/// JSON on one line for a terminal: what is not ASCII is escaped, so that no character of the data ends the line.
 fn dumps(value: &Value) -> String {
-    // A line for a terminal: what is not ASCII is escaped, so that no character of the data ends the line.
     let mut out = String::new();
     for c in value.to_string().chars() {
         match c.is_ascii() {
@@ -28,17 +25,6 @@ fn dumps(value: &Value) -> String {
         }
     }
     out
-}
-
-/// An object from keys and values already written.
-fn object(fields: &[(&str, String)]) -> String {
-    let fields: Vec<String> = fields.iter().map(|(key, value)| format!("{}: {value}", dumps(&json!(key)))).collect();
-    format!("{{{}}}", fields.join(", "))
-}
-
-/// `str()` of an optional text: `None` when there is none.
-fn or_none(text: Option<&str>) -> &str {
-    text.unwrap_or("None")
 }
 
 impl Item {
@@ -71,132 +57,20 @@ impl Item {
         self.name.rsplit_once('.').map_or("", |(component, _)| component)
     }
 
-    /// A record of kind `fprime.event` or `fprime.channel`. `plain` holds the kind of the type of
-    /// each channel that has no format string: its JSON shows the value, not a text.
-    /// `dictionary`, when given, tells which event arguments are numbers (see `typed`).
-    pub fn from_record(
-        record: &Value,
-        plain: &std::collections::HashMap<u64, String>,
-        dictionary: Option<&Value>,
-    ) -> Item {
+    /// A record of kind `fprime.event` or `fprime.channel`.
+    pub fn from_record(record: &Value) -> Item {
         let body = &record["body"];
-        let time = &record["flight_time"];
-        let field = |name: &str| time[name].as_u64().unwrap_or(0);
-        let (readable, raw) = times(field("base"), field("context"), field("seconds"), field("microseconds"));
         let id = record["id"].as_u64().unwrap_or(0);
         let name = body["name"].as_str().unwrap_or("?").to_string();
-        let text = body["display_text"].as_str().unwrap_or("");
-        match body["severity"].as_str() {
-            Some(severity) => {
-                // The values in the order of the dictionary, without their names: the list `fprime-cli`
-                // prints (`[]` for an event with no argument), so that a script reads one shape.
-                let args = match &body["args"] {
-                    Value::Object(named) => named.values().cloned().collect(),
-                    Value::Array(values) => values.clone(),
-                    _ => Vec::new(),
-                };
-                let types = dictionary.and_then(|d| list(d, "events").find(|e| e["id"] == record["id"]));
-                let shown = match (types, dictionary) {
-                    (Some(definition), Some(dictionary)) => {
-                        let types = list(definition, "formalParams").map(|p| &p["type"]);
-                        dumps(
-                            &Typed::Array(args.iter().zip(types).map(|(a, t)| typed(a, t, dictionary)).collect())
-                                .to_serde(),
-                        )
-                    }
-                    _ => dumps(&Value::Array(args)),
-                };
-                event(id, name, severity, &readable, &raw, shown, Some(text))
+        let line = match body["severity"].is_string() {
+            true => fgds_core::event_line(record),
+            false => {
+                let (time, raw) = fgds_core::flight_time_text(&record["flight_time"]);
+                format!("{time}: {name} ({id}) {raw} {}", body["display_text"].as_str().unwrap_or(""))
             }
-            None => {
-                let shown = match (&body["display_members"], plain.get(&id).map(String::as_str), &body["value"]) {
-                    (Value::Null, Some("integer" | "float"), Value::String(number)) => number.clone(),
-                    (Value::Null, Some(_), value) => dumps(value),
-                    (Value::Null, None, _) => dumps(&json!(text)),
-                    (members, _, _) => dumps(members),
-                };
-                channel(id, name, &readable, &raw, text, shown)
-            }
-        }
+        };
+        Item::new(id, name, line, dumps(record))
     }
-}
-
-/// A value of a record as `json.dumps` of Python writes it: a 64-bit integer and a non-finite float, which
-/// a record holds as text, are numbers again (`18446744073709551615`, `Infinity`, `NaN`), by the type the
-/// dictionary gives.
-fn typed(value: &Value, of: &Value, dictionary: &Value) -> Typed {
-    let definition = || list(dictionary, "typeDefinitions").find(|t| t["qualifiedName"] == of["name"]);
-    match (text(of, "kind"), value) {
-        ("integer", Value::String(number)) => {
-            number.parse::<i128>().map_or(Typed::from_json(value), |n| Typed::Int(n.into()))
-        }
-        ("float", Value::String(number)) => {
-            number.replace("Infinity", "inf").parse::<f64>().map_or(Typed::from_json(value), Typed::Float)
-        }
-        ("qualifiedIdentifier", _) => match (definition(), value) {
-            (Some(d), _) if text(d, "kind") == "alias" => typed(value, &d["underlyingType"], dictionary),
-            (Some(d), Value::Array(items)) if text(d, "kind") == "array" => {
-                Typed::Array(items.iter().map(|i| typed(i, &d["elementType"], dictionary)).collect())
-            }
-            (Some(d), Value::Object(members)) if text(d, "kind") == "struct" => Typed::Object(
-                members
-                    .iter()
-                    .map(|(name, member)| {
-                        let of = &d["members"][name]["type"];
-                        let shown = match member {
-                            // A member that is itself several values of its type.
-                            Value::Array(items) if d["members"][name]["size"].is_u64() => {
-                                Typed::Array(items.iter().map(|i| typed(i, of, dictionary)).collect())
-                            }
-                            _ => typed(member, of, dictionary),
-                        };
-                        (name.clone(), shown)
-                    })
-                    .collect(),
-            ),
-            _ => Typed::from_json(value),
-        },
-        _ => Typed::from_json(value),
-    }
-}
-
-fn event(id: u64, name: String, severity: &str, time: &str, raw: &str, args: String, text: Option<&str>) -> Item {
-    let severity = format!("EventSeverity.{severity}");
-    let line = fgds_core::python_event_line(time, &name, id, raw, &severity, text);
-    let json = object(&[
-        ("time", dumps(&json!(time))),
-        ("raw_time", dumps(&json!(raw))),
-        ("name", dumps(&json!(name))),
-        ("id", id.to_string()),
-        ("severity", dumps(&json!(severity))),
-        ("args", args),
-        ("display_text", dumps(&json!(text))),
-    ]);
-    Item::new(id, name, line, json)
-}
-
-fn channel(id: u64, name: String, time: &str, raw: &str, text: &str, shown: String) -> Item {
-    let json = object(&[
-        ("time", dumps(&json!(time))),
-        ("raw_time", dumps(&json!(raw))),
-        ("name", dumps(&json!(name))),
-        ("id", id.to_string()),
-        ("display_text", shown),
-    ]);
-    Item::new(id, name.clone(), format!("{time}: {name} ({id}) {raw} {text}"), json)
-}
-
-/// The kind of the type of each channel without a format string (`integer`, `float`, ...).
-pub fn plain_channels(dictionary: &Value) -> std::collections::HashMap<u64, String> {
-    list(dictionary, "telemetryChannels")
-        .filter(|c| c["format"].as_str().is_none())
-        .map(|c| {
-            let alias = list(dictionary, "typeDefinitions")
-                .find(|t| text(t, "kind") == "alias" && t["qualifiedName"] == c["type"]["name"]);
-            let of = alias.map_or(&c["type"], |a| &a["underlyingType"]);
-            (c["id"].as_u64().unwrap_or(0), text(of, "kind").to_string())
-        })
-        .collect()
 }
 
 fn sorted(mut items: Vec<Item>) -> Vec<Item> {
@@ -212,34 +86,31 @@ fn list<'a>(dictionary: &'a Value, key: &str) -> impl Iterator<Item = &'a Value>
     dictionary[key].as_array().into_iter().flatten()
 }
 
-/// The event definitions of a dictionary, sorted by identifier. As in `fprime-cli`,
-/// each prints like an event received at time zero whose text is its description
-/// (`null` in JSON when the dictionary gives none).
+/// The event definitions of a dictionary, sorted by identifier: name, identifier, severity and description;
+/// in JSON, the definition as the dictionary has it.
 pub fn events(dictionary: &Value) -> Vec<Item> {
-    let (time, raw) = times(0, 0, 0, 0);
     let events = list(dictionary, "events").map(|e| {
-        let id = e["id"].as_u64().unwrap_or(0);
-        event(id, text(e, "name").into(), text(e, "severity"), &time, &raw, "null".into(), e["annotation"].as_str())
+        let (id, name) = (e["id"].as_u64().unwrap_or(0), text(e, "name"));
+        let line = format!("{name} ({id}) {} : {}", text(e, "severity"), text(e, "annotation"));
+        Item::new(id, name.into(), line, dumps(e))
     });
     sorted(events.collect())
 }
 
 /// The channel definitions of a dictionary, sorted by identifier.
 pub fn channels(dictionary: &Value) -> Vec<Item> {
-    let (time, raw) = times(0, 0, 0, 0);
     let channels = list(dictionary, "telemetryChannels").map(|c| {
-        let description = c["annotation"].as_str();
-        let shown = dumps(&json!(description));
-        channel(c["id"].as_u64().unwrap_or(0), text(c, "name").into(), &time, &raw, or_none(description), shown)
+        let (id, name) = (c["id"].as_u64().unwrap_or(0), text(c, "name"));
+        Item::new(id, name.into(), format!("{name} ({id}) : {}", text(c, "annotation")), dumps(c))
     });
     sorted(channels.collect())
 }
 
-/// The command definitions of a dictionary, sorted by opcode.
+/// The command definitions of a dictionary, sorted by opcode: name, opcode, description and arguments;
+/// in JSON, the definition as the dictionary has it.
 pub fn commands(dictionary: &Value) -> Vec<Item> {
     let commands = list(dictionary, "commands").map(|c| {
         let (name, opcode) = (text(c, "name").to_string(), c["opcode"].as_u64().unwrap_or(0));
-        let (component, mnemonic) = name.rsplit_once('.').unwrap_or(("", &name));
         let params: Vec<&Value> = list(c, "formalParams").collect();
         let mut lines = format!("{name} ({opcode}) | Takes {} arguments.\n", params.len());
         // The same lines with the texts of the dictionary made visible, each on its line.
@@ -249,38 +120,21 @@ pub fn commands(dictionary: &Value) -> Vec<Item> {
             lines += &format!("Description: {}\n", text(c, "annotation"));
             shown += &format!("Description: {}\n", v(text(c, "annotation")));
         }
-        let mut args = Vec::new();
         for p in params {
-            let arg = text(p, "name");
-            // As the Python GDS does: an alias is named by the type it stands for, a
-            // string type with its size.
-            let alias = list(dictionary, "typeDefinitions")
-                .find(|t| text(t, "kind") == "alias" && t["qualifiedName"] == p["type"]["name"]);
-            let of = alias.map_or(&p["type"], |a| &a["underlyingType"]);
-            let kind = match (text(of, "kind"), of["size"].as_u64()) {
-                ("string", Some(size)) => format!("String_{size}"),
-                ("integer" | "float", _) => format!("{}Type", text(of, "name")),
-                ("bool", _) => "BoolType".to_string(),
-                _ => text(of, "name").to_string(),
+            let (arg, kind) = (text(p, "name"), text(&p["type"], "name"));
+            let description = match text(p, "annotation") {
+                "" => "--no description--",
+                description => description,
             };
-            let description = text(p, "annotation");
-            let (annotation, description) =
-                (description, if description.is_empty() { "--no description--" } else { description });
             lines += &format!("\t{arg} ({kind}): {description}\n");
-            shown += &format!("\t{} ({}): {}\n", v(arg), v(&kind), v(description));
-            args.push(json!({"name": arg, "description": annotation, "type": kind}));
+            shown += &format!("\t{} ({}): {}\n", v(arg), v(kind), v(description));
         }
-        let json = json!({
-            "args": args, "comp_name": component, "description": text(c, "annotation"), "full_name": name,
-            "id": opcode, "mnemonic": mnemonic, "name": mnemonic, "op_code": opcode,
-        });
-        Item { id: opcode, text: lines, shown, json: dumps(&json), name }
+        Item { id: opcode, text: lines, shown, json: dumps(c), name }
     });
     sorted(commands.collect())
 }
 
-/// `difflib.get_close_matches(name, names, n=3)` of Python: the names whose ratio to `name` is at
-/// least 0.6, best first; equal ratios in descending order of the name.
+/// The three command names closest to `name`: those whose ratio to it is at least 0.6, best first.
 pub fn similar(name: &str, commands: &[Item]) -> Vec<String> {
     let wanted: Vec<char> = name.chars().collect();
     let mut scored: Vec<(f64, &str)> = commands
@@ -292,7 +146,7 @@ pub fn similar(name: &str, commands: &[Item]) -> Vec<String> {
     scored.into_iter().take(3).map(|(_, name)| name.to_string()).collect()
 }
 
-/// `SequenceMatcher(None, a, b).ratio()` for texts under 200 characters (no automatic junk).
+/// How alike two texts are, from 0 to 1: twice the characters of their common blocks over their lengths.
 fn ratio(a: &[char], b: &[char]) -> f64 {
     fn matched(a: &[char], b: &[char]) -> usize {
         // The longest common block, the first in `a` then in `b`; then the same on each side of it.
@@ -322,7 +176,7 @@ fn ratio(a: &[char], b: &[char]) -> f64 {
     }
 }
 
-/// The filters of `fprime-cli`: identifiers, components, and a string searched in the
+/// The filters: identifiers, components, and a string searched in the
 /// line as it is printed. An item passes when it passes each filter that is given.
 #[derive(Default)]
 pub struct Filter {
@@ -350,6 +204,7 @@ impl Filter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fgds_core::serde_json::json;
 
     fn dictionary() -> Value {
         json!({
@@ -369,117 +224,48 @@ mod tests {
     }
 
     #[test]
-    fn a_received_event_prints_like_fprime_cli() {
-        let item = Item::from_record(
-            &json!({
-                "seq": "4", "kind": "fprime.event", "id": 16777217,
-                "flight_time": {"base": 2, "context": 0, "seconds": 1795275108, "microseconds": 643},
-                "body": {"name": "CdhCore.cmdDisp.OpCodeCompleted", "severity": "COMMAND", "args": {"Opcode": 1},
-                         "display_text": "Opcode 0x1 completed"},
-            }),
-            &Default::default(),
-            None,
-        );
+    fn a_received_event_is_a_line_or_its_record() {
+        let record = json!({
+            "seq": "4", "kind": "fprime.event", "id": 16777217,
+            "flight_time": {"base": 2, "context": 0, "seconds": 1795275108, "microseconds": 643},
+            "body": {"name": "CdhCore.cmdDisp.OpCodeCompleted", "severity": "COMMAND", "args": {"Opcode": 1},
+                     "display_text": "Opcode 0x1 completed \u{2028}"},
+        });
+        let item = Item::from_record(&record);
         assert_eq!(
             item.line(false),
-            "2026-11-21T15:31:48.000643: CdhCore.cmdDisp.OpCodeCompleted (16777217) (2(0)-1795275108:643) EventSeverity.COMMAND : Opcode 0x1 completed"
+            "2026-11-21T15:31:48.000643: CdhCore.cmdDisp.OpCodeCompleted (16777217) (2(0)-1795275108:643) COMMAND : Opcode 0x1 completed \u{2028}"
         );
-        assert_eq!(
-            item.line(true),
-            r#"{"time": "2026-11-21T15:31:48.000643", "raw_time": "(2(0)-1795275108:643)", "name": "CdhCore.cmdDisp.OpCodeCompleted", "id": 16777217, "severity": "EventSeverity.COMMAND", "args": [1], "display_text": "Opcode 0x1 completed"}"#
-        );
+        // The JSON is the record, in ASCII.
+        assert!(item.line(true).is_ascii() && item.line(true).contains("\\u2028"));
+        assert_eq!(fgds_core::serde_json::from_str::<Value>(&item.line(true)).unwrap(), record);
     }
 
     #[test]
-    fn event_arguments_are_a_list_with_numbers_as_numbers() {
-        let dictionary = json!({
-            "typeDefinitions": [
-                {"kind": "struct", "qualifiedName": "a.S", "members": {
-                    "big": {"type": {"name": "U64", "kind": "integer"}},
-                    "three": {"type": {"name": "F32", "kind": "float"}, "size": 3}}},
-                {"kind": "array", "qualifiedName": "a.A", "elementType": {"name": "I64", "kind": "integer"}},
-                {"kind": "alias", "qualifiedName": "a.T", "underlyingType": {"name": "F64", "kind": "float"}},
-            ],
-            "events": [
-                {"id": 1, "formalParams": []},
-                {"id": 2, "formalParams": [
-                    {"name": "s", "type": {"name": "a.S", "kind": "qualifiedIdentifier"}},
-                    {"name": "a", "type": {"name": "a.A", "kind": "qualifiedIdentifier"}},
-                    {"name": "t", "type": {"name": "a.T", "kind": "qualifiedIdentifier"}},
-                    {"name": "text", "type": {"name": "string", "kind": "string"}},
-                ]},
-            ],
-        });
-        let args = |id: u64, args: Value| {
-            let record = json!({"id": id, "body": {"name": "a.b.E", "severity": "ACTIVITY_HI", "args": args}});
-            let line = Item::from_record(&record, &Default::default(), Some(&dictionary)).line(true);
-            let (_, rest) = line.split_once(r#""args": "#).unwrap();
-            rest.split_once(r#", "display_text""#).unwrap().0.to_string()
-        };
-        assert_eq!(args(1, json!({})), "[]");
-        assert_eq!(
-            args(
-                2,
-                json!({"s": {"big": "18446744073709551615", "three": [1.5, "-Infinity", "NaN"]},
-                       "a": ["-9223372036854775808", 2], "t": "Infinity", "text": "12"})
-            ),
-            r#"[{"big":18446744073709551615,"three":[1.5,"-Infinity","NaN"]},[-9223372036854775808,2],"Infinity","12"]"#
-        );
-    }
-
-    #[test]
-    fn a_received_channel_sample_prints_like_fprime_cli() {
-        let sample = |body: Value| {
-            json!({"seq": "5", "kind": "fprime.channel", "id": 7, "body": body,
-                   "flight_time": {"base": 1, "context": 3, "seconds": 12, "microseconds": 5}})
-        };
-        let start = r#"{"time": "TB_PROC_TIME: 12.000005s, context=3", "raw_time": "(1(3)-12:5)", "name": "a.b.Count", "id": 7, "display_text": "#;
-        let item = Item::from_record(
-            &sample(json!({"name": "a.b.Count", "value": 9, "display_text": "9 m"})),
-            &Default::default(),
-            None,
-        );
+    fn a_received_channel_sample_is_a_line_or_its_record() {
+        let record = json!({"seq": "5", "kind": "fprime.channel", "id": 7,
+            "body": {"name": "a.b.Count", "value": "18446744073709551615", "display_text": "9 m"},
+            "flight_time": {"base": 1, "context": 3, "seconds": 12, "microseconds": 5}});
+        let item = Item::from_record(&record);
         assert_eq!(item.line(false), "TB_PROC_TIME: 12.000005s, context=3: a.b.Count (7) (1(3)-12:5) 9 m");
-        assert_eq!(item.line(true), format!(r#"{start}"9 m"}}"#));
-        // Without a format string the value itself is shown; a 64-bit integer is a text in the record.
-        for (kind, mut body, shown) in [
-            ("integer", json!({"value": 9, "display_text": "9"}), "9"),
-            (
-                "integer",
-                json!({"value": "18446744073709551615", "display_text": "18446744073709551615"}),
-                "18446744073709551615",
-            ),
-            ("float", json!({"value": "Infinity", "display_text": "inf"}), "Infinity"),
-            ("string", json!({"value": "a b", "display_text": "a b"}), r#""a b""#),
-            (
-                "array",
-                json!({"value": [12, 1], "display_text": r#"["12","1"]"#, "display_members": ["12", "1"]}),
-                r#"["12","1"]"#,
-            ),
-        ] {
-            body["name"] = json!("a.b.Count");
-            let item = Item::from_record(&sample(body), &[(7, kind.to_string())].into(), None);
-            assert_eq!(item.line(true), format!("{start}{shown}}}"));
-        }
+        assert_eq!(fgds_core::serde_json::from_str::<Value>(&item.line(true)).unwrap(), record);
     }
 
     #[test]
     fn definitions_are_sorted_by_identifier() {
         let events = events(&dictionary());
         assert_eq!(events.iter().map(|e| e.id).collect::<Vec<_>>(), [1, 2]);
-        assert_eq!(
-            events[1].line(false),
-            "TB_NONE: 0.000000s, context=0: a.b.Second (2) (0(0)-0:0) EventSeverity.WARNING_HI : Second event"
-        );
-        assert_eq!(
-            channels(&dictionary())[0].line(false),
-            "TB_NONE: 0.000000s, context=0: a.b.Count (7) (0(0)-0:0) A count"
-        );
+        assert_eq!(events[1].line(false), "a.b.Second (2) WARNING_HI : Second event");
+        assert_eq!(channels(&dictionary())[0].line(false), "a.b.Count (7) : A count");
         let commands = commands(&dictionary());
         assert_eq!(commands[0].name, "a.b.STOP");
         assert_eq!(
             commands[1].line(false),
-            "a.b.GO (16) | Takes 2 arguments.\nDescription: Go\n\tspeed (U8Type): How fast\n\tmode (a.Mode): --no description--\n"
+            "a.b.GO (16) | Takes 2 arguments.\nDescription: Go\n\tspeed (U8): How fast\n\tmode (a.Mode): --no description--\n"
+        );
+        assert_eq!(
+            fgds_core::serde_json::from_str::<Value>(&commands[1].line(true)).unwrap(),
+            dictionary()["commands"][0]
         );
     }
 
