@@ -3,7 +3,7 @@
 
 use crate::api::Api;
 use crate::{
-    loaded, reload, restore_on_signal, show, shown, stream, url_arg, view, Dictionary, Follower, Item, Session, PROMPT,
+    loaded, reload, restore_on_signal, show, stream, url_arg, view, Dictionary, Follower, Item, Session, PROMPT,
 };
 use fgds_core::clap::{ArgMatches, Command};
 use fgds_core::{CliEnv, Error, Result, Subcommand};
@@ -275,7 +275,8 @@ impl Subcommand for Repl {
     }
 
     fn run(&self, args: &ArgMatches, env: &CliEnv) -> Result<ExitCode> {
-        repl(args, env).map_err(shown)
+        // The error is printed by `fgds`, through `fgds_core::visible`.
+        repl(args, env)
     }
 }
 

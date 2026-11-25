@@ -72,7 +72,7 @@ is read: events, channel samples and commands are printed, one per line, until i
 ## What is printed
 
 Text from flight, from the GDS and from the dictionary is never written to the terminal as it is, with or without a terminal on the output.
-Control characters are printed as text (`\x1b`, `\r`, `\n`, `\t`, others `\xNN`), a backslash is doubled, and the characters that change the direction of text or have no width (U+2028, U+2029, U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069, U+200B to U+200D, U+2060, U+FEFF) are printed as `\u{XXXX}`.
+Text is shown by the rule of every text output of fgds (`fgds_core::visible`): ASCII control characters are printed as text (`\x1b`, `\r`, `\n`, `\t`, others `\xNN`), a backslash is doubled, and the C1 control characters and the characters that change the direction of text or have no width (U+2028, U+2029, U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069, U+200B to U+200D, U+2060, U+FEFF) are printed as `\u{9b}`, `\u{202e}` (hexadecimal, small letters).
 
 ## Signals
 
