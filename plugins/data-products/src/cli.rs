@@ -99,16 +99,6 @@ fn text<'a>(args: &'a ArgMatches, name: &str) -> Option<&'a str> {
     args.get_one::<String>(name).map(String::as_str)
 }
 
-/// A path as `str(pathlib.Path(text))` writes it.
-fn python_path(text: &str) -> String {
-    let parts: Vec<&str> = text.split('/').filter(|part| !part.is_empty() && *part != ".").collect();
-    match (text.starts_with('/'), parts.is_empty()) {
-        (true, _) => format!("/{}", parts.join("/")),
-        (false, true) => ".".into(),
-        (false, false) => parts.join("/"),
-    }
-}
-
 /// The absolute path of an output file, to detect two products written to one file.
 fn resolved(path: &str) -> PathBuf {
     let path = std::path::absolute(path).unwrap_or_else(|_| PathBuf::from(path));
@@ -147,11 +137,11 @@ fn renamed_output(dict: &DpDictionary, bin_file: &str) -> Option<String> {
     };
     let short_name = container.name.rsplit('.').next().unwrap_or(&container.name);
     let renamed = format!("{}{short_name}_{}.json", &stem[..start], &stem[end..]);
-    Some(python_path(&path.with_file_name(renamed).to_string_lossy()))
+    Some(path.with_file_name(renamed).to_string_lossy().into_owned())
 }
 
 fn default_output(bin_file: &str) -> String {
-    python_path(&Path::new(bin_file).with_extension("json").to_string_lossy())
+    Path::new(bin_file).with_extension("json").to_string_lossy().into_owned()
 }
 
 /// Decode one file and write its JSON. `Ok(false)` is a product that does not decode.
@@ -193,7 +183,7 @@ fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode
     let dict = DpDictionary::load(dictionary).map_err(|e| Stop::Failure(format!("error: {e}")))?;
     let output = text(args, "output");
     let bin_files = match (bin_file, bin_dir) {
-        (Some(file), _) => vec![python_path(file)],
+        (Some(file), _) => vec![file.to_string()],
         (None, Some(dir)) => {
             let entries =
                 std::fs::read_dir(dir).map_err(|_| Stop::Failure(format!("error: {dir} is not a directory")))?;
@@ -204,11 +194,10 @@ fn run_decode(args: &ArgMatches, max_bytes: u64) -> std::result::Result<ExitCode
                 .filter(|name| name.ends_with(".fdp"))
                 .collect();
             names.sort();
-            let dir = python_path(dir);
             if names.is_empty() {
                 return Err(Stop::Failure(format!("No .fdp files found in {dir}")));
             }
-            names.iter().map(|name| python_path(&format!("{dir}/{name}"))).collect()
+            names.iter().map(|name| Path::new(dir).join(name).to_string_lossy().into_owned()).collect()
         }
         (None, None) => unreachable!("clap requires one of the two"),
     };

@@ -1,144 +1,43 @@
 //! Reading a `.dat` file.
 
 use crate::{checksum, Param, ParamDictionary, DELIMITER, ID_SIZE};
+use fgds_core::dictionary::Reader;
 use fgds_core::dictionary::Type;
-use fgds_offline::convert::type_name;
-use fgds_offline::value::Value;
+use fgds_core::serde_json::Value;
 
-/// `len` bytes at `offset`.
-fn take(data: &[u8], offset: usize, len: usize) -> Result<&[u8], String> {
-    offset
-        .checked_add(len)
-        .and_then(|end| data.get(offset..end))
-        .ok_or_else(|| format!("{len} bytes are needed at offset {offset}, the file has {}", data.len()))
-}
-
-fn int(bytes: &[u8], signed: bool) -> i128 {
-    let unsigned = bytes.iter().fold(0i128, |acc, b| (acc << 8) | i128::from(*b));
-    let bits = bytes.len() * 8;
-    match signed && bits > 0 && unsigned >> (bits - 1) == 1 {
-        true => unsigned - (1i128 << bits),
-        false => unsigned,
-    }
-}
-
-fn number(ty: &Type, bytes: &[u8]) -> Value {
-    match (ty, bytes) {
-        (Type::Float { .. }, [a, b, c, d]) => Value::Float(f64::from(f32::from_be_bytes([*a, *b, *c, *d]))),
-        (Type::Float { .. }, _) => {
-            let mut wide = [0u8; 8];
-            wide.iter_mut().zip(bytes).for_each(|(w, b)| *w = *b);
-            Value::Float(f64::from_be_bytes(wide))
-        }
-        (Type::Int { signed, .. }, _) => Value::Int(int(bytes, *signed).into()),
-        _ => Value::Null,
-    }
-}
-
-fn width(ty: &Type) -> usize {
+/// The name of a type in the text and CSV forms.
+pub(crate) fn type_name(ty: &Type) -> String {
     match ty {
-        Type::Int { bits, .. } | Type::Float { bits } => usize::from(*bits / 8),
-        _ => 0,
+        Type::Int { bits, signed } => format!("{}{bits}", if *signed { 'I' } else { 'U' }),
+        Type::Float { bits } => format!("F{bits}"),
+        Type::Bool => "Bool".into(),
+        Type::String { max } => format!("String_{max}"),
+        Type::Enum { name, .. } | Type::Array { name, .. } | Type::Struct { name, .. } => name.clone(),
     }
 }
 
-fn array(
-    dict: &ParamDictionary,
-    element: &Type,
-    size: usize,
-    data: &[u8],
-    offset: &mut usize,
-) -> Result<Value, String> {
-    let mut items = Vec::new();
-    if matches!(element, Type::Int { .. } | Type::Float { .. }) {
-        let each = width(element);
-        let bytes = take(data, *offset, each.saturating_mul(size))
-            .map_err(|e| format!("Array NumericalType optimization failed to deserialize: {e}"))?;
-        items.extend(bytes.chunks(each.max(1)).map(|chunk| number(element, chunk)));
-        *offset += bytes.len();
-    } else {
-        for index in 0..size {
-            // The count comes from the dictionary: stop at the first element the data lacks.
-            let item = value(dict, element, data, offset)
-                .map_err(|e| format!("Array index {index} failed to deserialize: {e}"))?;
-            items.push(item);
-        }
-    }
-    Ok(Value::Array(items))
-}
-
-/// One value at `offset`, which moves past it.
-fn value(dict: &ParamDictionary, ty: &Type, data: &[u8], offset: &mut usize) -> Result<Value, String> {
-    let left = data.len().saturating_sub(*offset);
-    match ty {
-        Type::Int { .. } | Type::Float { .. } => {
-            let bytes = take(data, *offset, width(ty))?;
-            *offset += bytes.len();
-            Ok(number(ty, bytes))
-        }
-        Type::Bool => {
-            let byte = *data.get(*offset).ok_or("Not enough bytes to deserialize bool.")?;
-            *offset += 1;
-            let truth = |b: bool| {
-                let mut out = Vec::new();
-                let _ = dict.types.encode(&Type::Bool, &b.into(), &mut out);
-                out.first().copied()
-            };
-            match (Some(byte) == truth(true), Some(byte) == truth(false)) {
-                (true, _) => Ok(Value::Bool(true)),
-                (_, true) => Ok(Value::Bool(false)),
-                _ => Err(format!("Value {byte} out of range!")),
-            }
-        }
-        Type::String { max } => {
-            let prefix = width(&dict.types.config_type("FwSizeStoreType", Type::U16)).max(1);
-            let Ok(size) = take(data, *offset, prefix) else {
-                return Err("Not enough bytes to deserialize string length.".into());
-            };
-            let size = int(size, false) as usize;
-            let left = left - prefix;
-            if left < size {
-                return Err(format!("Not enough data to deserialize string data. Needed: {size} Left: {left}"));
-            }
-            if size > *max {
-                return Err(format!("String size {size} is greater than {max}!"));
-            }
-            let start = *offset + prefix;
-            let text = std::str::from_utf8(&data[start..start + size]).map_err(|e| {
-                format!("'utf-8' codec can't decode the string: invalid byte at position {}", e.valid_up_to())
-            })?;
-            *offset = start + size;
-            Ok(Value::Str(text.to_string()))
-        }
-        Type::Enum { rep, constants, .. } => {
-            let size = width(rep);
-            let Ok(bytes) = take(data, *offset, size) else {
-                return Err(format!("Could not deserialize enum value. Needed: {size} bytes Found: {left}"));
-            };
-            *offset += size;
-            let number = int(bytes, matches!(**rep, Type::Int { signed: true, .. }));
-            match constants.iter().find(|(_, v)| i128::from(*v) == number) {
-                Some((name, _)) => Ok(Value::Str(name.clone())),
-                None => Err(format!("Value {number} out of range!")),
-            }
-        }
-        Type::Array { size, element, .. } => array(dict, element, *size, data, offset),
-        Type::Struct { members, .. } => {
-            let mut pairs = Vec::new();
-            for member in members {
-                let item = match member.count {
-                    Some(count) => array(dict, &member.ty, count, data, offset),
-                    None => value(dict, &member.ty, data, offset),
-                };
-                let shown = match member.count {
-                    Some(count) => format!("Array_{}_{count}", type_name(&member.ty)),
-                    None => type_name(&member.ty),
-                };
-                let item = item.map_err(|e| format!("Field '{}' [{shown}] failed to deserialize: {e}", member.name))?;
-                pairs.push((member.name.clone(), item));
-            }
-            Ok(Value::Object(pairs))
-        }
+/// A decoded value with its 64-bit integers as numbers: the dictionary decodes them to text, for pages
+/// that hold numbers as doubles.
+fn exact(ty: &Type, value: Value) -> Value {
+    match (ty, value) {
+        (Type::Int { .. }, Value::String(text)) => match (text.parse::<i64>(), text.parse::<u64>()) {
+            (Ok(number), _) => number.into(),
+            (_, Ok(number)) => number.into(),
+            _ => text.into(),
+        },
+        (Type::Array { element, .. }, Value::Array(items)) => items.into_iter().map(|v| exact(element, v)).collect(),
+        (Type::Struct { members, .. }, Value::Object(map)) => map
+            .into_iter()
+            .map(|(name, v)| match members.iter().find(|m| m.name == name) {
+                Some(member) if member.count.is_some() => {
+                    let items = v.as_array().cloned().unwrap_or_default();
+                    (name, items.into_iter().map(|v| exact(&member.ty, v)).collect())
+                }
+                Some(member) => (name, exact(&member.ty, v)),
+                None => (name, v),
+            })
+            .collect(),
+        (_, value) => value,
     }
 }
 
@@ -173,7 +72,7 @@ pub(crate) fn from_dat<'a>(dict: &'a ParamDictionary, dat: &[u8]) -> Result<Vec<
         offset += 4;
         let id = field(offset, "parameter ID")?;
         offset += 4;
-        // Among parameters with the same identifier the Python tool keeps the last.
+        // Among parameters with the same identifier, the last.
         let Some(param) = dict.params.iter().rev().find(|p| p.id == id) else {
             return Err(format!("Unknown parameter ID {id} (0x{id:x}) at offset {}", offset - 4));
         };
@@ -191,115 +90,13 @@ pub(crate) fn from_dat<'a>(dict: &'a ParamDictionary, dat: &[u8]) -> Result<Vec<
                 "Incomplete parameter value for {name} at offset {at}: expected {value_size} bytes, got {left}"
             ));
         }
-        let mut end = offset;
-        let decoded = value(dict, &param.ty, data, &mut end).map_err(|e| {
-            format!("Failed to deserialize parameter {name} (id={id}, type={}): {e}", type_name(&param.ty))
+        let mut reader = Reader::new(&data[offset..offset + value_size]);
+        let decoded = dict.types.decode(&param.ty, &mut reader).map_err(|e| {
+            format!("Failed to deserialize parameter {name} (id={id}, type={}): {}", type_name(&param.ty), e.0)
         })?;
+        let decoded = exact(&param.ty, decoded);
         params.push((param, decoded));
         offset += value_size;
     }
     Ok(params)
-}
-
-/// An FPP format string as the Python GDS keeps it: `{x}` becomes `{:x}`, `{.2f}` becomes `{:.2f}`.
-fn python_format(format: Option<&str>) -> String {
-    let format = format.unwrap_or("{}");
-    let mut out = String::new();
-    let mut rest = format;
-    while let Some(open) = rest.find('{') {
-        out.push_str(&rest[..=open]);
-        rest = &rest[open + 1..];
-        let spec: &str = rest.split('}').next().unwrap_or("");
-        let closed = rest.len() > spec.len();
-        let (flags, kind) = spec.split_at(spec.len().saturating_sub(1));
-        let mut parts = flags.splitn(2, '.');
-        let digits = |part: Option<&str>| part.is_none_or(|p| p.bytes().all(|b| b.is_ascii_digit()));
-        if closed
-            && spec.is_ascii()
-            && "cdxoefgCDXOEFG".contains(kind)
-            && !kind.is_empty()
-            && digits(parts.next())
-            && digits(parts.next())
-        {
-            out.push(':');
-        }
-    }
-    out.push_str(rest);
-    out
-}
-
-/// What `to_jsonable()` of the Python GDS gives for a value of this type: the description of an
-/// array, the members of a struct each with format and description, a scalar as value and type.
-pub(crate) fn jsonable(ty: &Type, value: &Value) -> Value {
-    let text = |s: String| Value::Str(s);
-    let described = |name: String, size: usize, format: Option<&str>, element: &Type, value: &Value| {
-        vec![
-            ("name".to_string(), text(name.clone())),
-            ("type".to_string(), text(name)),
-            ("size".to_string(), Value::Int((size as i128).into())),
-            ("format".to_string(), text(python_format(format))),
-            ("value_type".to_string(), text(type_name(element).replace("Type", ""))),
-            ("values".to_string(), value.clone()),
-        ]
-    };
-    match (ty, value) {
-        (Type::Array { name, size, element, format }, _) => {
-            Value::Object(described(name.clone(), *size, format.as_deref(), element, value))
-        }
-        (Type::Struct { members, .. }, Value::Object(pairs)) => Value::Object(
-            members
-                .iter()
-                .zip(pairs)
-                .map(|(member, (name, item))| {
-                    let mut fields = vec![
-                        ("format".to_string(), text(python_format(member.format.as_deref()))),
-                        ("description".to_string(), text(member.description.clone().unwrap_or_default())),
-                    ];
-                    let inner = match member.count {
-                        Some(count) => Value::Object(described(
-                            format!("Array_{}_{count}", type_name(&member.ty)),
-                            count,
-                            None,
-                            &member.ty,
-                            item,
-                        )),
-                        None => jsonable(&member.ty, item),
-                    };
-                    if let Value::Object(inner) = inner {
-                        // dict.update: a key met again keeps its place and takes the new value.
-                        for (key, new) in inner {
-                            match fields.iter_mut().find(|(k, _)| *k == key) {
-                                Some(field) => field.1 = new,
-                                None => fields.push((key, new)),
-                            }
-                        }
-                    }
-                    (name.clone(), Value::Object(fields))
-                })
-                .collect(),
-        ),
-        _ => Value::Object(vec![
-            ("value".to_string(), value.clone()),
-            ("type".to_string(), text(type_name(ty).replace("Type", ""))),
-        ]),
-    }
-}
-
-/// `to_encoder_format` of `fprime-prm-decode`: the description of a value back to the value
-/// `fprime-prm-write` reads. It keeps `format` and `description` of a struct inside a struct.
-pub(crate) fn encoder_format(value: &Value) -> Value {
-    match value {
-        Value::Array(items) => Value::Array(items.iter().map(encoder_format).collect()),
-        Value::Object(pairs) => {
-            let get = |key: &str| pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v);
-            if let Some(Value::Array(items)) = get("values") {
-                Value::Array(items.iter().map(encoder_format).collect())
-            } else if let Some(inner) = get("value") {
-                encoder_format(inner)
-            } else {
-                Value::Object(pairs.iter().map(|(k, v)| (k.clone(), encoder_format(v))).collect())
-            }
-        }
-        other => other.clone(),
-    }
 }

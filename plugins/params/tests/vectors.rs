@@ -28,7 +28,7 @@ fn run(vector: &Value) -> Result<Value, String> {
                 assert_eq!(file, bytes);
             }
             let values = dict.from_dat(&bytes)?;
-            let json: Value = serde_json::from_str(&to_json(&values).to_json_pretty()).unwrap();
+            let json = to_json(&values);
             Ok(serde_json::json!({"json": json, "text": to_text(&values), "csv": to_csv(&values)}))
         }
         operation => {
@@ -104,34 +104,36 @@ fn every_type_round_trips() {
     assert_eq!(values.len(), 7, "the default of a.b.I is included");
     let dat = dict.to_dat(&values).unwrap();
     let decoded = dict.from_dat(&dat).unwrap();
-    let json: Value = serde_json::from_str(&to_json(&decoded).to_json_pretty()).unwrap();
+    let json = to_json(&decoded);
     let mut expected = file.clone();
     expected["a.b"] = serde_json::json!({"I": -7, "F": 2.5, "B": true});
     expected["c"]["A"] = serde_json::json!([1.0, 0.5, -2.0]);
     assert_eq!(json, expected);
     // Encoding the decoded JSON gives the same file.
     assert_eq!(dict.to_dat(&dict.select(&json, false).unwrap()).unwrap(), dat);
-    assert!(to_text(&decoded).contains(
-        "\n\nComponent: c\n  A = {\"name\": \"M.Three\", \"type\": \"M.Three\", \"size\": 3, \"format\": \"{}\", \"value_type\": \"F32\", \"values\": [1.0, 0.5, -2.0]} (type: M.Three, id: 5)\n  E = \"ON\" (type: M.Mode, id: 4)"
-    ));
+    assert!(to_text(&decoded)
+        .contains("\n\nComponent: c\n  A = [1.0,0.5,-2.0] (type: M.Three, id: 5)\n  E = \"ON\" (type: M.Mode, id: 4)"));
     assert!(to_csv(&decoded).contains("c,T,\"a \"\"b\"\", c\",String_16,7"));
     assert_eq!(
         to_seq(&values[..2], true),
         "; Autocoded sequence file from JSON\nR00:00:00 a.b.B_PRM_SET true\na.b.B_PRM_SAVE\nR00:00:00 a.b.F_PRM_SET 2.5\na.b.F_PRM_SAVE"
     );
     // The quotes inside a struct are doubled: the file is valid CSV.
-    assert!(to_csv(&decoded).contains("c,S,\"{\"\"x\"\": {\"\"format\"\": \"\"{}\"\", "), "{}", to_csv(&decoded));
+    assert!(to_csv(&decoded).contains("c,S,\"{\"\"x\"\":18446744073709551615,"), "{}", to_csv(&decoded));
 }
 
 #[test]
 fn rejected_values_name_the_parameter() {
     let (dict, _) = every_type();
     for (file, message) in [
-        (serde_json::json!({"a.b": {"I": 2147483648u32}}), "a.b.I [I32Type]: Value 2147483648 out of range!"),
-        (serde_json::json!({"a.b": {"B": 1}}), "a.b.B [BoolType]: Param value is not a valid boolean"),
-        (serde_json::json!({"c": {"E": "ONN"}}), "c.E [M.Mode]: Invalid enum member ONN set in ABCMeta enum!"),
-        (serde_json::json!({"c": {"A": [1, 2]}}), "c.A [M.Three]: Array type <class 'fprime_gds.common.models.serialize.numerical_types.F32Type'> is of length 3, actual length 2 found!"),
-        (serde_json::json!({"c": {"T": "12345678901234567"}}), "c.T [String_16]: String size 17 is greater than 16!"),
+        (serde_json::json!({"a.b": {"I": 2147483648u32}}), "a.b.I [I32]: 2147483648 is out of range for I32"),
+        (serde_json::json!({"a.b": {"B": 1}}), "a.b.B [Bool]: 1 is not a boolean"),
+        (serde_json::json!({"c": {"E": "ONN"}}), "c.E [M.Mode]: \"ONN\" is not a constant of enum M.Mode"),
+        (serde_json::json!({"c": {"A": [1, 2]}}), "c.A [M.Three]: [1,2] is not an array of 3 elements (M.Three)"),
+        (
+            serde_json::json!({"c": {"T": "12345678901234567"}}),
+            "c.T [String_16]: string of 17 bytes exceeds maximum 16",
+        ),
         (serde_json::json!({"c": {"X": 1}}), "Unable to find param c.X in dictionary"),
     ] {
         let result = dict.select(&file, false).and_then(|values| dict.to_dat(&values));

@@ -4,12 +4,12 @@
 
 mod decode;
 
+use decode::type_name;
 use fgds_core::clap::{Arg, ArgAction, ArgMatches, Command};
 use fgds_core::dictionary::Type;
+use fgds_core::serde_json::Value;
 use fgds_core::serde_json::{self, json};
 use fgds_core::{CliEnv, Dictionary, Manifest, Plugin, Registry, Result, Subcommand};
-use fgds_offline::convert::{convert, type_name, Source};
-use fgds_offline::value::Value;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -76,7 +76,7 @@ impl ParamDictionary {
                 default: item.get("default").filter(|d| !d.is_null()).cloned(),
             });
         }
-        // The order the Python tools write in: by qualified name.
+        // The order of a `.dat` file: by qualified name.
         params.sort_by_key(Param::full_name);
         Ok(ParamDictionary { params, types })
     }
@@ -113,8 +113,9 @@ impl ParamDictionary {
         let mut data = Vec::new();
         for (param, value) in values {
             let mut bytes = Vec::new();
-            convert(&self.types, &param.ty, &Value::from_json(value), Source::Parameter, &mut bytes)
-                .map_err(|e| format!("{} [{}]: {e}", param.full_name(), type_name(&param.ty)))?;
+            self.types
+                .encode(&param.ty, value, &mut bytes)
+                .map_err(|e| format!("{} [{}]: {}", param.full_name(), type_name(&param.ty), e.0))?;
             let size = u32::try_from(ID_SIZE + bytes.len()).map_err(|_| format!("{}: too long", param.full_name()))?;
             data.push(DELIMITER);
             data.extend_from_slice(&size.to_be_bytes());
@@ -142,7 +143,7 @@ pub fn to_seq(values: &[(&Param, serde_json::Value)], save: bool) -> String {
     let mut lines = vec!["; Autocoded sequence file from JSON".to_string()];
     for (param, value) in values {
         let command = format!("{}.{}", param.component, param.name.to_uppercase());
-        lines.push(format!("R00:00:00 {command}_PRM_SET {}", Value::from_json(value).to_json()));
+        lines.push(format!("R00:00:00 {command}_PRM_SET {}", fgds_offline::json_line(value)));
         if save {
             lines.push(format!("{command}_PRM_SAVE"));
         }
@@ -150,32 +151,19 @@ pub fn to_seq(values: &[(&Param, serde_json::Value)], save: bool) -> String {
     lines.join("\n")
 }
 
-/// Decoded values as the JSON `fprime-prm-write` reads: component, parameter, value.
+/// Decoded values as the JSON `prm-write` reads: component, parameter, value.
 pub fn to_json(values: &[(&Param, Value)]) -> Value {
-    let mut components: Vec<(String, Vec<(String, Value)>)> = Vec::new();
+    let mut components = serde_json::Map::new();
     for (param, value) in values {
-        let index = match components.iter().position(|(name, _)| *name == param.component) {
-            Some(index) => index,
-            None => {
-                components.push((param.component.clone(), Vec::new()));
-                components.len() - 1
-            }
-        };
-        components[index].1.push((param.name.clone(), decode::encoder_format(&shown(param, value))));
+        let component = components.entry(param.component.clone()).or_insert_with(|| json!({}));
+        component[&param.name] = value.clone();
     }
-    Value::Object(components.into_iter().map(|(name, params)| (name, Value::object(params))).collect())
+    Value::Object(components)
 }
 
-/// The value as `fprime-prm-decode` holds it: an array or struct is its `to_jsonable()`.
-fn shown(param: &Param, value: &Value) -> Value {
-    match param.ty {
-        Type::Array { .. } | Type::Struct { .. } => decode::jsonable(&param.ty, value),
-        _ => value.clone(),
-    }
-}
-
-fn shown_type(param: &Param) -> String {
-    type_name(&param.ty).replace("Type", "")
+/// A text as it is, any other value as JSON.
+fn shown(value: &Value) -> String {
+    value.as_str().map_or_else(|| value.to_string(), str::to_string)
 }
 
 /// Decoded values as text, grouped by component.
@@ -190,11 +178,11 @@ pub fn to_text(values: &[(&Param, Value)]) -> String {
             lines.push(format!("Component: {}", param.component));
             current = Some(&param.component);
         }
-        let shown = match &shown(param, value) {
-            Value::Str(s) => format!("\"{s}\""),
-            other => other.python_str(),
+        let shown = match value {
+            Value::String(text) => format!("\"{text}\""),
+            other => other.to_string(),
         };
-        lines.push(format!("  {} = {shown} (type: {}, id: {})", param.name, shown_type(param), param.id));
+        lines.push(format!("  {} = {shown} (type: {}, id: {})", param.name, type_name(&param.ty), param.id));
     }
     lines.join("\n")
 }
@@ -203,14 +191,11 @@ pub fn to_text(values: &[(&Param, Value)]) -> String {
 pub fn to_csv(values: &[(&Param, Value)]) -> String {
     let mut lines = vec!["Component,Parameter,Value,Type,ID".to_string()];
     for (param, value) in values {
-        let mut shown = match &shown(param, value) {
-            Value::Str(s) => s.clone(),
-            other => other.python_str(),
-        };
+        let mut shown = shown(value);
         if shown.contains([',', '"', '\n', '\r']) {
             shown = format!("\"{}\"", shown.replace('"', "\"\""));
         }
-        lines.push(format!("{},{},{shown},{},{}", param.component, param.name, shown_type(param), param.id));
+        lines.push(format!("{},{},{shown},{},{}", param.component, param.name, type_name(&param.ty), param.id));
     }
     lines.join("\n")
 }
@@ -248,7 +233,7 @@ fn output_arg() -> Arg {
         .help("Path of the output file [default: the input path with the extension of the format]")
 }
 
-/// Print the message of a failed tool and fail, as the Python tools do.
+/// Print the message of a failed tool and fail.
 fn finish(result: std::result::Result<(), String>) -> Result<ExitCode> {
     Ok(match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -275,7 +260,7 @@ fn begin(verb: &str, name: &str, input: &Path, dictionary: &Path, output: &Path,
     Some(ExitCode::FAILURE)
 }
 
-/// `Done, writing to` and the resolved path, then the file, as the Python tools.
+/// `Done, writing to` and the resolved path, then the file.
 fn write_file(path: &Path, bytes: &[u8]) -> std::result::Result<(), String> {
     let failed = |e: std::io::Error| format!("{}: {e}", path.display());
     let parent = path.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
@@ -375,7 +360,7 @@ impl Subcommand for DecodeCommand {
             let dict = ParamDictionary::load(&dictionary)?;
             let values = dict.from_dat(&bytes)?;
             let text = match format {
-                "json" => to_json(&values).to_json_pretty(),
+                "json" => serde_json::to_string_pretty(&to_json(&values)).map_err(|e| e.to_string())?,
                 "text" => to_text(&values),
                 _ => to_csv(&values),
             };

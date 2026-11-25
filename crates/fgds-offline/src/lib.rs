@@ -1,9 +1,7 @@
-//! What the offline tools share (sequence compiler, parameter tools): the values of their
-//! input files as the Python tools read them, the conversion of a value to a dictionary
-//! type, the dictionary file as those tools accept it, and the checksum of their output.
+//! What the offline tools share (sequence compiler, parameter tools): the dictionary file as they
+//! accept it, the JSON a sequence carries, and the checksum of their output.
 //! A library, not a plugin: plugins may not depend on each other (MNT-1).
 
-pub mod convert;
 pub mod value;
 
 use fgds_core::serde_json::{self, json};
